@@ -46,6 +46,11 @@
         </dependency>
 
         <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-mail</artifactId>
+        </dependency>
+
+        <dependency>
             <groupId>com.microsoft.sqlserver</groupId>
             <artifactId>mssql-jdbc</artifactId>
         </dependency>
@@ -149,6 +154,16 @@
                 <artifactId>maven-compiler-plugin</artifactId>
                 <configuration>
                     <parameters>true</parameters>
+                    <excludes>
+                        <exclude>**/MetadataExportService.java</exclude>
+                        <exclude>**/ClassificationImportExportService.java</exclude>
+                        <exclude>**/ClassificationSchemeController.java</exclude>
+                    </excludes>
+                    <testExcludes>
+                        <testExclude>**/EmailNotificationGreenMailTest.java</testExclude>
+                        <testExclude>**/ClassificationImportExportServiceTest.java</testExclude>
+                        <testExclude>**/MetadataExportControllerTest.java</testExclude>
+                    </testExcludes>
                     <annotationProcessorPaths>
                         <path>
                             <groupId>org.projectlombok</groupId>

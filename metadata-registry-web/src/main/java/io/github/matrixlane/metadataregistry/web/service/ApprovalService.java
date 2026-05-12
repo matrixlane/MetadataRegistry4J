@@ -1,5 +1,6 @@
 package io.github.matrixlane.metadataregistry.web.service;
 
+import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.Item;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.AdministeredItem;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationState;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationStatus;
@@ -7,15 +8,22 @@ import io.github.matrixlane.metadataregistry.web.common.ApiCodes;
 import io.github.matrixlane.metadataregistry.web.common.BusinessException;
 import io.github.matrixlane.metadataregistry.web.entity.ApprovalRecord;
 import io.github.matrixlane.metadataregistry.web.entity.ApprovalResult;
+import io.github.matrixlane.metadataregistry.web.notification.entity.NotificationType;
+import io.github.matrixlane.metadataregistry.web.notification.event.NotificationEvent;
 import io.github.matrixlane.metadataregistry.web.repository.AdministeredItemRepository;
 import io.github.matrixlane.metadataregistry.web.repository.ApprovalRecordRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -37,6 +45,7 @@ import java.util.UUID;
  * <p><b>并发安全：</b></p>
  * <p>基于 {@code @Version} 乐观锁防止多人同时审批同一记录（R2）。</p>
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -45,6 +54,10 @@ public class ApprovalService {
     private final ApprovalRecordRepository approvalRecordRepository;
     private final AdministeredItemRepository administeredItemRepository;
     private final RegistrationLifecycleService registrationLifecycleService;
+    private final ApplicationEventPublisher eventPublisher;
+
+    @Value("${app.approval.default-approver:admin}")
+    private String defaultApprover;
 
     private static final int MAX_OPINION_LENGTH = 2000;
 
@@ -66,7 +79,13 @@ public class ApprovalService {
 
         String submitter = currentUsername();
         ApprovalRecord record = ApprovalRecord.ofPending(administeredItemId, submitter);
-        return approvalRecordRepository.save(record);
+        record = approvalRecordRepository.save(record);
+
+        // 发布通知事件给审批人（异步，事务提交后触发）
+        publishNotification(defaultApprover, NotificationType.APPROVAL_SUBMITTED,
+                administeredItemId, submitter, null);
+
+        return record;
     }
 
     /**
@@ -96,7 +115,13 @@ public class ApprovalService {
         // 触发 ISO 状态迁移至 STANDARD
         transitionToStandard(record.getAdministeredItemId(), buildTransitionNote(approver, opinion));
 
-        return approvalRecordRepository.save(record);
+        ApprovalRecord saved = approvalRecordRepository.save(record);
+
+        // 发布通知事件给提交人（异步，事务提交后触发）
+        publishNotification(record.getSubmitter(), NotificationType.APPROVAL_APPROVED,
+                record.getAdministeredItemId(), record.getSubmitter(), opinion);
+
+        return saved;
     }
 
     /**
@@ -125,7 +150,13 @@ public class ApprovalService {
         String approver = currentUsername();
         record.reject(approver, opinion);
 
-        return approvalRecordRepository.save(record);
+        ApprovalRecord saved = approvalRecordRepository.save(record);
+
+        // 发布通知事件给提交人（异步，事务提交后触发）
+        publishNotification(record.getSubmitter(), NotificationType.APPROVAL_REJECTED,
+                record.getAdministeredItemId(), record.getSubmitter(), opinion);
+
+        return saved;
     }
 
     /**
@@ -156,7 +187,13 @@ public class ApprovalService {
 
         String submitter = currentUsername();
         ApprovalRecord record = ApprovalRecord.ofPending(administeredItemId, submitter);
-        return approvalRecordRepository.save(record);
+        record = approvalRecordRepository.save(record);
+
+        // 发布通知事件给审批人（异步，事务提交后触发）
+        publishNotification(defaultApprover, NotificationType.APPROVAL_SUBMITTED,
+                administeredItemId, submitter, null);
+
+        return record;
     }
 
     /**
@@ -263,5 +300,48 @@ public class ApprovalService {
             default -> throw new BusinessException(ApiCodes.APPROVAL_INVALID_STATE,
                     "无法从状态 " + current + " 自动迁移到 STANDARD");
         };
+    }
+
+    /**
+     * 发布审批通知事件。
+     * <p>通过 Spring Event 异步发布，在事务提交后（AFTER_COMMIT）触发，不阻塞审批主流程。</p>
+     */
+    private void publishNotification(String recipientId, NotificationType notificationType,
+                                     UUID administeredItemId, String submitterName, String opinion) {
+        try {
+            String itemName = resolveItemName(administeredItemId);
+            String approverName = currentUsername();
+
+            Map<String, Object> variables = new HashMap<>();
+            variables.put("itemName", itemName);
+            variables.put("submitterName", submitterName);
+            variables.put("approverName", approverName);
+            variables.put("opinion", opinion != null ? opinion : "");
+
+            NotificationEvent event = new NotificationEvent(
+                    recipientId, notificationType, variables, administeredItemId.toString());
+            eventPublisher.publishEvent(event);
+        } catch (Exception e) {
+            log.warn("发布审批通知事件失败: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 解析受管项的名称（取自第一个 Designation，失败时回退为 ID）。
+     */
+    private String resolveItemName(UUID administeredItemId) {
+        try {
+            return administeredItemRepository.findById(administeredItemId)
+                    .map(item -> {
+                        Item coreItem = item.getItem();
+                        if (coreItem != null && !coreItem.getDesignations().isEmpty()) {
+                            return coreItem.getDesignations().get(0).toString();
+                        }
+                        return null;
+                    })
+                    .orElse(administeredItemId.toString());
+        } catch (Exception e) {
+            return administeredItemId.toString();
+        }
     }
 }
