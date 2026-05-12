@@ -73,6 +73,12 @@ export const classificationSchemeApi = {
     }),
 };
 
+/** Unified metadata search (WI-015a) */
+export const metadataSearchApi = {
+  search: (params?: PageQuery & { type?: string; status?: string }) =>
+    request.get<PageResponse<any>>('/metadata/search', { params }),
+};
+
 export const pairingApi = {
   list: (itemId: string) =>
     request.get<any[]>(`/items/${itemId}/designation-definition-pairings`),

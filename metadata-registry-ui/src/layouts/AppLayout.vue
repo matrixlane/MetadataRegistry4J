@@ -56,6 +56,12 @@
               <template #title>{{ $t('nav.dashboard') }}</template>
             </el-menu-item>
 
+            <!-- 数据字典（WI-015a） -->
+            <el-menu-item index="/data-dictionary">
+              <el-icon><Reading /></el-icon>
+              <template #title>{{ $t('nav.dictionary') }}</template>
+            </el-menu-item>
+
             <el-sub-menu index="/registration">
               <template #title>
                 <el-icon><OfficeBuilding /></el-icon>
@@ -141,6 +147,7 @@
 import { ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
+import { Reading } from '@element-plus/icons-vue';
 
 const route = useRoute();
 const router = useRouter();

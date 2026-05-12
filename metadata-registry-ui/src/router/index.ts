@@ -124,6 +124,18 @@ const router = createRouter({
           meta: { title: '计量类' },
         },
         {
+          path: 'data-dictionary',
+          name: 'DataDictionary',
+          component: () => import('@/views/data-dictionary/BrowserView.vue'),
+          meta: { title: '数据字典' },
+        },
+        {
+          path: 'data-dictionary/:id',
+          name: 'MetadataDetail',
+          component: () => import('@/views/data-dictionary/MetadataDetailView.vue'),
+          meta: { title: '元数据详情' },
+        },
+        {
           path: 'classification',
           name: 'Classification',
           component: () => import('@/views/classification/ClassificationTreeBrowser.vue'),

@@ -5,6 +5,7 @@
   },
   "nav": {
     "dashboard": "概览",
+    "dictionary": "数据字典",
     "registration": "注册管理",
     "context": "上下文",
     "registrationAuthority": "注册机构",
