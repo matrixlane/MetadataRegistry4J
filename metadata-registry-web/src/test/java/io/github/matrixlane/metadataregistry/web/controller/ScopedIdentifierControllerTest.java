@@ -2,12 +2,15 @@ package io.github.matrixlane.metadataregistry.web.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.VersionStatus;
+import io.github.matrixlane.metadataregistry.web.auth.JwtService;
+import io.github.matrixlane.metadataregistry.web.config.AppProperties;
 import io.github.matrixlane.metadataregistry.web.dto.scopedidentifier.ScopedIdentifierCreateRequest;
 import io.github.matrixlane.metadataregistry.web.dto.scopedidentifier.ScopedIdentifierResponse;
 import io.github.matrixlane.metadataregistry.web.dto.scopedidentifier.VersionTransitionRequest;
 import io.github.matrixlane.metadataregistry.web.service.ScopedIdentifierService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.data.domain.Page;
@@ -26,6 +29,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(ScopedIdentifierController.class)
+@AutoConfigureMockMvc(addFilters = false)
 class ScopedIdentifierControllerTest {
 
     @Autowired
@@ -36,6 +40,12 @@ class ScopedIdentifierControllerTest {
 
     @MockBean
     private ScopedIdentifierService service;
+
+    @MockBean
+    private JwtService jwtService;
+
+    @MockBean
+    private AppProperties appProperties;
 
     private static final UUID TEST_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
     private static final UUID NS_ID = UUID.fromString("22222222-2222-2222-2222-222222222222");
@@ -82,7 +92,7 @@ class ScopedIdentifierControllerTest {
         mockMvc.perform(post("/api/v1/scoped-identifiers")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isUnprocessableEntity());
     }
 
     @Test

@@ -1,10 +1,13 @@
 package io.github.matrixlane.metadataregistry.web.controller;
 
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.VersionStatus;
+import io.github.matrixlane.metadataregistry.web.auth.JwtService;
+import io.github.matrixlane.metadataregistry.web.config.AppProperties;
 import io.github.matrixlane.metadataregistry.web.dto.scopedidentifier.ScopedIdentifierResponse;
 import io.github.matrixlane.metadataregistry.web.service.IdentifierResolutionService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -20,6 +23,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(IdentifierResolutionController.class)
+@AutoConfigureMockMvc(addFilters = false)
 class IdentifierResolutionControllerTest {
 
     @Autowired
@@ -27,6 +31,12 @@ class IdentifierResolutionControllerTest {
 
     @MockBean
     private IdentifierResolutionService resolutionService;
+
+    @MockBean
+    private JwtService jwtService;
+
+    @MockBean
+    private AppProperties appProperties;
 
     private static final UUID NS_ID = UUID.fromString("22222222-2222-2222-2222-222222222222");
     private static final UUID II_ID = UUID.fromString("33333333-3333-3333-3333-333333333333");

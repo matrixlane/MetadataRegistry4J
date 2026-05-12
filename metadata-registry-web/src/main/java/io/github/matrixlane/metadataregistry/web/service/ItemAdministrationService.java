@@ -16,6 +16,7 @@ import io.github.matrixlane.metadataregistry.commonfacilities.registration.Admin
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationAuthority;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationState;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationStatus;
+import io.github.matrixlane.metadataregistry.web.common.ApiCodes;
 import io.github.matrixlane.metadataregistry.web.common.BusinessException;
 import io.github.matrixlane.metadataregistry.web.common.ResourceNotFoundException;
 import io.github.matrixlane.metadataregistry.web.dto.common.ItemMetaResponse;
@@ -28,16 +29,24 @@ import io.github.matrixlane.metadataregistry.web.repository.LanguageIdentificati
 import io.github.matrixlane.metadataregistry.web.repository.NamespaceRepository;
 import io.github.matrixlane.metadataregistry.web.repository.ReferenceDocumentRepository;
 import io.github.matrixlane.metadataregistry.web.repository.RegistrationAuthorityRepository;
+import io.github.matrixlane.metadataregistry.web.service.namingconvention.NamingConventionEngine;
+import io.github.matrixlane.metadataregistry.web.service.namingconvention.NamingConventionRuleResult;
 import io.github.matrixlane.metadataregistry.web.util.ItemNamingHelper;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ItemAdministrationService {
@@ -47,9 +56,15 @@ public class ItemAdministrationService {
     private final NamespaceRepository namespaceRepository;
     private final RegistrationAuthorityRepository registrationAuthorityRepository;
     private final ContextRepository contextRepository;
+    private final NamingConventionEngine namingConventionEngine;
+    private final DefinitionAuditLogService definitionAuditLogService;
 
     public void applyDesignations(Item item, List<TextLine> designations) {
         if (designations == null) return;
+
+        validateNamingConventions(designations);
+        validatePreferredUniqueness(designations);
+
         item.getDesignations().clear();
         for (TextLine line : designations) {
             Designation d = new Designation();
@@ -70,8 +85,44 @@ public class ItemAdministrationService {
         }
     }
 
+    private void validateNamingConventions(List<TextLine> designations) {
+        for (TextLine line : designations) {
+            Sign sign = Sign.of(line.value());
+            List<NamingConventionRuleResult> results = namingConventionEngine.validate(sign);
+            List<String> failures = results.stream()
+                    .filter(r -> !r.isPassed())
+                    .map(r -> r.getRuleName() + ": " + String.join(", ", r.getMessages()))
+                    .toList();
+            if (!failures.isEmpty()) {
+                throw new BusinessException(ApiCodes.VALIDATION_FAILED,
+                        "命名规范校验失败 [" + line.value() + "]: " + String.join("; ", failures));
+            }
+        }
+    }
+
+    private void validatePreferredUniqueness(List<TextLine> designations) {
+        Map<UUID, Integer> preferredCountByLanguage = new HashMap<>();
+        for (TextLine line : designations) {
+            if (line.contexts() == null) continue;
+            boolean hasPreferred = line.contexts().stream()
+                    .anyMatch(c -> c.acceptability() == io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.Acceptability.PREFERRED);
+            if (hasPreferred) {
+                preferredCountByLanguage.merge(line.languageId(), 1, Integer::sum);
+            }
+        }
+        for (Map.Entry<UUID, Integer> entry : preferredCountByLanguage.entrySet()) {
+            if (entry.getValue() > 1) {
+                throw new BusinessException(ApiCodes.CONFLICT,
+                        "同一语言下只能有一个首选名称 (PREFERRED)，languageId=" + entry.getKey());
+            }
+        }
+    }
+
     public void applyDefinitions(Item item, List<TextLine> definitions) {
         if (definitions == null) return;
+
+        List<DefinitionSnapshot> oldSnapshots = snapshotDefinitions(item.getDefinitions());
+
         item.getDefinitions().clear();
         for (TextLine line : definitions) {
             Definition d = new Definition();
@@ -90,6 +141,65 @@ public class ItemAdministrationService {
             }
             item.getDefinitions().add(d);
         }
+
+        List<DefinitionSnapshot> newSnapshots = snapshotDefinitions(item.getDefinitions());
+        logDefinitionChanges(item.getId(), oldSnapshots, newSnapshots);
+    }
+
+    private List<DefinitionSnapshot> snapshotDefinitions(List<Definition> definitions) {
+        if (definitions == null) return Collections.emptyList();
+        return definitions.stream()
+                .map(d -> new DefinitionSnapshot(
+                        d.getId(),
+                        d.getText() == null ? null : d.getText().getValue(),
+                        d.getLanguage() == null ? null : d.getLanguage().getLanguageIdentifier()))
+                .toList();
+    }
+
+    private void logDefinitionChanges(UUID itemId, List<DefinitionSnapshot> oldList, List<DefinitionSnapshot> newList) {
+        String operator = currentUser();
+        Map<String, DefinitionSnapshot> oldMap = new HashMap<>();
+        for (DefinitionSnapshot s : oldList) {
+            if (s.language != null) oldMap.put(s.language, s);
+        }
+        Map<String, DefinitionSnapshot> newMap = new HashMap<>();
+        for (DefinitionSnapshot s : newList) {
+            if (s.language != null) newMap.put(s.language, s);
+        }
+
+        for (DefinitionSnapshot oldSnap : oldList) {
+            DefinitionSnapshot newSnap = newMap.get(oldSnap.language);
+            if (newSnap == null) {
+                definitionAuditLogService.save(io.github.matrixlane.metadataregistry.web.entity.DefinitionAuditLog.ofDelete(
+                        oldSnap.id, itemId, oldSnap.text, oldSnap.language, operator));
+            } else if (!oldSnap.text.equals(newSnap.text)) {
+                definitionAuditLogService.save(io.github.matrixlane.metadataregistry.web.entity.DefinitionAuditLog.ofUpdate(
+                        oldSnap.id, itemId, oldSnap.text, newSnap.text, oldSnap.language, operator));
+            }
+        }
+        for (DefinitionSnapshot newSnap : newList) {
+            if (!oldMap.containsKey(newSnap.language)) {
+                // CREATE: id may be null before persist; logged with null definitionId,
+                // itemId and languageIdentifier allow tracing.
+                definitionAuditLogService.save(io.github.matrixlane.metadataregistry.web.entity.DefinitionAuditLog.ofCreate(
+                        newSnap.id, itemId, newSnap.text, newSnap.language, operator));
+            }
+        }
+    }
+
+    private String currentUser() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) {
+            return "system";
+        }
+        Object principal = auth.getPrincipal();
+        if (principal instanceof io.github.matrixlane.metadataregistry.web.auth.AuthenticatedUser user) {
+            return user.username();
+        }
+        return auth.getName();
+    }
+
+    private record DefinitionSnapshot(UUID id, String text, String language) {
     }
 
     public AdministeredItem ensureAdministeredItem(Item item, ItemRegistrationRequest req) {
