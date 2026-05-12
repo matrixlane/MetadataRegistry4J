@@ -162,7 +162,6 @@
                     <testExcludes>
                         <testExclude>**/EmailNotificationGreenMailTest.java</testExclude>
                         <testExclude>**/ClassificationImportExportServiceTest.java</testExclude>
-                        <testExclude>**/MetadataExportControllerTest.java</testExclude>
                     </testExcludes>
                     <annotationProcessorPaths>
                         <path>
