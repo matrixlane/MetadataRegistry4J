@@ -320,6 +320,45 @@ class MultiLevelApprovalServiceTest {
     }
 
     @Test
+    @DisplayName("步骤通过：按组织分配，无权限应抛出异常")
+    void approveStep_orgAssignee_noPermission_shouldThrow() {
+        authenticateAs("randomUser", AppUserRole.REGISTRAR);
+        ApprovalProcessInstance instance = createPendingInstance();
+        ApprovalStepRecord stepRecord = createPendingStepRecord(instance, 1, "orgA");
+        stepRecord.setAssigneeRule(ApprovalStepAssigneeRule.BY_ORGANIZATION);
+        stepRecord.setAssigneeValue("orgA");
+
+        when(approvalStepRecordRepository.findById(stepRecordId)).thenReturn(Optional.of(stepRecord));
+
+        assertThatThrownBy(() -> multiLevelApprovalService.approveStep(stepRecordId, "同意"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> {
+                    BusinessException be = (BusinessException) ex;
+                    assertThat(be.getCode()).isEqualTo(ApiCodes.APPROVAL_UNAUTHORIZED_STEP);
+                });
+    }
+
+    @Test
+    @DisplayName("步骤通过：按组织分配，匹配成功应通过")
+    void approveStep_orgAssignee_match_shouldSucceed() {
+        authenticateAs("orgA", AppUserRole.ADMIN);
+        ApprovalProcessInstance instance = createPendingInstance();
+        ApprovalStepRecord stepRecord = createPendingStepRecord(instance, 1, "orgA");
+        stepRecord.setAssigneeRule(ApprovalStepAssigneeRule.BY_ORGANIZATION);
+        stepRecord.setAssigneeValue("orgA");
+
+        when(approvalStepRecordRepository.findById(stepRecordId)).thenReturn(Optional.of(stepRecord));
+        when(approvalStepRepository.findByTemplateIdOrderByStepNumberAsc(templateId))
+                .thenReturn(List.of(step1, step2));
+        when(approvalProcessInstanceRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(approvalStepRecordRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        ApprovalStepRecord result = multiLevelApprovalService.approveStep(stepRecordId, "同意");
+
+        assertThat(result.getStatus()).isEqualTo(ApprovalStepStatus.APPROVED);
+    }
+
+    @Test
     @DisplayName("步骤通过：流程已结束应抛出异常")
     void approveStep_processCompleted_shouldThrow() {
         authenticateAs("approver1", AppUserRole.ADMIN);

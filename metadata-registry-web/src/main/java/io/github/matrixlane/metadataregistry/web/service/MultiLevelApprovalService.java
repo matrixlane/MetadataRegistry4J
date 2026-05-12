@@ -466,9 +466,12 @@ public class MultiLevelApprovalService {
                 }
             }
             case BY_ORGANIZATION -> {
-                // 预留扩展：按组织分配
-                throw new BusinessException(ApiCodes.APPROVAL_UNAUTHORIZED_STEP,
-                        "按组织分配审批人尚未实现");
+                // MVP 简化：按组织分配 fallback 为按用户名直接匹配
+                // V1 阶段需引入组织层级模型后，按用户所属组织进行解析
+                if (!assigneeValue.equals(approver)) {
+                    throw new BusinessException(ApiCodes.APPROVAL_UNAUTHORIZED_STEP,
+                            "您不是该步骤指定组织范围内的审批人");
+                }
             }
         }
     }
