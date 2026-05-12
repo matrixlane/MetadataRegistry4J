@@ -44,6 +44,35 @@ export const contextApi = {
   options: (params?: { q?: string }) => request.get<{ id: string; label: string }[]>('/contexts/options', { params }),
 };
 
+export const classificationSchemeApi = {
+  list: (params?: PageQuery) =>
+    request.get<PageResponse<any>>('/classification-schemes', { params }),
+  get: (id: string) => request.get<any>(`/classification-schemes/${id}`),
+  create: (data: Record<string, unknown>) =>
+    request.post<any>('/classification-schemes', data),
+  update: (id: string, data: Record<string, unknown>) =>
+    request.put<any>(`/classification-schemes/${id}`, data),
+  delete: (id: string) => request.delete(`/classification-schemes/${id}`),
+  getTree: (schemeId: string) =>
+    request.get<any[]>(`/classification-schemes/${schemeId}/nodes/tree`),
+  getChildren: (schemeId: string, parentId?: string) =>
+    request.get<any[]>(`/classification-schemes/${schemeId}/nodes/children`, {
+      params: parentId ? { parentId } : {},
+    }),
+  getNode: (schemeId: string, nodeId: string) =>
+    request.get<any>(`/classification-schemes/${schemeId}/nodes/${nodeId}`),
+  createNode: (schemeId: string, data: Record<string, unknown>) =>
+    request.post<any>(`/classification-schemes/${schemeId}/nodes`, data),
+  updateNode: (schemeId: string, nodeId: string, data: Record<string, unknown>) =>
+    request.put<any>(`/classification-schemes/${schemeId}/nodes/${nodeId}`, data),
+  deleteNode: (schemeId: string, nodeId: string) =>
+    request.delete(`/classification-schemes/${schemeId}/nodes/${nodeId}`),
+  searchNodes: (schemeId: string, keyword: string) =>
+    request.get<any[]>(`/classification-schemes/${schemeId}/nodes/search`, {
+      params: { keyword },
+    }),
+};
+
 export const pairingApi = {
   list: (itemId: string) =>
     request.get<any[]>(`/items/${itemId}/designation-definition-pairings`),

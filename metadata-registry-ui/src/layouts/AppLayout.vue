@@ -88,6 +88,14 @@
               <el-menu-item index="/data-element-concepts">{{ $t('nav.dataElementConcept') }}</el-menu-item>
             </el-sub-menu>
 
+            <el-sub-menu index="/classification">
+              <template #title>
+                <el-icon><Collection /></el-icon>
+                <span>{{ $t('nav.classification') }}</span>
+              </template>
+              <el-menu-item index="/classification">{{ $t('nav.classification') }}</el-menu-item>
+            </el-sub-menu>
+
             <el-sub-menu index="/domain">
               <template #title>
                 <el-icon><Grid /></el-icon>

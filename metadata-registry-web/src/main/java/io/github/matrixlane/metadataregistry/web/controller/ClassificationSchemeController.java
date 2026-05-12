@@ -82,6 +82,22 @@ public class ClassificationSchemeController {
 
     // ==================== Node Endpoints ====================
 
+    @GetMapping("/{schemeId}/nodes/children")
+    @Operation(summary = "懒加载子节点", description = "根据 parentId 获取子节点；parentId 为空表示根节点")
+    public ApiResponse<List<ClassificationTreeNode>> getChildren(
+            @PathVariable UUID schemeId,
+            @RequestParam(required = false) UUID parentId) {
+        return ApiResponse.ok(service.getChildren(schemeId, parentId));
+    }
+
+    @GetMapping("/{schemeId}/nodes/search")
+    @Operation(summary = "搜索节点", description = "按名称或编码模糊匹配")
+    public ApiResponse<List<ClassificationNodeResponse>> searchNodes(
+            @PathVariable UUID schemeId,
+            @RequestParam String keyword) {
+        return ApiResponse.ok(service.searchNodes(schemeId, keyword));
+    }
+
     @GetMapping("/{schemeId}/nodes")
     @Operation(summary = "列出分类方案下所有节点（扁平列表）")
     public ApiResponse<List<ClassificationNodeResponse>> listNodes(@PathVariable UUID schemeId) {
@@ -115,6 +131,7 @@ public class ClassificationSchemeController {
     public ApiResponse<ClassificationNodeResponse> createNode(
             @PathVariable UUID schemeId,
             @Valid @RequestBody ClassificationNodeRequest request) {
+        request.setSchemeId(schemeId);
         return ApiResponse.ok(service.createNode(request));
     }
 

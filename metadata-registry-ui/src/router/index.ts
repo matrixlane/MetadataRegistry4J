@@ -124,6 +124,12 @@ const router = createRouter({
           meta: { title: '计量类' },
         },
         {
+          path: 'classification',
+          name: 'Classification',
+          component: () => import('@/views/classification/ClassificationTreeBrowser.vue'),
+          meta: { title: '分类管理' },
+        },
+        {
           path: 'data-elements',
           name: 'DataElements',
           component: () => import('@/views/data-element/DataElementList.vue'),

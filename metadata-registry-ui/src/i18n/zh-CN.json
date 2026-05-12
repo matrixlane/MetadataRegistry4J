@@ -28,6 +28,7 @@
     "unitOfMeasure": "计量单位",
     "measureClass": "计量类",
     "dataElement": "数据元",
+    "classification": "分类管理",
     "administeredItems": "注册项",
     "system": "系统",
     "userManagement": "用户管理",
