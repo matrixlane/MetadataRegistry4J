@@ -1,0 +1,69 @@
+<template>
+  <div>
+    <h2 style="margin-top: 0;">数据类型</h2>
+    <DataTablePage
+      ref="tableRef"
+      :fetch-fn="dataTypeApi.list"
+      @create="dialog?.open()"
+      @edit="(r) => dialog?.open(r)"
+      @delete="handleDelete"
+    >
+      <template #columns>
+        <el-table-column prop="identifier" label="标识符" width="160" sortable />
+        <el-table-column label="名称">
+          <template #default="{ row }">
+            {{ row.designations?.find((d: any) => d.languageCode === 'zh-CN')?.value || row.designations?.[0]?.value || '-' }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="dataTypeSchemeName" label="数据类型方案" />
+        <el-table-column prop="registrationStatus" label="状态" width="120">
+          <template #default="{ row }">
+            <el-tag size="small">{{ $t('registrationStatus.' + row.registrationStatus) }}</el-tag>
+          </template>
+        </el-table-column>
+      </template>
+    </DataTablePage>
+
+    <ResourceFormDialog
+      ref="dialog"
+      title="数据类型"
+      :submit-fn="submitFn"
+      @success="tableRef?.fetchData()"
+    >
+      <template #fields="{ form }">
+        <el-form-item label="标识符" prop="identifier" required>
+          <el-input v-model="form.identifier" />
+        </el-form-item>
+        <el-form-item label="中文名称">
+          <el-input v-model="form.titleZh" />
+        </el-form-item>
+        <el-form-item label="英文名称">
+          <el-input v-model="form.titleEn" />
+        </el-form-item>
+        <el-form-item label="数据类型方案" required>
+          <el-input v-model="form.dataTypeSchemeId" placeholder="UUID" />
+        </el-form-item>
+      </template>
+    </ResourceFormDialog>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref } from 'vue';
+import { dataTypeApi } from '@/api/resources';
+import DataTablePage from '@/components/DataTablePage.vue';
+import ResourceFormDialog from '@/components/ResourceFormDialog.vue';
+
+const tableRef = ref<InstanceType<typeof DataTablePage>>();
+const dialog = ref<InstanceType<typeof ResourceFormDialog>>();
+
+function submitFn(data: Record<string, unknown>) {
+  if (data.id) return dataTypeApi.update(data.id as string, data);
+  return dataTypeApi.create(data);
+}
+
+async function handleDelete(row: Record<string, unknown>) {
+  await dataTypeApi.delete(row.id as string);
+  tableRef.value?.fetchData();
+}
+</script>

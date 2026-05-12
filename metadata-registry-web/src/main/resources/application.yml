@@ -1,0 +1,75 @@
+spring:
+  application:
+    name: metadata-registry
+  config:
+    import: optional:application-local.yml
+  datasource:
+    url: ${DB_URL:jdbc:sqlserver://localhost:1433;databaseName=metadata_registry;encrypt=true;trustServerCertificate=true;integratedSecurity=true}
+    driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 20000
+  jpa:
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.SQLServerDialect
+        format_sql: true
+        jdbc:
+          time_zone: Asia/Shanghai
+          batch_size: 25
+        order_inserts: true
+        order_updates: true
+        default_batch_fetch_size: 16
+    hibernate:
+      ddl-auto: ${DDL_AUTO:update}
+    show-sql: false
+    open-in-view: false
+  jackson:
+    default-property-inclusion: non_null
+    serialization:
+      write-dates-as-timestamps: false
+      indent-output: false
+    time-zone: Asia/Shanghai
+
+server:
+  port: ${SERVER_PORT:8081}
+  servlet:
+    context-path: /
+  compression:
+    enabled: true
+    mime-types: application/json,text/html,text/css,application/javascript
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: when-authorized
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+  api-docs:
+    path: /v3/api-docs
+
+logging:
+  level:
+    root: INFO
+    io.github.matrixlane: INFO
+    org.hibernate.SQL: WARN
+    org.hibernate.orm.jdbc.bind: WARN
+
+app:
+  jwt:
+    secret: ${JWT_SECRET:please-replace-with-a-long-random-string-of-at-least-32-bytes-XYZ}
+    expires-minutes: ${JWT_EXPIRES_MINUTES:480}
+    issuer: metadata-registry
+  cors:
+    allowed-origins: ${CORS_ORIGINS:http://localhost:5173}
+  seed:
+    enabled: ${SEED_ENABLED:true}
