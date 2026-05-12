@@ -16,6 +16,7 @@
         <module>metadata-registry-common-facilities</module>
         <module>metadata-registry-data-specification</module>
         <module>metadata-registry-data-set-registration</module>
+        <module>metadata-registry-item-mapping</module>
         <module>metadata-registry-web</module>
     </modules>
 
@@ -108,6 +109,11 @@
             <dependency>
                 <groupId>io.github.matrixlane</groupId>
                 <artifactId>metadata-registry-data-set-registration</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.github.matrixlane</groupId>
+                <artifactId>metadata-registry-item-mapping</artifactId>
                 <version>${project.version}</version>
             </dependency>
         </dependencies>
