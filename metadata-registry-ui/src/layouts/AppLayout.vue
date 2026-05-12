@@ -102,6 +102,12 @@
               <el-menu-item index="/classification">{{ $t('nav.classification') }}</el-menu-item>
             </el-sub-menu>
 
+            <!-- 映射网络（WI-011-2-1） -->
+            <el-menu-item index="/mapping-network">
+              <el-icon><Share /></el-icon>
+              <template #title>{{ $t('nav.mappingNetwork') }}</template>
+            </el-menu-item>
+
             <el-sub-menu index="/domain">
               <template #title>
                 <el-icon><Grid /></el-icon>

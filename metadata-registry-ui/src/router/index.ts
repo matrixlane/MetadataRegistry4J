@@ -142,6 +142,12 @@ const router = createRouter({
           meta: { title: '分类管理' },
         },
         {
+          path: 'mapping-network',
+          name: 'MappingNetwork',
+          component: () => import('@/views/mapping/MappingNetworkView.vue'),
+          meta: { title: '映射网络' },
+        },
+        {
           path: 'data-elements',
           name: 'DataElements',
           component: () => import('@/views/data-element/DataElementList.vue'),

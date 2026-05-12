@@ -79,6 +79,22 @@ export const metadataSearchApi = {
     request.get<PageResponse<any>>('/metadata/search', { params }),
 };
 
+/** Mapping network graph (WI-011-2-1) */
+export const getMappingNetwork = (
+  centerId: string,
+  depth?: number,
+  filterTypes?: string[]
+) =>
+  request.get('/mappings/network', {
+    params: { 
+      centerId, 
+      depth, 
+      ...(filterTypes && filterTypes.length > 0 
+        ? { filterTypes: filterTypes.join(',') } 
+        : {})
+    },
+  });
+
 export const pairingApi = {
   list: (itemId: string) =>
     request.get<any[]>(`/items/${itemId}/designation-definition-pairings`),

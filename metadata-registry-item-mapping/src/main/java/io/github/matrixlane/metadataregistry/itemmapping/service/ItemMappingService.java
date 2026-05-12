@@ -9,8 +9,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Deque;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -303,5 +305,183 @@ public class ItemMappingService {
             throw new IllegalArgumentException("Mapping not found: " + mappingId);
         }
         mappingRepository.deleteById(mappingId);
+    }
+
+    // ---- Network Graph Query ----
+
+    /**
+     * Result of a network graph query containing nodes and edges.
+     */
+    public record NetworkGraphResult(
+            Set<NetworkNode> nodes,
+            List<NetworkEdge> edges,
+            boolean truncated,
+            int totalNodeCount
+    ) {}
+
+    /**
+     * A node in the network graph representing an administered item.
+     */
+    public record NetworkNode(
+            UUID itemId,
+            int depth,
+            boolean isCenter
+    ) {}
+
+    /**
+     * An edge in the network graph representing a mapping relationship.
+     */
+    public record NetworkEdge(
+            UUID mappingId,
+            UUID sourceId,
+            UUID targetId,
+            MappingType mappingType,
+            String description
+    ) {}
+
+    /**
+     * Queries the local mapping network around a center item.
+     *
+     * <p>Performs BFS traversal up to {@code maxDepth} levels (default 3),
+     * optionally filtered by mapping type. Returns at most 500 nodes;
+     * if the result exceeds 500 nodes, it is truncated and a flag is set.
+     *
+     * @param centerId    the UUID of the center AdministeredItem
+     * @param maxDepth    maximum traversal depth (1-3)
+     * @param filterTypes optional mapping type filter (null or empty = no filter)
+     * @return a NetworkGraphResult containing nodes, edges, and truncation info
+     */
+    @Transactional(readOnly = true)
+    public NetworkGraphResult getNetworkGraph(UUID centerId, int maxDepth,
+                                               List<MappingType> filterTypes) {
+        // Clamp depth to 1-3
+        maxDepth = Math.max(1, Math.min(3, maxDepth));
+
+        Set<UUID> visited = new LinkedHashSet<>();
+        List<NetworkEdge> edges = new ArrayList<>();
+        Set<UUID> visitedMappings = new HashSet<>();
+
+        // BFS queue: (itemId, depth)
+        Deque<Map.Entry<UUID, Integer>> queue = new ArrayDeque<>();
+        queue.add(Map.entry(centerId, 0));
+        visited.add(centerId);
+
+        boolean truncated = false;
+
+        while (!queue.isEmpty()) {
+            var entry = queue.poll();
+            UUID currentId = entry.getKey();
+            int currentDepth = entry.getValue();
+
+            if (currentDepth >= maxDepth) {
+                continue;
+            }
+
+            List<ItemMapping> mappings = mappingRepository.findByItemId(currentId);
+
+            for (ItemMapping mapping : mappings) {
+                // Skip already processed mappings
+                if (!visitedMappings.add(mapping.getId())) {
+                    continue;
+                }
+
+                // Apply type filter
+                if (filterTypes != null && !filterTypes.isEmpty()
+                        && !filterTypes.contains(mapping.getMappingType())) {
+                    continue;
+                }
+
+                // Determine the neighbor item ID
+                UUID subjectId = mapping.getSubject().getItemId();
+                UUID objectId = mapping.getObject().getItemId();
+
+                // Skip external mappings (no AdministeredItem reference)
+                if (subjectId == null || objectId == null) {
+                    continue;
+                }
+
+                UUID neighborId = subjectId.equals(currentId) ? objectId : subjectId;
+
+                // Add the edge
+                edges.add(new NetworkEdge(
+                        mapping.getId(),
+                        subjectId,
+                        objectId,
+                        mapping.getMappingType(),
+                        mapping.getDescription()
+                ));
+
+                // Add neighbor to BFS if not visited and within node limit
+                if (!visited.contains(neighborId)) {
+                    if (visited.size() >= 500) {
+                        truncated = true;
+                        continue;
+                    }
+                    visited.add(neighborId);
+                    queue.add(Map.entry(neighborId, currentDepth + 1));
+                }
+            }
+        }
+
+        // Build node set
+        Set<NetworkNode> nodes = new LinkedHashSet<>();
+        for (UUID itemId : visited) {
+            int depth = 0;
+            // Find the min depth for this node
+            for (var qe : queue) {
+                if (qe.getKey().equals(itemId)) {
+                    depth = qe.getValue();
+                    break;
+                }
+            }
+            // Better approach: track depths in a separate map
+            nodes.add(new NetworkNode(itemId, 0, itemId.equals(centerId)));
+        }
+
+        // Recalculate depths properly
+        nodes = new LinkedHashSet<>();
+        Map<UUID, Integer> nodeDepths = computeDepths(centerId, edges);
+        for (UUID itemId : visited) {
+            nodes.add(new NetworkNode(
+                    itemId,
+                    nodeDepths.getOrDefault(itemId, 0),
+                    itemId.equals(centerId)
+            ));
+        }
+
+        return new NetworkGraphResult(nodes, edges, truncated, visited.size());
+    }
+
+    /**
+     * Computes the shortest path depth from center for each node.
+     */
+    private Map<UUID, Integer> computeDepths(UUID centerId, List<NetworkEdge> edges) {
+        // Build adjacency list
+        Map<UUID, Set<UUID>> adjacency = new java.util.HashMap<>();
+        for (NetworkEdge edge : edges) {
+            adjacency.computeIfAbsent(edge.sourceId(), k -> new HashSet<>()).add(edge.targetId());
+            adjacency.computeIfAbsent(edge.targetId(), k -> new HashSet<>()).add(edge.sourceId());
+        }
+
+        // BFS from center
+        Map<UUID, Integer> depths = new java.util.HashMap<>();
+        Deque<UUID> queue2 = new ArrayDeque<>();
+        depths.put(centerId, 0);
+        queue2.add(centerId);
+
+        while (!queue2.isEmpty()) {
+            UUID current = queue2.poll();
+            int currentDepth = depths.get(current);
+
+            Set<UUID> neighbors = adjacency.getOrDefault(current, Set.of());
+            for (UUID neighbor : neighbors) {
+                if (!depths.containsKey(neighbor)) {
+                    depths.put(neighbor, currentDepth + 1);
+                    queue2.add(neighbor);
+                }
+            }
+        }
+
+        return depths;
     }
 }
