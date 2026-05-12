@@ -115,8 +115,8 @@
 
 | 问题 | 标准定义 | 当前实现 | 建议 |
 |------|----------|----------|------|
-| `Item` 不是抽象类 | `Item` 是 **abstract**（Page 48: "Item is an abstract superclass"） | `Item` 是具体实体类，可实例化 | 应标记为 `abstract` |
-| `Concept` 不是抽象类 | `Concept` 是 **abstract** | `Concept` 是具体实体类 | 应标记为 `abstract` |
+| ✅ `Item` 不是抽象类 | `Item` 是 **abstract**（Page 48: "Item is an abstract superclass"） | `Item` 是具体实体类，可实例化 | 已标记为 `abstract`（WI-006） |
+| ✅ `Concept` 不是抽象类 | `Concept` 是 **abstract** | `Concept` 是具体实体类 | 已标记为 `abstract`（WI-006） |
 | `Constraint_Set` 缺失 | 标准 9.4.5 定义了 `Constraint_Set`，继承 `Item`，用于注册约束 | 未实现 | 补充实现 |
 | `Naming_Convention` 缺失 | 标准 8.4.4 定义了 `Naming_Convention`，继承 `Item`，用于命名规则 | 未实现 | 补充实现 |
 | `Registry_Specification` 缺失 | 标准 9.4.10 定义了 `Registry_Specification`，描述注册环境 | 未实现 | 补充实现 |

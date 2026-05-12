@@ -27,7 +27,7 @@ import java.util.List;
 @Getter
 @Setter
 @NoArgsConstructor
-public class Item extends Entity {
+public abstract class Item extends Entity {
 
     @OneToMany(mappedBy = "item", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Slot> slots = new ArrayList<>();

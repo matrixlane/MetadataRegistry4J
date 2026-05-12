@@ -9,9 +9,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class ItemTest {
 
+    /**
+     * Concrete test subclass of abstract {@link Item} for testing base behaviour.
+     */
+    private static class TestItem extends Item {
+    }
+
     @Test
     void shouldInitializeCollections() {
-        Item item = new Item();
+        Item item = new TestItem();
         assertThat(item.getSlots()).isEmpty();
         assertThat(item.getDesignations()).isEmpty();
         assertThat(item.getDefinitions()).isEmpty();
@@ -19,7 +25,7 @@ class ItemTest {
 
     @Test
     void shouldAddSlot() {
-        Item item = new Item();
+        Item item = new TestItem();
         Slot slot = new Slot("attr", "val", "xsd:string", item);
         item.getSlots().add(slot);
         assertThat(item.getSlots()).hasSize(1);
@@ -27,7 +33,7 @@ class ItemTest {
 
     @Test
     void toStringShouldDelegateToDesignation() {
-        Item item = new Item();
+        Item item = new TestItem();
         Designation d = new Designation();
         Sign sign = new Sign();
         sign.setValue("Test Name");
@@ -38,7 +44,7 @@ class ItemTest {
 
     @Test
     void toStringShouldFallBackToSuperWhenNoDesignations() {
-        Item item = new Item();
+        Item item = new TestItem();
         assertThat(item.toString()).contains(item.getClass().getSimpleName());
     }
 }
