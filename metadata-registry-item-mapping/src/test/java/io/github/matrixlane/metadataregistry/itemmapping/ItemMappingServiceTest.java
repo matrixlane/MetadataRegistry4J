@@ -159,7 +159,6 @@ class ItemMappingServiceTest {
                 MappingType.EQUIVALENT
         );
         when(repository.findByItemId(any())).thenReturn(List.of());
-        when(repository.findAll()).thenReturn(List.of());
         when(repository.save(any())).thenReturn(savedMapping);
 
         ItemMapping result = service.createItemMapping(subjectId, objectId, MappingType.EQUIVALENT);
@@ -178,7 +177,6 @@ class ItemMappingServiceTest {
                 ItemMappingObject.forExternalUri(externalUri),
                 MappingType.DERIVED
         );
-        when(repository.findByItemId(any())).thenReturn(List.of());
         when(repository.save(any())).thenReturn(savedMapping);
 
         ItemMapping result = service.createItemToExternalMapping(

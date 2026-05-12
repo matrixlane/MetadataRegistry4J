@@ -199,7 +199,7 @@ public class ItemMappingService {
     /**
      * Checks whether two mapping types are mutually exclusive.
      */
-    static boolean areMutuallyExclusive(MappingType a, MappingType b) {
+    public static boolean areMutuallyExclusive(MappingType a, MappingType b) {
         if (a == b) {
             // Same type is always allowed; a given pair can have multiple
             // mappings of the same type (though duplicates are checked elsewhere)
@@ -220,7 +220,7 @@ public class ItemMappingService {
      * @param targetId the object item UUID (target of the new edge)
      * @throws IllegalArgumentException if a cycle would be created
      */
-    void detectCycle(UUID sourceId, UUID targetId) {
+    public void detectCycle(UUID sourceId, UUID targetId) {
         // Build adjacency list from all non-EQUIVALENT mappings
         // EQUIVALENT mappings are bidirectional and not subject to cycle detection
         List<ItemMapping> allMappings = mappingRepository.findAll();
