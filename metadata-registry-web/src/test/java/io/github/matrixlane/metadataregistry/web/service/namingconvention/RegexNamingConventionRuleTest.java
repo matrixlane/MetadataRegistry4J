@@ -9,6 +9,36 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class RegexNamingConventionRuleTest {
 
     @Test
+    void defaultConstructor_shouldCreateRuleWithDefaultSettings() {
+        RegexNamingConventionRule rule = new RegexNamingConventionRule();
+        assertThat(rule.getName()).isEqualTo("regex");
+        assertThat(rule.getDescription()).contains("名称必须匹配正则模式");
+    }
+
+    @Test
+    void defaultRule_shouldPassForValidIdentifier() {
+        RegexNamingConventionRule rule = new RegexNamingConventionRule();
+        assertThat(rule.validate(Sign.of("patient_name")).isPassed()).isTrue();
+        assertThat(rule.validate(Sign.of("患者名称")).isPassed()).isTrue();
+        assertThat(rule.validate(Sign.of("_internal")).isPassed()).isTrue();
+    }
+
+    @Test
+    void defaultRule_shouldFailForDigitStart() {
+        RegexNamingConventionRule rule = new RegexNamingConventionRule();
+        NamingConventionRuleResult result = rule.validate(Sign.of("123patient"));
+        assertThat(result.isPassed()).isFalse();
+        assertThat(result.getMessages()).anyMatch(m -> m.contains("不匹配正则模式"));
+    }
+
+    @Test
+    void defaultRule_shouldFailForInvalidChars() {
+        RegexNamingConventionRule rule = new RegexNamingConventionRule();
+        assertThat(rule.validate(Sign.of("patient@name")).isPassed()).isFalse();
+        assertThat(rule.validate(Sign.of("patient.name")).isPassed()).isFalse();
+    }
+
+    @Test
     void camelCaseRule_shouldPass() {
         RegexNamingConventionRule rule = new RegexNamingConventionRule(
                 "camelCase", "^[a-z]+([A-Z][a-z0-9]+)+$", "camelCase 格式");

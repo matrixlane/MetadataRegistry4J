@@ -56,7 +56,8 @@ public class NamingConventionEngine {
     private static List<NamingConventionRule> buildDefaultRules() {
         return List.of(
                 new LengthNamingConventionRule(),
-                new CharsetNamingConventionRule()
+                new CharsetNamingConventionRule(),
+                new RegexNamingConventionRule()
         );
     }
 }

@@ -10,18 +10,18 @@ import static org.assertj.core.api.Assertions.assertThat;
 class NamingConventionEngineTest {
 
     @Test
-    void defaultEngine_shouldContainLengthAndCharsetRules() {
+    void defaultEngine_shouldContainLengthCharsetAndRegexRules() {
         NamingConventionEngine engine = new NamingConventionEngine();
-        assertThat(engine.getRules()).hasSize(2);
+        assertThat(engine.getRules()).hasSize(3);
         assertThat(engine.getRules().stream().map(NamingConventionRule::getName))
-                .containsExactly("length", "charset");
+                .containsExactly("length", "charset", "regex");
     }
 
     @Test
     void validate_shouldReturnAllRuleResults() {
         NamingConventionEngine engine = new NamingConventionEngine();
         List<NamingConventionRuleResult> results = engine.validate(Sign.of("patient_name"));
-        assertThat(results).hasSize(2);
+        assertThat(results).hasSize(3);
         assertThat(results).allMatch(NamingConventionRuleResult::isPassed);
     }
 
@@ -29,15 +29,28 @@ class NamingConventionEngineTest {
     void validate_shouldReturnFailureForInvalidChars() {
         NamingConventionEngine engine = new NamingConventionEngine();
         List<NamingConventionRuleResult> results = engine.validate(Sign.of("patient@name"));
-        assertThat(results).hasSize(2);
+        assertThat(results).hasSize(3);
         assertThat(results.get(0).isPassed()).isTrue(); // length passes
         assertThat(results.get(1).isPassed()).isFalse(); // charset fails
+        assertThat(results.get(2).isPassed()).isFalse(); // regex fails
     }
 
     @Test
     void isValid_shouldReturnTrueForValidSign() {
         NamingConventionEngine engine = new NamingConventionEngine();
         assertThat(engine.isValid(Sign.of("patient_name_123"))).isTrue();
+    }
+
+    @Test
+    void isValid_shouldReturnTrueForValidChineseSign() {
+        NamingConventionEngine engine = new NamingConventionEngine();
+        assertThat(engine.isValid(Sign.of("患者名称"))).isTrue();
+    }
+
+    @Test
+    void isValid_shouldReturnFalseForSignStartingWithDigit() {
+        NamingConventionEngine engine = new NamingConventionEngine();
+        assertThat(engine.isValid(Sign.of("123patient"))).isFalse();
     }
 
     @Test
