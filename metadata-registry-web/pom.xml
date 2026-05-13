@@ -159,6 +159,24 @@
             <artifactId>hapi-fhir-caching-caffeine</artifactId>
             <version>7.4.0</version>
         </dependency>
+
+        <!-- Jakarta JAXB API + Runtime for Java 17 -->
+        <dependency>
+            <groupId>jakarta.xml.bind</groupId>
+            <artifactId>jakarta.xml.bind-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.glassfish.jaxb</groupId>
+            <artifactId>jaxb-runtime</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
+        <!-- javax.xml.bind API for swagger-core 2.2.21 compatibility on Java 17 -->
+        <dependency>
+            <groupId>javax.xml.bind</groupId>
+            <artifactId>jaxb-api</artifactId>
+            <version>2.3.1</version>
+        </dependency>
     </dependencies>
 
     <build>
@@ -174,6 +192,7 @@
                             <goal>copy</goal>
                         </goals>
                         <configuration>
+                            <skip>true</skip>
                             <artifactItems>
                                 <artifactItem>
                                     <groupId>com.microsoft.sqlserver</groupId>
@@ -199,7 +218,7 @@
                         <exclude>**/ClassificationSchemeController.java</exclude>
                         <exclude>**/SchemaExtractionApplicationService.java</exclude>
                         <exclude>**/InteropMappingListRequest.java</exclude>
-                        <exclude>**/MetadataRegistryApplication.java</exclude>
+
                     </excludes>
                     <testExcludes>
                         <testExclude>**/EmailNotificationGreenMailTest.java</testExclude>
@@ -239,6 +258,7 @@
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
                 <configuration>
+                    <mainClass>io.github.matrixlane.metadataregistry.web.MetadataRegistryApplication</mainClass>
                     <jvmArguments>-Djava.library.path=${project.build.directory}</jvmArguments>
                 </configuration>
                 <executions>
