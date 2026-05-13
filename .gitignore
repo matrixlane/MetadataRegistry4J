@@ -1,21 +1,32 @@
+# Build artifacts
 target/
-*.class
 *.jar
 *.war
-*.ear
-*.iml
+
+# IDE
 .idea/
+*.iml
 .vscode/
-*.log
+
+# OS
 .DS_Store
 Thumbs.db
-*.orig
-*.rej
-*.swp
-*~
-.project
-.classpath
-.settings/
-.factorypath
-.apt_generated/
-.springBeans
+
+# Runtime logs
+*.log
+metadata-registry-ui/ui_*.log
+metadata-registry-ui/frontend.log
+metadata-registry-ui/test-results/
+
+# Maven wrapper
+.mvn/wrapper/maven-wrapper.jar
+
+# OpenClaw
+.openclaw/
+
+# Playwright/MCP
+.playwright-mcp/
+
+# Notification backup
+.notification_backup_wi0104a/
+.notification_test_backup_wi0104a/
