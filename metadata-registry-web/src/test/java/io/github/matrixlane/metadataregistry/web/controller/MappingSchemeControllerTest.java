@@ -2,11 +2,16 @@ package io.github.matrixlane.metadataregistry.web.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.matrixlane.metadataregistry.itemmapping.enums.MappingSchemeStatus;
+import io.github.matrixlane.metadataregistry.itemmapping.enums.MappingType;
 import io.github.matrixlane.metadataregistry.web.auth.JwtService;
 import io.github.matrixlane.metadataregistry.web.config.AppProperties;
+import io.github.matrixlane.metadataregistry.web.dto.mapping.MappingDiffEntry;
+import io.github.matrixlane.metadataregistry.web.dto.mapping.MappingDiffResponse;
 import io.github.matrixlane.metadataregistry.web.dto.mapping.MappingSchemeRequest;
 import io.github.matrixlane.metadataregistry.web.dto.mapping.MappingSchemeResponse;
 import io.github.matrixlane.metadataregistry.web.dto.mapping.MappingSchemeStatusTransitionRequest;
+import io.github.matrixlane.metadataregistry.web.dto.mapping.MappingVersionInfo;
+import io.github.matrixlane.metadataregistry.web.service.MappingDiffService;
 import io.github.matrixlane.metadataregistry.web.service.MappingSchemeService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -46,6 +51,9 @@ class MappingSchemeControllerTest {
 
     @MockBean
     private MappingSchemeService service;
+
+    @MockBean
+    private MappingDiffService diffService;
 
     @MockBean
     private JwtService jwtService;
@@ -225,5 +233,103 @@ class MappingSchemeControllerTest {
                 .andExpect(jsonPath("$.data.version").value("0.1.1"))
                 .andExpect(jsonPath("$.data.status").value("DRAFT"))
                 .andExpect(jsonPath("$.data.parentId").value(SCHEME_ID.toString()));
+    }
+
+    // ==================== Diff Tests (WI-011-2-3-2) ====================
+
+    @Test
+    void getVersions_shouldReturnVersionLineage() throws Exception {
+        UUID v2Id = UUID.randomUUID();
+        List<MappingVersionInfo> versions = List.of(
+                new MappingVersionInfo(SCHEME_ID, "0.1.0", MappingSchemeStatus.PUBLISHED, null, NOW),
+                new MappingVersionInfo(v2Id, "0.1.1", MappingSchemeStatus.DRAFT, SCHEME_ID, NOW.plusDays(1))
+        );
+        when(diffService.getVersionLineage(SCHEME_ID)).thenReturn(versions);
+
+        mockMvc.perform(get("/api/v1/mapping-schemes/{id}/versions", SCHEME_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data").isArray())
+                .andExpect(jsonPath("$.data[0].version").value("0.1.0"))
+                .andExpect(jsonPath("$.data[1].version").value("0.1.1"))
+                .andExpect(jsonPath("$.data[1].parentId").value(SCHEME_ID.toString()));
+    }
+
+    @Test
+    void diff_shouldReturnDiffResponse() throws Exception {
+        UUID compareId = UUID.randomUUID();
+        MappingDiffResponse diffResponse = new MappingDiffResponse(
+                SCHEME_ID, "0.1.0", compareId, "0.1.1",
+                List.of(MappingDiffEntry.of("src1", "tgt1", MappingType.EQUIVALENT, null, null)),
+                List.of(),
+                List.of(),
+                1,
+                false
+        );
+        when(diffService.computeDiff(SCHEME_ID, compareId, null)).thenReturn(diffResponse);
+
+        mockMvc.perform(get("/api/v1/mapping-schemes/{id}/diff", SCHEME_ID)
+                        .param("baseId", SCHEME_ID.toString())
+                        .param("compareId", compareId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.baseVersion").value("0.1.0"))
+                .andExpect(jsonPath("$.data.compareVersion").value("0.1.1"))
+                .andExpect(jsonPath("$.data.identical").value(false))
+                .andExpect(jsonPath("$.data.totalDiffCount").value(1))
+                .andExpect(jsonPath("$.data.added[0].source").value("src1"))
+                .andExpect(jsonPath("$.data.added[0].mappingType").value("EQUIVALENT"));
+    }
+
+    @Test
+    void diff_identicalSchemes_shouldReturnIdentical() throws Exception {
+        UUID compareId = UUID.randomUUID();
+        MappingDiffResponse diffResponse = new MappingDiffResponse(
+                SCHEME_ID, "0.1.0", compareId, "0.1.1",
+                List.of(), List.of(), List.of(), 0, true
+        );
+        when(diffService.computeDiff(SCHEME_ID, compareId, null)).thenReturn(diffResponse);
+
+        mockMvc.perform(get("/api/v1/mapping-schemes/{id}/diff", SCHEME_ID)
+                        .param("baseId", SCHEME_ID.toString())
+                        .param("compareId", compareId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.identical").value(true))
+                .andExpect(jsonPath("$.data.totalDiffCount").value(0));
+    }
+
+    @Test
+    void diff_missingParams_shouldReturnBadRequest() throws Exception {
+        mockMvc.perform(get("/api/v1/mapping-schemes/{id}/diff", SCHEME_ID))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void diff_schemeNotFound_shouldReturn404() throws Exception {
+        UUID compareId = UUID.randomUUID();
+        when(diffService.computeDiff(SCHEME_ID, compareId, null))
+                .thenThrow(new io.github.matrixlane.metadataregistry.web.common.ResourceNotFoundException(
+                        "MappingScheme", compareId));
+
+        mockMvc.perform(get("/api/v1/mapping-schemes/{id}/diff", SCHEME_ID)
+                        .param("baseId", SCHEME_ID.toString())
+                        .param("compareId", compareId.toString()))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void diff_withMappingTypeFilter_shouldPassFilter() throws Exception {
+        UUID compareId = UUID.randomUUID();
+        MappingDiffResponse diffResponse = new MappingDiffResponse(
+                SCHEME_ID, "0.1.0", compareId, "0.1.1",
+                List.of(MappingDiffEntry.of("src1", "tgt1", MappingType.DERIVED, null, null)),
+                List.of(), List.of(), 1, false
+        );
+        when(diffService.computeDiff(SCHEME_ID, compareId, MappingType.DERIVED)).thenReturn(diffResponse);
+
+        mockMvc.perform(get("/api/v1/mapping-schemes/{id}/diff", SCHEME_ID)
+                        .param("baseId", SCHEME_ID.toString())
+                        .param("compareId", compareId.toString())
+                        .param("mappingType", "DERIVED"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.added[0].mappingType").value("DERIVED"));
     }
 }

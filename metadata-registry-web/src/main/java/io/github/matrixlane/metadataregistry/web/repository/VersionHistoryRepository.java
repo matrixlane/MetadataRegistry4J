@@ -16,4 +16,6 @@ public interface VersionHistoryRepository extends JpaRepository<VersionHistory, 
     Optional<VersionHistory> findByItemIdAndVersionNumber(UUID itemId, Integer versionNumber);
 
     Optional<VersionHistory> findTopByItemIdOrderByVersionNumberDesc(UUID itemId);
+
+    void deleteAllByItemId(UUID itemId);
 }

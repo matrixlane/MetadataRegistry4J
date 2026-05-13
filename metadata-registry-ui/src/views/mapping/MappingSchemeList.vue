@@ -115,6 +115,10 @@
               </template>
               <!-- ARCHIVED: read-only, no actions -->
               <span v-if="row.status === 'ARCHIVED'" class="readonly-hint">—</span>
+              <!-- Diff: available for all statuses -->
+              <el-button size="small" type="primary" text :icon="ScaleToOriginal" @click="handleCompare(row)">
+                {{ $t('mappingScheme.compare') }}
+              </el-button>
             </div>
           </template>
         </el-table-column>
@@ -175,12 +179,72 @@
         </el-button>
       </template>
     </el-dialog>
+
+    <!-- Version Compare Dialog (WI-011-2-3-2) -->
+    <el-dialog
+      v-model="compareVisible"
+      :title="$t('mappingScheme.compareTitle')"
+      width="520px"
+      :close-on-click-modal="false"
+      destroy-on-close
+      @closed="resetCompare"
+    >
+      <el-alert
+        v-if="compareRow"
+        :title="compareRow.name"
+        :description="compareRow.sourceUri + ' → ' + compareRow.targetUri"
+        type="info"
+        :closable="false"
+        class="compare-scheme-info"
+      />
+      <el-form label-width="120px" class="compare-form">
+        <el-form-item :label="$t('mappingDiff.base')">
+          <el-select
+            v-model="compareBaseId"
+            :placeholder="$t('mappingDiff.selectBase')"
+            style="width: 100%"
+          >
+            <el-option
+              v-for="v in compareVersions"
+              :key="v.id"
+              :label="v.version + ' (' + statusLabel(v.status) + ')'"
+              :value="v.id"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item :label="$t('mappingDiff.compare')">
+          <el-select
+            v-model="compareTargetId"
+            :placeholder="$t('mappingDiff.selectCompare')"
+            style="width: 100%"
+          >
+            <el-option
+              v-for="v in compareVersions"
+              :key="v.id"
+              :label="v.version + ' (' + statusLabel(v.status) + ')'"
+              :value="v.id"
+            />
+          </el-select>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="compareVisible = false">{{ $t('common.cancel') }}</el-button>
+        <el-button
+          type="primary"
+          :disabled="!compareBaseId || !compareTargetId || compareBaseId === compareTargetId"
+          @click="handleCompareConfirm"
+        >
+          {{ $t('mappingScheme.startCompare') }}
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { reactive, ref, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import {
   Search,
@@ -190,11 +254,13 @@ import {
   Delete,
   Upload,
   FolderDelete,
+  ScaleToOriginal,
 } from '@element-plus/icons-vue';
 import { mappingSchemeApi } from '@/api/resources';
 import type { PageResponse, PageQuery } from '@/types/common';
 
 const { t } = useI18n();
+const router = useRouter();
 
 // ==================== State ====================
 
@@ -206,6 +272,13 @@ const formSaving = ref(false);
 const isEditing = ref(false);
 const editingId = ref<string | null>(null);
 const formRef = ref<any>();
+
+// Compare dialog state
+const compareVisible = ref(false);
+const compareRow = ref<any>(null);
+const compareVersions = ref<any[]>([]);
+const compareBaseId = ref<string | null>(null);
+const compareTargetId = ref<string | null>(null);
 
 const query = reactive<PageQuery>({
   page: 1,
@@ -409,6 +482,37 @@ async function handleNewVersion(row: any) {
   } catch {
     // cancelled
   }
+}
+
+// ==================== Compare Versions (WI-011-2-3-2) ====================
+
+function resetCompare() {
+  compareRow.value = null;
+  compareVersions.value = [];
+  compareBaseId.value = null;
+  compareTargetId.value = null;
+}
+
+async function handleCompare(row: any) {
+  resetCompare();
+  compareRow.value = row;
+  compareVisible.value = true;
+  try {
+    const versions = await mappingSchemeApi.versions(row.id);
+    compareVersions.value = versions || [];
+  } catch (err: any) {
+    ElMessage.error(err?.message || t('mappingScheme.loadVersionsError'));
+  }
+}
+
+function handleCompareConfirm() {
+  if (!compareRow.value || !compareBaseId.value || !compareTargetId.value) return;
+  compareVisible.value = false;
+  router.push({
+    name: 'MappingSchemeDiff',
+    params: { id: compareRow.value.id },
+    query: { baseId: compareBaseId.value, compareId: compareTargetId.value },
+  });
 }
 
 // ==================== Lifecycle ====================

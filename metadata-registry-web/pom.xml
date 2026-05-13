@@ -132,6 +132,12 @@
             <artifactId>opencsv</artifactId>
             <version>5.9</version>
         </dependency>
+        <!-- OpenPDF for PDF report generation (LGPL/MPL dual license) -->
+        <dependency>
+            <groupId>com.github.librepdf</groupId>
+            <artifactId>openpdf</artifactId>
+            <version>2.0.3</version>
+        </dependency>
 
         <!-- HAPI FHIR for FHIR resource parsing -->
         <dependency>
@@ -176,6 +182,13 @@
             <groupId>javax.xml.bind</groupId>
             <artifactId>jaxb-api</artifactId>
             <version>2.3.1</version>
+        </dependency>
+        <!-- javax.xml.bind Runtime implementation (required for fat JAR on Java 17) -->
+        <dependency>
+            <groupId>com.sun.xml.bind</groupId>
+            <artifactId>jaxb-impl</artifactId>
+            <version>2.3.9</version>
+            <scope>runtime</scope>
         </dependency>
     </dependencies>
 

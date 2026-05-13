@@ -1,11 +1,15 @@
 package io.github.matrixlane.metadataregistry.web.controller;
 
 import io.github.matrixlane.metadataregistry.itemmapping.enums.MappingSchemeStatus;
+import io.github.matrixlane.metadataregistry.itemmapping.enums.MappingType;
 import io.github.matrixlane.metadataregistry.web.common.ApiResponse;
 import io.github.matrixlane.metadataregistry.web.common.PageResponse;
+import io.github.matrixlane.metadataregistry.web.dto.mapping.MappingDiffResponse;
 import io.github.matrixlane.metadataregistry.web.dto.mapping.MappingSchemeRequest;
 import io.github.matrixlane.metadataregistry.web.dto.mapping.MappingSchemeResponse;
 import io.github.matrixlane.metadataregistry.web.dto.mapping.MappingSchemeStatusTransitionRequest;
+import io.github.matrixlane.metadataregistry.web.dto.mapping.MappingVersionInfo;
+import io.github.matrixlane.metadataregistry.web.service.MappingDiffService;
 import io.github.matrixlane.metadataregistry.web.service.MappingSchemeService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -22,6 +26,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -40,6 +45,7 @@ import java.util.UUID;
 public class MappingSchemeController {
 
     private final MappingSchemeService service;
+    private final MappingDiffService diffService;
 
     // ==================== CRUD ====================
 
@@ -99,5 +105,25 @@ public class MappingSchemeController {
             description = "从 PUBLISHED 方案创建新 DRAFT 版本，版本号自动递增补丁号")
     public ApiResponse<MappingSchemeResponse> createNewVersion(@PathVariable UUID id) {
         return ApiResponse.ok(service.createNewVersion(id));
+    }
+
+    // ==================== Version Diff (WI-011-2-3-2) ====================
+
+    @GetMapping("/{id}/versions")
+    @Operation(summary = "获取方案版本 lineage",
+            description = "返回该方案 lineage 下的所有版本（含祖先和后代），按创建时间从早到晚排序")
+    public ApiResponse<List<MappingVersionInfo>> getVersions(@PathVariable UUID id) {
+        return ApiResponse.ok(diffService.getVersionLineage(id));
+    }
+
+    @GetMapping("/{id}/diff")
+    @Operation(summary = "对比两个版本映射方案差异",
+            description = "选择 baseId（基准版本）和 compareId（对比版本），可选 mappingType 过滤，返回映射关系的增删改差异")
+    public ApiResponse<MappingDiffResponse> diff(
+            @PathVariable UUID id,
+            @RequestParam UUID baseId,
+            @RequestParam UUID compareId,
+            @RequestParam(required = false) MappingType mappingType) {
+        return ApiResponse.ok(diffService.computeDiff(baseId, compareId, mappingType));
     }
 }

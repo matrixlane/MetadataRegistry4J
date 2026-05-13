@@ -148,6 +148,12 @@ const router = createRouter({
           meta: { title: '映射方案' },
         },
         {
+          path: 'mapping-schemes/:id/diff',
+          name: 'MappingSchemeDiff',
+          component: () => import('@/views/mapping/MappingDiffViewer.vue'),
+          meta: { title: '映射方案差异对比' },
+        },
+        {
           path: 'mapping-network',
           name: 'MappingNetwork',
           component: () => import('@/views/mapping/MappingNetworkView.vue'),
