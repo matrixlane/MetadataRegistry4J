@@ -142,10 +142,22 @@ const router = createRouter({
           meta: { title: '分类管理' },
         },
         {
+          path: 'mapping-schemes',
+          name: 'MappingSchemes',
+          component: () => import('@/views/mapping/MappingSchemeList.vue'),
+          meta: { title: '映射方案' },
+        },
+        {
           path: 'mapping-network',
           name: 'MappingNetwork',
           component: () => import('@/views/mapping/MappingNetworkView.vue'),
           meta: { title: '映射网络' },
+        },
+        {
+          path: 'interop-mappings',
+          name: 'InteropMappings',
+          component: () => import('@/views/interop-mapping/InteropMappingList.vue'),
+          meta: { title: '匹配结果管理' },
         },
         {
           path: 'data-elements',

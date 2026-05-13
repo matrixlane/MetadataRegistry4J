@@ -79,6 +79,24 @@ export const metadataSearchApi = {
     request.get<PageResponse<any>>('/metadata/search', { params }),
 };
 
+/** Mapping scheme CRUD + version lifecycle (WI-011-2-3-1) */
+export const mappingSchemeApi = {
+  list: (params?: PageQuery) =>
+    request.get<PageResponse<any>>('/api/v1/mapping-schemes', { params }),
+  get: (id: string) => request.get<any>(`/api/v1/mapping-schemes/${id}`),
+  create: (data: Record<string, unknown>) =>
+    request.post<any>('/api/v1/mapping-schemes', data),
+  update: (id: string, data: Record<string, unknown>) =>
+    request.put<any>(`/api/v1/mapping-schemes/${id}`, data),
+  delete: (id: string) => request.delete(`/api/v1/mapping-schemes/${id}`),
+  /** Transition status: DRAFT->PUBLISHED, PUBLISHED->ARCHIVED */
+  transition: (id: string, to: string) =>
+    request.post<any>(`/api/v1/mapping-schemes/${id}/transition`, { to }),
+  /** Create new DRAFT version from PUBLISHED scheme */
+  createNewVersion: (id: string) =>
+    request.post<any>(`/api/v1/mapping-schemes/${id}/new-version`),
+};
+
 /** Mapping network graph (WI-011-2-1) */
 export const getMappingNetwork = (
   centerId: string,
@@ -104,4 +122,32 @@ export const pairingApi = {
     request.put<any>(`/items/${itemId}/designation-definition-pairings/${id}`, data),
   delete: (itemId: string, id: string) =>
     request.delete(`/items/${itemId}/designation-definition-pairings/${id}`),
+};
+
+/** Interoperability mapping result management (WI-013-2b) */
+export const interopMappingApi = {
+  list: (params?: PageQuery & { datasetId?: string; status?: string; minConfidence?: number; maxConfidence?: number }) =>
+    request.get<PageResponse<any>>('/api/v1/interop-mappings', { params }),
+  get: (id: string) => request.get<any>(`/api/v1/interop-mappings/${id}`),
+  confirm: (id: string, userId: string) =>
+    request.put<any>(`/api/v1/interop-mappings/${id}/confirm`, null, { params: { userId } }),
+  reject: (id: string, userId: string) =>
+    request.put<any>(`/api/v1/interop-mappings/${id}/reject`, null, { params: { userId } }),
+  manualMap: (id: string, localItemId: string, userId: string) =>
+    request.put<any>(`/api/v1/interop-mappings/${id}/manual-map`, { localItemId }, { params: { userId } }),
+  undo: (id: string) => request.delete<any>(`/api/v1/interop-mappings/${id}/undo`),
+  markUnmatched: (id: string) =>
+    request.put<any>(`/api/v1/interop-mappings/${id}/mark-unmatched`),
+  countPending: (datasetId: string) =>
+    request.get<number>('/api/v1/interop-mappings/batch/pending-count', { params: { datasetId } }),
+  batchConfirm: (datasetId: string, userId: string) =>
+    request.post<any>('/api/v1/interop-mappings/batch-confirm', null, { params: { datasetId, userId } }),
+  batchReject: (datasetId: string, userId: string) =>
+    request.post<any>('/api/v1/interop-mappings/batch-reject', null, { params: { datasetId, userId } }),
+  undoBatch: (batchOperationId: string) =>
+    request.post<any>('/api/v1/interop-mappings/batch-undo', null, { params: { batchOperationId } }),
+  qualityScore: (datasetId: string) =>
+    request.get<any>('/api/v1/interop-mappings/quality-score', { params: { datasetId } }),
+  emptyCheck: (datasetId: string) =>
+    request.get<any>('/api/v1/interop-mappings/empty-check', { params: { datasetId } }),
 };

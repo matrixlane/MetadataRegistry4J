@@ -102,10 +102,22 @@
               <el-menu-item index="/classification">{{ $t('nav.classification') }}</el-menu-item>
             </el-sub-menu>
 
+            <!-- 映射方案（WI-011-2-3-1） -->
+            <el-menu-item index="/mapping-schemes">
+              <el-icon><List /></el-icon>
+              <template #title>{{ $t('nav.mappingScheme') }}</template>
+            </el-menu-item>
+
             <!-- 映射网络（WI-011-2-1） -->
             <el-menu-item index="/mapping-network">
               <el-icon><Share /></el-icon>
               <template #title>{{ $t('nav.mappingNetwork') }}</template>
+            </el-menu-item>
+
+            <!-- 匹配结果管理（WI-013-2b） -->
+            <el-menu-item index="/interop-mappings">
+              <el-icon><Connection /></el-icon>
+              <template #title>匹配结果管理</template>
             </el-menu-item>
 
             <el-sub-menu index="/domain">
