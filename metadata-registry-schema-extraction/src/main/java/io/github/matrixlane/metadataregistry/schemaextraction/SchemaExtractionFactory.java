@@ -1,7 +1,10 @@
 package io.github.matrixlane.metadataregistry.schemaextraction;
 
+import io.github.matrixlane.metadataregistry.schemaextraction.audit.SchemaExtractionAuditLogger;
 import io.github.matrixlane.metadataregistry.schemaextraction.connection.ConnectionEncryption;
 import io.github.matrixlane.metadataregistry.schemaextraction.connection.DatabaseConnectionManager;
+import io.github.matrixlane.metadataregistry.schemaextraction.mapping.AdministeredItemMappingService;
+import io.github.matrixlane.metadataregistry.schemaextraction.mapping.SchemaMappingService;
 import io.github.matrixlane.metadataregistry.schemaextraction.mysql.MySqlSchemaExtractor;
 import io.github.matrixlane.metadataregistry.schemaextraction.oracle.OracleSchemaExtractor;
 import io.github.matrixlane.metadataregistry.schemaextraction.postgresql.PostgreSqlSchemaExtractor;
@@ -43,5 +46,30 @@ public final class SchemaExtractionFactory {
      */
     public static DatabaseConnectionManager createConnectionManager(String masterKey) {
         return new DatabaseConnectionManager(masterKey);
+    }
+
+    /**
+     * Creates a SchemaMappingService.
+     */
+    public static SchemaMappingService createSchemaMappingService() {
+        return new SchemaMappingService();
+    }
+
+    /**
+     * Creates an AdministeredItemMappingService.
+     */
+    public static AdministeredItemMappingService createAdministeredItemMappingService() {
+        return new AdministeredItemMappingService();
+    }
+
+    /**
+     * Creates a SchemaExtractionOrchestrationService with default components.
+     */
+    public static SchemaExtractionOrchestrationService createOrchestrationService(String masterKey) {
+        DatabaseConnectionManager connectionManager = createConnectionManager(masterKey);
+        SchemaExtractor extractor = createSchemaExtractor();
+        SchemaMappingService mappingService = createSchemaMappingService();
+        SchemaExtractionAuditLogger auditLogger = new SchemaExtractionAuditLogger();
+        return new SchemaExtractionOrchestrationService(connectionManager, extractor, mappingService, auditLogger);
     }
 }

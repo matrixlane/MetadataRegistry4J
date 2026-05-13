@@ -9,7 +9,7 @@ import java.util.Properties;
  * Configuration for a database connection.
  */
 @Data
-@Builder
+@Builder(toBuilder = true)
 public class DatabaseConnectionConfig {
 
     private String connectionName;
@@ -29,6 +29,15 @@ public class DatabaseConnectionConfig {
     private long maxLifetime = 1800000;
     @Builder.Default
     private Properties additionalProperties = new Properties();
+
+    // SSL/TLS configuration
+    @Builder.Default
+    private boolean sslEnabled = false;
+    private String sslMode;
+    private String trustStorePath;
+    private String trustStorePassword;
+    private String keyStorePath;
+    private String keyStorePassword;
 
     /**
      * Validates that required fields are present.

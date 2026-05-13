@@ -1,9 +1,11 @@
 package io.github.matrixlane.metadataregistry.schemaextraction.config;
 
 import io.github.matrixlane.metadataregistry.schemaextraction.SchemaExtractionFactory;
+import io.github.matrixlane.metadataregistry.schemaextraction.SchemaExtractionOrchestrationService;
 import io.github.matrixlane.metadataregistry.schemaextraction.audit.SchemaExtractionAuditLogger;
 import io.github.matrixlane.metadataregistry.schemaextraction.connection.ConnectionEncryption;
 import io.github.matrixlane.metadataregistry.schemaextraction.connection.DatabaseConnectionManager;
+import io.github.matrixlane.metadataregistry.schemaextraction.mapping.AdministeredItemMappingService;
 import io.github.matrixlane.metadataregistry.schemaextraction.mapping.SchemaMappingService;
 import io.github.matrixlane.metadataregistry.schemaextraction.strategy.SchemaExtractor;
 import org.springframework.beans.factory.annotation.Value;
@@ -48,5 +50,21 @@ public class SchemaExtractionAutoConfiguration {
     @ConditionalOnMissingBean
     public SchemaExtractionAuditLogger schemaExtractionAuditLogger() {
         return new SchemaExtractionAuditLogger();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public AdministeredItemMappingService administeredItemMappingService() {
+        return new AdministeredItemMappingService();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public SchemaExtractionOrchestrationService schemaExtractionOrchestrationService(
+            DatabaseConnectionManager connectionManager,
+            SchemaExtractor schemaExtractor,
+            SchemaMappingService schemaMappingService,
+            SchemaExtractionAuditLogger auditLogger) {
+        return new SchemaExtractionOrchestrationService(connectionManager, schemaExtractor, schemaMappingService, auditLogger);
     }
 }

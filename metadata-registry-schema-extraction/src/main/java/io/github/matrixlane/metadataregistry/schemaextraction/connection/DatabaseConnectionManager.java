@@ -132,7 +132,46 @@ public class DatabaseConnectionManager implements AutoCloseable {
             hikariConfig.addDataSourceProperty(String.valueOf(key), value);
         });
 
+        applySslProperties(config, hikariConfig);
+
         return new HikariDataSource(hikariConfig);
+    }
+
+    private void applySslProperties(DatabaseConnectionConfig config, HikariConfig hikariConfig) {
+        if (!config.isSslEnabled()) {
+            return;
+        }
+
+        String lowerUrl = config.getJdbcUrl().toLowerCase();
+
+        if (lowerUrl.contains("postgresql")) {
+            hikariConfig.addDataSourceProperty("ssl", "true");
+            if (config.getSslMode() != null) {
+                hikariConfig.addDataSourceProperty("sslmode", config.getSslMode());
+            }
+        } else if (lowerUrl.contains("sqlserver") || lowerUrl.contains("microsoft")) {
+            hikariConfig.addDataSourceProperty("encrypt", "true");
+            hikariConfig.addDataSourceProperty("trustServerCertificate", "false");
+        } else if (lowerUrl.contains("mysql")) {
+            hikariConfig.addDataSourceProperty("useSSL", "true");
+            if (config.getSslMode() != null) {
+                hikariConfig.addDataSourceProperty("sslMode", config.getSslMode());
+            }
+        }
+
+        if (config.getTrustStorePath() != null) {
+            hikariConfig.addDataSourceProperty("trustStore", config.getTrustStorePath());
+            if (config.getTrustStorePassword() != null) {
+                hikariConfig.addDataSourceProperty("trustStorePassword", config.getTrustStorePassword());
+            }
+        }
+
+        if (config.getKeyStorePath() != null) {
+            hikariConfig.addDataSourceProperty("keyStore", config.getKeyStorePath());
+            if (config.getKeyStorePassword() != null) {
+                hikariConfig.addDataSourceProperty("keyStorePassword", config.getKeyStorePassword());
+            }
+        }
     }
 
     private String maskUrl(String url) {
