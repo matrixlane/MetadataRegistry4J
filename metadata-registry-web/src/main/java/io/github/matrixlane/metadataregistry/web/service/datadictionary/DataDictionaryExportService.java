@@ -93,6 +93,10 @@ public class DataDictionaryExportService {
 
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
 
+        if (request.format() == null) {
+            throw new IllegalArgumentException("不支持的同步导出格式: null");
+        }
+
         switch (request.format()) {
             case EXCEL -> excelExportService.exportToExcel(items, baos,
                     request.includeValueDomainDetails(), request.includeRegistrationInfo());

@@ -12,6 +12,7 @@ import io.github.matrixlane.metadataregistry.commonfacilities.registration.Regis
 import io.github.matrixlane.metadataregistry.dataspecification.DataElement;
 import io.github.matrixlane.metadataregistry.dataspecification.DataElementConcept;
 import io.github.matrixlane.metadataregistry.dataspecification.DataType;
+import io.github.matrixlane.metadataregistry.dataspecification.UnitOfMeasure;
 import io.github.matrixlane.metadataregistry.dataspecification.ValueDomain;
 import io.github.matrixlane.metadataregistry.web.dto.export.ExportFormat;
 import io.github.matrixlane.metadataregistry.web.dto.export.datadictionary.DataDictionaryExportRequest;
@@ -263,6 +264,118 @@ class DataDictionaryExportServiceTest {
         assertThat(size).isEqualTo(0);
     }
 
+    @Test
+    @DisplayName("获取任务结果大小 - 文件读取异常应返回 0")
+    void getTaskResultSize_ioException_shouldReturnZero() {
+        ExportTask task = ExportTask.builder()
+                .id(UUID.randomUUID())
+                .status(ExportTaskStatus.COMPLETED)
+                .resultFilePath("/nonexistent/path/file.xlsx")
+                .build();
+        when(exportTaskRepository.findById(task.getId())).thenReturn(Optional.of(task));
+
+        long size = exportService.getTaskResultSize(task.getId());
+        assertThat(size).isEqualTo(0);
+    }
+
+    @Test
+    @DisplayName("下载任务结果 - 文件路径为空应抛出异常")
+    void downloadTaskResult_nullFilePath_shouldThrow() {
+        ExportTask task = ExportTask.builder()
+                .id(UUID.randomUUID())
+                .status(ExportTaskStatus.COMPLETED)
+                .resultFilePath(null)
+                .build();
+        when(exportTaskRepository.findById(task.getId())).thenReturn(Optional.of(task));
+
+        assertThatThrownBy(() -> exportService.downloadTaskResult(task.getId()))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("为空");
+    }
+
+    @Test
+    @DisplayName("下载任务结果 - 文件不存在应抛出异常")
+    void downloadTaskResult_fileNotExists_shouldThrow() {
+        ExportTask task = ExportTask.builder()
+                .id(UUID.randomUUID())
+                .status(ExportTaskStatus.COMPLETED)
+                .resultFilePath("/nonexistent/path/file.xlsx")
+                .build();
+        when(exportTaskRepository.findById(task.getId())).thenReturn(Optional.of(task));
+
+        assertThatThrownBy(() -> exportService.downloadTaskResult(task.getId()))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("过期");
+    }
+
+    @Test
+    @DisplayName("异步执行导出任务 - Excel 格式应成功完成")
+    void executeAsyncExport_excel_shouldComplete() throws IOException {
+        ExportTask task = ExportTask.builder()
+                .id(UUID.randomUUID())
+                .status(ExportTaskStatus.PENDING)
+                .totalCount(3)
+                .requestParams(objectMapper.writeValueAsString(excelRequest))
+                .format("excel")
+                .build();
+        when(exportTaskRepository.findById(task.getId())).thenReturn(Optional.of(task));
+        when(exportTaskRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(dataElementRepository.findAllById(any())).thenReturn(testElements);
+
+        exportService.executeAsyncExport(task.getId());
+
+        assertThat(task.getStatus()).isEqualTo(ExportTaskStatus.COMPLETED);
+        assertThat(task.getProcessedCount()).isEqualTo(3);
+        assertThat(task.getResultFilePath()).isNotNull();
+        // 清理临时文件
+        if (task.getResultFilePath() != null) {
+            Files.deleteIfExists(Path.of(task.getResultFilePath()));
+        }
+    }
+
+    @Test
+    @DisplayName("异步执行导出任务 - PDF 格式应成功完成")
+    void executeAsyncExport_pdf_shouldComplete() throws IOException {
+        ExportTask task = ExportTask.builder()
+                .id(UUID.randomUUID())
+                .status(ExportTaskStatus.PENDING)
+                .totalCount(3)
+                .requestParams(objectMapper.writeValueAsString(pdfRequest))
+                .format("pdf")
+                .build();
+        when(exportTaskRepository.findById(task.getId())).thenReturn(Optional.of(task));
+        when(exportTaskRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(dataElementRepository.findAllById(any())).thenReturn(testElements);
+
+        exportService.executeAsyncExport(task.getId());
+
+        assertThat(task.getStatus()).isEqualTo(ExportTaskStatus.COMPLETED);
+        assertThat(task.getProcessedCount()).isEqualTo(3);
+        if (task.getResultFilePath() != null) {
+            Files.deleteIfExists(Path.of(task.getResultFilePath()));
+        }
+    }
+
+    @Test
+    @DisplayName("异步执行导出任务 - 异常时应标记为 FAILED")
+    void executeAsyncExport_exception_shouldMarkFailed() throws IOException {
+        ExportTask task = ExportTask.builder()
+                .id(UUID.randomUUID())
+                .status(ExportTaskStatus.PENDING)
+                .totalCount(3)
+                .requestParams(objectMapper.writeValueAsString(excelRequest))
+                .format("excel")
+                .build();
+        when(exportTaskRepository.findById(task.getId())).thenReturn(Optional.of(task));
+        when(exportTaskRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(dataElementRepository.findAllById(any())).thenThrow(new RuntimeException("DB error"));
+
+        exportService.executeAsyncExport(task.getId());
+
+        assertThat(task.getStatus()).isEqualTo(ExportTaskStatus.FAILED);
+        assertThat(task.getErrorMessage()).contains("DB error");
+    }
+
     // =========================================================================
     // 5. DTO 转换
     // =========================================================================
@@ -291,6 +404,83 @@ class DataDictionaryExportServiceTest {
         assertThat(dto.id()).isEqualTo(de.getId());
         assertThat(dto.label()).isNull();
         assertThat(dto.valueDomainLabel()).isNull();
+    }
+
+    @Test
+    @DisplayName("查询任务状态 - 任务不存在应抛出异常")
+    void getTaskStatus_notFound_shouldThrow() {
+        UUID taskId = UUID.randomUUID();
+        when(exportTaskRepository.findById(taskId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> exportService.getTaskStatus(taskId))
+                .isInstanceOf(io.github.matrixlane.metadataregistry.web.common.ResourceNotFoundException.class);
+    }
+
+    @Test
+    @DisplayName("下载任务结果 - 任务不存在应抛出异常")
+    void downloadTaskResult_notFound_shouldThrow() {
+        UUID taskId = UUID.randomUUID();
+        when(exportTaskRepository.findById(taskId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> exportService.downloadTaskResult(taskId))
+                .isInstanceOf(io.github.matrixlane.metadataregistry.web.common.ResourceNotFoundException.class);
+    }
+
+    @Test
+    @DisplayName("获取任务结果大小 - 任务不存在应抛出异常")
+    void getTaskResultSize_notFound_shouldThrow() {
+        UUID taskId = UUID.randomUUID();
+        when(exportTaskRepository.findById(taskId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> exportService.getTaskResultSize(taskId))
+                .isInstanceOf(io.github.matrixlane.metadataregistry.web.common.ResourceNotFoundException.class);
+    }
+
+    @Test
+    @DisplayName("同步导出 - null 格式应抛出异常")
+    void exportSync_nullFormat_shouldThrow() {
+        List<UUID> ids = List.of(UUID.randomUUID());
+        DataDictionaryExportRequest unsupportedRequest = new DataDictionaryExportRequest(
+                ids, null, DataDictionaryExportRequest.ExportMode.SINGLE,
+                false, false, false, 5000);
+
+        assertThatThrownBy(() -> exportService.exportSync(unsupportedRequest))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("不支持");
+    }
+
+    @Test
+    @DisplayName("数据元转导出 DTO - 含数据类型和单位")
+    void toExportDto_withDataTypeAndUom_shouldContainFields() {
+        DataElement de = createTestDataElement("DE005", "体重");
+        DataType dt = new DataType();
+        dt.setId(UUID.randomUUID());
+        Designation dtDes = new Designation();
+        var dtSign = new io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.Sign();
+        dtSign.setValue("数值型");
+        dtDes.setSign(dtSign);
+        dt.setDesignations(List.of(dtDes));
+
+        ValueDomain vd = de.getValueDomain();
+        vd.setDataType(dt);
+
+        UnitOfMeasure uom = new UnitOfMeasure();
+        uom.setId(UUID.randomUUID());
+        Designation uomDes = new Designation();
+        var uomSign = new io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.Sign();
+        uomSign.setValue("kg");
+        uomDes.setSign(uomSign);
+        uom.setDesignations(List.of(uomDes));
+        vd.setUnitOfMeasure(uom);
+        vd.setMaximumCharacterQuantity(10);
+        vd.setFormat("###.##");
+
+        DataDictionaryItemExport dto = exportService.toExportDto(de);
+
+        assertThat(dto.dataTypeLabel()).isEqualTo("数值型");
+        assertThat(dto.unitOfMeasureLabel()).isEqualTo("kg");
+        assertThat(dto.maximumCharacterQuantity()).isEqualTo(10);
+        assertThat(dto.format()).isEqualTo("###.##");
     }
 
     // =========================================================================
