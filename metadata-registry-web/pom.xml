@@ -31,6 +31,10 @@
             <groupId>io.github.matrixlane</groupId>
             <artifactId>metadata-registry-data-set-registration</artifactId>
         </dependency>
+        <dependency>
+            <groupId>io.github.matrixlane</groupId>
+            <artifactId>metadata-registry-schema-extraction</artifactId>
+        </dependency>
 
         <dependency>
             <groupId>org.springframework.boot</groupId>

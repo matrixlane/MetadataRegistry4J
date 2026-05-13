@@ -1,0 +1,43 @@
+openapi: "3.0.0"
+info:
+  title: "Composed Schema Test"
+  version: "1.0.0"
+paths: {}
+components:
+  schemas:
+    Animal:
+      type: object
+      properties:
+        species:
+          type: string
+        legs:
+          type: integer
+    Dog:
+      allOf:
+        - $ref: "#/components/schemas/Animal"
+        - type: object
+          properties:
+            breed:
+              type: string
+            friendly:
+              type: boolean
+    Response:
+      oneOf:
+        - $ref: "#/components/schemas/Pet"
+        - $ref: "#/components/schemas/Error"
+    Error:
+      type: object
+      properties:
+        code:
+          type: integer
+        message:
+          type: string
+    Mixed:
+      anyOf:
+        - $ref: "#/components/schemas/Animal"
+        - $ref: "#/components/schemas/Error"
+    Pet:
+      type: object
+      properties:
+        name:
+          type: string
