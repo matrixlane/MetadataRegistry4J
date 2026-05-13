@@ -78,6 +78,21 @@ public class ItemMapping {
     private String description;
 
     /**
+     * Transformation rule for converting between subject and object
+     * (e.g. a formula, code snippet, or reference to a transformation spec).
+     * Relevant for DERIVED, AGGREGATED, and SUBDIVIDED mappings.
+     */
+    @Column(name = "transformation_rule", length = 4000)
+    private String transformationRule;
+
+    /**
+     * The mapping scheme this mapping belongs to.
+     */
+    @ManyToOne(fetch = FetchType.LAZY, cascade = {CascadeType.PERSIST, CascadeType.MERGE})
+    @JoinColumn(name = "mapping_scheme_id")
+    private MappingScheme mappingScheme;
+
+    /**
      * Timestamp when this mapping was created.
      */
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -109,6 +124,24 @@ public class ItemMapping {
                        MappingType mappingType, String description) {
         this(subject, object, mappingType);
         this.description = description;
+    }
+
+    /**
+     * Creates a new ItemMapping with scheme and transformation rule.
+     *
+     * @param subject           the subject (source) reference
+     * @param object            the object (target) reference
+     * @param mappingType       the type of mapping relationship
+     * @param description       optional human-readable description
+     * @param transformationRule optional transformation rule
+     * @param mappingScheme      the mapping scheme this mapping belongs to
+     */
+    public ItemMapping(ItemMappingSubject subject, ItemMappingObject object,
+                       MappingType mappingType, String description,
+                       String transformationRule, MappingScheme mappingScheme) {
+        this(subject, object, mappingType, description);
+        this.transformationRule = transformationRule;
+        this.mappingScheme = mappingScheme;
     }
 
     @Override
