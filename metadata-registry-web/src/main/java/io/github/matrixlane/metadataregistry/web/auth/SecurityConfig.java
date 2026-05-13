@@ -55,6 +55,7 @@ public class SecurityConfig {
                                 "/v3/api-docs/**",
                                 "/actuator/health",
                                 "/actuator/info").permitAll()
+                        .requestMatchers("/actuator/loggers/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/v1/**").authenticated()
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/change-password").authenticated()
                         .requestMatchers(HttpMethod.POST, "/api/v1/app-users/**").hasRole("ADMIN")

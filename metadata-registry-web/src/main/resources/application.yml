@@ -52,10 +52,12 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,loggers
   endpoint:
     health:
       show-details: when-authorized
+    loggers:
+      enabled: true
 
 springdoc:
   swagger-ui:
