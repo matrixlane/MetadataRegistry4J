@@ -13,7 +13,8 @@ class EnumValueTest {
                 InteropMappingStatus.AUTO_MATCHED,
                 InteropMappingStatus.PENDING,
                 InteropMappingStatus.CONFIRMED,
-                InteropMappingStatus.REJECTED
+                InteropMappingStatus.REJECTED,
+                InteropMappingStatus.UNMATCHED
         );
     }
 

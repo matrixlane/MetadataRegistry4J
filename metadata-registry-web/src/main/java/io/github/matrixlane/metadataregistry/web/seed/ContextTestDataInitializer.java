@@ -53,21 +53,21 @@ public class ContextTestDataInitializer implements CommandLineRunner {
         Namespace ns = namespaceRepository.findAll().stream().findFirst().orElse(null);
         RegistrationAuthority ra = registrationAuthorityRepository.findAll().stream().findFirst().orElse(null);
 
-        createContext(zh, en, ns, ra, "业务上下文", "Business Context",
+        createContext(zh, en, ns, ra, "业务上下文", "Business_Context",
                 "用于描述业务场景中的语义环境。", "The semantic environment used to describe business scenarios.");
-        createContext(zh, en, ns, ra, "技术上下文", "Technical Context",
+        createContext(zh, en, ns, ra, "技术上下文", "Technical_Context",
                 "用于描述技术实现层面的语义环境。", "The semantic environment used to describe technical implementation aspects.");
-        createContext(zh, en, ns, ra, "临床上下文", "Clinical Context",
+        createContext(zh, en, ns, ra, "临床上下文", "Clinical_Context",
                 "用于医疗健康领域的语义环境。", "The semantic environment used in healthcare and clinical domains.");
-        createContext(zh, en, ns, ra, "地理上下文", "Geographic Context",
+        createContext(zh, en, ns, ra, "地理上下文", "Geographic_Context",
                 "用于描述地理位置相关的语义环境。", "The semantic environment related to geographic locations.");
-        createContext(zh, en, ns, ra, "法律上下文", "Legal Context",
+        createContext(zh, en, ns, ra, "法律上下文", "Legal_Context",
                 "用于描述法律法规相关的语义环境。", "The semantic environment related to laws and regulations.");
-        createContext(zh, en, ns, ra, "教育上下文", "Educational Context",
+        createContext(zh, en, ns, ra, "教育上下文", "Educational_Context",
                 "用于描述教育教学相关的语义环境。", "The semantic environment related to education and teaching.");
-        createContext(zh, en, ns, ra, "金融上下文", "Financial Context",
+        createContext(zh, en, ns, ra, "金融上下文", "Financial_Context",
                 "用于描述金融投资相关的语义环境。", "The semantic environment related to finance and investment.");
-        createContext(zh, en, ns, ra, "制造上下文", "Manufacturing Context",
+        createContext(zh, en, ns, ra, "制造上下文", "Manufacturing_Context",
                 "用于描述生产制造相关的语义环境。", "The semantic environment related to manufacturing and production.");
 
         log.info("上下文测试数据创建完成，当前共 {} 条", contextRepository.count());

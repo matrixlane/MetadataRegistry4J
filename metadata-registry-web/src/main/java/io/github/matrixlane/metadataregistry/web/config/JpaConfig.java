@@ -6,14 +6,10 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 
 @Configuration
 @EntityScan(basePackages = {
-        "io.github.matrixlane.metadataregistry.commonfacilities",
-        "io.github.matrixlane.metadataregistry.dataspecification",
-        "io.github.matrixlane.metadataregistry.web.auth",
-        "io.github.matrixlane.metadataregistry.web.entity"
+        "io.github.matrixlane.metadataregistry"
 })
 @EnableJpaRepositories(basePackages = {
-        "io.github.matrixlane.metadataregistry.web.repository",
-        "io.github.matrixlane.metadataregistry.web.auth"
+        "io.github.matrixlane.metadataregistry"
 })
 public class JpaConfig {
 }
