@@ -1,6 +1,7 @@
 package io.github.matrixlane.metadataregistry.web.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.github.matrixlane.metadataregistry.schemaextraction.javasource.JavaSourceParseException;
 import io.github.matrixlane.metadataregistry.web.auth.JwtService;
 import io.github.matrixlane.metadataregistry.web.common.ApiResponse;
 import io.github.matrixlane.metadataregistry.web.config.AppProperties;
@@ -89,5 +90,20 @@ class JavaSourceExtractionControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isUnprocessableEntity());
+    }
+
+    @Test
+    void shouldReturnBadRequestOnJavaSourceParseException() throws Exception {
+        when(extractionService.extract(any()))
+                .thenThrow(new JavaSourceParseException("sourceContent is required for TEXT mode"));
+
+        JavaSourceExtractionRequest request = new JavaSourceExtractionRequest("TEXT", TEST_CLASS, null);
+
+        mockMvc.perform(post("/api/v1/java-source-extraction/extract")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(400))
+                .andExpect(jsonPath("$.message").value("sourceContent is required for TEXT mode"));
     }
 }
