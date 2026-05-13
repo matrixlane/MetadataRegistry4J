@@ -174,7 +174,7 @@ function buildGraphOption(): echarts.EChartsOption {
       label: {
         show: n.isCenter || n.depth <= 2,
         fontSize: n.isCenter ? 12 : 10,
-        fontWeight: n.isCenter ? 'bold' : 'normal' as const,
+        fontWeight: (n.isCenter ? 'bold' : 'normal') as 'bold' | 'normal',
       },
       // Store full data for tooltip
       rawDepth: n.depth,
@@ -257,15 +257,6 @@ function buildGraphOption(): echarts.EChartsOption {
             width: 4,
           },
         },
-        // Click handler for nodes
-        events: {
-          click: (params: any) => {
-            if (params.dataType === 'node') {
-              const nodeId = params.data.value;
-              router.push(`/data-dictionary/${nodeId}`);
-            }
-          },
-        },
       },
     ],
   };
@@ -282,6 +273,15 @@ function renderChart() {
   const option = buildGraphOption();
   chartInstance.setOption(option, true);
 
+  // Bind click event for node navigation
+  chartInstance.off('click');
+  chartInstance.on('click', (params: any) => {
+    if (params.dataType === 'node') {
+      const nodeId = params.data.value;
+      router.push(`/data-dictionary/${nodeId}`);
+    }
+  });
+
   // Resize handler
   chartInstance.resize();
 }
@@ -295,11 +295,11 @@ async function loadNetwork() {
 
   loading.value = true;
   try {
-    const response: NetworkResponse = await getMappingNetwork(
+    const response = await getMappingNetwork(
       centerItemId.value.trim(),
       depth.value,
       filterTypes.value.length > 0 ? filterTypes.value : undefined
-    );
+    ) as NetworkResponse;
 
     nodes.value = response.nodes;
     edges.value = response.edges;
