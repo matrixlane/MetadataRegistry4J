@@ -112,6 +112,84 @@
         </el-card>
       </div>
 
+      <!-- Tabs -->
+      <el-tabs v-model="activeTab" class="detail-tabs">
+        <el-tab-pane label="概览" name="overview" />
+        <el-tab-pane label="版本历史" name="versions" />
+      </el-tabs>
+
+      <!-- Tab content: Overview -->
+      <div v-show="activeTab === 'overview'" class="tab-content">
+        <!-- Core attributes -->
+        <div class="detail-grid">
+          <el-card shadow="hover" class="detail-card">
+            <template #header>
+              <div class="card-header">
+                <el-icon><InfoFilled /></el-icon>
+                <span>核心属性</span>
+              </div>
+            </template>
+            <el-descriptions :column="1" border>
+              <el-descriptions-item label="名称" min-width="160">
+                {{ item.itemLabel || '-' }}
+              </el-descriptions-item>
+              <el-descriptions-item label="标识符">
+                {{ item.identifier || '-' }}
+              </el-descriptions-item>
+              <el-descriptions-item label="版本">
+                {{ item.version || '-' }}
+              </el-descriptions-item>
+              <el-descriptions-item label="实体类型">
+                {{ typeLabel(item.itemType) }}
+              </el-descriptions-item>
+              <el-descriptions-item label="注册状态">
+                <el-tag size="small" :type="statusTagType(item.registrationStatus)">
+                  {{ statusLabel(item.registrationStatus) }}
+                </el-tag>
+              </el-descriptions-item>
+            </el-descriptions>
+          </el-card>
+
+          <!-- Registration info -->
+          <el-card shadow="hover" class="detail-card">
+            <template #header>
+              <div class="card-header">
+                <el-icon><Files /></el-icon>
+                <span>注册信息</span>
+              </div>
+            </template>
+            <el-descriptions :column="1" border>
+              <el-descriptions-item label="命名空间">
+                {{ item.namespaceLabel || '-' }}
+              </el-descriptions-item>
+              <el-descriptions-item label="注册机构">
+                {{ item.registrationAuthorityLabel || '-' }}
+              </el-descriptions-item>
+              <el-descriptions-item label="创建时间">
+                {{ formatDateTime(item.creationDateTime) }}
+              </el-descriptions-item>
+              <el-descriptions-item label="最后修改">
+                {{ formatDateTime(item.lastChangeDateTime) }}
+              </el-descriptions-item>
+              <el-descriptions-item label="变更说明">
+                {{ item.changeDescription || '-' }}
+              </el-descriptions-item>
+              <el-descriptions-item label="生效日期">
+                {{ formatDateTime(item.stateEffectiveDate) }}
+              </el-descriptions-item>
+              <el-descriptions-item label="管理备注">
+                {{ item.administrativeNote || '-' }}
+              </el-descriptions-item>
+            </el-descriptions>
+          </el-card>
+        </div>
+      </div>
+
+      <!-- Tab content: Version History -->
+      <div v-show="activeTab === 'versions'" class="tab-content">
+        <VersionHistoryTimeline :item-id="item.id" />
+      </div>
+
       <!-- Actions -->
       <div class="action-bar">
         <el-button @click="router.back()">返回列表</el-button>
@@ -126,6 +204,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { InfoFilled, Files } from '@element-plus/icons-vue';
 import { metadataSearchApi } from '@/api/resources';
 import { administeredItemApi } from '@/api/resources';
+import VersionHistoryTimeline from '@/components/VersionHistoryTimeline.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -133,6 +212,7 @@ const router = useRouter();
 const item = ref<any>(null);
 const loading = ref(true);
 const error = ref('');
+const activeTab = ref('overview');
 
 const entityTypes = [
   { value: 'DataElement', label: '数据元' },
@@ -354,5 +434,14 @@ onMounted(async () => {
   display: flex;
   justify-content: center;
   gap: 12px;
+  margin-top: 20px;
+}
+
+.detail-tabs {
+  margin-bottom: 16px;
+}
+
+.tab-content {
+  min-height: 200px;
 }
 </style>

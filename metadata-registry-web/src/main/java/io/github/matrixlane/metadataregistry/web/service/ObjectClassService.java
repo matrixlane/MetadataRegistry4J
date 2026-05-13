@@ -24,6 +24,7 @@ public class ObjectClassService {
     private final ObjectClassRepository repository;
     private final ConceptContentApplier conceptContentApplier;
     private final ItemAdministrationService itemAdministrationService;
+    private final VersionHistoryService versionHistoryService;
 
     @Transactional(readOnly = true)
     public Page<ConceptResponse> list(String keyword, Pageable pageable) {
@@ -40,20 +41,24 @@ public class ObjectClassService {
         ObjectClass entity = new ObjectClass();
         conceptContentApplier.applyConcept(entity, request.sourceUri(),
                 request.designations(), request.definitions(), request.registration());
-        return toResponse(repository.save(entity));
+        ObjectClass saved = repository.save(entity);
+        versionHistoryService.recordSnapshot(saved, "CREATE");
+        return toResponse(saved);
     }
 
     public ConceptResponse update(UUID id, ConceptRequest request) {
         ObjectClass entity = loadOrThrow(id);
         conceptContentApplier.applyConcept(entity, request.sourceUri(),
                 request.designations(), request.definitions(), request.registration());
-        return toResponse(repository.save(entity));
+        ObjectClass saved = repository.save(entity);
+        versionHistoryService.recordSnapshot(saved, "UPDATE");
+        return toResponse(saved);
     }
 
     public void delete(UUID id) {
-        if (!repository.existsById(id)) {
-            throw new ResourceNotFoundException("ObjectClass", id);
-        }
+        ObjectClass entity = repository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("ObjectClass", id));
+        versionHistoryService.recordSnapshot(entity, "DELETE");
         repository.deleteById(id);
     }
 

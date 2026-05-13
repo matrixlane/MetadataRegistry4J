@@ -23,6 +23,7 @@ public class PropertyService {
     private final PropertyRepository repository;
     private final ConceptContentApplier conceptContentApplier;
     private final ItemAdministrationService itemAdministrationService;
+    private final VersionHistoryService versionHistoryService;
 
     @Transactional(readOnly = true)
     public Page<ConceptResponse> list(String keyword, Pageable pageable) {
@@ -39,20 +40,24 @@ public class PropertyService {
         Property entity = new Property();
         conceptContentApplier.applyConcept(entity, request.sourceUri(),
                 request.designations(), request.definitions(), request.registration());
-        return toResponse(repository.save(entity));
+        Property saved = repository.save(entity);
+        versionHistoryService.recordSnapshot(saved, "CREATE");
+        return toResponse(saved);
     }
 
     public ConceptResponse update(UUID id, ConceptRequest request) {
         Property entity = loadOrThrow(id);
         conceptContentApplier.applyConcept(entity, request.sourceUri(),
                 request.designations(), request.definitions(), request.registration());
-        return toResponse(repository.save(entity));
+        Property saved = repository.save(entity);
+        versionHistoryService.recordSnapshot(saved, "UPDATE");
+        return toResponse(saved);
     }
 
     public void delete(UUID id) {
-        if (!repository.existsById(id)) {
-            throw new ResourceNotFoundException("Property", id);
-        }
+        Property entity = repository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Property", id));
+        versionHistoryService.recordSnapshot(entity, "DELETE");
         repository.deleteById(id);
     }
 

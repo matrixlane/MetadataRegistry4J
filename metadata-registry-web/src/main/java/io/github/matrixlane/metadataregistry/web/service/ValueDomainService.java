@@ -48,6 +48,7 @@ public class ValueDomainService {
     private final PermissibleValueRepository permissibleValueRepository;
     private final PermissibleValueSetRepository permissibleValueSetRepository;
     private final ItemAdministrationService itemAdministrationService;
+    private final VersionHistoryService versionHistoryService;
 
     @Transactional(readOnly = true)
     public Page<ValueDomainResponse> list(String keyword, Pageable pageable) {
@@ -72,6 +73,7 @@ public class ValueDomainService {
         if (saved instanceof LocalEnumeratedValueDomain levd) {
             applyPermissibleValues(levd, request.permissibleValues());
         }
+        versionHistoryService.recordSnapshot(saved, "CREATE");
         return toResponse(saved);
     }
 
@@ -83,12 +85,14 @@ public class ValueDomainService {
         if (saved instanceof LocalEnumeratedValueDomain levd) {
             applyPermissibleValues(levd, request.permissibleValues());
         }
+        versionHistoryService.recordSnapshot(saved, "UPDATE");
         return toResponse(saved);
     }
 
     public void delete(UUID id) {
         ValueDomain entity = repository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("ValueDomain", id));
+        versionHistoryService.recordSnapshot(entity, "DELETE");
         if (entity instanceof LocalEnumeratedValueDomain levd) {
             cleanupPermissibleValues(levd);
         }

@@ -28,6 +28,7 @@ public class DataElementService {
     private final DataElementConceptRepository dataElementConceptRepository;
     private final ValueDomainRepository valueDomainRepository;
     private final ItemAdministrationService itemAdministrationService;
+    private final VersionHistoryService versionHistoryService;
 
     @Transactional(readOnly = true)
     public Page<DataElementResponse> list(String keyword, Pageable pageable) {
@@ -43,19 +44,23 @@ public class DataElementService {
     public DataElementResponse create(DataElementRequest request) {
         DataElement entity = new DataElement();
         applyRequest(entity, request);
-        return toResponse(repository.save(entity));
+        DataElement saved = repository.save(entity);
+        versionHistoryService.recordSnapshot(saved, "CREATE");
+        return toResponse(saved);
     }
 
     public DataElementResponse update(UUID id, DataElementRequest request) {
         DataElement entity = loadOrThrow(id);
         applyRequest(entity, request);
-        return toResponse(repository.save(entity));
+        DataElement saved = repository.save(entity);
+        versionHistoryService.recordSnapshot(saved, "UPDATE");
+        return toResponse(saved);
     }
 
     public void delete(UUID id) {
-        if (!repository.existsById(id)) {
-            throw new ResourceNotFoundException("DataElement", id);
-        }
+        DataElement entity = repository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("DataElement", id));
+        versionHistoryService.recordSnapshot(entity, "DELETE");
         repository.deleteById(id);
     }
 

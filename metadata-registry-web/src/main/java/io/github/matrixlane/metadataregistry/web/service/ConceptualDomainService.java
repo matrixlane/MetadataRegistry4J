@@ -39,6 +39,7 @@ public class ConceptualDomainService {
     private final ValueMeaningSetRepository valueMeaningSetRepository;
     private final ConceptContentApplier conceptContentApplier;
     private final ItemAdministrationService itemAdministrationService;
+    private final VersionHistoryService versionHistoryService;
 
     @Transactional(readOnly = true)
     public Page<ConceptualDomainResponse> list(String keyword, Pageable pageable) {
@@ -63,6 +64,7 @@ public class ConceptualDomainService {
         if (saved instanceof LocalEnumeratedConceptualDomain lecd) {
             applyValueMeanings(lecd, request.valueMeanings());
         }
+        versionHistoryService.recordSnapshot(saved, "CREATE");
         return toResponse(saved);
     }
 
@@ -74,12 +76,16 @@ public class ConceptualDomainService {
         if (saved instanceof LocalEnumeratedConceptualDomain lecd) {
             applyValueMeanings(lecd, request.valueMeanings());
         }
+        versionHistoryService.recordSnapshot(saved, "UPDATE");
         return toResponse(saved);
     }
 
     public void delete(UUID id) {
-        if (!repository.existsById(id)) {
-            throw new ResourceNotFoundException("ConceptualDomain", id);
+        ConceptualDomain entity = repository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("ConceptualDomain", id));
+        versionHistoryService.recordSnapshot(entity, "DELETE");
+        if (entity instanceof LocalEnumeratedConceptualDomain lecd) {
+            cleanupValueMeanings(lecd);
         }
         repository.deleteById(id);
     }

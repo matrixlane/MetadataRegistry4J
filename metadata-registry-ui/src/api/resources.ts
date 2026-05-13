@@ -95,6 +95,12 @@ export const mappingSchemeApi = {
   /** Create new DRAFT version from PUBLISHED scheme */
   createNewVersion: (id: string) =>
     request.post<any>(`/api/v1/mapping-schemes/${id}/new-version`),
+  /** Get all versions in the scheme lineage */
+  versions: (id: string) =>
+    request.get<any[]>(`/api/v1/mapping-schemes/${id}/versions`),
+  /** Diff two scheme versions (WI-011-2-3-2) */
+  diff: (id: string, baseId: string, compareId: string, mappingType?: string) =>
+    request.get<any>(`/api/v1/mapping-schemes/${id}/diff`, { params: { baseId, compareId, ...(mappingType ? { mappingType } : {}) } }),
 };
 
 /** Mapping network graph (WI-011-2-1) */
@@ -122,6 +128,18 @@ export const pairingApi = {
     request.put<any>(`/items/${itemId}/designation-definition-pairings/${id}`, data),
   delete: (itemId: string, id: string) =>
     request.delete(`/items/${itemId}/designation-definition-pairings/${id}`),
+};
+
+/** Version history (WI-015b) */
+export const versionHistoryApi = {
+  list: (itemId: string) =>
+    request.get<any[]>(`/api/v1/items/${itemId}/versions`),
+  diff: (itemId: string, baseVersion: number, compareVersion: number) =>
+    request.get<any>(`/api/v1/items/${itemId}/versions/${baseVersion}/diff`, {
+      params: { compareVersionId: compareVersion },
+    }),
+  snapshot: (itemId: string, versionNumber: number) =>
+    request.get<any>(`/api/v1/items/${itemId}/versions/${versionNumber}/snapshot`),
 };
 
 /** Interoperability mapping result management (WI-013-2b) */
