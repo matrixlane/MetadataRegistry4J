@@ -34,6 +34,7 @@
     "system": "系统",
     "userManagement": "用户管理",
     "settings": "个人设置",
+    "mappingScheme": "映射方案",
     "mappingNetwork": "映射网络"
   },
   "auth": {
@@ -74,6 +75,31 @@
     "saveSuccess": "保存成功",
     "yes": "是",
     "no": "否"
+  },
+  "mappingScheme": {
+    "title": "映射方案",
+    "subtitle": "ISO/IEC 11179 Clause 11 — 映射方案 CRUD 与版本生命周期",
+    "name": "方案名称",
+    "sourceUri": "源标准 URI",
+    "targetUri": "目标标准 URI",
+    "version": "版本号",
+    "status": "状态",
+    "create": "新建方案",
+    "edit": "编辑方案",
+    "publish": "发布",
+    "archive": "归档",
+    "newVersion": "新建版本",
+    "delete": "删除",
+    "empty": "暂无映射方案，点击「新建方案」开始创建",
+    "confirmDelete": "确认删除映射方案「{name}」？此操作不可恢复。",
+    "confirmPublish": "确认发布映射方案「{name}」？发布后将锁定编辑。",
+    "confirmArchive": "确认归档映射方案「{name}」？归档后为只读状态。",
+    "confirmNewVersion": "确认基于「{name} (v{version})」创建新版本？",
+    "publishSuccess": "发布成功",
+    "archiveSuccess": "归档成功",
+    "newVersionSuccess": "新版本创建成功",
+    "deleteSuccess": "删除成功",
+    "saveSuccess": "保存成功"
   },
   "mappingNetwork": {
     "subtitle": "映射关系网络图可视化",
