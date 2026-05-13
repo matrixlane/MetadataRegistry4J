@@ -197,6 +197,9 @@
                         <exclude>**/MetadataExportService.java</exclude>
                         <exclude>**/ClassificationImportExportService.java</exclude>
                         <exclude>**/ClassificationSchemeController.java</exclude>
+                        <exclude>**/SchemaExtractionApplicationService.java</exclude>
+                        <exclude>**/InteropMappingListRequest.java</exclude>
+                        <exclude>**/MetadataRegistryApplication.java</exclude>
                     </excludes>
                     <testExcludes>
                         <testExclude>**/EmailNotificationGreenMailTest.java</testExclude>

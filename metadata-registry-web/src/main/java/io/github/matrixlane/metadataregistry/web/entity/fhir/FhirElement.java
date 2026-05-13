@@ -81,6 +81,10 @@ public class FhirElement {
     @Column(name = "imported_at", nullable = false, updatable = false)
     private LocalDateTime importedAt;
 
+    /** 预留：与本地 AdministeredItem 的关联字段（WI-012-2 映射数据） */
+    @Column(name = "administered_item_id")
+    private UUID administeredItemId;
+
     public FhirElement() {}
 
     public static Builder builder() { return new Builder(); }
@@ -102,6 +106,7 @@ public class FhirElement {
     public boolean isSummary() { return isSummary; }
     public String getFhirVersion() { return fhirVersion; }
     public LocalDateTime getImportedAt() { return importedAt; }
+    public UUID getAdministeredItemId() { return administeredItemId; }
 
     public void setId(UUID id) { this.id = id; }
     public void setResource(FhirResource resource) { this.resource = resource; }
@@ -120,6 +125,7 @@ public class FhirElement {
     public void setSummary(boolean summary) { isSummary = summary; }
     public void setFhirVersion(String fhirVersion) { this.fhirVersion = fhirVersion; }
     public void setImportedAt(LocalDateTime importedAt) { this.importedAt = importedAt; }
+    public void setAdministeredItemId(UUID administeredItemId) { this.administeredItemId = administeredItemId; }
 
     public static class Builder {
         private UUID id;
@@ -139,6 +145,7 @@ public class FhirElement {
         private boolean isSummary;
         private String fhirVersion;
         private LocalDateTime importedAt;
+        private UUID administeredItemId;
 
         public Builder id(UUID id) { this.id = id; return this; }
         public Builder resource(FhirResource resource) { this.resource = resource; return this; }
@@ -157,6 +164,7 @@ public class FhirElement {
         public Builder isSummary(boolean isSummary) { this.isSummary = isSummary; return this; }
         public Builder fhirVersion(String fhirVersion) { this.fhirVersion = fhirVersion; return this; }
         public Builder importedAt(LocalDateTime importedAt) { this.importedAt = importedAt; return this; }
+        public Builder administeredItemId(UUID administeredItemId) { this.administeredItemId = administeredItemId; return this; }
 
         public FhirElement build() {
             FhirElement e = new FhirElement();
@@ -177,6 +185,7 @@ public class FhirElement {
             e.isSummary = this.isSummary;
             e.fhirVersion = this.fhirVersion;
             e.importedAt = this.importedAt;
+            e.administeredItemId = this.administeredItemId;
             return e;
         }
     }
