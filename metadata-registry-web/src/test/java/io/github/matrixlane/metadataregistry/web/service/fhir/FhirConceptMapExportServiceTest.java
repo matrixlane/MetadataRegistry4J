@@ -537,6 +537,85 @@ class FhirConceptMapExportServiceTest {
     }
 
     // ========================================================================
+    // Boundary Tests — Special Characters
+    // ========================================================================
+
+    @Test
+    void buildConceptMap_specialCharactersInDescription_preservesComment() {
+        var subject = ItemMappingSubject.forExternalUri("https://src.example.org/code");
+        subject.setId(UUID.randomUUID());
+        var object = ItemMappingObject.forExternalUri("https://tgt.example.org/result");
+        object.setId(UUID.randomUUID());
+
+        String specialDesc = "映射描述: 等价/派生/聚合/细分 | Emoji 🏥 | HTML <br/> | JSON {\"key\":\"val\"}";
+        ItemMapping mapping = new ItemMapping(subject, object, MappingType.EQUIVALENT, specialDesc);
+
+        ConceptMap cm = service.buildConceptMap(List.of(mapping), "special-chars");
+
+        var target = cm.getGroupFirstRep().getElementFirstRep().getTargetFirstRep();
+        assertThat(target.getComment()).isEqualTo(specialDesc);
+    }
+
+    @Test
+    void buildConceptMap_specialCharactersInCode_extractsCorrectly() {
+        var subject = ItemMappingSubject.forExternalUri(
+                "https://terminology.hl7.org/CodeSystem/v2-0136-special");
+        subject.setId(UUID.randomUUID());
+        var object = ItemMappingObject.forExternalUri(
+                "https://example.org/CodeSystem/codes/test_space-dash.dot");
+        object.setId(UUID.randomUUID());
+
+        ItemMapping mapping = new ItemMapping(subject, object, MappingType.DERIVED);
+
+        ConceptMap cm = service.buildConceptMap(List.of(mapping), "special-codes");
+
+        var group = cm.getGroupFirstRep();
+        assertThat(group.getElementFirstRep().getCode()).isEqualTo("v2-0136-special");
+        assertThat(group.getElementFirstRep().getTargetFirstRep().getCode())
+                .isEqualTo("test_space-dash.dot");
+    }
+
+    @Test
+    void buildConceptMap_unicodeSchemeId_sanitizesName() {
+        var subject = ItemMappingSubject.forExternalUri("https://src.example.org/code");
+        subject.setId(UUID.randomUUID());
+        var object = ItemMappingObject.forExternalUri("https://tgt.example.org/result");
+        object.setId(UUID.randomUUID());
+
+        ItemMapping mapping = new ItemMapping(subject, object, MappingType.EQUIVALENT);
+
+        String schemeId = "方案-测试_123.456";
+        ConceptMap cm = service.buildConceptMap(List.of(mapping), schemeId);
+
+        assertThat(cm.getId()).isEqualTo(schemeId);
+        assertThat(cm.getName()).matches("MappingScheme_[a-zA-Z0-9_-]+");
+    }
+
+    @Test
+    void doSyncExport_specialCharacters_returnsValidJson() {
+        var subject = ItemMappingSubject.forExternalUri("https://src.example.org/code");
+        subject.setId(UUID.randomUUID());
+        var object = ItemMappingObject.forExternalUri("https://tgt.example.org/result");
+        object.setId(UUID.randomUUID());
+
+        String desc = "中文描述 with unicode 🎉 and symbols: dash-space.dot";
+        ItemMapping mapping = new ItemMapping(subject, object, MappingType.SUBDIVIDED, desc);
+
+        FhirConceptMapExportResult result = service.doSyncExport(List.of(mapping), "unicode-test");
+
+        assertThat(result.success()).isTrue();
+        // Note: HAPI validator may emit warnings for extended unicode in comments,
+        // but export must succeed and produce parseable FHIR JSON
+        assertThat(result.conceptMapJson()).contains("relatedto");
+        // Verify JSON is valid by parsing it back
+        var parser = ca.uhn.fhir.context.FhirContext.forR4().newJsonParser();
+        org.hl7.fhir.r4.model.ConceptMap parsed = (org.hl7.fhir.r4.model.ConceptMap)
+                parser.parseResource(result.conceptMapJson());
+        assertThat(parsed.getGroupFirstRep().getElementFirstRep().getTargetFirstRep().getComment())
+                .isEqualTo(desc);
+    }
+
+    // ========================================================================
     // Helpers
     // ========================================================================
 
@@ -553,3 +632,4 @@ class FhirConceptMapExportServiceTest {
         return new ItemMapping(subject, object, type, "Mapping: " + sourceUri + " → " + targetUri);
     }
 }
+
