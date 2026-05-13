@@ -157,6 +157,7 @@ public class ItemAdministrationService {
     }
 
     private void logDefinitionChanges(UUID itemId, List<DefinitionSnapshot> oldList, List<DefinitionSnapshot> newList) {
+        if (itemId == null) return;
         String operator = currentUser();
         Map<String, DefinitionSnapshot> oldMap = new HashMap<>();
         for (DefinitionSnapshot s : oldList) {
