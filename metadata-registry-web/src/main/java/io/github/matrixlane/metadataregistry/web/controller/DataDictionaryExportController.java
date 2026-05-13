@@ -129,7 +129,7 @@ public class DataDictionaryExportController {
     // 辅助方法
     // ─────────────────────────────────────────────────────────────────
 
-    private ResponseEntity<byte[]> buildFileResponse(byte[] content, String filename, String contentType) {
+    ResponseEntity<byte[]> buildFileResponse(byte[] content, String filename, String contentType) {
         // 文件名安全处理：替换特殊字符
         String safeFilename = sanitizeFilename(filename);
 
@@ -145,12 +145,12 @@ public class DataDictionaryExportController {
                 .body(content);
     }
 
-    private String generateFilename(DataDictionaryExportRequest request, String extension) {
+    String generateFilename(DataDictionaryExportRequest request, String extension) {
         String timestamp = java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
         return "data-dictionary_" + request.format().name().toLowerCase() + "_" + timestamp + "." + extension;
     }
 
-    private String sanitizeFilename(String filename) {
+    String sanitizeFilename(String filename) {
         if (filename == null) {
             return "export.bin";
         }
@@ -160,7 +160,7 @@ public class DataDictionaryExportController {
                 .replaceAll("\s+", "_");
     }
 
-    private UUID extractUserId(Principal principal) {
+    UUID extractUserId(Principal principal) {
         if (principal == null) {
             return UUID.fromString("00000000-0000-0000-0000-000000000001");
         }

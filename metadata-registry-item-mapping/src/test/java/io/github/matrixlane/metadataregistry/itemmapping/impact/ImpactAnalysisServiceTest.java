@@ -312,6 +312,110 @@ class ImpactAnalysisServiceTest {
     }
 
     @Test
+    void analyzeItemChange_aggregatedMapping_shouldIncludeCorrectSuggestion() {
+        UUID a = UUID.randomUUID();
+        UUID b = UUID.randomUUID();
+
+        ItemMapping ab = createMapping(UUID.randomUUID(), a, b, MappingType.AGGREGATED);
+
+        when(repository.findByItemId(a)).thenReturn(List.of(ab));
+        when(repository.findByItemId(b)).thenReturn(List.of(ab));
+
+        ImpactAnalysisResult result = service.analyzeItemChange(a, "DELETED");
+
+        assertThat(result.impactedItems()).hasSize(1);
+        assertThat(result.impactedItems().get(0).suggestedAction())
+                .contains("aggregation integrity");
+    }
+
+    @Test
+    void analyzeItemChange_subdividedMapping_shouldIncludeCorrectSuggestion() {
+        UUID a = UUID.randomUUID();
+        UUID b = UUID.randomUUID();
+
+        ItemMapping ab = createMapping(UUID.randomUUID(), a, b, MappingType.SUBDIVIDED);
+
+        when(repository.findByItemId(a)).thenReturn(List.of(ab));
+        when(repository.findByItemId(b)).thenReturn(List.of(ab));
+
+        ImpactAnalysisResult result = service.analyzeItemChange(a, "MODIFIED");
+
+        assertThat(result.impactedItems()).hasSize(1);
+        assertThat(result.impactedItems().get(0).suggestedAction())
+                .contains("subdivision");
+    }
+
+    @Test
+    void analyzeItemChange_maxDepthReached_shouldStopTraversal() {
+        UUID a = UUID.randomUUID();
+        UUID b = UUID.randomUUID();
+        UUID c = UUID.randomUUID();
+        UUID d = UUID.randomUUID();
+        UUID e = UUID.randomUUID();
+
+        ItemMapping ab = createMapping(UUID.randomUUID(), a, b, MappingType.DERIVED);
+        ItemMapping bc = createMapping(UUID.randomUUID(), b, c, MappingType.DERIVED);
+        ItemMapping cd = createMapping(UUID.randomUUID(), c, d, MappingType.DERIVED);
+        ItemMapping de = createMapping(UUID.randomUUID(), d, e, MappingType.DERIVED);
+
+        when(repository.findByItemId(a)).thenReturn(List.of(ab));
+        when(repository.findByItemId(b)).thenReturn(List.of(ab, bc));
+        when(repository.findByItemId(c)).thenReturn(List.of(bc, cd));
+
+        ImpactAnalysisResult result = service.analyzeItemChange(a, "UPDATED");
+
+        // MAX_DEPTH=3: a(0) -> b(1) -> c(2) -> d(3, as neighbor) -> e not reached
+        // a is the changed item and is not included in impactedItems
+        assertThat(result.impactedItems().stream().map(ImpactedItem::itemId))
+                .contains(b, c, d)
+                .doesNotContain(a, e);
+    }
+
+    @Test
+    void analyzeItemChange_circularReference_shouldNotLoop() {
+        UUID a = UUID.randomUUID();
+        UUID b = UUID.randomUUID();
+        UUID c = UUID.randomUUID();
+
+        ItemMapping ab = createMapping(UUID.randomUUID(), a, b, MappingType.DERIVED);
+        ItemMapping bc = createMapping(UUID.randomUUID(), b, c, MappingType.DERIVED);
+        ItemMapping ca = createMapping(UUID.randomUUID(), c, a, MappingType.DERIVED);
+
+        when(repository.findByItemId(a)).thenReturn(List.of(ab, ca));
+        when(repository.findByItemId(b)).thenReturn(List.of(ab, bc));
+        when(repository.findByItemId(c)).thenReturn(List.of(bc, ca));
+
+        ImpactAnalysisResult result = service.analyzeItemChange(a, "UPDATED");
+
+        // Should not infinite loop, should have b and c only (a is the changed item)
+        assertThat(result.totalImpacted()).isEqualTo(2);
+        assertThat(result.truncated()).isFalse();
+    }
+
+    @Test
+    void analyzeItemChange_duplicateMappingViaDifferentPaths_shouldProduceMultipleEntries() {
+        UUID a = UUID.randomUUID();
+        UUID b = UUID.randomUUID();
+        UUID c = UUID.randomUUID();
+
+        ItemMapping ab = createMapping(UUID.randomUUID(), a, b, MappingType.DERIVED);
+        ItemMapping ac = createMapping(UUID.randomUUID(), a, c, MappingType.DERIVED);
+        ItemMapping bc = createMapping(UUID.randomUUID(), b, c, MappingType.DERIVED);
+
+        when(repository.findByItemId(a)).thenReturn(List.of(ab, ac));
+        when(repository.findByItemId(b)).thenReturn(List.of(ab, bc));
+        when(repository.findByItemId(c)).thenReturn(List.of(ac, bc));
+
+        ImpactAnalysisResult result = service.analyzeItemChange(a, "UPDATED");
+
+        // c is reachable via a->c (DIRECT) and a->b->c (INDIRECT) - different paths produce different entries
+        long cCount = result.impactedItems().stream()
+                .filter(i -> i.itemId().equals(c))
+                .count();
+        assertThat(cCount).isEqualTo(2);
+    }
+
+    @Test
     void analyzeMappingChange_equivalentMapping_shouldExcludeCorrectly() {
         UUID mappingId = UUID.randomUUID();
         UUID a = UUID.randomUUID();
