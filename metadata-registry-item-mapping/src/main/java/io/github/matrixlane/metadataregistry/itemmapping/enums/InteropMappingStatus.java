@@ -11,6 +11,7 @@ package io.github.matrixlane.metadataregistry.itemmapping.enums;
  *   <li>{@link #PENDING} — medium-confidence match (0.60~0.85) awaiting manual confirmation</li>
  *   <li>{@link #CONFIRMED} — manually confirmed by a data steward</li>
  *   <li>{@link #REJECTED} — explicitly rejected by a data steward</li>
+ *   <li>{@link #UNMATCHED} — no corresponding local item found</li>
  * </ul>
  */
 public enum InteropMappingStatus {
@@ -34,5 +35,10 @@ public enum InteropMappingStatus {
     /**
      * Match has been explicitly rejected by a data steward.
      */
-    REJECTED
+    REJECTED,
+
+    /**
+     * No corresponding local item was found for this interop data element.
+     */
+    UNMATCHED
 }

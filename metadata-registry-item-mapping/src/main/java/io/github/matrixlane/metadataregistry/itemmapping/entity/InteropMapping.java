@@ -9,6 +9,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -89,6 +90,41 @@ public class InteropMapping {
     private LocalDateTime confirmedAt;
 
     /**
+     * Dataset identifier for grouping mappings by interoperability dataset.
+     */
+    @Column(name = "dataset_id")
+    private UUID datasetId;
+
+    /**
+     * Optimistic locking version for concurrent update control.
+     */
+    @Version
+    @Column(name = "version", nullable = false)
+    private Long version = 0L;
+
+    /**
+     * Identifier of the batch operation that last modified this mapping.
+     * Used for undoing batch operations.
+     */
+    @Column(name = "batch_operation_id")
+    private UUID batchOperationId;
+
+    /**
+     * Previous status before the last state transition.
+     * Used for undo operations.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "previous_status", length = 20)
+    private InteropMappingStatus previousStatus;
+
+    /**
+     * Previous local item ID before manual remapping.
+     * Used for undoing manual map operations.
+     */
+    @Column(name = "previous_local_item_id")
+    private UUID previousLocalItemId;
+
+    /**
      * Timestamp when this record was created.
      */
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -104,7 +140,8 @@ public class InteropMapping {
                           BigDecimal confidenceScore,
                           String strategy,
                           InteropMappingStatus status,
-                          String reason) {
+                          String reason,
+                          UUID datasetId) {
         this.interopDataElementId = Objects.requireNonNull(interopDataElementId,
                 "interopDataElementId must not be null");
         this.localItemId = Objects.requireNonNull(localItemId,
@@ -115,7 +152,9 @@ public class InteropMapping {
                 "strategy must not be null");
         this.status = status != null ? status : InteropMappingStatus.PENDING;
         this.reason = reason;
+        this.datasetId = datasetId;
         this.createdAt = LocalDateTime.now();
+        this.version = 0L;
     }
 
     /**
@@ -125,9 +164,10 @@ public class InteropMapping {
                           UUID localItemId,
                           BigDecimal confidenceScore,
                           String strategy,
-                          String reason) {
+                          String reason,
+                          UUID datasetId) {
         this(interopDataElementId, localItemId, confidenceScore, strategy,
-                InteropMappingStatus.PENDING, reason);
+                InteropMappingStatus.PENDING, reason, datasetId);
     }
 
     // ── Lifecycle helpers ────────────────────────────────────────────
@@ -136,6 +176,7 @@ public class InteropMapping {
      * Marks this mapping as confirmed by the given user.
      */
     public void confirm(UUID userId) {
+        this.previousStatus = this.status;
         this.status = InteropMappingStatus.CONFIRMED;
         this.confirmedBy = userId;
         this.confirmedAt = LocalDateTime.now();
@@ -145,6 +186,7 @@ public class InteropMapping {
      * Marks this mapping as rejected by the given user.
      */
     public void reject(UUID userId) {
+        this.previousStatus = this.status;
         this.status = InteropMappingStatus.REJECTED;
         this.confirmedBy = userId;
         this.confirmedAt = LocalDateTime.now();
@@ -154,7 +196,45 @@ public class InteropMapping {
      * Auto-matches this mapping (high confidence).
      */
     public void autoMatch() {
+        this.previousStatus = this.status;
         this.status = InteropMappingStatus.AUTO_MATCHED;
+    }
+
+    /**
+     * Manually remaps this interop element to a different local item.
+     */
+    public void manualMap(UUID newLocalItemId, UUID userId) {
+        this.previousStatus = this.status;
+        this.previousLocalItemId = this.localItemId;
+        this.localItemId = newLocalItemId;
+        this.status = InteropMappingStatus.CONFIRMED;
+        this.confirmedBy = userId;
+        this.confirmedAt = LocalDateTime.now();
+    }
+
+    /**
+     * Undoes the last state transition.
+     */
+    public void undo() {
+        if (this.previousStatus != null) {
+            this.status = this.previousStatus;
+            this.previousStatus = null;
+        }
+        if (this.previousLocalItemId != null) {
+            this.localItemId = this.previousLocalItemId;
+            this.previousLocalItemId = null;
+        }
+        this.confirmedBy = null;
+        this.confirmedAt = null;
+        this.batchOperationId = null;
+    }
+
+    /**
+     * Marks this mapping as unmatched (no corresponding local item found).
+     */
+    public void markUnmatched() {
+        this.previousStatus = this.status;
+        this.status = InteropMappingStatus.UNMATCHED;
     }
 
     @Override
