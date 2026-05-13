@@ -4,7 +4,9 @@ import io.github.matrixlane.metadataregistry.itemmapping.entity.ItemMapping;
 import io.github.matrixlane.metadataregistry.itemmapping.entity.ItemMappingObject;
 import io.github.matrixlane.metadataregistry.itemmapping.entity.ItemMappingSubject;
 import io.github.matrixlane.metadataregistry.itemmapping.enums.MappingType;
+import io.github.matrixlane.metadataregistry.itemmapping.event.MappingChangedEvent;
 import io.github.matrixlane.metadataregistry.itemmapping.repository.ItemMappingRepository;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -41,9 +43,12 @@ import java.util.stream.Collectors;
 public class ItemMappingService {
 
     private final ItemMappingRepository mappingRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
-    public ItemMappingService(ItemMappingRepository mappingRepository) {
+    public ItemMappingService(ItemMappingRepository mappingRepository,
+                              ApplicationEventPublisher eventPublisher) {
         this.mappingRepository = mappingRepository;
+        this.eventPublisher = eventPublisher;
     }
 
     // ---- Mutual Exclusion Matrix ----
@@ -161,7 +166,12 @@ public class ItemMappingService {
 
         // Create and save the mapping
         ItemMapping mapping = new ItemMapping(subject, object, mappingType, description);
-        return mappingRepository.save(mapping);
+        ItemMapping saved = mappingRepository.save(mapping);
+
+        // Publish event for downstream notification / impact analysis
+        eventPublisher.publishEvent(new MappingChangedEvent(this, saved.getId(), "CREATED", saved));
+
+        return saved;
     }
 
     // ---- Validation Methods ----
@@ -301,10 +311,14 @@ public class ItemMappingService {
      * @throws IllegalArgumentException if the mapping does not exist
      */
     public void deleteMapping(UUID mappingId) {
-        if (!mappingRepository.existsById(mappingId)) {
+        ItemMapping mapping = mappingRepository.findById(mappingId).orElse(null);
+        if (mapping == null) {
             throw new IllegalArgumentException("Mapping not found: " + mappingId);
         }
         mappingRepository.deleteById(mappingId);
+
+        // Publish event after successful deletion
+        eventPublisher.publishEvent(new MappingChangedEvent(this, mappingId, "DELETED", mapping));
     }
 
     // ---- Network Graph Query ----

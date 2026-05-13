@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.List;
 import java.util.Optional;
@@ -28,11 +29,14 @@ class ItemMappingServiceTest {
     @Mock
     private ItemMappingRepository repository;
 
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
+
     private ItemMappingService service;
 
     @BeforeEach
     void setUp() {
-        service = new ItemMappingService(repository);
+        service = new ItemMappingService(repository, eventPublisher);
     }
 
     // ---- Mutual Exclusion Tests ----
@@ -228,7 +232,7 @@ class ItemMappingServiceTest {
     @Test
     void deleteMapping_shouldThrowWhenNotFound() {
         UUID mappingId = UUID.randomUUID();
-        when(repository.existsById(mappingId)).thenReturn(false);
+        when(repository.findById(mappingId)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.deleteMapping(mappingId))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -238,11 +242,35 @@ class ItemMappingServiceTest {
     @Test
     void deleteMapping_shouldDeleteWhenExists() {
         UUID mappingId = UUID.randomUUID();
-        when(repository.existsById(mappingId)).thenReturn(true);
+        ItemMapping mapping = new ItemMapping(
+                ItemMappingSubject.forItem(UUID.randomUUID()),
+                ItemMappingObject.forItem(UUID.randomUUID()),
+                MappingType.EQUIVALENT
+        );
+        when(repository.findById(mappingId)).thenReturn(Optional.of(mapping));
 
         service.deleteMapping(mappingId);
 
         verify(repository).deleteById(mappingId);
+        verify(eventPublisher).publishEvent(any());
+    }
+
+    @Test
+    void createItemMapping_shouldPublishEvent() {
+        UUID subjectId = UUID.randomUUID();
+        UUID objectId = UUID.randomUUID();
+
+        ItemMapping savedMapping = new ItemMapping(
+                ItemMappingSubject.forItem(subjectId),
+                ItemMappingObject.forItem(objectId),
+                MappingType.EQUIVALENT
+        );
+        when(repository.findByItemId(any())).thenReturn(List.of());
+        when(repository.save(any())).thenReturn(savedMapping);
+
+        service.createItemMapping(subjectId, objectId, MappingType.EQUIVALENT);
+
+        verify(eventPublisher).publishEvent(any());
     }
 
     @Test

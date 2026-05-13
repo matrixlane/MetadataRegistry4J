@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
@@ -39,11 +40,14 @@ class ItemMappingNetworkGraphTest {
     @Mock
     private ItemMappingRepository repository;
 
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
+
     private ItemMappingService service;
 
     @BeforeEach
     void setUp() {
-        service = new ItemMappingService(repository);
+        service = new ItemMappingService(repository, eventPublisher);
     }
 
     // ---- Helper: create a persisted-style mapping with a real UUID ----
