@@ -1,0 +1,12 @@
+{
+  "resourceType": "ValueSet",
+  "id": "administrative-gender",
+  "url": "http://hl7.org/fhir/ValueSet/administrative-gender",
+  "name": "AdministrativeGender",
+  "title": "AdministrativeGender",
+  "status": "draft",
+  "version": "4.0.1",
+  "description": "The gender of a person used for administrative purposes.",
+  "publisher": "HL7 FHIR Standard",
+  "experimental": false
+}
