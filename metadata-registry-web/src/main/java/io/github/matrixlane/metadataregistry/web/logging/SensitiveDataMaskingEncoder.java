@@ -1,19 +1,23 @@
 package io.github.matrixlane.metadataregistry.web.logging;
 
+import ch.qos.logback.classic.encoder.PatternLayoutEncoder;
 import ch.qos.logback.classic.spi.ILoggingEvent;
-import ch.qos.logback.core.encoder.LayoutWrappingEncoder;
-import ch.qos.logback.core.pattern.PatternLayoutBase;
 
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.regex.Pattern;
 
 /**
  * Logback encoder that masks sensitive data in log output.
  * Masks: password, secret, token, authorization, apiKey fields.
- * This encoder wraps a standard PatternLayout but applies regex-based
- * masking to the formatted output before writing.
+ *
+ * <p><strong>Note on domain content:</strong> Because this encoder operates on the
+ * final formatted message string, it may occasionally mask legitimate metadata
+ * concept names (e.g., {@code "PasswordStrength"}). For structured request data
+ * (query strings, headers), prefer {@link SensitiveDataMasker} at the logging
+ * call site to avoid false positives.
  */
-public class SensitiveDataMaskingEncoder extends LayoutWrappingEncoder<ILoggingEvent> {
+public class SensitiveDataMaskingEncoder extends PatternLayoutEncoder {
 
     private static final Pattern[] SENSITIVE_PATTERNS = {
             // JSON-style fields
@@ -44,7 +48,8 @@ public class SensitiveDataMaskingEncoder extends LayoutWrappingEncoder<ILoggingE
     public byte[] encode(ILoggingEvent event) {
         String formatted = layout.doLayout(event);
         String masked = maskSensitiveData(formatted);
-        return masked.getBytes(StandardCharsets.UTF_8);
+        Charset charset = getCharset();
+        return masked.getBytes(charset != null ? charset : StandardCharsets.UTF_8);
     }
 
     @Override

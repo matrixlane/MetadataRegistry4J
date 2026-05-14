@@ -27,7 +27,7 @@ public class ApiLoggingInterceptor implements HandlerInterceptor {
                              @NonNull Object handler) {
         request.setAttribute(START_TIME_ATTR, System.currentTimeMillis());
 
-        String queryString = request.getQueryString();
+        String queryString = SensitiveDataMasker.maskQueryString(request.getQueryString());
         String uri = queryString != null
                 ? request.getRequestURI() + "?" + queryString
                 : request.getRequestURI();
@@ -45,7 +45,7 @@ public class ApiLoggingInterceptor implements HandlerInterceptor {
         Long startTime = (Long) request.getAttribute(START_TIME_ATTR);
         long elapsedMs = startTime != null ? System.currentTimeMillis() - startTime : -1;
 
-        String queryString = request.getQueryString();
+        String queryString = SensitiveDataMasker.maskQueryString(request.getQueryString());
         String uri = queryString != null
                 ? request.getRequestURI() + "?" + queryString
                 : request.getRequestURI();

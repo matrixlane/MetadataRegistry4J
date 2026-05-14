@@ -26,9 +26,7 @@
             <cleanHistoryOnStart>true</cleanHistoryOnStart>
         </rollingPolicy>
         <encoder class="io.github.matrixlane.metadataregistry.web.logging.SensitiveDataMaskingEncoder">
-            <layout class="ch.qos.logback.classic.PatternLayout">
-                <pattern>${LOG_PATTERN}</pattern>
-            </layout>
+            <pattern>${LOG_PATTERN}</pattern>
             <charset>UTF-8</charset>
         </encoder>
     </appender>
@@ -44,9 +42,7 @@
             <cleanHistoryOnStart>true</cleanHistoryOnStart>
         </rollingPolicy>
         <encoder class="io.github.matrixlane.metadataregistry.web.logging.SensitiveDataMaskingEncoder">
-            <layout class="ch.qos.logback.classic.PatternLayout">
-                <pattern>${JSON_LOG_PATTERN}</pattern>
-            </layout>
+            <pattern>${JSON_LOG_PATTERN}</pattern>
             <charset>UTF-8</charset>
         </encoder>
     </appender>

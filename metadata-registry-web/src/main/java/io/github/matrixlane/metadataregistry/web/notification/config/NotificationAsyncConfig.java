@@ -1,5 +1,7 @@
 package io.github.matrixlane.metadataregistry.web.notification.config;
 
+import io.github.matrixlane.metadataregistry.web.logging.MdcTaskDecorator;
+import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.AsyncConfigurer;
@@ -14,7 +16,10 @@ import java.util.concurrent.ThreadPoolExecutor;
  */
 @Configuration
 @EnableAsync
+@RequiredArgsConstructor
 public class NotificationAsyncConfig implements AsyncConfigurer {
+
+    private final MdcTaskDecorator mdcTaskDecorator;
 
     @Bean(name = "notificationTaskExecutor")
     public Executor notificationTaskExecutor() {
@@ -24,6 +29,7 @@ public class NotificationAsyncConfig implements AsyncConfigurer {
         executor.setQueueCapacity(100);
         executor.setThreadNamePrefix("notification-");
         executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+        executor.setTaskDecorator(mdcTaskDecorator);
         executor.setWaitForTasksToCompleteOnShutdown(true);
         executor.setAwaitTerminationSeconds(30);
         executor.initialize();

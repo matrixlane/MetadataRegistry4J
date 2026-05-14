@@ -1,5 +1,7 @@
 package io.github.matrixlane.metadataregistry.web.config;
 
+import io.github.matrixlane.metadataregistry.web.logging.MdcTaskDecorator;
+import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.EnableAsync;
@@ -13,7 +15,10 @@ import java.util.concurrent.ThreadPoolExecutor;
  */
 @Configuration
 @EnableAsync
+@RequiredArgsConstructor
 public class ExportAsyncConfig {
+
+    private final MdcTaskDecorator mdcTaskDecorator;
 
     @Bean(name = "exportTaskExecutor")
     public Executor exportTaskExecutor() {
@@ -23,6 +28,7 @@ public class ExportAsyncConfig {
         executor.setQueueCapacity(20);
         executor.setThreadNamePrefix("export-");
         executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+        executor.setTaskDecorator(mdcTaskDecorator);
         executor.setWaitForTasksToCompleteOnShutdown(true);
         executor.setAwaitTerminationSeconds(30);
         executor.initialize();
