@@ -119,7 +119,8 @@ public class ClassificationSchemeService {
         node.setDescription(request.getDescription());
         node.setDefinition(request.getDefinition());
         node.setSortOrder(request.getSortOrder() != null ? request.getSortOrder() : 0);
-        node.setParentId(request.getParentId());
+
+        resolveParent(node, request.getParentId());
 
         node = nodeRepository.save(node);
         return toNodeResponse(node);
@@ -135,7 +136,8 @@ public class ClassificationSchemeService {
         node.setDescription(request.getDescription());
         node.setDefinition(request.getDefinition());
         node.setSortOrder(request.getSortOrder() != null ? request.getSortOrder() : 0);
-        node.setParentId(request.getParentId());
+
+        resolveParent(node, request.getParentId());
 
         node = nodeRepository.save(node);
         return toNodeResponse(node);
@@ -155,9 +157,20 @@ public class ClassificationSchemeService {
                     "不能将节点移动到其子节点下，会产生循环引用");
         }
 
-        node.setParentId(newParentId);
+        resolveParent(node, newParentId);
         node = nodeRepository.save(node);
         return toNodeResponse(node);
+    }
+
+    private void resolveParent(ClassificationNode node, UUID parentId) {
+        if (parentId != null) {
+            ClassificationNode parent = nodeRepository.findById(parentId)
+                    .orElseThrow(() -> new BusinessException(ApiCodes.NOT_FOUND,
+                            "父节点不存在: " + parentId));
+            node.setParent(parent);
+        } else {
+            node.setParent(null);
+        }
     }
 
     @Transactional
@@ -304,6 +317,9 @@ public class ClassificationSchemeService {
      * Used for cycle detection when moving nodes.
      */
     private boolean isDescendant(UUID ancestorId, UUID candidateDescendantId) {
+        if (candidateDescendantId == null || ancestorId == null) {
+            return false;
+        }
         if (ancestorId.equals(candidateDescendantId)) {
             return true;
         }
