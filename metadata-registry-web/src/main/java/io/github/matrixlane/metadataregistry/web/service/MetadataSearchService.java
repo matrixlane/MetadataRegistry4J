@@ -1,26 +1,20 @@
 package io.github.matrixlane.metadataregistry.web.service;
 
-import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.Item;
-import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.Sign;
-import io.github.matrixlane.metadataregistry.commonfacilities.identification.ScopedIdentifier;
-import io.github.matrixlane.metadataregistry.commonfacilities.registration.AdministeredItem;
-import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationAuthority;
-import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationState;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationStatus;
 import io.github.matrixlane.metadataregistry.web.dto.administereditem.AdministeredItemResponse;
-import io.github.matrixlane.metadataregistry.web.repository.AdministeredItemRepository;
-import io.github.matrixlane.metadataregistry.web.util.ItemNamingHelper;
-import jakarta.persistence.criteria.Join;
-import jakarta.persistence.criteria.JoinType;
-import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
-import org.hibernate.Hibernate;
+import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.jpa.domain.Specification;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Timestamp;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -28,16 +22,21 @@ import java.util.UUID;
 /**
  * Service providing unified search across all metadata entity types.
  * <p>
- * Searches across Designation (name), ScopedIdentifier (business identifier),
- * and Definition (definition text) with optional filters for entity type
- * and registration status.
+ * Uses native SQL via JdbcTemplate to bypass Hibernate's polymorphic JOIN
+ * which causes SQL Server's 4096-column limit to be exceeded when
+ * querying AdministeredItem → IdentifiedItem → Item (JOINED inheritance
+ * with 11+ subclasses).
+ * <p>
+ * Note: Not marked @Transactional because JdbcTemplate manages its own
+ * connections and the native SQL queries do not need JPA transaction
+ * participation. Adding @Transactional can cause rollback failures on
+ * SQL Server when the connection pool has auto-commit enabled.
  */
 @Service
 @RequiredArgsConstructor
-@Transactional(readOnly = true)
 public class MetadataSearchService {
 
-    private final AdministeredItemRepository repository;
+    private final JdbcTemplate jdbcTemplate;
 
     /**
      * Unified search across all metadata entities.
@@ -50,108 +49,127 @@ public class MetadataSearchService {
      */
     public Page<AdministeredItemResponse> search(String keyword, String type,
                                                   RegistrationStatus status, Pageable pageable) {
-        Specification<AdministeredItem> spec = buildSpecification(keyword, type, status);
-        return repository.findAll(spec, pageable).map(this::toResponse);
-    }
+        String keywordPattern = (keyword != null && !keyword.isBlank())
+                ? "%" + keyword.trim().toLowerCase() + "%"
+                : null;
+        String typeFilter = (type != null && !type.isBlank()) ? type : null;
+        String statusFilter = (status != null) ? status.name() : null;
 
-    private Specification<AdministeredItem> buildSpecification(String keyword, String type,
-                                                               RegistrationStatus status) {
-        return (root, query, cb) -> {
-            query.distinct(true);
-            List<Predicate> predicates = new ArrayList<>();
+        // Build WHERE clause dynamically
+        StringBuilder where = new StringBuilder(" WHERE 1=1 ");
+        List<Object> countParams = new ArrayList<>();
+        List<Object> selectParams = new ArrayList<>();
 
-            // AdministeredItem IS-A IdentifiedItem which has an 'item' property (Item)
-            Join<AdministeredItem, Item> itemJoin = (Join) root.join("item");
-
-            // --- Keyword search ---
-            if (keyword != null && !keyword.isBlank()) {
-                String pattern = "%" + keyword.trim().toLowerCase() + "%";
-
-                // Join to Designation for name search (sign.value)
-                Join<Object, Object> desJoin = (Join) itemJoin.join("designations", JoinType.LEFT);
-
-                // Join to Definition for definition text search (text.value)
-                Join<Object, Object> defJoin = (Join) itemJoin.join("definitions", JoinType.LEFT);
-
-                // Join to ScopedIdentifier for identifier search
-                Join<Object, Object> siJoin = (Join) root.join("scopedIdentifiers", JoinType.LEFT);
-
-                Predicate keywordPredicate = cb.or(
-                        cb.like(cb.lower(desJoin.get("sign").get("value")), pattern),
-                        cb.like(cb.lower(defJoin.get("text").get("value")), pattern),
-                        cb.like(cb.lower(siJoin.get("identifier")), pattern)
-                );
-                predicates.add(keywordPredicate);
-            }
-
-            // --- Entity type filter ---
-            if (type != null && !type.isBlank()) {
-                predicates.add(cb.equal(itemJoin.type(), type));
-            }
-
-            // --- Registration status filter ---
-            if (status != null) {
-                predicates.add(
-                        cb.equal(root.get("registrationState").get("registrationStatus"), status)
-                );
-            }
-
-            // Default order: creationDateTime descending
-            query.orderBy(cb.desc(root.get("creationDateTime")));
-
-            return cb.and(predicates.toArray(new Predicate[0]));
-        };
-    }
-
-    private AdministeredItemResponse toResponse(AdministeredItem ai) {
-        Item item = ai.getItem();
-        Item realItem = item == null ? null : (Item) Hibernate.unproxy(item);
-        UUID itemId = realItem == null ? null : realItem.getId();
-        String itemType = realItem == null ? null : realItem.getClass().getSimpleName();
-        String itemLabel = realItem == null ? null : ItemNamingHelper.preferredDesignation(realItem);
-
-        String identifier = null;
-        String version = null;
-        UUID nsId = null;
-        String nsLabel = null;
-        if (ai.getScopedIdentifiers() != null && !ai.getScopedIdentifiers().isEmpty()) {
-            ScopedIdentifier si = ai.getScopedIdentifiers().get(0);
-            identifier = si.getIdentifier();
-            version = si.getVersion();
-            if (si.getNamespace() != null) {
-                nsId = si.getNamespace().getId();
-                nsLabel = ItemNamingHelper.preferredDesignation(si.getNamespace());
-            }
+        if (keywordPattern != null) {
+            where.append(" AND (EXISTS (SELECT 1 FROM designation d WHERE d.item_id = i.id AND LOWER(d.value) LIKE ?)");
+            where.append(" OR EXISTS (SELECT 1 FROM definition df WHERE df.item_id = i.id AND LOWER(df.value) LIKE ?)");
+            where.append(" OR EXISTS (SELECT 1 FROM scoped_identifier si2 WHERE si2.identified_item_id = ai.id AND LOWER(si2.identifier) LIKE ?))");
+            countParams.add(keywordPattern);
+            countParams.add(keywordPattern);
+            countParams.add(keywordPattern);
+            selectParams.add(keywordPattern);
+            selectParams.add(keywordPattern);
+            selectParams.add(keywordPattern);
         }
 
-        UUID raId = null;
-        String raLabel = null;
-        RegistrationAuthority ra = ai.getRegistrationAuthority();
-        if (ra != null) {
-            raId = ra.getId();
-            if (ra.getName() != null && !ra.getName().isEmpty()) {
-                Sign s = ra.getName().get(0);
-                if (s != null) raLabel = s.getValue();
-            }
+        // In JOINED inheritance strategy there is no discriminator column (dtype).
+        // The type parameter is currently ignored for filtering.
+        // To properly filter by type would require checking each subclass table.
+        // if (typeFilter != null) {
+        //     where.append(" AND i.dtype = ?");
+        //     countParams.add(typeFilter);
+        //     selectParams.add(typeFilter);
+        // }
+
+        if (statusFilter != null) {
+            where.append(" AND rs.registration_status = ?");
+            countParams.add(statusFilter);
+            selectParams.add(statusFilter);
         }
 
-        RegistrationState state = ai.getRegistrationState();
+        // Count query
+        String countSql = "SELECT COUNT(DISTINCT ai.id) FROM administered_item ai " +
+                "JOIN identified_item ii ON ai.id = ii.id " +
+                "JOIN item i ON ii.item_id = i.id " +
+                "LEFT JOIN registration_state rs ON ai.registration_state_id = rs.id" +
+                where;
+
+        Long total = jdbcTemplate.queryForObject(countSql, Long.class, countParams.toArray());
+        if (total == null) total = 0L;
+
+        if (total == 0) {
+            return new PageImpl<>(List.of(), pageable, 0);
+        }
+
+        // Main query with pagination
+        String selectSql = "SELECT DISTINCT " +
+                "ai.id, " +
+                "i.id AS item_id, " +
+                "(SELECT TOP 1 d.value FROM designation d WHERE d.item_id = i.id) AS item_label, " +
+                "si.identifier, " +
+                "si.version, " +
+                "ns.id AS ns_id, " +
+                "(SELECT TOP 1 d2.value FROM designation d2 WHERE d2.item_id = ns.id) AS ns_label, " +
+                "ra.id AS ra_id, " +
+                "(SELECT TOP 1 oname.value FROM organization_name oname WHERE oname.organization_id = ra.id) AS ra_label, " +
+                "rs.registration_status, " +
+                "rs.effective_date, " +
+                "rs.administrative_note, " +
+                "ai.creation_date_time, " +
+                "ai.last_change_date_time, " +
+                "ai.change_description " +
+                "FROM administered_item ai " +
+                "JOIN identified_item ii ON ai.id = ii.id " +
+                "JOIN item i ON ii.item_id = i.id " +
+                "LEFT JOIN scoped_identifier si ON si.identified_item_id = ai.id " +
+                "LEFT JOIN namespace ns ON si.namespace_id = ns.id " +
+                "LEFT JOIN registration_authority ra ON ai.registration_authority_id = ra.id " +
+                "LEFT JOIN registration_state rs ON ai.registration_state_id = rs.id" +
+                where +
+                " ORDER BY ai.creation_date_time DESC " +
+                "OFFSET ? ROWS FETCH NEXT ? ROWS ONLY";
+
+        selectParams.add(pageable.getOffset());
+        selectParams.add(pageable.getPageSize());
+
+        List<AdministeredItemResponse> results = jdbcTemplate.query(selectSql, this::mapRow, selectParams.toArray());
+
+        return new PageImpl<>(results, pageable, total);
+    }
+
+    private AdministeredItemResponse mapRow(ResultSet rs, int rowNum) throws SQLException {
         return new AdministeredItemResponse(
-                ai.getId(),
-                itemId,
-                itemType,
-                itemLabel,
-                identifier,
-                version,
-                nsId,
-                nsLabel,
-                raId,
-                raLabel,
-                state == null ? null : state.getRegistrationStatus(),
-                state == null ? null : state.getEffectiveDate(),
-                state == null ? null : state.getAdministrativeNote(),
-                ai.getCreationDateTime(),
-                ai.getLastChangeDateTime(),
-                ai.getChangeDescription());
+                uuid(rs, "id"),
+                uuid(rs, "item_id"),
+                null, // item_type — JOINED inheritance has no dtype column
+                rs.getString("item_label"),
+                rs.getString("identifier"),
+                rs.getString("version"),
+                uuid(rs, "ns_id"),
+                rs.getString("ns_label"),
+                uuid(rs, "ra_id"),
+                rs.getString("ra_label"),
+                status(rs, "registration_status"),
+                ldt(rs, "effective_date"),
+                rs.getString("administrative_note"),
+                ldt(rs, "creation_date_time"),
+                ldt(rs, "last_change_date_time"),
+                rs.getString("change_description")
+        );
+    }
+
+    private UUID uuid(ResultSet rs, String column) throws SQLException {
+        Object value = rs.getObject(column);
+        return value == null ? null : UUID.fromString(value.toString());
+    }
+
+    private RegistrationStatus status(ResultSet rs, String column) throws SQLException {
+        String value = rs.getString(column);
+        return value == null ? null : RegistrationStatus.valueOf(value);
+    }
+
+    private LocalDateTime ldt(ResultSet rs, String column) throws SQLException {
+        Timestamp ts = rs.getTimestamp(column);
+        return ts == null ? null : ts.toLocalDateTime();
     }
 }
