@@ -40,7 +40,7 @@ import java.util.UUID;
  *
  * <p><b>状态迁移策略：</b></p>
  * <p>审批通过后，自动沿 ISO 11179 状态机正向迁移至 STANDARD：
- * INCOMPLETE → CANDIDATE → RECORDED → QUALIFIED → STANDARD。</p>
+ * INCOMPLETE → SUBMITTED → RECORDED → QUALIFIED → STANDARD。</p>
  *
  * <p><b>并发安全：</b></p>
  * <p>基于 {@code @Version} 乐观锁防止多人同时审批同一记录（R2）。</p>
@@ -260,8 +260,8 @@ public class ApprovalService {
     /**
      * 自动触发 ISO 状态迁移，沿正向路径直至 STANDARD。
      *
-     * <p>支持路径：INCOMPLETE → CANDIDATE → RECORDED → QUALIFIED → STANDARD。
-     * APPLICATION 可直接迁移至 STANDARD。</p>
+     * <p>支持路径：INCOMPLETE → SUBMITTED → RECORDED → QUALIFIED → STANDARD。
+     * PREFERRED 状态跳过（已是发布状态）。</p>
      */
     private void transitionToStandard(UUID administeredItemId, String note) {
         AdministeredItem item = administeredItemRepository.findById(administeredItemId)
@@ -272,7 +272,7 @@ public class ApprovalService {
                 ? RegistrationStatus.INCOMPLETE
                 : item.getRegistrationState().getRegistrationStatus();
 
-        if (current == RegistrationStatus.STANDARD || current == RegistrationStatus.PREFERRED_STANDARD) {
+        if (current == RegistrationStatus.STANDARD || current == RegistrationStatus.PREFERRED) {
             return; // 已是发布状态，无需迁移
         }
 
@@ -292,11 +292,10 @@ public class ApprovalService {
 
     private RegistrationStatus resolveNextState(RegistrationStatus current) {
         return switch (current) {
-            case INCOMPLETE -> RegistrationStatus.CANDIDATE;
-            case CANDIDATE -> RegistrationStatus.RECORDED;
+            case INCOMPLETE -> RegistrationStatus.SUBMITTED;
+            case SUBMITTED -> RegistrationStatus.RECORDED;
             case RECORDED -> RegistrationStatus.QUALIFIED;
             case QUALIFIED -> RegistrationStatus.STANDARD;
-            case APPLICATION -> RegistrationStatus.STANDARD;
             default -> throw new BusinessException(ApiCodes.APPROVAL_INVALID_STATE,
                     "无法从状态 " + current + " 自动迁移到 STANDARD");
         };

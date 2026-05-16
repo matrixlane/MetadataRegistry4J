@@ -1,9 +1,11 @@
 package io.github.matrixlane.metadataregistry.web.dto.designationdefinition;
 
 import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.Acceptability;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
+import java.util.List;
 import java.util.UUID;
 
 public record DesignationRequest(
@@ -15,7 +17,13 @@ public record DesignationRequest(
         String value,
         UUID sourceId,
         UUID namespaceId,
-        UUID contextId,
-        @NotNull(message = "acceptability 不能为空")
-        Acceptability acceptability) {
+        @Valid
+        List<ContextEntry> contexts) {
+
+    public record ContextEntry(
+            @NotNull(message = "contextId 不能为空")
+            UUID contextId,
+            @NotNull(message = "acceptability 不能为空")
+            Acceptability acceptability) {
+    }
 }

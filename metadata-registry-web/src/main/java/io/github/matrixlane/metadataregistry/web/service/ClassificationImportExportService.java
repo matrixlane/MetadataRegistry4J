@@ -48,8 +48,13 @@ import java.util.stream.Collectors;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class ClassificationImportExportService {
+
+    public ClassificationImportExportService(ClassificationSchemeRepository schemeRepository,
+                                              ClassificationNodeRepository nodeRepository) {
+        this.schemeRepository = schemeRepository;
+        this.nodeRepository = nodeRepository;
+    }
 
     private static final Pattern NODE_CODE_PATTERN = Pattern.compile("^[A-Za-z0-9_\\-\\.]+$");
     private static final int MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10MB

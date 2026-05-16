@@ -493,8 +493,8 @@ public class MultiLevelApprovalService {
     /**
      * 自动触发 ISO 状态迁移，沿正向路径直至 STANDARD。
      *
-     * <p>支持路径：INCOMPLETE → CANDIDATE → RECORDED → QUALIFIED → STANDARD。
-     * APPLICATION 可直接迁移至 STANDARD。</p>
+     * <p>支持路径：INCOMPLETE → SUBMITTED → RECORDED → QUALIFIED → STANDARD。
+     * PREFERRED 状态跳过（已是发布状态）。</p>
      */
     private void transitionToStandard(UUID administeredItemId, String note) {
         AdministeredItem item = administeredItemRepository.findById(administeredItemId)
@@ -505,7 +505,7 @@ public class MultiLevelApprovalService {
                 ? RegistrationStatus.INCOMPLETE
                 : item.getRegistrationState().getRegistrationStatus();
 
-        if (current == RegistrationStatus.STANDARD || current == RegistrationStatus.PREFERRED_STANDARD) {
+        if (current == RegistrationStatus.STANDARD || current == RegistrationStatus.PREFERRED) {
             return;
         }
 
@@ -525,11 +525,10 @@ public class MultiLevelApprovalService {
 
     private RegistrationStatus resolveNextState(RegistrationStatus current) {
         return switch (current) {
-            case INCOMPLETE -> RegistrationStatus.CANDIDATE;
-            case CANDIDATE -> RegistrationStatus.RECORDED;
+            case INCOMPLETE -> RegistrationStatus.SUBMITTED;
+            case SUBMITTED -> RegistrationStatus.RECORDED;
             case RECORDED -> RegistrationStatus.QUALIFIED;
             case QUALIFIED -> RegistrationStatus.STANDARD;
-            case APPLICATION -> RegistrationStatus.STANDARD;
             default -> throw new BusinessException(ApiCodes.APPROVAL_INVALID_STATE,
                     "无法从状态 " + current + " 自动迁移到 STANDARD");
         };

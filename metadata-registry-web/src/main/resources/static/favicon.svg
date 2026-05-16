@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#3b82f6"/>
+      <stop offset="100%" stop-color="#1e40af"/>
+    </linearGradient>
+    <linearGradient id="ring" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="rgba(255,255,255,0.35)"/>
+      <stop offset="100%" stop-color="rgba(255,255,255,0.08)"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="64" height="64" rx="14" fill="url(#bg)"/>
+
+  <!-- Decorative hexagon ring -->
+  <path d="M32 8 L50 18.5 V39.5 L32 50 L14 39.5 V18.5 Z"
+        fill="none" stroke="url(#ring)" stroke-width="1.2"/>
+
+  <!-- Inner accent dot at top -->
+  <circle cx="32" cy="8" r="2.5" fill="#60a5fa"/>
+
+  <!-- Bottom accent dots -->
+  <circle cx="14" cy="39.5" r="1.8" fill="#93c5fd"/>
+  <circle cx="50" cy="39.5" r="1.8" fill="#93c5fd"/>
+
+  <!-- Connection lines suggesting network/data -->
+  <line x1="32" y1="8" x2="32" y2="16" stroke="rgba(255,255,255,0.25)" stroke-width="0.8"/>
+  <line x1="14" y1="39.5" x2="20" y2="35" stroke="rgba(255,255,255,0.15)" stroke-width="0.8"/>
+  <line x1="50" y1="39.5" x2="44" y2="35" stroke="rgba(255,255,255,0.15)" stroke-width="0.8"/>
+
+  <!-- MDR text -->
+  <text x="50%" y="58%" text-anchor="middle" dominant-baseline="middle"
+        font-family="-apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif"
+        font-size="20" font-weight="800" fill="#ffffff" letter-spacing="0.5">MDR</text>
+
+  <!-- Subtle highlight at top -->
+  <path d="M14 0 H50 A14 14 0 0 1 64 14 V20 A14 14 0 0 0 50 0 H14 Z" fill="rgba(255,255,255,0.08)"/>
+</svg>

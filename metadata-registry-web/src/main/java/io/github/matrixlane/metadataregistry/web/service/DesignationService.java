@@ -9,7 +9,6 @@ import io.github.matrixlane.metadataregistry.commonfacilities.identification.Nam
 import io.github.matrixlane.metadataregistry.web.common.ApiCodes;
 import io.github.matrixlane.metadataregistry.web.common.BusinessException;
 import io.github.matrixlane.metadataregistry.web.common.ResourceNotFoundException;
-import io.github.matrixlane.metadataregistry.web.dto.common.TextLineResponse;
 import io.github.matrixlane.metadataregistry.web.dto.designationdefinition.DesignationRequest;
 import io.github.matrixlane.metadataregistry.web.dto.designationdefinition.DesignationResponse;
 import io.github.matrixlane.metadataregistry.web.repository.ContextRepository;
@@ -37,6 +36,8 @@ import java.util.stream.Collectors;
  * Designation 独立 CRUD 服务。
  *
  * <p>集成命名规范校验、命名冲突检测、首选名称唯一性约束。
+ * <p>支持多 DesignationContext 关联（Context + Acceptability），
+ * 符合 ISO 11179-3 Clause 8.5.2 要求。
  */
 @Service
 @RequiredArgsConstructor
@@ -75,9 +76,7 @@ public class DesignationService {
             validateNoConflict(request.namespaceId(), sign, null);
         }
 
-        if (request.acceptability() == Acceptability.PREFERRED) {
-            validatePreferredUniqueness(item.getId(), request.languageId(), null);
-        }
+        validatePreferredUniqueness(item.getId(), request.languageId(), request.contexts(), null);
 
         Designation d = new Designation();
         d.setItem(item);
@@ -93,15 +92,7 @@ public class DesignationService {
                     .orElseThrow(() -> new ResourceNotFoundException("Namespace", request.namespaceId()));
             d.getNamespaces().add(ns);
         }
-        if (request.contextId() != null) {
-            Context ctx = contextRepository.findById(request.contextId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Context", request.contextId()));
-            DesignationContext dc = new DesignationContext();
-            dc.setDesignation(d);
-            dc.setContext(ctx);
-            dc.setAcceptability(request.acceptability());
-            d.getDesignationContexts().add(dc);
-        }
+        applyContexts(d, request.contexts());
 
         return toResponse(designationRepository.save(d));
     }
@@ -117,9 +108,7 @@ public class DesignationService {
             validateNoConflict(request.namespaceId(), sign, d.getItem().getId());
         }
 
-        if (request.acceptability() == Acceptability.PREFERRED) {
-            validatePreferredUniqueness(d.getItem().getId(), request.languageId(), id);
-        }
+        validatePreferredUniqueness(d.getItem().getId(), request.languageId(), request.contexts(), id);
 
         d.setSign(sign);
         d.setLanguage(languageRepository.findById(request.languageId())
@@ -136,16 +125,9 @@ public class DesignationService {
             d.getNamespaces().clear();
             d.getNamespaces().add(ns);
         }
-        if (request.contextId() != null) {
-            Context ctx = contextRepository.findById(request.contextId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Context", request.contextId()));
-            d.getDesignationContexts().clear();
-            DesignationContext dc = new DesignationContext();
-            dc.setDesignation(d);
-            dc.setContext(ctx);
-            dc.setAcceptability(request.acceptability());
-            d.getDesignationContexts().add(dc);
-        }
+        // Clear and rebuild DesignationContexts
+        d.getDesignationContexts().clear();
+        applyContexts(d, request.contexts());
 
         return toResponse(designationRepository.save(d));
     }
@@ -156,6 +138,22 @@ public class DesignationService {
             throw new ResourceNotFoundException("Designation", id);
         }
         designationRepository.deleteById(id);
+    }
+
+    /**
+     * Apply DesignationContext entries from the request to the Designation entity.
+     */
+    private void applyContexts(Designation d, List<DesignationRequest.ContextEntry> contexts) {
+        if (contexts == null || contexts.isEmpty()) return;
+        for (DesignationRequest.ContextEntry entry : contexts) {
+            Context ctx = contextRepository.findById(entry.contextId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Context", entry.contextId()));
+            DesignationContext dc = new DesignationContext();
+            dc.setDesignation(d);
+            dc.setContext(ctx);
+            dc.setAcceptability(entry.acceptability());
+            d.getDesignationContexts().add(dc);
+        }
     }
 
     private Designation loadOrThrow(UUID id) {
@@ -182,28 +180,56 @@ public class DesignationService {
         }
     }
 
-    private void validatePreferredUniqueness(UUID itemId, UUID languageId, UUID excludeDesignationId) {
-        List<Designation> existing = designationRepository.findPreferredByItemIdAndLanguageId(itemId, languageId);
-        boolean hasOther = existing.stream()
-                .anyMatch(d -> excludeDesignationId == null || !d.getId().equals(excludeDesignationId));
-        if (hasOther) {
-            throw new BusinessException(ApiCodes.CONFLICT,
-                    "同一 Item + 同一 Language 下只能有一个 PREFERRED 的 Designation");
+    /**
+     * Validate that within the given item + language, only one DesignationContext
+     * has PREFERRED acceptability.
+     *
+     * @param itemId     the item the designation belongs to
+     * @param languageId the language of the designation
+     * @param contexts   the context entries from the request
+     * @param excludeDesignationId optional designation id to exclude from check (on update)
+     */
+    private void validatePreferredUniqueness(UUID itemId, UUID languageId,
+                                             List<DesignationRequest.ContextEntry> contexts,
+                                             UUID excludeDesignationId) {
+        // Check incoming request contexts
+        boolean hasPreferredInRequest = false;
+        if (contexts != null) {
+            for (DesignationRequest.ContextEntry entry : contexts) {
+                if (entry.acceptability() == Acceptability.PREFERRED) {
+                    if (hasPreferredInRequest) {
+                        throw new BusinessException(ApiCodes.CONFLICT,
+                                "同一条指称下只能有一个 PREFERRED 的 DesignationContext");
+                    }
+                    hasPreferredInRequest = true;
+                }
+            }
+        }
+
+        // Check existing designations for PREFERRED in the same item + language
+        if (hasPreferredInRequest) {
+            List<Designation> existing = designationRepository.findPreferredByItemIdAndLanguageId(itemId, languageId);
+            boolean hasOther = existing.stream()
+                    .anyMatch(d -> excludeDesignationId == null || !d.getId().equals(excludeDesignationId));
+            if (hasOther) {
+                throw new BusinessException(ApiCodes.CONFLICT,
+                        "同一 Item + 同一 Language 下只能有一个 PREFERRED 的 Designation");
+            }
         }
     }
 
     private DesignationResponse toResponse(Designation d) {
-        UUID ctxId = null;
-        String ctxLabel = null;
-        String acceptability = null;
+        // Map multiple DesignationContexts
+        List<DesignationResponse.ContextResponse> contextResponses = Collections.emptyList();
         if (d.getDesignationContexts() != null && !d.getDesignationContexts().isEmpty()) {
-            DesignationContext dc = d.getDesignationContexts().get(0);
-            if (dc.getContext() != null) {
-                ctxId = dc.getContext().getId();
-                ctxLabel = ItemNamingHelper.preferredDesignation(dc.getContext());
-            }
-            acceptability = dc.getAcceptability() == null ? null : dc.getAcceptability().name();
+            contextResponses = d.getDesignationContexts().stream()
+                    .map(dc -> new DesignationResponse.ContextResponse(
+                            dc.getContext() == null ? null : dc.getContext().getId(),
+                            dc.getContext() == null ? null : ItemNamingHelper.preferredDesignation(dc.getContext()),
+                            dc.getAcceptability() == null ? null : dc.getAcceptability().name()))
+                    .toList();
         }
+
         UUID nsId = null;
         String nsLabel = null;
         if (d.getNamespaces() != null && !d.getNamespaces().isEmpty()) {
@@ -222,8 +248,6 @@ public class DesignationService {
                         ? null : d.getSource().getTitle().getValue(),
                 nsId,
                 nsLabel,
-                ctxId,
-                ctxLabel,
-                acceptability);
+                contextResponses);
     }
 }

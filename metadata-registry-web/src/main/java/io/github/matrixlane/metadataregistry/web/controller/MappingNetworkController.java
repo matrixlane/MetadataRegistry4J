@@ -35,11 +35,19 @@ public class MappingNetworkController {
     @GetMapping
     @Operation(summary = "查询局部映射网络图",
             description = "以指定元数据项为中心，查询其 N 层内的映射关系网络。" +
-                    "支持按映射类型过滤，节点上限 500 个。")
+                    "支持按映射类型过滤，节点上限 500 个。"
+                    + "若未提供 centerId，则返回空网络。")
     public ApiResponse<MappingNetworkResponse> getNetwork(
-            @RequestParam UUID centerId,
+            @RequestParam(required = false) UUID centerId,
             @RequestParam(defaultValue = "3") int depth,
             @RequestParam(required = false) List<MappingType> filterTypes) {
+
+        if (centerId == null) {
+            return ApiResponse.ok(new MappingNetworkResponse(
+                    java.util.Collections.emptySet(),
+                    java.util.Collections.emptyList(),
+                    false, 0));
+        }
 
         ItemMappingService.NetworkGraphResult result =
                 mappingService.getNetworkGraph(centerId, depth, filterTypes);

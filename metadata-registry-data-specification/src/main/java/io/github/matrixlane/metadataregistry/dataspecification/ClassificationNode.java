@@ -50,7 +50,11 @@ public class ClassificationNode {
     @Column(name = "sort_order")
     private Integer sortOrder;
 
-    @Column(name = "parent_id")
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "parent_id")
+    private ClassificationNode parent;
+
+    @Column(name = "parent_id", insertable = false, updatable = false)
     private UUID parentId;
 
     @ManyToOne(fetch = FetchType.LAZY)

@@ -39,7 +39,7 @@ class DataDictionaryPdfExportServiceTest {
                         List.of(new DataDictionaryItemExport.PermissibleValueExport("1", "男", "男性"),
                                 new DataDictionaryItemExport.PermissibleValueExport("2", "女", "女性"))),
                 createItem("DE003", "1.0", "出生日期", "出生日期的定义",
-                        RegistrationStatus.CANDIDATE, "日期", "日期值域", List.of())
+                        RegistrationStatus.SUBMITTED, "日期", "日期值域", List.of())
         );
     }
 

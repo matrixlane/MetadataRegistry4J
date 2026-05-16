@@ -133,16 +133,15 @@
               <el-menu-item index="/measure-classes">{{ $t('nav.measureClass') }}</el-menu-item>
             </el-sub-menu>
 
-            <el-sub-menu index="/items">
-              <template #title>
-                <el-icon><Document /></el-icon>
-                <span>{{ $t('nav.administeredItems') }}</span>
-              </template>
-              <el-menu-item index="/data-elements">{{ $t('nav.dataElement') }}</el-menu-item>
-              <el-menu-item index="/value-domains">{{ $t('nav.valueDomain') }}</el-menu-item>
-              <el-menu-item index="/data-element-concepts">{{ $t('nav.dataElementConcept') }}</el-menu-item>
-              <el-menu-item index="/conceptual-domains">{{ $t('nav.conceptualDomain') }}</el-menu-item>
-            </el-sub-menu>
+            <!--
+              /items submenu removed because value-domains, data-element-concepts,
+              and conceptual-domains already exist in /domain and /concept submenus.
+              Only data-elements is unique here — moved to top-level for clarity.
+            -->
+            <el-menu-item index="/data-elements">
+              <el-icon><Document /></el-icon>
+              <template #title>{{ $t('nav.dataElement') }}</template>
+            </el-menu-item>
 
             <el-sub-menu index="/system" v-if="auth.isAdmin">
               <template #title>
@@ -175,7 +174,8 @@ const collapsed = ref(false);
 
 function handleLogout() {
   auth.logout();
-  router.push('/login');
+  // Use replace to prevent browser back from showing cached authenticated pages
+  router.replace('/login');
 }
 </script>
 

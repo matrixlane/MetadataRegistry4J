@@ -13,6 +13,13 @@ interface LoginResult {
   user: AppUserDto;
 }
 
+/** Role hierarchy: higher number = more privileges */
+const ROLE_HIERARCHY: Record<string, number> = {
+  VIEWER: 0,
+  REGISTRAR: 1,
+  ADMIN: 2,
+};
+
 export const useAuthStore = defineStore('auth', () => {
   const token = ref<string>(localStorage.getItem('token') || '');
   const user = ref<AppUserDto | null>(null);
@@ -20,6 +27,17 @@ export const useAuthStore = defineStore('auth', () => {
   const isLoggedIn = computed(() => !!token.value);
   const isAdmin = computed(() => user.value?.role === 'ADMIN');
   const isRegistrar = computed(() => user.value?.role === 'ADMIN' || user.value?.role === 'REGISTRAR');
+
+  /**
+   * Check if the current user has at least the specified role.
+   * Hierarchy: VIEWER < REGISTRAR < ADMIN
+   */
+  function hasRole(minRole: string): boolean {
+    if (!user.value) return false;
+    const userLevel = ROLE_HIERARCHY[user.value.role] ?? -1;
+    const requiredLevel = ROLE_HIERARCHY[minRole] ?? 99;
+    return userLevel >= requiredLevel;
+  }
 
   async function login(payload: LoginPayload) {
     const result = await request.post<LoginResult>('/auth/login', payload);
@@ -41,5 +59,5 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.removeItem('token');
   }
 
-  return { token, user, isLoggedIn, isAdmin, isRegistrar, login, fetchMe, logout };
+  return { token, user, isLoggedIn, isAdmin, isRegistrar, hasRole, login, fetchMe, logout };
 });

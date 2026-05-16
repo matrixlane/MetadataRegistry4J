@@ -181,7 +181,7 @@ class ApprovalServiceTest {
 
         approvalService.approve(recordId, "通过");
 
-        verify(registrationLifecycleService).transition(eq(itemId), eq(RegistrationStatus.CANDIDATE), any());
+        verify(registrationLifecycleService).transition(eq(itemId), eq(RegistrationStatus.SUBMITTED), any());
         verify(registrationLifecycleService).transition(eq(itemId), eq(RegistrationStatus.RECORDED), any());
         verify(registrationLifecycleService).transition(eq(itemId), eq(RegistrationStatus.QUALIFIED), any());
         verify(registrationLifecycleService).transition(eq(itemId), eq(RegistrationStatus.STANDARD), any());
@@ -204,11 +204,11 @@ class ApprovalServiceTest {
     }
 
     @Test
-    @DisplayName("审批通过：PREFERRED_STANDARD 视为已发布，不迁移")
-    void approve_preferredStandard_shouldSkipTransition() {
+    @DisplayName("审批通过：PREFERRED 视为已发布，不迁移")
+    void approve_preferred_shouldSkipTransition() {
         authenticateAs("approver", AppUserRole.ADMIN);
         ApprovalRecord record = createPendingRecord();
-        item.setRegistrationState(createState(RegistrationStatus.PREFERRED_STANDARD));
+        item.setRegistrationState(createState(RegistrationStatus.PREFERRED));
 
         when(approvalRecordRepository.findById(recordId)).thenReturn(Optional.of(record));
         when(administeredItemRepository.findById(itemId)).thenReturn(Optional.of(item));
@@ -491,15 +491,15 @@ class ApprovalServiceTest {
     }
 
     // =========================================================================
-    // 7. APPLICATION 状态直接迁移至 STANDARD
+    // 7. INCOMPLETE → SUBMITTED → ... → STANDARD 正向路径
     // =========================================================================
 
     @Test
-    @DisplayName("审批通过：APPLICATION 直接迁移至 STANDARD")
-    void approve_fromApplication_shouldTransitionDirectly() {
+    @DisplayName("审批通过：INCOMPLETE 沿正向路径自动迁移至 STANDARD")
+    void approve_fromIncomplete_shouldTransitionForward() {
         authenticateAs("approver", AppUserRole.ADMIN);
         ApprovalRecord record = createPendingRecord();
-        item.setRegistrationState(createState(RegistrationStatus.APPLICATION));
+        // INCOMPLETE → SUBMITTED → RECORDED → QUALIFIED → STANDARD
 
         when(approvalRecordRepository.findById(recordId)).thenReturn(Optional.of(record));
         when(administeredItemRepository.findById(itemId)).thenReturn(Optional.of(item));
@@ -511,8 +511,11 @@ class ApprovalServiceTest {
                 });
         when(approvalRecordRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        approvalService.approve(recordId, "应用通过");
+        approvalService.approve(recordId, "通过正向路径");
 
+        verify(registrationLifecycleService).transition(eq(itemId), eq(RegistrationStatus.SUBMITTED), any());
+        verify(registrationLifecycleService).transition(eq(itemId), eq(RegistrationStatus.RECORDED), any());
+        verify(registrationLifecycleService).transition(eq(itemId), eq(RegistrationStatus.QUALIFIED), any());
         verify(registrationLifecycleService).transition(eq(itemId), eq(RegistrationStatus.STANDARD), any());
     }
 

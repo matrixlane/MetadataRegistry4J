@@ -46,7 +46,7 @@ public class AdministeredItemController {
 
     @PostMapping("/{id}/transition")
     @Operation(summary = "迁移注册状态",
-            description = "按 ISO 11179 第 9 章主流程校验合法迁移：INCOMPLETE → CANDIDATE → RECORDED → QUALIFIED → STANDARD ↔ PREFERRED_STANDARD → SUPERSEDED → RETIRED → HISTORICAL")
+            description = "按 ISO 11179-6:2023 标准生命周期校验合法迁移：INCOMPLETE → SUBMITTED → RECORDED → QUALIFIED → STANDARD ↔ PREFERRED → SUPERSEDED → RETIRED → HISTORICAL")
     public ApiResponse<AdministeredItemResponse> transition(@PathVariable UUID id,
                                                             @Valid @RequestBody StateTransitionRequest request) {
         return ApiResponse.ok(service.transition(id, request.to(), request.administrativeNote()));

@@ -93,7 +93,7 @@ class MetadataExportServiceTest {
         testItems.add(createTestItem("ObjectClass", RegistrationStatus.QUALIFIED,
                 "TestObjectClass", "A test object class",
                 "OC-001", "1.0", LocalDateTime.of(2025, 2, 20, 10, 0)));
-        testItems.add(createTestItem("DataElementConcept", RegistrationStatus.CANDIDATE,
+        testItems.add(createTestItem("DataElementConcept", RegistrationStatus.SUBMITTED,
                 "TestConcept", "A test data element concept",
                 "DEC-001", "0.5", LocalDateTime.of(2025, 3, 25, 10, 0)));
 

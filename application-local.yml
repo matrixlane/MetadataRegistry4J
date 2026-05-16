@@ -1,0 +1,25 @@
+spring:
+  datasource:
+    url: jdbc:sqlserver://localhost:1433;databaseName=metadata_registry;encrypt=true;trustServerCertificate=true;integratedSecurity=true;loginTimeout=5
+    driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver
+    hikari:
+      connection-timeout: 5000
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+
+logging:
+  level:
+    com.zaxxer.hikari: DEBUG
+    org.springframework.jdbc: DEBUG
+
+app:
+  jwt:
+    secret: please-replace-with-a-long-random-string-of-at-least-32-bytes-XYZ
+    expires-minutes: 480
+  cors:
+    allowed-origins: http://localhost:5173
+  seed:
+    enabled: true

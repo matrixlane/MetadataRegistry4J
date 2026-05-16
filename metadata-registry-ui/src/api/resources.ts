@@ -82,25 +82,25 @@ export const metadataSearchApi = {
 /** Mapping scheme CRUD + version lifecycle (WI-011-2-3-1) */
 export const mappingSchemeApi = {
   list: (params?: PageQuery) =>
-    request.get<PageResponse<any>>('/api/v1/mapping-schemes', { params }),
-  get: (id: string) => request.get<any>(`/api/v1/mapping-schemes/${id}`),
+    request.get<PageResponse<any>>('/mapping-schemes', { params }),
+  get: (id: string) => request.get<any>(`/mapping-schemes/${id}`),
   create: (data: Record<string, unknown>) =>
-    request.post<any>('/api/v1/mapping-schemes', data),
+    request.post<any>('/mapping-schemes', data),
   update: (id: string, data: Record<string, unknown>) =>
-    request.put<any>(`/api/v1/mapping-schemes/${id}`, data),
-  delete: (id: string) => request.delete(`/api/v1/mapping-schemes/${id}`),
+    request.put<any>(`/mapping-schemes/${id}`, data),
+  delete: (id: string) => request.delete(`/mapping-schemes/${id}`),
   /** Transition status: DRAFT->PUBLISHED, PUBLISHED->ARCHIVED */
   transition: (id: string, to: string) =>
-    request.post<any>(`/api/v1/mapping-schemes/${id}/transition`, { to }),
+    request.post<any>(`/mapping-schemes/${id}/transition`, { to }),
   /** Create new DRAFT version from PUBLISHED scheme */
   createNewVersion: (id: string) =>
-    request.post<any>(`/api/v1/mapping-schemes/${id}/new-version`),
+    request.post<any>(`/mapping-schemes/${id}/new-version`),
   /** Get all versions in the scheme lineage */
   versions: (id: string) =>
-    request.get<any[]>(`/api/v1/mapping-schemes/${id}/versions`),
+    request.get<any[]>(`/mapping-schemes/${id}/versions`),
   /** Diff two scheme versions (WI-011-2-3-2) */
   diff: (id: string, baseId: string, compareId: string, mappingType?: string) =>
-    request.get<any>(`/api/v1/mapping-schemes/${id}/diff`, { params: { baseId, compareId, ...(mappingType ? { mappingType } : {}) } }),
+    request.get<any>(`/mapping-schemes/${id}/diff`, { params: { baseId, compareId, ...(mappingType ? { mappingType } : {}) } }),
 };
 
 /** Mapping network graph (WI-011-2-1) */
@@ -133,39 +133,39 @@ export const pairingApi = {
 /** Version history (WI-015b) */
 export const versionHistoryApi = {
   list: (itemId: string) =>
-    request.get<any[]>(`/api/v1/items/${itemId}/versions`),
+    request.get<any[]>(`/items/${itemId}/versions`),
   diff: (itemId: string, baseVersion: number, compareVersion: number) =>
-    request.get<any>(`/api/v1/items/${itemId}/versions/${baseVersion}/diff`, {
+    request.get<any>(`/items/${itemId}/versions/${baseVersion}/diff`, {
       params: { compareVersionId: compareVersion },
     }),
   snapshot: (itemId: string, versionNumber: number) =>
-    request.get<any>(`/api/v1/items/${itemId}/versions/${versionNumber}/snapshot`),
+    request.get<any>(`/items/${itemId}/versions/${versionNumber}/snapshot`),
 };
 
 /** Interoperability mapping result management (WI-013-2b) */
 export const interopMappingApi = {
   list: (params?: PageQuery & { datasetId?: string; status?: string; minConfidence?: number; maxConfidence?: number }) =>
-    request.get<PageResponse<any>>('/api/v1/interop-mappings', { params }),
-  get: (id: string) => request.get<any>(`/api/v1/interop-mappings/${id}`),
+    request.get<PageResponse<any>>('/interop-mappings', { params }),
+  get: (id: string) => request.get<any>(`/interop-mappings/${id}`),
   confirm: (id: string, userId: string) =>
-    request.put<any>(`/api/v1/interop-mappings/${id}/confirm`, null, { params: { userId } }),
+    request.put<any>(`/interop-mappings/${id}/confirm`, null, { params: { userId } }),
   reject: (id: string, userId: string) =>
-    request.put<any>(`/api/v1/interop-mappings/${id}/reject`, null, { params: { userId } }),
+    request.put<any>(`/interop-mappings/${id}/reject`, null, { params: { userId } }),
   manualMap: (id: string, localItemId: string, userId: string) =>
-    request.put<any>(`/api/v1/interop-mappings/${id}/manual-map`, { localItemId }, { params: { userId } }),
-  undo: (id: string) => request.delete<any>(`/api/v1/interop-mappings/${id}/undo`),
+    request.put<any>(`/interop-mappings/${id}/manual-map`, { localItemId }, { params: { userId } }),
+  undo: (id: string) => request.delete<any>(`/interop-mappings/${id}/undo`),
   markUnmatched: (id: string) =>
-    request.put<any>(`/api/v1/interop-mappings/${id}/mark-unmatched`),
+    request.put<any>(`/interop-mappings/${id}/mark-unmatched`),
   countPending: (datasetId: string) =>
-    request.get<number>('/api/v1/interop-mappings/batch/pending-count', { params: { datasetId } }),
+    request.get<number>('/interop-mappings/batch/pending-count', { params: { datasetId } }),
   batchConfirm: (datasetId: string, userId: string) =>
-    request.post<any>('/api/v1/interop-mappings/batch-confirm', null, { params: { datasetId, userId } }),
+    request.post<any>('/interop-mappings/batch-confirm', null, { params: { datasetId, userId } }),
   batchReject: (datasetId: string, userId: string) =>
-    request.post<any>('/api/v1/interop-mappings/batch-reject', null, { params: { datasetId, userId } }),
+    request.post<any>('/interop-mappings/batch-reject', null, { params: { datasetId, userId } }),
   undoBatch: (batchOperationId: string) =>
-    request.post<any>('/api/v1/interop-mappings/batch-undo', null, { params: { batchOperationId } }),
+    request.post<any>('/interop-mappings/batch-undo', null, { params: { batchOperationId } }),
   qualityScore: (datasetId: string) =>
-    request.get<any>('/api/v1/interop-mappings/quality-score', { params: { datasetId } }),
+    request.get<any>('/interop-mappings/quality-score', { params: { datasetId } }),
   emptyCheck: (datasetId: string) =>
-    request.get<any>('/api/v1/interop-mappings/empty-check', { params: { datasetId } }),
+    request.get<any>('/interop-mappings/empty-check', { params: { datasetId } }),
 };

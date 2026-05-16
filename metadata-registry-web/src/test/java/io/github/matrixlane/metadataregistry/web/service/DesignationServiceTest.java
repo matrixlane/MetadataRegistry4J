@@ -106,7 +106,7 @@ class DesignationServiceTest {
         });
 
         DesignationRequest request = new DesignationRequest(
-                itemId, languageId, "患者姓名", null, null, null, Acceptability.PREFERRED);
+                itemId, languageId, "患者姓名", null, null, null);
 
         DesignationResponse result = designationService.create(request);
         assertThat(result.value()).isEqualTo("患者姓名");
@@ -121,7 +121,7 @@ class DesignationServiceTest {
         ));
 
         DesignationRequest request = new DesignationRequest(
-                itemId, languageId, "", null, null, null, Acceptability.PREFERRED);
+                itemId, languageId, "", null, null, null);
 
         assertThatThrownBy(() -> designationService.create(request))
                 .isInstanceOf(BusinessException.class)
@@ -136,7 +136,7 @@ class DesignationServiceTest {
         when(namingConflictDetector.hasConflict(eq(namespaceId), any(), any())).thenReturn(true);
 
         DesignationRequest request = new DesignationRequest(
-                itemId, languageId, "患者姓名", null, namespaceId, null, Acceptability.PREFERRED);
+                itemId, languageId, "患者姓名", null, namespaceId, null);
 
         assertThatThrownBy(() -> designationService.create(request))
                 .isInstanceOf(BusinessException.class)
@@ -151,7 +151,54 @@ class DesignationServiceTest {
                 .thenReturn(List.of(createDesignation("现有首选")));
 
         DesignationRequest request = new DesignationRequest(
-                itemId, languageId, "新名称", null, null, null, Acceptability.PREFERRED);
+                itemId, languageId, "新名称", null, null,
+                List.of(new DesignationRequest.ContextEntry(
+                        UUID.randomUUID(), Acceptability.PREFERRED)));
+
+        assertThatThrownBy(() -> designationService.create(request))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("只能有一个 PREFERRED");
+    }
+
+    @Test
+    void create_withContexts_shouldSucceed() {
+        UUID contextId = UUID.randomUUID();
+        var ctx = new io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.Context();
+        ctx.setId(contextId);
+
+        when(itemRepository.findById(itemId)).thenReturn(Optional.of(item));
+        when(namingConventionEngine.validate(any())).thenReturn(List.of());
+        when(languageRepository.findById(languageId)).thenReturn(Optional.of(lang));
+        when(contextRepository.findById(contextId)).thenReturn(Optional.of(ctx));
+        when(designationRepository.save(any(Designation.class))).thenAnswer(i -> {
+            Designation d = i.getArgument(0);
+            d.setId(UUID.randomUUID());
+            return d;
+        });
+
+        DesignationRequest request = new DesignationRequest(
+                itemId, languageId, "患者姓名", null, null,
+                List.of(new DesignationRequest.ContextEntry(contextId, Acceptability.PREFERRED)));
+
+        DesignationResponse result = designationService.create(request);
+        assertThat(result.value()).isEqualTo("患者姓名");
+        assertThat(result.contexts()).hasSize(1);
+        assertThat(result.contexts().get(0).acceptability()).isEqualTo("PREFERRED");
+    }
+
+    @Test
+    void create_shouldThrowWhenDuplicatePreferredInSameRequest() {
+        when(itemRepository.findById(itemId)).thenReturn(Optional.of(item));
+        when(namingConventionEngine.validate(any())).thenReturn(List.of());
+
+        UUID ctxId1 = UUID.randomUUID();
+        UUID ctxId2 = UUID.randomUUID();
+
+        DesignationRequest request = new DesignationRequest(
+                itemId, languageId, "患者姓名", null, null,
+                List.of(
+                        new DesignationRequest.ContextEntry(ctxId1, Acceptability.PREFERRED),
+                        new DesignationRequest.ContextEntry(ctxId2, Acceptability.PREFERRED)));
 
         assertThatThrownBy(() -> designationService.create(request))
                 .isInstanceOf(BusinessException.class)
@@ -170,6 +217,26 @@ class DesignationServiceTest {
         when(designationRepository.existsById(designationId)).thenReturn(false);
         assertThatThrownBy(() -> designationService.delete(designationId))
                 .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    void get_shouldReturnContexts() {
+        UUID contextId = UUID.randomUUID();
+        Designation d = createDesignation("患者姓名");
+        var ctx = new io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.Context();
+        ctx.setId(contextId);
+        var dc = new io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.DesignationContext();
+        dc.setDesignation(d);
+        dc.setContext(ctx);
+        dc.setAcceptability(Acceptability.ADMITTED);
+        d.getDesignationContexts().add(dc);
+
+        when(designationRepository.findById(designationId)).thenReturn(Optional.of(d));
+
+        DesignationResponse result = designationService.get(designationId);
+        assertThat(result.contexts()).hasSize(1);
+        assertThat(result.contexts().get(0).contextId()).isEqualTo(contextId);
+        assertThat(result.contexts().get(0).acceptability()).isEqualTo("ADMITTED");
     }
 
     private Designation createDesignation(String value) {

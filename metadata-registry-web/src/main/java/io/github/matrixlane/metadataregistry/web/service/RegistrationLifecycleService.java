@@ -40,10 +40,16 @@ import java.util.UUID;
  *   <li>明确的业务错误码（1100-1199 区间）</li>
  * </ul>
  *
- * <p><b>状态映射策略（WI-009-1 方向性决策）：</b></p>
- * <p>采用"双层状态"架构——ISO 注册状态（{@link RegistrationStatus}）为当前主状态，
+ * <p>状态机严格遵循 ISO/IEC 11179-6:2023 标准注册状态生命周期：</p>
+ * <ul>
+ *   <li>Incomplete → Submitted → Recorded → Qualified → Standard → Preferred</li>
+ *   <li>Standard/Superseded/Preferred 可降至 Retired</li>
+ *   <li>Retired 可归档至 Historical</li>
+ * </ul>
+ *
+ * <p><b>WI-009-1 方向性决策：</b>采用"双层状态"架构——ISO 注册状态为主状态，
  * 业务审批状态（Draft/Submitted/Under Review/Approved/Published）将在 WI-009-2 中
- * 作为正交维度引入。WI-009-1 阶段仅处理 ISO 状态机。</p>
+ * 作为正交维度引入。</p>
  *
  * <p><b>权限实现说明：</b></p>
  * <p>当前采用 {@link SecurityContextHolder} 手动校验角色，标注为临时方案。
@@ -59,25 +65,26 @@ public class RegistrationLifecycleService {
     /**
      * 角色-状态转换权限矩阵。
      *
-     * <p>SUPERSEDED 创建（从 STANDARD/PREFERRED_STANDARD 降级）和
+     * <p>SUPERSEDED 创建（从 STANDARD/PREFERRED 降级）和
      * SUPERSEDED → HISTORICAL 属于重大管理决策，仅限 ADMIN。</p>
      */
     private static final Map<RegistrationStatus, Map<RegistrationStatus, Set<AppUserRole>>> ROLE_PERMISSIONS;
 
     static {
         EnumMap<RegistrationStatus, Set<RegistrationStatus>> map = new EnumMap<>(RegistrationStatus.class);
+        // ISO/IEC 11179-6:2023 标准状态转换
         map.put(RegistrationStatus.INCOMPLETE,
-                EnumSet.of(RegistrationStatus.CANDIDATE, RegistrationStatus.RETIRED));
-        map.put(RegistrationStatus.CANDIDATE,
+                EnumSet.of(RegistrationStatus.SUBMITTED, RegistrationStatus.RETIRED));
+        map.put(RegistrationStatus.SUBMITTED,
                 EnumSet.of(RegistrationStatus.RECORDED, RegistrationStatus.RETIRED));
         map.put(RegistrationStatus.RECORDED,
                 EnumSet.of(RegistrationStatus.QUALIFIED, RegistrationStatus.RETIRED));
         map.put(RegistrationStatus.QUALIFIED,
                 EnumSet.of(RegistrationStatus.STANDARD, RegistrationStatus.RETIRED));
         map.put(RegistrationStatus.STANDARD,
-                EnumSet.of(RegistrationStatus.PREFERRED_STANDARD, RegistrationStatus.SUPERSEDED,
+                EnumSet.of(RegistrationStatus.PREFERRED, RegistrationStatus.SUPERSEDED,
                         RegistrationStatus.RETIRED));
-        map.put(RegistrationStatus.PREFERRED_STANDARD,
+        map.put(RegistrationStatus.PREFERRED,
                 EnumSet.of(RegistrationStatus.STANDARD, RegistrationStatus.SUPERSEDED,
                         RegistrationStatus.RETIRED));
         map.put(RegistrationStatus.SUPERSEDED,
@@ -85,8 +92,6 @@ public class RegistrationLifecycleService {
         map.put(RegistrationStatus.RETIRED,
                 EnumSet.of(RegistrationStatus.HISTORICAL));
         map.put(RegistrationStatus.HISTORICAL, EnumSet.noneOf(RegistrationStatus.class));
-        map.put(RegistrationStatus.APPLICATION,
-                EnumSet.of(RegistrationStatus.STANDARD, RegistrationStatus.RETIRED));
         ALLOWED_TRANSITIONS = Map.copyOf(map);
 
         // 初始化角色权限矩阵
@@ -95,15 +100,15 @@ public class RegistrationLifecycleService {
 
         // INCOMPLETE
         EnumMap<RegistrationStatus, Set<AppUserRole>> fromIncomplete = new EnumMap<>(RegistrationStatus.class);
-        fromIncomplete.put(RegistrationStatus.CANDIDATE, EnumSet.of(AppUserRole.ADMIN, AppUserRole.REGISTRAR));
+        fromIncomplete.put(RegistrationStatus.SUBMITTED, EnumSet.of(AppUserRole.ADMIN, AppUserRole.REGISTRAR));
         fromIncomplete.put(RegistrationStatus.RETIRED, EnumSet.of(AppUserRole.ADMIN, AppUserRole.REGISTRAR));
         roleMap.put(RegistrationStatus.INCOMPLETE, Map.copyOf(fromIncomplete));
 
-        // CANDIDATE
-        EnumMap<RegistrationStatus, Set<AppUserRole>> fromCandidate = new EnumMap<>(RegistrationStatus.class);
-        fromCandidate.put(RegistrationStatus.RECORDED, EnumSet.of(AppUserRole.ADMIN, AppUserRole.REGISTRAR));
-        fromCandidate.put(RegistrationStatus.RETIRED, EnumSet.of(AppUserRole.ADMIN, AppUserRole.REGISTRAR));
-        roleMap.put(RegistrationStatus.CANDIDATE, Map.copyOf(fromCandidate));
+        // SUBMITTED
+        EnumMap<RegistrationStatus, Set<AppUserRole>> fromSubmitted = new EnumMap<>(RegistrationStatus.class);
+        fromSubmitted.put(RegistrationStatus.RECORDED, EnumSet.of(AppUserRole.ADMIN, AppUserRole.REGISTRAR));
+        fromSubmitted.put(RegistrationStatus.RETIRED, EnumSet.of(AppUserRole.ADMIN, AppUserRole.REGISTRAR));
+        roleMap.put(RegistrationStatus.SUBMITTED, Map.copyOf(fromSubmitted));
 
         // RECORDED
         EnumMap<RegistrationStatus, Set<AppUserRole>> fromRecorded = new EnumMap<>(RegistrationStatus.class);
@@ -119,17 +124,17 @@ public class RegistrationLifecycleService {
 
         // STANDARD
         EnumMap<RegistrationStatus, Set<AppUserRole>> fromStandard = new EnumMap<>(RegistrationStatus.class);
-        fromStandard.put(RegistrationStatus.PREFERRED_STANDARD, EnumSet.of(AppUserRole.ADMIN, AppUserRole.REGISTRAR));
+        fromStandard.put(RegistrationStatus.PREFERRED, EnumSet.of(AppUserRole.ADMIN, AppUserRole.REGISTRAR));
         fromStandard.put(RegistrationStatus.SUPERSEDED, EnumSet.of(AppUserRole.ADMIN));
         fromStandard.put(RegistrationStatus.RETIRED, EnumSet.of(AppUserRole.ADMIN, AppUserRole.REGISTRAR));
         roleMap.put(RegistrationStatus.STANDARD, Map.copyOf(fromStandard));
 
-        // PREFERRED_STANDARD
+        // PREFERRED
         EnumMap<RegistrationStatus, Set<AppUserRole>> fromPreferred = new EnumMap<>(RegistrationStatus.class);
         fromPreferred.put(RegistrationStatus.STANDARD, EnumSet.of(AppUserRole.ADMIN, AppUserRole.REGISTRAR));
         fromPreferred.put(RegistrationStatus.SUPERSEDED, EnumSet.of(AppUserRole.ADMIN));
         fromPreferred.put(RegistrationStatus.RETIRED, EnumSet.of(AppUserRole.ADMIN, AppUserRole.REGISTRAR));
-        roleMap.put(RegistrationStatus.PREFERRED_STANDARD, Map.copyOf(fromPreferred));
+        roleMap.put(RegistrationStatus.PREFERRED, Map.copyOf(fromPreferred));
 
         // SUPERSEDED
         EnumMap<RegistrationStatus, Set<AppUserRole>> fromSuperseded = new EnumMap<>(RegistrationStatus.class);
@@ -144,12 +149,6 @@ public class RegistrationLifecycleService {
 
         // HISTORICAL — 无允许转换
         roleMap.put(RegistrationStatus.HISTORICAL, Map.of());
-
-        // APPLICATION
-        EnumMap<RegistrationStatus, Set<AppUserRole>> fromApplication = new EnumMap<>(RegistrationStatus.class);
-        fromApplication.put(RegistrationStatus.STANDARD, EnumSet.of(AppUserRole.ADMIN, AppUserRole.REGISTRAR));
-        fromApplication.put(RegistrationStatus.RETIRED, EnumSet.of(AppUserRole.ADMIN, AppUserRole.REGISTRAR));
-        roleMap.put(RegistrationStatus.APPLICATION, Map.copyOf(fromApplication));
 
         ROLE_PERMISSIONS = Map.copyOf(roleMap);
     }
@@ -359,15 +358,14 @@ public class RegistrationLifecycleService {
     private int resolveTransitionErrorCode(RegistrationStatus from) {
         return switch (from) {
             case INCOMPLETE -> ApiCodes.INVALID_STATE_TRANSITION_FROM_INCOMPLETE;
-            case CANDIDATE -> ApiCodes.INVALID_STATE_TRANSITION_FROM_CANDIDATE;
+            case SUBMITTED -> ApiCodes.INVALID_STATE_TRANSITION_FROM_SUBMITTED;
             case RECORDED -> ApiCodes.INVALID_STATE_TRANSITION_FROM_RECORDED;
             case QUALIFIED -> ApiCodes.INVALID_STATE_TRANSITION_FROM_QUALIFIED;
             case STANDARD -> ApiCodes.INVALID_STATE_TRANSITION_FROM_STANDARD;
-            case PREFERRED_STANDARD -> ApiCodes.INVALID_STATE_TRANSITION_FROM_PREFERRED_STANDARD;
+            case PREFERRED -> ApiCodes.INVALID_STATE_TRANSITION_FROM_PREFERRED;
             case SUPERSEDED -> ApiCodes.INVALID_STATE_TRANSITION_FROM_SUPERSEDED;
             case RETIRED -> ApiCodes.INVALID_STATE_TRANSITION_FROM_RETIRED;
             case HISTORICAL -> ApiCodes.INVALID_STATE_TRANSITION_FROM_HISTORICAL;
-            case APPLICATION -> ApiCodes.INVALID_STATE_TRANSITION_FROM_APPLICATION;
         };
     }
 

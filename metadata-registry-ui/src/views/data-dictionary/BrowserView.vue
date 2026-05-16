@@ -192,11 +192,11 @@ const entityTypes = [
 // --- Registration statuses ---
 const registrationStatuses = [
   { value: 'INCOMPLETE', label: '不完整' },
-  { value: 'CANDIDATE', label: '候选' },
+  { value: 'SUBMITTED', label: '已提交' },
   { value: 'RECORDED', label: '已记录' },
   { value: 'QUALIFIED', label: '已合格' },
   { value: 'STANDARD', label: '标准' },
-  { value: 'PREFERRED_STANDARD', label: '首选标准' },
+  { value: 'PREFERRED', label: '首选' },
   { value: 'SUPERSEDED', label: '已取代' },
   { value: 'RETIRED', label: '已退役' },
   { value: 'HISTORICAL', label: '历史' },
@@ -239,10 +239,10 @@ function statusLabel(status?: string): string {
 function statusTagType(status?: string): string {
   switch (status) {
     case 'STANDARD':
-    case 'PREFERRED_STANDARD':
+    case 'PREFERRED':
       return 'success';
     case 'INCOMPLETE':
-    case 'CANDIDATE':
+    case 'SUBMITTED':
       return 'info';
     case 'RECORDED':
     case 'QUALIFIED':

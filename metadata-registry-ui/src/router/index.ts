@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
+import { routeTable } from './NavigationRouteTable';
 
 const router = createRouter({
   history: createWebHistory(),
@@ -19,163 +20,163 @@ const router = createRouter({
           path: 'dashboard',
           name: 'Dashboard',
           component: () => import('@/views/dashboard/Dashboard.vue'),
-          meta: { title: '概览' },
+          meta: { title: '概览', routeKey: 'dashboard' },
         },
         {
           path: 'contexts',
           name: 'Contexts',
           component: () => import('@/views/context/ContextList.vue'),
-          meta: { title: '上下文' },
+          meta: { title: '上下文', routeKey: 'contexts' },
         },
         {
           path: 'registration-authorities',
           name: 'RegistrationAuthorities',
           component: () => import('@/views/registration-authority/RegistrationAuthorityList.vue'),
-          meta: { title: '注册机构' },
+          meta: { title: '注册机构', routeKey: 'registration-authorities' },
         },
         {
           path: 'registrars',
           name: 'Registrars',
           component: () => import('@/views/registrar/RegistrarList.vue'),
-          meta: { title: '注册人员' },
+          meta: { title: '注册人员', routeKey: 'registrars' },
         },
         {
           path: 'namespaces',
           name: 'Namespaces',
           component: () => import('@/views/namespace/NamespaceList.vue'),
-          meta: { title: '命名空间' },
+          meta: { title: '命名空间', routeKey: 'namespaces' },
         },
         {
           path: 'organizations',
           name: 'Organizations',
           component: () => import('@/views/organization/OrganizationList.vue'),
-          meta: { title: '组织' },
+          meta: { title: '组织', routeKey: 'organizations' },
         },
         {
           path: 'individuals',
           name: 'Individuals',
           component: () => import('@/views/individual/IndividualList.vue'),
-          meta: { title: '个人' },
+          meta: { title: '个人', routeKey: 'individuals' },
         },
         {
           path: 'contacts',
           name: 'Contacts',
           component: () => import('@/views/contact/ContactList.vue'),
-          meta: { title: '联系人' },
+          meta: { title: '联系人', routeKey: 'contacts' },
         },
         {
           path: 'reference-documents',
           name: 'ReferenceDocuments',
           component: () => import('@/views/reference-document/ReferenceDocumentList.vue'),
-          meta: { title: '参考文献' },
+          meta: { title: '参考文献', routeKey: 'reference-documents' },
         },
         {
           path: 'object-classes',
           name: 'ObjectClasses',
           component: () => import('@/views/object-class/ObjectClassList.vue'),
-          meta: { title: '对象类' },
+          meta: { title: '对象类', routeKey: 'object-classes' },
         },
         {
           path: 'properties',
           name: 'Properties',
           component: () => import('@/views/property/PropertyList.vue'),
-          meta: { title: '特性' },
+          meta: { title: '特性', routeKey: 'properties' },
         },
         {
           path: 'data-element-concepts',
           name: 'DataElementConcepts',
           component: () => import('@/views/data-element-concept/DataElementConceptList.vue'),
-          meta: { title: '数据元概念' },
+          meta: { title: '数据元概念', routeKey: 'data-element-concepts' },
         },
         {
           path: 'conceptual-domains',
           name: 'ConceptualDomains',
           component: () => import('@/views/conceptual-domain/ConceptualDomainList.vue'),
-          meta: { title: '概念域' },
+          meta: { title: '概念域', routeKey: 'conceptual-domains' },
         },
         {
           path: 'value-domains',
           name: 'ValueDomains',
           component: () => import('@/views/value-domain/ValueDomainList.vue'),
-          meta: { title: '值域' },
+          meta: { title: '值域', routeKey: 'value-domains' },
         },
         {
           path: 'data-types',
           name: 'DataTypes',
           component: () => import('@/views/data-type/DataTypeList.vue'),
-          meta: { title: '数据类型' },
+          meta: { title: '数据类型', routeKey: 'data-types' },
         },
         {
           path: 'data-type-schemes',
           name: 'DataTypeSchemes',
           component: () => import('@/views/data-type-scheme/DataTypeSchemeList.vue'),
-          meta: { title: '数据类型方案' },
+          meta: { title: '数据类型方案', routeKey: 'data-type-schemes' },
         },
         {
           path: 'units-of-measure',
           name: 'UnitsOfMeasure',
           component: () => import('@/views/unit-of-measure/UnitOfMeasureList.vue'),
-          meta: { title: '计量单位' },
+          meta: { title: '计量单位', routeKey: 'units-of-measure' },
         },
         {
           path: 'measure-classes',
           name: 'MeasureClasses',
           component: () => import('@/views/measure-class/MeasureClassList.vue'),
-          meta: { title: '计量类' },
+          meta: { title: '计量类', routeKey: 'measure-classes' },
         },
         {
           path: 'data-dictionary',
           name: 'DataDictionary',
           component: () => import('@/views/data-dictionary/BrowserView.vue'),
-          meta: { title: '数据字典' },
+          meta: { title: '数据字典', routeKey: 'data-dictionary' },
         },
         {
           path: 'data-dictionary/:id',
           name: 'MetadataDetail',
           component: () => import('@/views/data-dictionary/MetadataDetailView.vue'),
-          meta: { title: '元数据详情' },
+          meta: { title: '元数据详情', routeKey: 'metadata-detail' },
         },
         {
           path: 'classification',
           name: 'Classification',
           component: () => import('@/views/classification/ClassificationTreeBrowser.vue'),
-          meta: { title: '分类管理' },
+          meta: { title: '分类管理', routeKey: 'classification' },
         },
         {
           path: 'mapping-schemes',
           name: 'MappingSchemes',
           component: () => import('@/views/mapping/MappingSchemeList.vue'),
-          meta: { title: '映射方案' },
+          meta: { title: '映射方案', routeKey: 'mapping-schemes' },
         },
         {
           path: 'mapping-schemes/:id/diff',
           name: 'MappingSchemeDiff',
           component: () => import('@/views/mapping/MappingDiffViewer.vue'),
-          meta: { title: '映射方案差异对比' },
+          meta: { title: '映射方案差异对比', routeKey: 'mapping-scheme-diff' },
         },
         {
           path: 'mapping-network',
           name: 'MappingNetwork',
           component: () => import('@/views/mapping/MappingNetworkView.vue'),
-          meta: { title: '映射网络' },
+          meta: { title: '映射网络', routeKey: 'mapping-network' },
         },
         {
           path: 'interop-mappings',
           name: 'InteropMappings',
           component: () => import('@/views/interop-mapping/InteropMappingList.vue'),
-          meta: { title: '匹配结果管理' },
+          meta: { title: '匹配结果管理', routeKey: 'interop-mappings' },
         },
         {
           path: 'data-elements',
           name: 'DataElements',
           component: () => import('@/views/data-element/DataElementList.vue'),
-          meta: { title: '数据元' },
+          meta: { title: '数据元', routeKey: 'data-elements' },
         },
         {
           path: 'app-users',
           name: 'AppUsers',
           component: () => import('@/views/app-user/AppUserList.vue'),
-          meta: { title: '用户管理', adminOnly: true },
+          meta: { title: '用户管理', routeKey: 'app-users', minRole: 'ADMIN' },
         },
       ],
     },
@@ -187,14 +188,65 @@ const router = createRouter({
   ],
 });
 
+// ── Initialize NavigationRouteTable ─────────────────────────────
+// Register every known route so the route table can resolve names,
+// show placeholder pages for planned features, and filter by role.
+
+routeTable.register(
+  { key: 'dashboard', path: '/dashboard', title: '概览', status: 'implemented' },
+  { key: 'data-dictionary', path: '/data-dictionary', title: '数据字典', status: 'implemented' },
+  { key: 'metadata-detail', path: '/data-dictionary/:id', title: '元数据详情', status: 'implemented' },
+  { key: 'contexts', path: '/contexts', title: '上下文', status: 'implemented' },
+  { key: 'registration-authorities', path: '/registration-authorities', title: '注册机构', status: 'implemented' },
+  { key: 'registrars', path: '/registrars', title: '注册人员', status: 'implemented' },
+  { key: 'namespaces', path: '/namespaces', title: '命名空间', status: 'implemented' },
+  { key: 'organizations', path: '/organizations', title: '组织', status: 'implemented' },
+  { key: 'individuals', path: '/individuals', title: '个人', status: 'implemented' },
+  { key: 'contacts', path: '/contacts', title: '联系人', status: 'implemented' },
+  { key: 'reference-documents', path: '/reference-documents', title: '参考文献', status: 'implemented' },
+  { key: 'object-classes', path: '/object-classes', title: '对象类', status: 'implemented' },
+  { key: 'properties', path: '/properties', title: '特性', status: 'implemented' },
+  { key: 'data-element-concepts', path: '/data-element-concepts', title: '数据元概念', status: 'implemented' },
+  { key: 'conceptual-domains', path: '/conceptual-domains', title: '概念域', status: 'implemented' },
+  { key: 'value-domains', path: '/value-domains', title: '值域', status: 'implemented' },
+  { key: 'data-types', path: '/data-types', title: '数据类型', status: 'implemented' },
+  { key: 'data-type-schemes', path: '/data-type-schemes', title: '数据类型方案', status: 'implemented' },
+  { key: 'units-of-measure', path: '/units-of-measure', title: '计量单位', status: 'implemented' },
+  { key: 'measure-classes', path: '/measure-classes', title: '计量类', status: 'implemented' },
+  { key: 'classification', path: '/classification', title: '分类管理', status: 'implemented' },
+  { key: 'mapping-schemes', path: '/mapping-schemes', title: '映射方案', status: 'implemented' },
+  { key: 'mapping-scheme-diff', path: '/mapping-schemes/:id/diff', title: '映射方案差异对比', status: 'implemented' },
+  { key: 'mapping-network', path: '/mapping-network', title: '映射网络', status: 'implemented' },
+  { key: 'interop-mappings', path: '/interop-mappings', title: '匹配结果管理', status: 'implemented' },
+  { key: 'data-elements', path: '/data-elements', title: '数据元', status: 'implemented' },
+  { key: 'app-users', path: '/app-users', title: '用户管理', status: 'implemented', minRole: 'ADMIN' },
+
+  // ── Planned features (will show PlaceholderPage) ─────────────
+  { key: 'concept-management', path: '/concept-management', title: '概念管理', status: 'planned' },
+  { key: 'context-management', path: '/context-management', title: '上下文管理', status: 'planned' },
+  { key: 'registration-agency-management', path: '/registration-agency-management', title: '注册机构管理', status: 'planned' },
+  { key: 'personal-settings', path: '/personal-settings', title: '个人设置', status: 'planned' },
+);
+
 router.beforeEach(async (to) => {
   const auth = useAuthStore();
 
-  if (!auth.isLoggedIn && !to.meta.public) {
-    return '/login';
+  // Allow public routes (login etc.) without auth
+  if (to.meta.public) {
+    // Already logged-in users should not see the login page
+    if (auth.isLoggedIn && to.path === '/login') {
+      return '/dashboard';
+    }
+    return true;
   }
 
-  if (auth.isLoggedIn && !auth.user) {
+  // Redirect to login if not authenticated
+  if (!auth.isLoggedIn) {
+    return { path: '/login', query: { redirect: to.fullPath } };
+  }
+
+  // Fetch user profile if needed (silent auth check)
+  if (!auth.user) {
     try {
       await auth.fetchMe();
     } catch {
@@ -203,11 +255,9 @@ router.beforeEach(async (to) => {
     }
   }
 
-  if (auth.isLoggedIn && to.path === '/login') {
-    return '/';
-  }
-
-  if (to.meta.adminOnly && !auth.isAdmin) {
+  // Role-based access control
+  const minRole = to.meta.minRole as string | undefined;
+  if (minRole && !auth.hasRole(minRole)) {
     return '/dashboard';
   }
 });

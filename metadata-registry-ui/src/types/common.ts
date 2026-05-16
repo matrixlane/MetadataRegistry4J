@@ -43,11 +43,11 @@ export interface RegistrationStateDto {
 
 export type RegistrationStatus =
   | 'INCOMPLETE'
-  | 'CANDIDATE'
+  | 'SUBMITTED'
   | 'RECORDED'
   | 'QUALIFIED'
   | 'STANDARD'
-  | 'PREFERRED_STANDARD'
+  | 'PREFERRED'
   | 'SUPERSEDED'
   | 'RETIRED'
   | 'HISTORICAL';
