@@ -66,7 +66,7 @@ class NamespaceServiceTest {
 
         namespace = new Namespace();
         namespace.setId(namespaceId);
-        namespace.setNamingAuthority(registrationAuthority);
+        namespace.setRegistrationAuthority(registrationAuthority);
     }
 
     @Test

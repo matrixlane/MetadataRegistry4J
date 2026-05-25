@@ -75,9 +75,9 @@ public class NamespaceService {
             RegistrationAuthority ra = registrationAuthorityRepository.findById(request.namingAuthorityId())
                     .orElseThrow(() -> new ResourceNotFoundException(
                             "RegistrationAuthority", request.namingAuthorityId()));
-            entity.setNamingAuthority(ra);
+            entity.setRegistrationAuthority(ra);
         } else {
-            entity.setNamingAuthority(null);
+            entity.setRegistrationAuthority(null);
         }
         itemAdministrationService.applyDesignations(entity, request.designations());
         itemAdministrationService.applyDefinitions(entity, request.definitions());
@@ -87,7 +87,7 @@ public class NamespaceService {
     }
 
     private NamespaceResponse toResponse(Namespace entity) {
-        RegistrationAuthority ra = entity.getNamingAuthority();
+        RegistrationAuthority ra = entity.getRegistrationAuthority();
         String raName = null;
         if (ra != null && !ra.getName().isEmpty()) {
             raName = ra.getName().get(0).getValue();
