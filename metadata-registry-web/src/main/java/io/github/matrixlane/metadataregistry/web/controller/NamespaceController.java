@@ -2,8 +2,10 @@ package io.github.matrixlane.metadataregistry.web.controller;
 
 import io.github.matrixlane.metadataregistry.web.common.ApiResponse;
 import io.github.matrixlane.metadataregistry.web.common.PageResponse;
+import io.github.matrixlane.metadataregistry.web.dto.namespace.NamespaceDetailResponse;
 import io.github.matrixlane.metadataregistry.web.dto.namespace.NamespaceRequest;
 import io.github.matrixlane.metadataregistry.web.dto.namespace.NamespaceResponse;
+import io.github.matrixlane.metadataregistry.web.dto.namespace.NamespaceWizardRequest;
 import io.github.matrixlane.metadataregistry.web.service.NamespaceService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -43,10 +45,22 @@ public class NamespaceController {
         return ApiResponse.ok(service.get(id));
     }
 
+    @GetMapping("/{id}/detail")
+    @Operation(summary = "查询命名空间完整详情（含ISO治理属性）")
+    public ApiResponse<NamespaceDetailResponse> getDetail(@PathVariable UUID id) {
+        return ApiResponse.ok(service.getDetail(id));
+    }
+
     @PostMapping
     @Operation(summary = "新增命名空间")
     public ApiResponse<NamespaceResponse> create(@Valid @RequestBody NamespaceRequest request) {
         return ApiResponse.ok(service.create(request));
+    }
+
+    @PostMapping("/wizard")
+    @Operation(summary = "Namespace创建向导（含完整ISO治理属性）")
+    public ApiResponse<NamespaceDetailResponse> createWizard(@Valid @RequestBody NamespaceWizardRequest request) {
+        return ApiResponse.ok(service.createWizard(request));
     }
 
     @PutMapping("/{id}")
