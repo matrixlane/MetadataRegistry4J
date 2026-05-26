@@ -1,11 +1,21 @@
 -- WI-028-C: Add Namespace governance columns
-ALTER TABLE namespace ADD COLUMN shorthand_prefix VARCHAR(32);
-ALTER TABLE namespace ADD COLUMN scheme_reference VARCHAR(255);
-ALTER TABLE namespace ADD COLUMN mandatory_naming_convention_indicator BIT DEFAULT 0;
-ALTER TABLE namespace ADD COLUMN one_item_per_name_indicator BIT DEFAULT 1;
+-- SQL Server idempotent: use EXEC to avoid parsing issues in Flyway batches
+IF COL_LENGTH('namespace', 'shorthand_prefix') IS NULL
+    EXEC('ALTER TABLE namespace ADD shorthand_prefix VARCHAR(32)');
 
--- Built-in system namespace marker (e.g. "system" for the built-in system-default namespace)
-ALTER TABLE namespace ADD COLUMN naming_authority VARCHAR(128);
+IF COL_LENGTH('namespace', 'scheme_reference') IS NULL
+    EXEC('ALTER TABLE namespace ADD scheme_reference VARCHAR(255)');
 
--- Create unique constraint on shorthand_prefix for idempotent system-default NS creation
-CREATE UNIQUE INDEX uk_namespace_shorthand_prefix ON namespace(shorthand_prefix) WHERE shorthand_prefix IS NOT NULL;
+IF COL_LENGTH('namespace', 'mandatory_naming_convention_indicator') IS NULL
+    EXEC('ALTER TABLE namespace ADD mandatory_naming_convention_indicator BIT DEFAULT 0');
+
+IF COL_LENGTH('namespace', 'one_item_per_name_indicator') IS NULL
+    EXEC('ALTER TABLE namespace ADD one_item_per_name_indicator BIT DEFAULT 1');
+
+-- Built-in system namespace marker
+IF COL_LENGTH('namespace', 'naming_authority') IS NULL
+    EXEC('ALTER TABLE namespace ADD naming_authority VARCHAR(128)');
+
+-- Create unique constraint if not exists
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'uk_namespace_shorthand_prefix')
+    CREATE UNIQUE INDEX uk_namespace_shorthand_prefix ON namespace(shorthand_prefix) WHERE shorthand_prefix IS NOT NULL;

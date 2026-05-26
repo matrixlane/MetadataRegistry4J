@@ -4,16 +4,20 @@
 -- =============================================================================
 -- 1. Add identifier_type column to scoped_identifier
 -- =============================================================================
-ALTER TABLE scoped_identifier ADD COLUMN identifier_type VARCHAR(32) NOT NULL DEFAULT 'INTERNAL';
+-- SQL Server idempotent: use EXEC to avoid parsing issues
+IF COL_LENGTH('scoped_identifier', 'identifier_type') IS NULL
+    EXEC('ALTER TABLE scoped_identifier ADD identifier_type VARCHAR(32) NOT NULL DEFAULT ''INTERNAL''');
 
 -- Update existing rows to have INTERNAL as default (data migration)
 UPDATE scoped_identifier SET identifier_type = 'INTERNAL' WHERE identifier_type IS NULL;
 
 -- Add effective_strategy_id column for Immutable guarantee (strategy snapshot)
-ALTER TABLE scoped_identifier ADD COLUMN effective_strategy_id BIGINT;
+IF COL_LENGTH('scoped_identifier', 'effective_strategy_id') IS NULL
+    EXEC('ALTER TABLE scoped_identifier ADD effective_strategy_id BIGINT');
 
-ALTER TABLE scoped_identifier ADD CONSTRAINT fk_scoped_identifier_strategy
-    FOREIGN KEY (effective_strategy_id) REFERENCES identifier_strategy_config(id);
+IF NOT EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'fk_scoped_identifier_strategy')
+    ALTER TABLE scoped_identifier ADD CONSTRAINT fk_scoped_identifier_strategy
+        FOREIGN KEY (effective_strategy_id) REFERENCES identifier_strategy_config(id);
 
 -- =============================================================================
 -- 2. Create identifier_strategy_config table

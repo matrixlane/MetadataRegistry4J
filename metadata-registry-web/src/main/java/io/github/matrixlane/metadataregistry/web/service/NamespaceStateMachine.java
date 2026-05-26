@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.EnumMap;
 import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -58,7 +59,7 @@ public class NamespaceStateMachine {
         TRANSITION_MAP.put(NamespaceStatus.SUBMITTED, EnumSet.of(NamespaceStatus.ACTIVE, NamespaceStatus.DRAFT));
         TRANSITION_MAP.put(NamespaceStatus.ACTIVE, EnumSet.of(NamespaceStatus.DEPRECATED));
         TRANSITION_MAP.put(NamespaceStatus.DEPRECATED, EnumSet.of(NamespaceStatus.OBSOLETE, NamespaceStatus.ACTIVE));
-        TRANSITION_MAP.put(NamespaceStatus.OBSOLETE, EnumSet.none());
+        TRANSITION_MAP.put(NamespaceStatus.OBSOLETE, EnumSet.noneOf(NamespaceStatus.class));
     }
 
     /**
@@ -184,7 +185,7 @@ public class NamespaceStateMachine {
      * @return Set of allowed target statuses
      */
     public Set<NamespaceStatus> getAllowedTransitions(NamespaceStatus current) {
-        return TRANSITION_MAP.getOrDefault(current, EnumSet.none());
+        return TRANSITION_MAP.getOrDefault(current, EnumSet.noneOf(NamespaceStatus.class));
     }
 
     /**
@@ -264,7 +265,7 @@ public class NamespaceStateMachine {
     }
 
     private void validateNoCircularReference(Namespace ns) {
-        Set<UUID> ancestors = EnumSet.noneOf(UUID.class);
+        Set<UUID> ancestors = new HashSet<>();
         Namespace current = ns.getParent();
         
         while (current != null) {

@@ -191,9 +191,7 @@ class NamespaceStateMachineTest {
         @Test
         @DisplayName("OBSOLETE namespace has no allowed transitions")
         void obsolete_hasNoTransitions() {
-            namespace.setNamespaceStatus(NamespaceStatus.OBSOLETE);
-            when(namespaceRepository.findById(namespaceId)).thenReturn(Optional.of(namespace));
-
+            // getAllowedTransitions is a pure method - no repository call needed
             Set<NamespaceStatus> allowed = stateMachine.getAllowedTransitions(NamespaceStatus.OBSOLETE);
             assertThat(allowed).isEmpty();
         }
