@@ -5,6 +5,7 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -25,6 +26,12 @@ import java.util.UUID;
  * <p>Associates a business identifier with a namespace and an identified item.
  * The {@code id} field is the technical primary key; {@code identifier} is the
  * business identifier whose value is immutable once assigned.
+ *
+ * <p>WI-028-B: The {@code identifierType} field drives strategy selection.
+ * Multiple ScopedIdentifiers for the same Item in the same Namespace may coexist
+ * with different types. The {@code effectiveStrategyId} stores the strategy
+ * configuration snapshot at the time of creation, ensuring immutability even
+ * when strategy configurations change.
  */
 @StandardReference("ISO/IEC 11179-3:2023, Clause 7")
 @Entity
@@ -48,6 +55,18 @@ public class ScopedIdentifier {
     @Column(name = "identifier", nullable = false, length = 255)
     private String identifier;
 
+    /**
+     * WI-028-B: The type of this identifier.
+     * Drives strategy selection via IdentifierGenerationStrategyRegistry.
+     * Default is INTERNAL.
+     *
+     * <p>Multiple ScopedIdentifiers for the same (namespace, item) pair
+     * may have different identifierType values (e.g., one INTERNAL and one URN).
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "identifier_type", nullable = false, length = 32)
+    private IdentifierType identifierType = IdentifierType.INTERNAL;
+
     @Column(name = "version", length = 32)
     private String version;
 
@@ -67,11 +86,31 @@ public class ScopedIdentifier {
     @Column(name = "obsolete_at")
     private LocalDateTime obsoleteAt;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "namespace_id")
     private Namespace namespace;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "identified_item_id")
     private IdentifiedItem identifiedItem;
+
+    /**
+     * WI-028-B: Stores the effective strategy configuration ID at creation time.
+     * This is the key to immutability: even if the namespace's default strategy
+     * is changed later, this ScopedIdentifier's generation logic remains unchanged.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "effective_strategy_id")
+    private IdentifierStrategyConfig effectiveStrategyConfig;
+
+    /**
+     * Convenience constructor for programmatic creation.
+     */
+    public ScopedIdentifier(String identifier, IdentifierType identifierType,
+                            Namespace namespace, IdentifiedItem identifiedItem) {
+        this.identifier = identifier;
+        this.identifierType = identifierType != null ? identifierType : IdentifierType.INTERNAL;
+        this.namespace = namespace;
+        this.identifiedItem = identifiedItem;
+    }
 }

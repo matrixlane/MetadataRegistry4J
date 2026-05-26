@@ -13,6 +13,7 @@ import lombok.Setter;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 @jakarta.persistence.Entity
 @Getter
@@ -49,6 +50,31 @@ public class Namespace extends Item {
     private Boolean oneItemPerNameIndicator = true;
 
     /**
+     * When TRUE, only one name is allowed per Item within this namespace.
+     * ISO/IEC 11179-3:2023, 7.3.3
+     */
+    @jakarta.persistence.Column(name = "one_name_per_item_indicator")
+    private Boolean oneNamePerItemIndicator = false;
+
+    /**
+     * Namespace status lifecycle.
+     * ISO/IEC 11179-3:2023 lifecycle + extended governance states.
+     * Flow: DRAFT → SUBMITTED → ACTIVE → DEPRECATED → OBSOLETE
+     */
+    @jakarta.persistence.Column(name = "namespace_status", length = 20)
+    @jakarta.persistence.Enumerated(jakarta.persistence.EnumType.STRING)
+    private NamespaceStatus namespaceStatus = NamespaceStatus.DRAFT;
+
+    /**
+     * Parent namespace for hierarchical namespace support.
+     * ISO/IEC 11179-3:2023, 7.3.3 — namespaces can be organized in hierarchy.
+     * Child namespace inherits namingAuthority and scheme_reference from parent.
+     */
+    @ManyToOne(fetch = jakarta.persistence.FetchType.LAZY)
+    @JoinColumn(name = "parent_id")
+    private Namespace parent;
+
+    /**
      * Plain-text naming authority identifier for built-in namespaces.
      * Example: "system" for the built-in system-default namespace.
      * This is a simpler alternative to the JPA reference field below.
@@ -66,4 +92,14 @@ public class Namespace extends Item {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "naming_authority_id")
     private RegistrationAuthority registrationAuthority;
+
+    /**
+     * Bound NamingConvention ID when mandatoryNamingConventionIndicator = TRUE.
+     * ISO/IEC 11179-3:2023, 8.4.4
+     */
+    @jakarta.persistence.Column(name = "naming_convention_id")
+    private UUID namingConventionId;
+
+    @OneToMany(mappedBy = "parent", cascade = jakarta.persistence.CascadeType.ALL)
+    private List<Namespace> children = new ArrayList<>();
 }
