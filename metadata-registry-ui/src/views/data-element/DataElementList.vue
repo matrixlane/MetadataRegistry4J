@@ -4,23 +4,23 @@
     <DataTablePage
       ref="tableRef"
       :fetch-fn="dataElementApi.list"
-      @create="dialog?.open()"
-      @edit="(r) => dialog?.open(r)"
+      @create="handleCreate"
+      @edit="handleEdit"
       @delete="handleDelete"
     >
       <template #columns>
-        <el-table-column prop="identifier" label="标识符" width="160" sortable />
+        <el-table-column prop="meta.identifier" label="标识符" width="160" sortable />
         <el-table-column label="名称">
           <template #default="{ row }">
             {{ row.designations?.find((d: any) => d.languageCode === 'zh-CN')?.value || row.designations?.[0]?.value || '-' }}
           </template>
         </el-table-column>
-        <el-table-column prop="dataElementConceptName" label="数据元概念" />
-        <el-table-column prop="valueDomainName" label="值域" />
-        <el-table-column prop="registrationStatus" label="状态" width="120">
+        <el-table-column prop="dataElementConceptLabel" label="数据元概念" />
+        <el-table-column prop="valueDomainLabel" label="值域" />
+        <el-table-column prop="meta.registrationStatus" label="状态" width="120">
           <template #default="{ row }">
-            <el-tag size="small" :type="statusType(row.registrationStatus)">
-              {{ $t('registrationStatus.' + row.registrationStatus) }}
+            <el-tag size="small" :type="statusType(row.meta?.registrationStatus)">
+              {{ $t('registrationStatus.' + (row.meta?.registrationStatus || '')) }}
             </el-tag>
           </template>
         </el-table-column>
@@ -72,7 +72,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref } from 'vue';
 import { dataElementApi, dataElementConceptApi, valueDomainApi } from '@/api/resources';
 import DataTablePage from '@/components/DataTablePage.vue';
 import ItemFormDialog from '@/components/ItemFormDialog.vue';
@@ -82,8 +82,10 @@ const dialog = ref<InstanceType<typeof ItemFormDialog>>();
 
 const decOptions = ref<{ id: string; label: string }[]>([]);
 const vdOptions = ref<{ id: string; label: string }[]>([]);
+const optionsLoaded = ref(false);
 
-onMounted(async () => {
+async function loadFormOptions() {
+  if (optionsLoaded.value) return;
   try {
     const [decRes, vdRes] = await Promise.all([
       dataElementConceptApi.list({ size: 1000 }),
@@ -97,10 +99,21 @@ onMounted(async () => {
       id: r.id,
       label: r.label || r.identifier || r.id,
     }));
+    optionsLoaded.value = true;
   } catch {
     // ignore
   }
-});
+}
+
+async function handleCreate() {
+  await loadFormOptions();
+  dialog.value?.open();
+}
+
+async function handleEdit(row: any) {
+  await loadFormOptions();
+  dialog.value?.open(row);
+}
 
 function submitFn(data: Record<string, unknown>) {
   if (data.id) return dataElementApi.update(data.id as string, data);

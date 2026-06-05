@@ -4,26 +4,26 @@
     <DataTablePage
       ref="tableRef"
       :fetch-fn="valueDomainApi.list"
-      @create="dialog?.open()"
-      @edit="(r) => dialog?.open(r)"
+      @create="handleCreate"
+      @edit="handleEdit"
       @delete="handleDelete"
     >
       <template #columns>
-        <el-table-column prop="identifier" label="标识符" width="160" sortable />
+        <el-table-column prop="meta.identifier" label="标识符" width="160" sortable />
         <el-table-column label="名称">
           <template #default="{ row }">
             {{ row.designations?.find((d: any) => d.languageCode === 'zh-CN')?.value || row.designations?.[0]?.value || '-' }}
           </template>
         </el-table-column>
-        <el-table-column prop="dataTypeName" label="数据类型" width="140" />
+        <el-table-column prop="dataTypeLabel" label="数据类型" width="140" />
         <el-table-column prop="type" label="类型" width="120">
           <template #default="{ row }">
             <el-tag size="small">{{ row.type === 'LOCAL_ENUMERATED' ? '局部枚举' : '描述型' }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="registrationStatus" label="状态" width="120">
+        <el-table-column prop="meta.registrationStatus" label="状态" width="120">
           <template #default="{ row }">
-            <el-tag size="small">{{ $t('registrationStatus.' + row.registrationStatus) }}</el-tag>
+            <el-tag size="small">{{ $t('registrationStatus.' + (row.meta?.registrationStatus || '')) }}</el-tag>
           </template>
         </el-table-column>
       </template>
@@ -147,7 +147,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref } from 'vue';
 import { Plus, Delete } from '@element-plus/icons-vue';
 import { valueDomainApi, dataTypeApi, unitOfMeasureApi, conceptualDomainApi } from '@/api/resources';
 import DataTablePage from '@/components/DataTablePage.vue';
@@ -160,8 +160,10 @@ const dialog = ref<InstanceType<typeof ItemFormDialog>>();
 const dataTypeOptions = ref<{ id: string; label: string }[]>([]);
 const uomOptions = ref<{ id: string; label: string }[]>([]);
 const cdOptions = ref<{ id: string; label: string }[]>([]);
+const optionsLoaded = ref(false);
 
-onMounted(async () => {
+async function loadFormOptions() {
+  if (optionsLoaded.value) return;
   try {
     const [dtRes, uomRes, cdRes] = await Promise.all([
       dataTypeApi.list({ size: 1000 }),
@@ -180,10 +182,21 @@ onMounted(async () => {
       id: r.id,
       label: r.label || r.identifier || r.id,
     }));
+    optionsLoaded.value = true;
   } catch {
     // ignore
   }
-});
+}
+
+async function handleCreate() {
+  await loadFormOptions();
+  dialog.value?.open();
+}
+
+async function handleEdit(row: any) {
+  await loadFormOptions();
+  dialog.value?.open(row);
+}
 
 function submitFn(data: Record<string, unknown>) {
   if (data.id) return valueDomainApi.update(data.id as string, data);

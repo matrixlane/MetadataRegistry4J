@@ -9,17 +9,17 @@
       @delete="handleDelete"
     >
       <template #columns>
-        <el-table-column prop="identifier" label="标识符" width="160" sortable />
+        <el-table-column prop="meta.identifier" label="标识符" width="160" sortable />
         <el-table-column label="名称">
           <template #default="{ row }">
             {{ row.designations?.find((d: any) => d.languageCode === 'zh-CN')?.value || row.designations?.[0]?.value || '-' }}
           </template>
         </el-table-column>
-        <el-table-column prop="objectClassName" label="对象类" />
-        <el-table-column prop="propertyName" label="特性" />
-        <el-table-column prop="registrationStatus" label="状态" width="120">
+        <el-table-column prop="objectClassLabel" label="对象类" />
+        <el-table-column prop="propertyLabel" label="特性" />
+        <el-table-column prop="meta.registrationStatus" label="状态" width="120">
           <template #default="{ row }">
-            <el-tag size="small">{{ $t('registrationStatus.' + row.registrationStatus) }}</el-tag>
+            <el-tag size="small">{{ $t('registrationStatus.' + (row.meta?.registrationStatus || '')) }}</el-tag>
           </template>
         </el-table-column>
       </template>

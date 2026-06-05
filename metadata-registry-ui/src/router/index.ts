@@ -47,6 +47,12 @@ const router = createRouter({
           meta: { title: '命名空间', routeKey: 'namespaces' },
         },
         {
+          path: 'administered-items',
+          name: 'AdministeredItems',
+          component: () => import('@/views/administered-item/AdministeredItemList.vue'),
+          meta: { title: '注册项生命周期', routeKey: 'administered-items' },
+        },
+        {
           path: 'organizations',
           name: 'Organizations',
           component: () => import('@/views/organization/OrganizationList.vue'),
@@ -93,6 +99,12 @@ const router = createRouter({
           name: 'ConceptualDomains',
           component: () => import('@/views/conceptual-domain/ConceptualDomainList.vue'),
           meta: { title: '概念域', routeKey: 'conceptual-domains' },
+        },
+        {
+          path: 'value-meanings',
+          name: 'ValueMeanings',
+          component: () => import('@/views/value-meaning/ValueMeaningList.vue'),
+          meta: { title: '值含义', routeKey: 'value-meanings' },
         },
         {
           path: 'value-domains',
@@ -200,6 +212,7 @@ routeTable.register(
   { key: 'registration-authorities', path: '/registration-authorities', title: '注册机构', status: 'implemented' },
   { key: 'registrars', path: '/registrars', title: '注册人员', status: 'implemented' },
   { key: 'namespaces', path: '/namespaces', title: '命名空间', status: 'implemented' },
+  { key: 'administered-items', path: '/administered-items', title: '注册项生命周期', status: 'implemented' },
   { key: 'organizations', path: '/organizations', title: '组织', status: 'implemented' },
   { key: 'individuals', path: '/individuals', title: '个人', status: 'implemented' },
   { key: 'contacts', path: '/contacts', title: '联系人', status: 'implemented' },
@@ -208,6 +221,7 @@ routeTable.register(
   { key: 'properties', path: '/properties', title: '特性', status: 'implemented' },
   { key: 'data-element-concepts', path: '/data-element-concepts', title: '数据元概念', status: 'implemented' },
   { key: 'conceptual-domains', path: '/conceptual-domains', title: '概念域', status: 'implemented' },
+  { key: 'value-meanings', path: '/value-meanings', title: '值含义', status: 'implemented' },
   { key: 'value-domains', path: '/value-domains', title: '值域', status: 'implemented' },
   { key: 'data-types', path: '/data-types', title: '数据类型', status: 'implemented' },
   { key: 'data-type-schemes', path: '/data-type-schemes', title: '数据类型方案', status: 'implemented' },

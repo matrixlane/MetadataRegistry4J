@@ -9,7 +9,7 @@
       @delete="handleDelete"
     >
       <template #columns>
-        <el-table-column prop="identifier" label="标识符" width="160" sortable />
+        <el-table-column prop="meta.identifier" label="标识符" width="160" sortable />
         <el-table-column label="名称">
           <template #default="{ row }">
             {{ row.designations?.find((d: any) => d.languageCode === 'zh-CN')?.value || row.designations?.[0]?.value || '-' }}

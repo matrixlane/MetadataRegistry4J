@@ -30,10 +30,12 @@ export const dataTypeApi = crud('/data-types');
 export const dataTypeSchemeApi = crud('/data-type-schemes');
 export const unitOfMeasureApi = crud('/units-of-measure');
 export const measureClassApi = crud('/measure-classes');
+export const valueMeaningApi = crud('/value-meanings');
 export const dataElementApi = crud('/data-elements');
 export const appUserApi = crud('/app-users');
 export const languageApi = crud('/languages');
 export const documentTypeApi = crud('/document-types');
+
 
 export const contextApi = {
   list: (params?: PageQuery) => request.get<PageResponse<any>>('/contexts', { params }),
@@ -55,6 +57,8 @@ export const classificationSchemeApi = {
   delete: (id: string) => request.delete(`/classification-schemes/${id}`),
   getTree: (schemeId: string) =>
     request.get<any[]>(`/classification-schemes/${schemeId}/nodes/tree`),
+  listNodes: (schemeId: string) =>
+    request.get<any[]>(`/classification-schemes/${schemeId}/nodes`),
   getChildren: (schemeId: string, parentId?: string) =>
     request.get<any[]>(`/classification-schemes/${schemeId}/nodes/children`, {
       params: parentId ? { parentId } : {},
@@ -67,6 +71,26 @@ export const classificationSchemeApi = {
     request.put<any>(`/classification-schemes/${schemeId}/nodes/${nodeId}`, data),
   deleteNode: (schemeId: string, nodeId: string) =>
     request.delete(`/classification-schemes/${schemeId}/nodes/${nodeId}`),
+  deleteNodeCascade: (schemeId: string, nodeId: string) =>
+    request.delete(`/classification-schemes/${schemeId}/nodes/${nodeId}/cascade`),
+  moveNode: (schemeId: string, nodeId: string, targetParentId: string | null) =>
+    request.put<any>(`/classification-schemes/${schemeId}/nodes/${nodeId}/move`, { targetParentId }),
+  validateImport: (file: File, schemeId?: string) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (schemeId) formData.append('schemeId', schemeId);
+    return request.post<any>('/classification-schemes/import/validate', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+  importFile: (file: File, schemeId?: string) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (schemeId) formData.append('schemeId', schemeId);
+    return request.post<any>('/classification-schemes/import', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
   searchNodes: (schemeId: string, keyword: string) =>
     request.get<any[]>(`/classification-schemes/${schemeId}/nodes/search`, {
       params: { keyword },

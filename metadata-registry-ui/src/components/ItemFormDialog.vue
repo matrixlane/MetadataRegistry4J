@@ -7,15 +7,22 @@
     destroy-on-close
     @closed="reset"
   >
-    <el-tabs v-model="activeTab" type="border-card">
-      <!-- Registration Tab -->
-      <el-tab-pane v-if="showRegistration" label="注册标识" name="registration">
-        <el-form
-          ref="formRef"
-          :model="form"
-          :rules="rules"
-          label-width="100px"
-        >
+    <el-form
+      ref="formRef"
+      :model="form"
+      :rules="rules"
+      label-width="auto"
+      @validate="handleFieldValidate"
+    >
+      <el-tabs v-model="activeTab" type="border-card">
+        <!-- Registration Tab -->
+        <el-tab-pane v-if="showRegistration" name="registration">
+          <template #label>
+            <span class="tab-label-container">
+              <span>注册标识</span>
+              <el-icon v-if="hasTabError('registration')" class="tab-error-icon"><Warning /></el-icon>
+            </span>
+          </template>
           <el-form-item label="命名空间" prop="registration.namespaceId">
             <el-select
               v-model="form.registration.namespaceId"
@@ -52,64 +59,61 @@
               />
             </el-select>
           </el-form-item>
-        </el-form>
-      </el-tab-pane>
+        </el-tab-pane>
 
-      <!-- Designations Tab -->
-      <el-tab-pane label="指称" name="designations">
-        <el-form
-          ref="formRef"
-          :model="form"
-          :rules="rules"
-          label-width="80px"
-        >
+        <!-- Designations Tab -->
+        <el-tab-pane name="designations">
+          <template #label>
+            <span class="tab-label-container">
+              <span>指称</span>
+              <el-icon v-if="hasTabError('designations')" class="tab-error-icon"><Warning /></el-icon>
+            </span>
+          </template>
           <el-form-item label="指称" prop="designations">
             <MultilingualTextEditor
               v-model="form.designations"
               label="指称"
             />
           </el-form-item>
-        </el-form>
-      </el-tab-pane>
+        </el-tab-pane>
 
-      <!-- Definitions Tab -->
-      <el-tab-pane label="定义" name="definitions">
-        <el-form
-          ref="formRef"
-          :model="form"
-          :rules="rules"
-          label-width="80px"
-        >
+        <!-- Definitions Tab -->
+        <el-tab-pane name="definitions">
+          <template #label>
+            <span class="tab-label-container">
+              <span>定义</span>
+              <el-icon v-if="hasTabError('definitions')" class="tab-error-icon"><Warning /></el-icon>
+            </span>
+          </template>
           <el-form-item label="定义">
             <MultilingualTextEditor
               v-model="form.definitions"
               label="定义"
             />
           </el-form-item>
-        </el-form>
-      </el-tab-pane>
+        </el-tab-pane>
 
-      <!-- Pairings Tab -->
-      <el-tab-pane v-if="form.id" label="指称-定义配对" name="pairings">
-        <DesignationDefinitionPairingEditor
-          v-model="form.pairings"
-          :designations="designationOptions"
-          :definitions="definitionOptions"
-        />
-      </el-tab-pane>
+        <!-- Pairings Tab -->
+        <el-tab-pane v-if="form.id" label="指称-定义配对" name="pairings">
+          <DesignationDefinitionPairingEditor
+            v-model="form.pairings"
+            :designations="designationOptions"
+            :definitions="definitionOptions"
+          />
+        </el-tab-pane>
 
-      <!-- Resource-specific fields Tab -->
-      <el-tab-pane label="属性" name="fields">
-        <el-form
-          ref="formRef"
-          :model="form"
-          :rules="rules"
-          label-width="120px"
-        >
+        <!-- Resource-specific fields Tab -->
+        <el-tab-pane name="fields">
+          <template #label>
+            <span class="tab-label-container">
+              <span>属性</span>
+              <el-icon v-if="hasTabError('fields')" class="tab-error-icon"><Warning /></el-icon>
+            </span>
+          </template>
           <slot name="fields" :form="form" />
-        </el-form>
-      </el-tab-pane>
-    </el-tabs>
+        </el-tab-pane>
+      </el-tabs>
+    </el-form>
 
     <template #footer>
       <el-button @click="visible = false">取消</el-button>
@@ -120,6 +124,8 @@
 
 <script setup lang="ts">
 import { reactive, ref, onMounted, computed } from 'vue';
+import { ElMessage } from 'element-plus';
+import { Warning } from '@element-plus/icons-vue';
 import type { FormInstance, FormRules } from 'element-plus';
 import MultilingualTextEditor from './MultilingualTextEditor.vue';
 import DesignationDefinitionPairingEditor from './DesignationDefinitionPairingEditor.vue';
@@ -157,6 +163,39 @@ const visible = ref(false);
 const saving = ref(false);
 const formRef = ref<FormInstance>();
 const activeTab = ref('designations');
+
+const invalidFields = ref<Set<string>>(new Set());
+
+function handleFieldValidate(prop: any, isValid: boolean) {
+  if (typeof prop === 'string') {
+    if (isValid) {
+      invalidFields.value.delete(prop);
+    } else {
+      invalidFields.value.add(prop);
+    }
+  }
+}
+
+function getTabForField(field: string): string {
+  if (field.startsWith('registration.')) {
+    return 'registration';
+  } else if (field.startsWith('designations')) {
+    return 'designations';
+  } else if (field.startsWith('definitions')) {
+    return 'definitions';
+  } else {
+    return 'fields';
+  }
+}
+
+function hasTabError(tabName: string): boolean {
+  for (const field of invalidFields.value) {
+    if (getTabForField(field) === tabName) {
+      return true;
+    }
+  }
+  return false;
+}
 
 const form = reactive<ItemForm>({
   designations: [],
@@ -202,7 +241,10 @@ const rules: FormRules = {
   ],
 };
 
-onMounted(async () => {
+const loaded = ref(false);
+
+async function loadOptions() {
+  if (loaded.value) return;
   try {
     const [nsRes, raRes] = await Promise.all([
       namespaceApi.list({ size: 100 }),
@@ -210,13 +252,15 @@ onMounted(async () => {
     ]);
     namespaces.value = (nsRes.content || []) as any;
     registrationAuthorities.value = (raRes.content || []) as any;
+    loaded.value = true;
   } catch {
     // ignore
   }
-});
+}
 
 async function open(initial?: Record<string, unknown>) {
   reset();
+  await loadOptions();
   if (initial) {
     Object.assign(form, {
       ...initial,
@@ -248,6 +292,7 @@ function reset() {
   form.definitions = [];
   form.pairings = [];
   form.registration = {};
+  invalidFields.value.clear();
   formRef.value?.resetFields();
 }
 
@@ -296,8 +341,22 @@ function normalizeRegistration(
 
 async function handleSubmit() {
   if (!formRef.value) return;
-  await formRef.value.validate(async (valid) => {
-    if (!valid) return;
+  await formRef.value.validate(async (valid, fields) => {
+    if (!valid) {
+      if (fields) {
+        // Collect all invalid fields
+        invalidFields.value.clear();
+        Object.keys(fields).forEach((key) => {
+          invalidFields.value.add(key);
+        });
+
+        const firstField = Object.keys(fields)[0];
+        activeTab.value = getTabForField(firstField);
+
+        ElMessage.warning('表单验证失败，请检查所有标签页中的必填/非空项');
+      }
+      return;
+    }
     saving.value = true;
     try {
       const payload: Record<string, unknown> = {};
@@ -380,3 +439,15 @@ async function syncPairings(itemId: string) {
 
 defineExpose({ open });
 </script>
+
+<style scoped>
+.tab-label-container {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.tab-error-icon {
+  color: var(--el-color-danger);
+  font-size: 14px;
+}
+</style>
