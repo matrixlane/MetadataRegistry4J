@@ -1,6 +1,23 @@
 import { Page } from '@playwright/test';
 
 export async function setupAuthenticatedPage(page: Page) {
+  // Mock init-wizard status — system is initialized.
+  // This is required because the router guard now calls checkInitialized()
+  // on every protected route navigation.
+  await page.route('**/api/v1/init-wizard/status', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        code: 0,
+        data: {
+          initialized: true,
+          runningMode: 'SINGLE',
+        },
+      }),
+    });
+  });
+
   // Intercept auth endpoints to mock login state
   await page.route('**/api/v1/auth/me', async (route) => {
     await route.fulfill({
@@ -11,9 +28,9 @@ export async function setupAuthenticatedPage(page: Page) {
         data: {
           id: 'user-001',
           username: 'testuser',
-          displayName: 'Test User',
-          role: 'ADMIN',
-          email: 'test@example.com',
+          sysRole: 'SUPER_ADMIN',
+          isRegistrar: true,
+          enabled: true,
         },
       }),
     });
@@ -31,9 +48,9 @@ export async function setupAuthenticatedPage(page: Page) {
           user: {
             id: 'user-001',
             username: 'testuser',
-            displayName: 'Test User',
-            role: 'ADMIN',
-            email: 'test@example.com',
+            sysRole: 'SUPER_ADMIN',
+            isRegistrar: true,
+            enabled: true,
           },
         },
       }),
