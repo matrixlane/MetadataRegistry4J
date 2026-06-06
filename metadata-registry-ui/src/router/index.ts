@@ -12,6 +12,12 @@ const router = createRouter({
       meta: { public: true },
     },
     {
+      path: '/init-wizard',
+      name: 'InitWizard',
+      component: () => import('@/views/init-wizard/InitWizard.vue'),
+      meta: { public: true },
+    },
+    {
       path: '/',
       component: () => import('@/layouts/AppLayout.vue'),
       redirect: '/dashboard',
@@ -190,6 +196,37 @@ const router = createRouter({
           component: () => import('@/views/app-user/AppUserList.vue'),
           meta: { title: '用户管理', routeKey: 'app-users', minRole: 'ADMIN' },
         },
+        {
+          path: 'languages',
+          name: 'Languages',
+          component: () => import('@/views/language/LanguageList.vue'),
+          meta: { title: '语言', routeKey: 'languages' },
+        },
+        {
+          path: 'registry-specifications',
+          name: 'RegistrySpecifications',
+          component: () => import('@/views/registry-spec/RegistrySpecificationSettings.vue'),
+          meta: { title: '注册规范', routeKey: 'registry-specifications' },
+        },
+        {
+          path: 'system-settings',
+          name: 'SystemSettings',
+          component: () => import('@/views/system/SystemSettings.vue'),
+          meta: { title: '系统设置', routeKey: 'system-settings', minRole: 'ADMIN' },
+        },
+        {
+          path: 'my-profile',
+          alias: 'my',
+          name: 'MyProfile',
+          component: () => import('@/views/profile/MyProfile.vue'),
+          meta: { title: '我的', routeKey: 'my-profile' },
+        },
+        {
+          path: 'dimensionality',
+          name: 'Dimensionality',
+          component: () => import('@/views/placeholder/PlaceholderPage.vue'),
+          meta: { title: '维度', routeKey: 'dimensionality' },
+        },
       ],
     },
     {
@@ -234,8 +271,13 @@ routeTable.register(
   { key: 'interop-mappings', path: '/interop-mappings', title: '匹配结果管理', status: 'implemented' },
   { key: 'data-elements', path: '/data-elements', title: '数据元', status: 'implemented' },
   { key: 'app-users', path: '/app-users', title: '用户管理', status: 'implemented', minRole: 'ADMIN' },
+  { key: 'languages', path: '/languages', title: '语言', status: 'implemented' },
+  { key: 'registry-specifications', path: '/registry-specifications', title: '注册规范', status: 'implemented' },
+  { key: 'system-settings', path: '/system-settings', title: '系统设置', status: 'implemented', minRole: 'ADMIN' },
+  { key: 'my-profile', path: '/my-profile', title: '我的', status: 'implemented' },
 
   // ── Planned features (will show PlaceholderPage) ─────────────
+  { key: 'dimensionality', path: '/dimensionality', title: '维度', status: 'planned' },
   { key: 'concept-management', path: '/concept-management', title: '概念管理', status: 'planned' },
   { key: 'context-management', path: '/context-management', title: '上下文管理', status: 'planned' },
   { key: 'registration-agency-management', path: '/registration-agency-management', title: '注册机构管理', status: 'planned' },
@@ -245,11 +287,13 @@ routeTable.register(
 router.beforeEach(async (to) => {
   const auth = useAuthStore();
 
-  // Allow public routes (login etc.) without auth
+  // Allow public routes (login, init-wizard) without auth
   if (to.meta.public) {
-    // Already logged-in users should not see the login page
+    // Already logged-in users should not see the login page,
+    // but only redirect them to dashboard if the system is initialized.
     if (auth.isLoggedIn && to.path === '/login') {
-      return '/dashboard';
+      const isInit = await auth.checkInitialized();
+      return isInit ? '/dashboard' : '/init-wizard';
     }
     return true;
   }
@@ -257,6 +301,15 @@ router.beforeEach(async (to) => {
   // Redirect to login if not authenticated
   if (!auth.isLoggedIn) {
     return { path: '/login', query: { redirect: to.fullPath } };
+  }
+
+  // ── Initialization guard ──────────────────────────────────────────────────
+  // Check whether the system has been set up. If not, block ALL protected
+  // routes and redirect to the init wizard. This catches the case where a
+  // factory reset was performed while the user still has a valid token.
+  const isInitialized = await auth.checkInitialized();
+  if (!isInitialized) {
+    return '/init-wizard';
   }
 
   // Fetch user profile if needed (silent auth check)
