@@ -14,6 +14,7 @@ import io.github.matrixlane.metadataregistry.web.repository.IdentifierVersionHis
 import io.github.matrixlane.metadataregistry.web.repository.IdentifiedItemRepository;
 import io.github.matrixlane.metadataregistry.web.repository.NamespaceRepository;
 import io.github.matrixlane.metadataregistry.web.repository.ScopedIdentifierRepository;
+import io.github.matrixlane.metadataregistry.web.service.namespace.NamespaceConstraintValidator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -48,6 +49,9 @@ class ScopedIdentifierServiceTest {
     private IdentifiedItemRepository identifiedItemRepository;
     @Mock
     private IdentifierGenerationService generationService;
+
+    @Mock
+    private NamespaceConstraintValidator namespaceConstraintValidator;
 
     @InjectMocks
     private ScopedIdentifierService service;

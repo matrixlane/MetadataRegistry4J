@@ -132,8 +132,9 @@ public class DataGovernanceReadinessService {
     }
 
     private boolean isNamespaceActive(Namespace ns) {
-        // A namespace is active if it has a registration authority OR is the built-in "system" namespace.
-        return ns.getRegistrationAuthority() != null || "system".equals(ns.getNamingAuthority());
+        // A namespace is active if it has a naming authority (ISO 11179-3 naming_authority)
+        // or, for backwards compatibility during migration, a registration authority.
+        return ns.getNamingAuthority() != null || ns.getRegistrationAuthority() != null;
     }
 
     private boolean checkNamingConventionValid(Namespace ns) {

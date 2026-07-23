@@ -63,6 +63,18 @@ public class Designation extends Entity {
     @OneToMany(mappedBy = "designation")
     private List<DesignationDefinitionPairing> designationDefinitionPairings = new ArrayList<>();
 
+    /**
+     * ISO/IEC 11179-3:2023, 8.6.5 — naming_convention_conformance association.
+     * Naming conventions to which this designation conforms.
+     */
+    @ManyToMany
+    @JoinTable(
+            name = "designation_naming_convention",
+            joinColumns = @JoinColumn(name = "designation_id"),
+            inverseJoinColumns = @JoinColumn(name = "naming_convention_id")
+    )
+    private List<NamingConvention> namingConventions = new ArrayList<>();
+
     @Override
     public String toString() {
         return sign == null ? null : sign.toString();

@@ -37,7 +37,6 @@ public class RegistrationAuthority extends Organization {
     @OneToMany(mappedBy = "registrationAuthority")
     private List<Registrar> registrars = new ArrayList<>();
 
-    @OneToOne
-    @JoinColumn(name = "namespace_id")
+    @OneToOne(mappedBy = "registrationAuthority")
     private Namespace namespace;
 }

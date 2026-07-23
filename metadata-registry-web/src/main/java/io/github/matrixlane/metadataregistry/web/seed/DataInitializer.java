@@ -210,6 +210,7 @@ public class DataInitializer implements ApplicationRunner {
         addDesignation(ns, ctx.langEn, "Demo Namespace");
         addDefinition(ns, ctx.langZh, "用于演示元数据登记流程的命名空间。");
         ns.setRegistrationAuthority(ctx.registrationAuthority);
+        ns.setNamingAuthority(ctx.registrationAuthority);
         ctx.namespace = namespaceRepository.save(ns);
 
         ctx.registrationAuthority.setNamespace(ctx.namespace);

@@ -20,6 +20,17 @@ public interface ScopedIdentifierRepository extends JpaRepository<ScopedIdentifi
     boolean existsByNamespaceIdAndIdentifier(UUID namespaceId, String identifier);
 
     @Query("""
+            SELECT COUNT(si) > 0 FROM ScopedIdentifier si
+            WHERE si.namespace.id = :namespaceId
+            AND si.identifier = :identifier
+            AND (:excludeIdentifiedItemId IS NULL OR si.identifiedItem.id != :excludeIdentifiedItemId)
+            """)
+    boolean existsByNamespaceIdAndIdentifierAndIdentifiedItemIdNot(
+            @Param("namespaceId") UUID namespaceId,
+            @Param("identifier") String identifier,
+            @Param("excludeIdentifiedItemId") UUID excludeIdentifiedItemId);
+
+    @Query("""
             SELECT si FROM ScopedIdentifier si
             WHERE si.namespace.id = :namespaceId
             AND si.identifier = :identifier

@@ -14,6 +14,13 @@ public record NamespaceRequest(
         List<TextLine> designations,
         @Valid
         List<TextLine> definitions,
-        @Valid
-        ItemRegistrationRequest registration) {
+       @Valid
+        ItemRegistrationRequest registration,
+        UUID parentId,
+        String shorthandPrefix,
+        String schemeReference,
+        Boolean mandatoryNamingConventionIndicator,
+        List<UUID> namingConventionIds,
+        Boolean oneNamePerItemIndicator,
+        Boolean oneItemPerNameIndicator) {
 }

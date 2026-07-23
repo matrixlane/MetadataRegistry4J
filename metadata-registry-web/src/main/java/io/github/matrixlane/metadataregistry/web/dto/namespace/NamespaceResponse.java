@@ -13,5 +13,12 @@ public record NamespaceResponse(
         String namingAuthorityName,
         List<TextLineResponse> designations,
         List<TextLineResponse> definitions,
-        ItemMetaResponse meta) {
+        ItemMetaResponse meta,
+        String shorthandPrefix,
+        String schemeReference,
+        Boolean mandatoryNamingConventionIndicator,
+        List<UUID> namingConventionIds,
+        Boolean oneNamePerItemIndicator,
+        Boolean oneItemPerNameIndicator,
+        UUID parentId) {
 }

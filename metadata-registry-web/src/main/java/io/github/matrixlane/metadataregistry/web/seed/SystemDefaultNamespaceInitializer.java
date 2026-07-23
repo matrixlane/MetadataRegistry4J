@@ -1,16 +1,20 @@
 package io.github.matrixlane.metadataregistry.web.seed;
 
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.LanguageIdentification;
+import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Organization;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.Sign;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace;
 import io.github.matrixlane.metadataregistry.web.repository.LanguageIdentificationRepository;
 import io.github.matrixlane.metadataregistry.web.repository.NamespaceRepository;
+import io.github.matrixlane.metadataregistry.web.repository.OrganizationRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.UUID;
 
 /**
  * WI-028-C Phase 1: system-default Namespace 初始化
@@ -43,6 +47,7 @@ public class SystemDefaultNamespaceInitializer implements ApplicationRunner {
 
     private final NamespaceRepository namespaceRepository;
     private final LanguageIdentificationRepository languageRepository;
+    private final OrganizationRepository organizationRepository;
 
     @Override
     @Transactional
@@ -56,7 +61,15 @@ public class SystemDefaultNamespaceInitializer implements ApplicationRunner {
             Namespace ns = new Namespace();
             ns.setShorthandPrefix(SYSTEM_DEFAULT_PREFIX);
             ns.setSchemeReference(SYSTEM_DEFAULT_SCHEME);
-            ns.setNamingAuthority("system");
+            Organization systemOrg = organizationRepository
+                    .findById(UUID.fromString("00000000-0000-0000-0000-000000000001"))
+                    .orElseGet(() -> {
+                        Organization org = new Organization();
+                        org.setId(UUID.fromString("00000000-0000-0000-0000-000000000001"));
+                        org.getName().add(Sign.of("system"));
+                        return organizationRepository.save(org);
+                    });
+            ns.setNamingAuthority(systemOrg);
 
             // 获取语言标识（默认取 en-US）
             LanguageIdentification langEn = languageRepository.findByLanguageIdentifier("en-US")

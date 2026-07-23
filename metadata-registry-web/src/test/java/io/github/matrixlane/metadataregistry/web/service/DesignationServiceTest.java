@@ -14,9 +14,11 @@ import io.github.matrixlane.metadataregistry.web.repository.DesignationRepositor
 import io.github.matrixlane.metadataregistry.web.repository.ItemRepository;
 import io.github.matrixlane.metadataregistry.web.repository.LanguageIdentificationRepository;
 import io.github.matrixlane.metadataregistry.web.repository.NamespaceRepository;
+import io.github.matrixlane.metadataregistry.web.repository.NamingConventionRepository;
 import io.github.matrixlane.metadataregistry.web.repository.ReferenceDocumentRepository;
 import io.github.matrixlane.metadataregistry.web.service.namingconvention.NamingConflictDetector;
 import io.github.matrixlane.metadataregistry.web.service.namingconvention.NamingConventionEngine;
+import io.github.matrixlane.metadataregistry.web.service.namespace.NamespaceConstraintValidator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -44,6 +46,8 @@ class DesignationServiceTest {
     @Mock private ReferenceDocumentRepository referenceDocumentRepository;
     @Mock private NamingConventionEngine namingConventionEngine;
     @Mock private NamingConflictDetector namingConflictDetector;
+    @Mock private NamespaceConstraintValidator namespaceConstraintValidator;
+    @Mock private NamingConventionRepository namingConventionRepository;
 
     @InjectMocks
     private DesignationService designationService;
@@ -106,7 +110,7 @@ class DesignationServiceTest {
         });
 
         DesignationRequest request = new DesignationRequest(
-                itemId, languageId, "患者姓名", null, null, null);
+                itemId, languageId, "患者姓名", null, null, null, null);
 
         DesignationResponse result = designationService.create(request);
         assertThat(result.value()).isEqualTo("患者姓名");
@@ -121,7 +125,7 @@ class DesignationServiceTest {
         ));
 
         DesignationRequest request = new DesignationRequest(
-                itemId, languageId, "", null, null, null);
+                itemId, languageId, "", null, null, null, null);
 
         assertThatThrownBy(() -> designationService.create(request))
                 .isInstanceOf(BusinessException.class)
@@ -136,7 +140,7 @@ class DesignationServiceTest {
         when(namingConflictDetector.hasConflict(eq(namespaceId), any(), any())).thenReturn(true);
 
         DesignationRequest request = new DesignationRequest(
-                itemId, languageId, "患者姓名", null, namespaceId, null);
+                itemId, languageId, "患者姓名", null, namespaceId, null, null);
 
         assertThatThrownBy(() -> designationService.create(request))
                 .isInstanceOf(BusinessException.class)
@@ -152,6 +156,7 @@ class DesignationServiceTest {
 
         DesignationRequest request = new DesignationRequest(
                 itemId, languageId, "新名称", null, null,
+                null,
                 List.of(new DesignationRequest.ContextEntry(
                         UUID.randomUUID(), Acceptability.PREFERRED)));
 
@@ -178,6 +183,7 @@ class DesignationServiceTest {
 
         DesignationRequest request = new DesignationRequest(
                 itemId, languageId, "患者姓名", null, null,
+                null,
                 List.of(new DesignationRequest.ContextEntry(contextId, Acceptability.PREFERRED)));
 
         DesignationResponse result = designationService.create(request);
@@ -196,6 +202,7 @@ class DesignationServiceTest {
 
         DesignationRequest request = new DesignationRequest(
                 itemId, languageId, "患者姓名", null, null,
+                null,
                 List.of(
                         new DesignationRequest.ContextEntry(ctxId1, Acceptability.PREFERRED),
                         new DesignationRequest.ContextEntry(ctxId2, Acceptability.PREFERRED)));

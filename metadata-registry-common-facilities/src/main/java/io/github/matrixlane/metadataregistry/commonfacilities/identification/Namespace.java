@@ -1,25 +1,28 @@
 package io.github.matrixlane.metadataregistry.commonfacilities.identification;
 
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.Item;
+import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Organization;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationAuthority;
+import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.NamingConvention;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
+import jakarta.persistence.OneToOne;
+import jakarta.persistence.ManyToMany;
+import jakarta.persistence.JoinTable;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 
 @jakarta.persistence.Entity
 @Getter
 @Setter
 @NoArgsConstructor
-@org.hibernate.annotations.BatchSize(size = 100)
 public class Namespace extends Item {
 
     /**
@@ -57,15 +60,6 @@ public class Namespace extends Item {
     private Boolean oneNamePerItemIndicator = false;
 
     /**
-     * Namespace status lifecycle.
-     * ISO/IEC 11179-3:2023 lifecycle + extended governance states.
-     * Flow: DRAFT → SUBMITTED → ACTIVE → DEPRECATED → OBSOLETE
-     */
-    @jakarta.persistence.Column(name = "namespace_status", length = 20)
-    @jakarta.persistence.Enumerated(jakarta.persistence.EnumType.STRING)
-    private NamespaceStatus namespaceStatus = NamespaceStatus.DRAFT;
-
-    /**
      * Parent namespace for hierarchical namespace support.
      * ISO/IEC 11179-3:2023, 7.3.3 — namespaces can be organized in hierarchy.
      * Child namespace inherits namingAuthority and scheme_reference from parent.
@@ -75,30 +69,36 @@ public class Namespace extends Item {
     private Namespace parent;
 
     /**
-     * Plain-text naming authority identifier for built-in namespaces.
-     * Example: "system" for the built-in system-default namespace.
-     * This is a simpler alternative to the JPA reference field below.
+     * ISO/IEC 11179-3:2023, Table 13 — naming_authority.
+     * Organization that has the authority for naming in this namespace.
      */
-    @jakarta.persistence.Column(name = "naming_authority", length = 128)
-    private String namingAuthority;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "naming_authority_id")
+    private Organization namingAuthority;
 
     @OneToMany(mappedBy = "namespace", cascade = CascadeType.ALL)
     private List<ScopedIdentifier> scopedIdentifiers = new ArrayList<>();
 
     /**
-     * JPA reference to the formal RegistrationAuthority that governs this namespace.
-     * May be null for built-in system namespaces (identified by namingAuthority="system").
+     * ISO/IEC 11179-3:2023, 9.5.5 — registration_authority_namespace association.
+     * The RegistrationAuthority whose registration authority identifier is scoped by this namespace.
+     * Navigability is from Namespace to RegistrationAuthority in this implementation.
      */
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "naming_authority_id")
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "registration_authority_id")
     private RegistrationAuthority registrationAuthority;
 
     /**
-     * Bound NamingConvention ID when mandatoryNamingConventionIndicator = TRUE.
-     * ISO/IEC 11179-3:2023, 8.4.4
+     * ISO/IEC 11179-3:2023, 8.6.6 — naming_convention_utilization association.
+     * Naming conventions used by this namespace.
      */
-    @jakarta.persistence.Column(name = "naming_convention_id")
-    private UUID namingConventionId;
+    @ManyToMany
+    @JoinTable(
+            name = "namespace_naming_convention",
+            joinColumns = @JoinColumn(name = "namespace_id"),
+            inverseJoinColumns = @JoinColumn(name = "naming_convention_id")
+    )
+    private List<NamingConvention> namingConventions = new ArrayList<>();
 
     @OneToMany(mappedBy = "parent", cascade = jakarta.persistence.CascadeType.ALL)
     private List<Namespace> children = new ArrayList<>();

@@ -13,6 +13,7 @@ public record DesignationResponse(
         String sourceTitle,
         UUID namespaceId,
         String namespaceLabel,
+        List<UUID> namingConventionIds,
         List<ContextResponse> contexts) {
 
     public record ContextResponse(

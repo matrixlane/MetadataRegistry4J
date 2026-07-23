@@ -17,6 +17,7 @@ import io.github.matrixlane.metadataregistry.web.repository.IdentifiedItemReposi
 import io.github.matrixlane.metadataregistry.web.repository.NamespaceRepository;
 import io.github.matrixlane.metadataregistry.web.repository.ScopedIdentifierRepository;
 import io.github.matrixlane.metadataregistry.web.util.ItemNamingHelper;
+import io.github.matrixlane.metadataregistry.web.service.namespace.NamespaceConstraintValidator;
 import lombok.RequiredArgsConstructor;
 import org.hibernate.Hibernate;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -39,6 +40,7 @@ public class ScopedIdentifierService {
     private final NamespaceRepository namespaceRepository;
     private final IdentifiedItemRepository identifiedItemRepository;
     private final IdentifierGenerationService generationService;
+    private final NamespaceConstraintValidator namespaceConstraintValidator;
 
     @Transactional(readOnly = true)
     public Page<ScopedIdentifierResponse> list(Pageable pageable) {
@@ -80,6 +82,8 @@ public class ScopedIdentifierService {
         entity.setIdentifiedItem(identifiedItem);
         entity.setCreatedAt(LocalDateTime.now());
 
+        namespaceConstraintValidator.validateScopedIdentifier(namespace.getId(), entity, null);
+
         try {
             ScopedIdentifier saved = scopedIdentifierRepository.save(entity);
             recordHistory(saved, version, VersionStatus.DRAFT, "Created: " + (request.changeSummary() != null ? request.changeSummary() : "Initial version"));
@@ -112,6 +116,9 @@ public class ScopedIdentifierService {
                     .orElseThrow(() -> new ResourceNotFoundException("IdentifiedItem", request.identifiedItemId()));
             entity.setIdentifiedItem(ii);
         }
+
+        namespaceConstraintValidator.validateScopedIdentifier(
+                entity.getNamespace().getId(), entity, entity.getIdentifiedItem().getId());
 
         ScopedIdentifier saved = scopedIdentifierRepository.save(entity);
         return toResponse(saved);

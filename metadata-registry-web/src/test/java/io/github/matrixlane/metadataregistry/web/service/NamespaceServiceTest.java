@@ -1,5 +1,6 @@
 package io.github.matrixlane.metadataregistry.web.service;
 
+import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Organization;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.Sign;
 import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.Designation;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace;
@@ -10,7 +11,9 @@ import io.github.matrixlane.metadataregistry.web.dto.common.TextLineResponse;
 import io.github.matrixlane.metadataregistry.web.dto.namespace.NamespaceRequest;
 import io.github.matrixlane.metadataregistry.web.dto.namespace.NamespaceResponse;
 import io.github.matrixlane.metadataregistry.web.repository.NamespaceRepository;
-import io.github.matrixlane.metadataregistry.web.repository.RegistrationAuthorityRepository;
+import io.github.matrixlane.metadataregistry.web.repository.OrganizationRepository;
+import io.github.matrixlane.metadataregistry.web.repository.NamingConventionRepository;
+import io.github.matrixlane.metadataregistry.web.service.namespace.NamespaceConstraintValidator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -40,7 +43,13 @@ class NamespaceServiceTest {
     private NamespaceRepository repository;
 
     @Mock
-    private RegistrationAuthorityRepository registrationAuthorityRepository;
+    private OrganizationRepository organizationRepository;
+
+    @Mock
+    private NamingConventionRepository namingConventionRepository;
+
+    @Mock
+    private NamespaceConstraintValidator namespaceConstraintValidator;
 
     @Mock
     private ItemAdministrationService itemAdministrationService;
@@ -66,7 +75,7 @@ class NamespaceServiceTest {
 
         namespace = new Namespace();
         namespace.setId(namespaceId);
-        namespace.setRegistrationAuthority(registrationAuthority);
+        namespace.setNamingAuthority(registrationAuthority);
     }
 
     @Test
@@ -121,9 +130,10 @@ class NamespaceServiceTest {
 
     @Test
     void create_shouldSaveAndReturnNamespace() {
-        NamespaceRequest request = new NamespaceRequest(raId, List.of(), List.of(), null);
+        NamespaceRequest request = new NamespaceRequest(raId, List.of(), List.of(), null,
+                null, null, null, null, List.of(), null, null);
 
-        when(registrationAuthorityRepository.findById(raId)).thenReturn(Optional.of(registrationAuthority));
+        when(organizationRepository.findById(raId)).thenReturn(Optional.of(registrationAuthority));
         when(repository.save(any(Namespace.class))).thenAnswer(i -> {
             Namespace ns = i.getArgument(0);
             ns.setId(namespaceId);
@@ -143,20 +153,22 @@ class NamespaceServiceTest {
 
     @Test
     void create_shouldThrowWhenRegistrationAuthorityNotFound() {
-        NamespaceRequest request = new NamespaceRequest(raId, List.of(), List.of(), null);
-        when(registrationAuthorityRepository.findById(raId)).thenReturn(Optional.empty());
+        NamespaceRequest request = new NamespaceRequest(raId, List.of(), List.of(), null,
+                null, null, null, null, List.of(), null, null);
+        when(organizationRepository.findById(raId)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.create(request))
                 .isInstanceOf(ResourceNotFoundException.class)
-                .hasMessageContaining("RegistrationAuthority");
+                .hasMessageContaining("Organization");
     }
 
     @Test
     void update_shouldModifyAndReturnNamespace() {
-        NamespaceRequest request = new NamespaceRequest(raId, List.of(), List.of(), null);
+        NamespaceRequest request = new NamespaceRequest(raId, List.of(), List.of(), null,
+                null, null, null, null, List.of(), null, null);
 
         when(repository.findById(namespaceId)).thenReturn(Optional.of(namespace));
-        when(registrationAuthorityRepository.findById(raId)).thenReturn(Optional.of(registrationAuthority));
+        when(organizationRepository.findById(raId)).thenReturn(Optional.of(registrationAuthority));
         when(repository.save(any(Namespace.class))).thenReturn(namespace);
         when(itemAdministrationService.mapDesignations(any())).thenReturn(List.of());
         when(itemAdministrationService.mapDefinitions(any())).thenReturn(List.of());
@@ -171,7 +183,8 @@ class NamespaceServiceTest {
 
     @Test
     void update_shouldThrowWhenNamespaceNotFound() {
-        NamespaceRequest request = new NamespaceRequest(null, List.of(), List.of(), null);
+        NamespaceRequest request = new NamespaceRequest(null, List.of(), List.of(), null,
+                null, null, null, null, List.of(), null, null);
         when(repository.findById(namespaceId)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.update(namespaceId, request))
@@ -199,7 +212,8 @@ class NamespaceServiceTest {
 
     @Test
     void create_shouldAllowNullNamingAuthority() {
-        NamespaceRequest request = new NamespaceRequest(null, List.of(), List.of(), null);
+        NamespaceRequest request = new NamespaceRequest(null, List.of(), List.of(), null,
+                null, null, null, null, List.of(), null, null);
 
         when(repository.save(any(Namespace.class))).thenAnswer(i -> {
             Namespace ns = i.getArgument(0);

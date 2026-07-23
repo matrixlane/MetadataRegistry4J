@@ -2,6 +2,7 @@ package io.github.matrixlane.metadataregistry.web.service.namingconvention;
 
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.Sign;
 import io.github.matrixlane.metadataregistry.web.repository.DesignationRepository;
+import io.github.matrixlane.metadataregistry.web.repository.ScopedIdentifierRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -21,12 +22,15 @@ class NamingConflictDetectorTest {
     @Mock
     private DesignationRepository designationRepository;
 
+    @Mock
+    private ScopedIdentifierRepository scopedIdentifierRepository;
+
     private NamingConflictDetector detector;
     private UUID namespaceId;
 
     @BeforeEach
     void setUp() {
-        detector = new NamingConflictDetector(designationRepository);
+        detector = new NamingConflictDetector(designationRepository, scopedIdentifierRepository);
         namespaceId = UUID.randomUUID();
     }
 

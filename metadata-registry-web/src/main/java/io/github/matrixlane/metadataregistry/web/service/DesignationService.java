@@ -5,6 +5,7 @@ import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.prede
 import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.Acceptability;
 import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.Designation;
 import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.DesignationContext;
+import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.NamingConvention;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace;
 import io.github.matrixlane.metadataregistry.web.common.ApiCodes;
 import io.github.matrixlane.metadataregistry.web.common.BusinessException;
@@ -16,10 +17,12 @@ import io.github.matrixlane.metadataregistry.web.repository.DesignationRepositor
 import io.github.matrixlane.metadataregistry.web.repository.ItemRepository;
 import io.github.matrixlane.metadataregistry.web.repository.LanguageIdentificationRepository;
 import io.github.matrixlane.metadataregistry.web.repository.NamespaceRepository;
+import io.github.matrixlane.metadataregistry.web.repository.NamingConventionRepository;
 import io.github.matrixlane.metadataregistry.web.repository.ReferenceDocumentRepository;
 import io.github.matrixlane.metadataregistry.web.service.namingconvention.NamingConflictDetector;
 import io.github.matrixlane.metadataregistry.web.service.namingconvention.NamingConventionEngine;
 import io.github.matrixlane.metadataregistry.web.service.namingconvention.NamingConventionRuleResult;
+import io.github.matrixlane.metadataregistry.web.service.namespace.NamespaceConstraintValidator;
 import io.github.matrixlane.metadataregistry.web.util.ItemNamingHelper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -51,6 +54,8 @@ public class DesignationService {
     private final ReferenceDocumentRepository referenceDocumentRepository;
     private final NamingConventionEngine namingConventionEngine;
     private final NamingConflictDetector namingConflictDetector;
+    private final NamespaceConstraintValidator namespaceConstraintValidator;
+    private final NamingConventionRepository namingConventionRepository;
 
     @Transactional(readOnly = true)
     public List<DesignationResponse> listByItemId(UUID itemId) {
@@ -92,7 +97,10 @@ public class DesignationService {
                     .orElseThrow(() -> new ResourceNotFoundException("Namespace", request.namespaceId()));
             d.getNamespaces().add(ns);
         }
+        applyNamingConventions(d, request.namingConventionIds());
         applyContexts(d, request.contexts());
+
+        namespaceConstraintValidator.validateDesignation(request.namespaceId(), d, null);
 
         return toResponse(designationRepository.save(d));
     }
@@ -125,9 +133,12 @@ public class DesignationService {
             d.getNamespaces().clear();
             d.getNamespaces().add(ns);
         }
+        applyNamingConventions(d, request.namingConventionIds());
         // Clear and rebuild DesignationContexts
         d.getDesignationContexts().clear();
         applyContexts(d, request.contexts());
+
+        namespaceConstraintValidator.validateDesignation(request.namespaceId(), d, d.getId());
 
         return toResponse(designationRepository.save(d));
     }
@@ -154,6 +165,20 @@ public class DesignationService {
             dc.setAcceptability(entry.acceptability());
             d.getDesignationContexts().add(dc);
         }
+    }
+
+    private void applyNamingConventions(Designation d, List<UUID> ids) {
+        d.getNamingConventions().clear();
+        if (ids == null || ids.isEmpty()) {
+            return;
+        }
+        List<NamingConvention> conventions = namingConventionRepository.findAllById(ids);
+        if (conventions.size() != ids.size()) {
+            List<UUID> found = conventions.stream().map(NamingConvention::getId).toList();
+            List<UUID> missing = ids.stream().filter(id -> !found.contains(id)).toList();
+            throw new ResourceNotFoundException("NamingConvention", missing);
+        }
+        d.getNamingConventions().addAll(conventions);
     }
 
     private Designation loadOrThrow(UUID id) {
@@ -234,20 +259,23 @@ public class DesignationService {
         String nsLabel = null;
         if (d.getNamespaces() != null && !d.getNamespaces().isEmpty()) {
             Namespace ns = d.getNamespaces().get(0);
-            nsId = ns.getId();
-            nsLabel = ItemNamingHelper.preferredDesignation(ns);
-        }
-        return new DesignationResponse(
-                d.getId(),
+                nsId = ns.getId();
+                nsLabel = ItemNamingHelper.preferredDesignation(ns);
+            }
+            List<UUID> namingConventionIds = d.getNamingConventions() == null ? List.of()
+                    : d.getNamingConventions().stream().map(NamingConvention::getId).toList();
+            return new DesignationResponse(
+                    d.getId(),
                 d.getItem() == null ? null : d.getItem().getId(),
                 d.getLanguage() == null ? null : d.getLanguage().getId(),
                 d.getLanguage() == null ? null : d.getLanguage().getLanguageIdentifier(),
                 d.getSign() == null ? null : d.getSign().getValue(),
                 d.getSource() == null ? null : d.getSource().getId(),
-                d.getSource() == null || d.getSource().getTitle() == null
-                        ? null : d.getSource().getTitle().getValue(),
-                nsId,
-                nsLabel,
-                contextResponses);
-    }
+                    d.getSource() == null || d.getSource().getTitle() == null
+                            ? null : d.getSource().getTitle().getValue(),
+                    nsId,
+                    nsLabel,
+                    namingConventionIds,
+                    contextResponses);
+        }
 }

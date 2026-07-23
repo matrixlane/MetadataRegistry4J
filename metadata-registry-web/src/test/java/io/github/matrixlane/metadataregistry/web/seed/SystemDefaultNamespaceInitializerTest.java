@@ -1,9 +1,11 @@
 package io.github.matrixlane.metadataregistry.web.seed;
 
+import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Organization;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.LanguageIdentification;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace;
 import io.github.matrixlane.metadataregistry.web.repository.LanguageIdentificationRepository;
 import io.github.matrixlane.metadataregistry.web.repository.NamespaceRepository;
+import io.github.matrixlane.metadataregistry.web.repository.OrganizationRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -41,6 +43,9 @@ class SystemDefaultNamespaceInitializerTest {
     private LanguageIdentificationRepository languageRepository;
 
     @Mock
+    private OrganizationRepository organizationRepository;
+
+    @Mock
     private ApplicationArguments args;
 
     @InjectMocks
@@ -72,6 +77,8 @@ class SystemDefaultNamespaceInitializerTest {
         when(languageRepository.findByLanguageIdentifier("en-US")).thenReturn(Optional.of(langEn));
         when(languageRepository.findByLanguageIdentifier("zh-CN")).thenReturn(Optional.empty());
         when(languageRepository.save(any(LanguageIdentification.class))).thenReturn(langEn);
+        when(organizationRepository.findById(any())).thenReturn(Optional.empty());
+        when(organizationRepository.save(any(Organization.class))).thenAnswer(i -> i.getArgument(0));
 
         ArgumentCaptor<Namespace> nsCaptor = ArgumentCaptor.forClass(Namespace.class);
 
@@ -82,7 +89,8 @@ class SystemDefaultNamespaceInitializerTest {
 
         assertThat(saved.getShorthandPrefix()).isEqualTo("sys:");
         assertThat(saved.getSchemeReference()).isEqualTo("urn:metadata-registry:system-default");
-        assertThat(saved.getNamingAuthority()).isEqualTo("system");
+        assertThat(saved.getNamingAuthority()).isNotNull();
+        assertThat(saved.getNamingAuthority().getName().get(0).getValue()).isEqualTo("system");
         assertThat(saved.getDesignations()).isNotEmpty();
     }
 }

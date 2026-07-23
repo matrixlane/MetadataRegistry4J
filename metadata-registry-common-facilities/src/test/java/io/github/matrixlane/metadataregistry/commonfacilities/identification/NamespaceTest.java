@@ -1,5 +1,7 @@
 package io.github.matrixlane.metadataregistry.commonfacilities.identification;
 
+import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Organization;
+import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.NamingConvention;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -20,7 +22,6 @@ class NamespaceTest {
         void defaultValues_shouldMatchSpec() {
             Namespace ns = new Namespace();
             
-            assertThat(ns.getNamespaceStatus()).isEqualTo(NamespaceStatus.DRAFT);
             assertThat(ns.getMandatoryNamingConventionIndicator()).isFalse();
             assertThat(ns.getOneNamePerItemIndicator()).isFalse();
             assertThat(ns.getOneItemPerNameIndicator()).isTrue();
@@ -35,14 +36,17 @@ class NamespaceTest {
             ns.setShorthandPrefix("hl7:");
             ns.setSchemeReference("urn:example:hl7");
             ns.setMandatoryNamingConventionIndicator(true);
-            ns.setNamingConventionId(ncId);
+            NamingConvention nc = new NamingConvention();
+            nc.setId(ncId);
+            ns.getNamingConventions().add(nc);
             ns.setOneNamePerItemIndicator(true);
             ns.setOneItemPerNameIndicator(true);
             
             assertThat(ns.getShorthandPrefix()).isEqualTo("hl7:");
             assertThat(ns.getSchemeReference()).isEqualTo("urn:example:hl7");
             assertThat(ns.getMandatoryNamingConventionIndicator()).isTrue();
-            assertThat(ns.getNamingConventionId()).isEqualTo(ncId);
+            assertThat(ns.getNamingConventions()).hasSize(1);
+            assertThat(ns.getNamingConventions().get(0).getId()).isEqualTo(ncId);
             assertThat(ns.getOneNamePerItemIndicator()).isTrue();
             assertThat(ns.getOneItemPerNameIndicator()).isTrue();
         }
@@ -108,36 +112,6 @@ class NamespaceTest {
     }
 
     @Nested
-    @DisplayName("NamespaceStatus Lifecycle")
-    class StatusLifecycleTests {
-
-        @Test
-        @DisplayName("Initial status is DRAFT")
-        void initialStatus_isDraft() {
-            Namespace ns = new Namespace();
-            assertThat(ns.getNamespaceStatus()).isEqualTo(NamespaceStatus.DRAFT);
-        }
-
-        @Test
-        @DisplayName("Status can be transitioned through lifecycle")
-        void status_canBeTransitioned() {
-            Namespace ns = new Namespace();
-            
-            ns.setNamespaceStatus(NamespaceStatus.SUBMITTED);
-            assertThat(ns.getNamespaceStatus()).isEqualTo(NamespaceStatus.SUBMITTED);
-            
-            ns.setNamespaceStatus(NamespaceStatus.ACTIVE);
-            assertThat(ns.getNamespaceStatus()).isEqualTo(NamespaceStatus.ACTIVE);
-            
-            ns.setNamespaceStatus(NamespaceStatus.DEPRECATED);
-            assertThat(ns.getNamespaceStatus()).isEqualTo(NamespaceStatus.DEPRECATED);
-            
-            ns.setNamespaceStatus(NamespaceStatus.OBSOLETE);
-            assertThat(ns.getNamespaceStatus()).isEqualTo(NamespaceStatus.OBSOLETE);
-        }
-    }
-
-    @Nested
     @DisplayName("Naming Authority")
     class NamingAuthorityTests {
 
@@ -145,19 +119,23 @@ class NamespaceTest {
         @DisplayName("Naming authority can be set as string")
         void namingAuthority_canBeSetAsString() {
             Namespace ns = new Namespace();
-            ns.setNamingAuthority("HL7 International");
+            Organization org = new Organization();
+            org.getName().add(io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.Sign.of("HL7 International"));
+            ns.setNamingAuthority(org);
             
-            assertThat(ns.getNamingAuthority()).isEqualTo("HL7 International");
+            assertThat(ns.getNamingAuthority().getName().get(0).getValue()).isEqualTo("HL7 International");
         }
 
         @Test
         @DisplayName("Naming authority supports ISO scheme reference")
         void namingAuthority_supportsIsoSchemeReference() {
             Namespace ns = new Namespace();
-            ns.setNamingAuthority("ISO");
+            Organization org = new Organization();
+            org.getName().add(io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.Sign.of("ISO"));
+            ns.setNamingAuthority(org);
             ns.setSchemeReference("urn:iso:std:iso:11179");
             
-            assertThat(ns.getNamingAuthority()).isEqualTo("ISO");
+            assertThat(ns.getNamingAuthority().getName().get(0).getValue()).isEqualTo("ISO");
             assertThat(ns.getSchemeReference()).isEqualTo("urn:iso:std:iso:11179");
         }
     }

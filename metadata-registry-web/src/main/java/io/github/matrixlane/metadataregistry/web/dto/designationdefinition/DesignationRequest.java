@@ -17,6 +17,7 @@ public record DesignationRequest(
         String value,
         UUID sourceId,
         UUID namespaceId,
+        List<UUID> namingConventionIds,
         @Valid
         List<ContextEntry> contexts) {
 
