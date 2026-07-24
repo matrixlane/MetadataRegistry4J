@@ -58,6 +58,9 @@ class MetadataSearchServiceTest {
                 RegistrationStatus.STANDARD,
                 LocalDateTime.now(),
                 null,
+                null,
+                null,
+                null,
                 LocalDateTime.now(),
                 LocalDateTime.now(),
                 null);

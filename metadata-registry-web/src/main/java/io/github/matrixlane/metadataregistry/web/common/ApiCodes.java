@@ -30,6 +30,7 @@ public final class ApiCodes {
     public static final int INVALID_STATE_TRANSITION_FROM_SUPERSEDED = 1116;
     public static final int INVALID_STATE_TRANSITION_FROM_RETIRED = 1117;
     public static final int INVALID_STATE_TRANSITION_FROM_HISTORICAL = 1118;
+    public static final int INVALID_STATE_TRANSITION_FROM_APPLICATION = 1119;
 
     // === Approval Workflow Errors (1200-1299) ===
     public static final int APPROVAL_RECORD_NOT_FOUND = 1200;

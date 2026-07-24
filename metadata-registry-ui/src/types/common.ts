@@ -50,7 +50,8 @@ export type RegistrationStatus =
   | 'PREFERRED'
   | 'SUPERSEDED'
   | 'RETIRED'
-  | 'HISTORICAL';
+  | 'HISTORICAL'
+  | 'APPLICATION';
 
 export interface TextLineContextForm {
   contextId: string;

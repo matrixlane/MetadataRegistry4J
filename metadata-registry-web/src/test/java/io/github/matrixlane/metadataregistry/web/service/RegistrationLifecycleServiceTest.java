@@ -50,7 +50,7 @@ import static org.mockito.Mockito.when;
  * </ul>
  *
  * <p><b>WI-019 变更：</b>注册状态已与 ISO/IEC 11179-6:2023 对齐。
- * CANDIDATE → SUBMITTED，PREFERRED_STANDARD → PREFERRED，移除了 APPLICATION。</p>
+ * CANDIDATE → SUBMITTED，PREFERRED_STANDARD → PREFERRED。为符合 ISO/IEC 11179-3:2023 第9章，恢复 APPLICATION。</p>
  */
 @ExtendWith(MockitoExtension.class)
 class RegistrationLifecycleServiceTest {
@@ -152,6 +152,67 @@ class RegistrationLifecycleServiceTest {
         }
     }
 
+
+    @Test
+    @DisplayName("INCOMPLETE → APPLICATION: 合法转换，ADMIN 角色")
+    void transition_incompleteToApplication_asAdmin_shouldSucceed() {
+        authenticateAs(AppUserRole.ADMIN);
+        item.setRegistrationState(createState(RegistrationStatus.INCOMPLETE));
+        when(administeredItemRepository.findById(itemId)).thenReturn(Optional.of(item));
+        when(administeredItemRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        AdministeredItem result = registrationLifecycleService.transition(
+                itemId, RegistrationStatus.APPLICATION, "应用登记");
+
+        assertThat(result.getRegistrationState().getRegistrationStatus())
+                .isEqualTo(RegistrationStatus.APPLICATION);
+    }
+
+    @Test
+    @DisplayName("SUBMITTED → APPLICATION: 合法转换，ADMIN 角色")
+    void transition_submittedToApplication_asAdmin_shouldSucceed() {
+        authenticateAs(AppUserRole.ADMIN);
+        item.setRegistrationState(createState(RegistrationStatus.SUBMITTED));
+        when(administeredItemRepository.findById(itemId)).thenReturn(Optional.of(item));
+        when(administeredItemRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        AdministeredItem result = registrationLifecycleService.transition(
+                itemId, RegistrationStatus.APPLICATION, "应用登记");
+
+        assertThat(result.getRegistrationState().getRegistrationStatus())
+                .isEqualTo(RegistrationStatus.APPLICATION);
+    }
+
+    @Test
+    @DisplayName("APPLICATION → RECORDED: 合法转换，ADMIN 角色")
+    void transition_applicationToRecorded_asAdmin_shouldSucceed() {
+        authenticateAs(AppUserRole.ADMIN);
+        item.setRegistrationState(createState(RegistrationStatus.APPLICATION));
+        when(administeredItemRepository.findById(itemId)).thenReturn(Optional.of(item));
+        when(administeredItemRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        AdministeredItem result = registrationLifecycleService.transition(
+                itemId, RegistrationStatus.RECORDED, "记录");
+
+        assertThat(result.getRegistrationState().getRegistrationStatus())
+                .isEqualTo(RegistrationStatus.RECORDED);
+    }
+
+    @Test
+    @DisplayName("APPLICATION → RETIRED: 合法转换，ADMIN 角色")
+    void transition_applicationToRetired_asAdmin_shouldSucceed() {
+        authenticateAs(AppUserRole.ADMIN);
+        item.setRegistrationState(createState(RegistrationStatus.APPLICATION));
+        when(administeredItemRepository.findById(itemId)).thenReturn(Optional.of(item));
+        when(administeredItemRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        AdministeredItem result = registrationLifecycleService.transition(
+                itemId, RegistrationStatus.RETIRED, "退役");
+
+        assertThat(result.getRegistrationState().getRegistrationStatus())
+                .isEqualTo(RegistrationStatus.RETIRED);
+    }
+
     @Test
     @DisplayName("终态 HISTORICAL 无任何允许转换")
     void transition_fromHistorical_shouldReject() {
@@ -216,6 +277,15 @@ class RegistrationLifecycleServiceTest {
                 new Object[]{RegistrationStatus.SUPERSEDED, RegistrationStatus.STANDARD, ApiCodes.INVALID_STATE_TRANSITION_FROM_SUPERSEDED},
                 // RETIRED (1117)
                 new Object[]{RegistrationStatus.RETIRED, RegistrationStatus.STANDARD, ApiCodes.INVALID_STATE_TRANSITION_FROM_RETIRED},
+                // APPLICATION (1119)
+                new Object[]{RegistrationStatus.APPLICATION, RegistrationStatus.INCOMPLETE, ApiCodes.INVALID_STATE_TRANSITION_FROM_APPLICATION},
+                new Object[]{RegistrationStatus.APPLICATION, RegistrationStatus.SUBMITTED, ApiCodes.INVALID_STATE_TRANSITION_FROM_APPLICATION},
+                new Object[]{RegistrationStatus.APPLICATION, RegistrationStatus.QUALIFIED, ApiCodes.INVALID_STATE_TRANSITION_FROM_APPLICATION},
+                new Object[]{RegistrationStatus.APPLICATION, RegistrationStatus.STANDARD, ApiCodes.INVALID_STATE_TRANSITION_FROM_APPLICATION},
+                new Object[]{RegistrationStatus.APPLICATION, RegistrationStatus.PREFERRED, ApiCodes.INVALID_STATE_TRANSITION_FROM_APPLICATION},
+                new Object[]{RegistrationStatus.APPLICATION, RegistrationStatus.SUPERSEDED, ApiCodes.INVALID_STATE_TRANSITION_FROM_APPLICATION},
+                new Object[]{RegistrationStatus.APPLICATION, RegistrationStatus.HISTORICAL, ApiCodes.INVALID_STATE_TRANSITION_FROM_APPLICATION},
+                new Object[]{RegistrationStatus.APPLICATION, RegistrationStatus.APPLICATION, ApiCodes.ALREADY_IN_TARGET_STATE},
                 // HISTORICAL (1118)
                 new Object[]{RegistrationStatus.HISTORICAL, RegistrationStatus.RETIRED, ApiCodes.INVALID_STATE_TRANSITION_FROM_HISTORICAL}
         );

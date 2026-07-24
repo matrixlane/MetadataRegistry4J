@@ -16,10 +16,13 @@ import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefi
 import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.Designation;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.ScopedIdentifier;
-import io.github.matrixlane.metadataregistry.commonfacilities.registration.AdministeredItem;
-import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationAuthority;
-import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationState;
-import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationStatus;
+ import io.github.matrixlane.metadataregistry.commonfacilities.registration.AdministeredItem;
+ import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationAuthority;
+ import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationState;
+ import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationStatus;
+ import io.github.matrixlane.metadataregistry.commonfacilities.registration.ConstraintSet;
+ import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrySpecification;
+ import io.github.matrixlane.metadataregistry.commonfacilities.registration.DegreeOfConformance;
 import io.github.matrixlane.metadataregistry.dataspecification.DataElement;
 import io.github.matrixlane.metadataregistry.dataspecification.DataElementConcept;
 import io.github.matrixlane.metadataregistry.dataspecification.DataType;
@@ -45,8 +48,10 @@ import io.github.matrixlane.metadataregistry.web.repository.ObjectClassRepositor
 import io.github.matrixlane.metadataregistry.web.repository.OrganizationRepository;
 import io.github.matrixlane.metadataregistry.web.repository.PropertyRepository;
 import io.github.matrixlane.metadataregistry.web.repository.ReferenceDocumentRepository;
-import io.github.matrixlane.metadataregistry.web.repository.RegistrationAuthorityRepository;
-import io.github.matrixlane.metadataregistry.web.repository.ValueDomainRepository;
+ import io.github.matrixlane.metadataregistry.web.repository.RegistrationAuthorityRepository;
+ import io.github.matrixlane.metadataregistry.web.repository.ValueDomainRepository;
+ import io.github.matrixlane.metadataregistry.web.repository.ConstraintSetRepository;
+ import io.github.matrixlane.metadataregistry.web.repository.RegistrySpecificationRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
@@ -87,6 +92,8 @@ public class DataInitializer implements ApplicationRunner {
     private final ValueDomainRepository valueDomainRepository;
     private final DataElementRepository dataElementRepository;
     private final PasswordEncoder passwordEncoder;
+    private final ConstraintSetRepository constraintSetRepository;
+    private final RegistrySpecificationRepository registrySpecificationRepository;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -111,6 +118,8 @@ public class DataInitializer implements ApplicationRunner {
         seedDataElementConcepts(ctx);
         seedConceptualAndValueDomains(ctx);
         seedDataElements(ctx);
+        seedConstraintSet(ctx);
+        seedRegistrySpecification(ctx);
 
         log.info("种子数据初始化完成");
     }
@@ -372,6 +381,44 @@ public class DataInitializer implements ApplicationRunner {
                 "订单状态", "Order Status", "订单当前的业务状态描述。");
     }
 
+    private void seedConstraintSet(SeedContext ctx) {
+        ConstraintSet cs = new ConstraintSet();
+        cs.setItemShallBeDesignatedIndicator(true);
+        cs.setItemShallBeDefinedIndicator(true);
+        cs.setItemShallBeClassifiedIndicator(true);
+        addDesignation(cs, ctx.langZh, "默认约束集");
+        addDesignation(cs, ctx.langEn, "Default Constraint Set");
+        addDefinition(cs, ctx.langZh, "要求注册项必须具有命名、定义和分类的默认约束集。");
+        ctx.defaultConstraintSet = constraintSetRepository.save(cs);
+        log.info("已创建默认约束集");
+    }
+
+    private void seedRegistrySpecification(SeedContext ctx) {
+        RegistrySpecification rs = new RegistrySpecification();
+        rs.setName("MetadataRegistry4j");
+        rs.setComment("ISO/IEC 11179-3:2023 Registration package 示例注册规范。");
+        rs.setWebAddress("https://github.com/matrixlane/MetadataRegistry4j");
+        rs.setDefaultLanguage(ctx.langZh);
+        rs.getAlternativeLanguages().add(ctx.langEn);
+        rs.getAlternativeLanguages().add(ctx.langJa);
+        rs.setCharacterRepertoire("Unicode UTF-8");
+        rs.getReferenceDocumentIdentifierKinds().add("ISO");
+        rs.getReferenceDocumentIdentifierKinds().add("GB");
+        rs.setRepresentationClassSchemeId("ISO/IEC 11179-31");
+        rs.setStandard("ISO/IEC 11179-3:2023");
+        rs.setDegreeOfConformance(DegreeOfConformance.CONFORMING);
+        rs.setConformanceLevel("Metamodel conformance");
+        rs.setConformanceLabel("Conforming");
+        rs.setIncludedFeatures("Registered_Item, Administered_Item, Attached_Item, Registration_State, Stewardship_Record, Submission_Record, Registration_Authority, Registrar, Constraint_Set, Registry_Specification");
+        rs.setExcludedFeatures("Classification package, Mapping package");
+        rs.setDefaultTimeZone("+08:00");
+        addDesignation(rs, ctx.langZh, "MetadataRegistry4j 注册规范");
+        addDesignation(rs, ctx.langEn, "MetadataRegistry4j Registry Specification");
+        addDefinition(rs, ctx.langZh, "描述 MetadataRegistry4j 示例注册环境，包括语言、字符集、参考标准及合规声明。");
+        ctx.defaultRegistrySpecification = registrySpecificationRepository.save(rs);
+        log.info("已创建默认注册规范");
+    }
+
     private DataElement createDataElement(SeedContext ctx, String identifier,
                                           DataElementConcept dec, ValueDomain vd,
                                           String zhLabel, String enLabel, String zhDef) {
@@ -459,5 +506,7 @@ public class DataInitializer implements ApplicationRunner {
         DescribedConceptualDomain cdName;
         DescribedValueDomain vdRmbAmount;
         DescribedValueDomain vdShortName;
+        ConstraintSet defaultConstraintSet;
+        RegistrySpecification defaultRegistrySpecification;
     }
 }

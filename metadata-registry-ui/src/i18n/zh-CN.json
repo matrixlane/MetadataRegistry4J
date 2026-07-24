@@ -44,7 +44,8 @@
                 "registration": "注册",
                 "classification": "分类",
                 "interopMappings": "匹配结果管理",
-                "valueMeaning": "值含义"
+                "valueMeaning": "值含义",
+                "registrySpecification": "注册规范"
             },
     "auth":  {
                  "login":  "登录",
@@ -162,6 +163,7 @@
                                "RETIRED":  "已退役",
                                "HISTORICAL":  "历史",
                                "STANDARD":  "标准",
-                               "PREFERRED":  "首选"
+                               "PREFERRED":  "首选",
+                               "APPLICATION":  "应用"
                            }
 }

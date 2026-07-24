@@ -117,9 +117,9 @@
 |------|----------|----------|------|
 | ✅ `Item` 不是抽象类 | `Item` 是 **abstract**（Page 48: "Item is an abstract superclass"） | `Item` 是具体实体类，可实例化 | 已标记为 `abstract`（WI-006） |
 | ✅ `Concept` 不是抽象类 | `Concept` 是 **abstract** | `Concept` 是具体实体类 | 已标记为 `abstract`（WI-006） |
-| `Constraint_Set` 缺失 | 标准 9.4.5 定义了 `Constraint_Set`，继承 `Item`，用于注册约束 | 未实现 | 补充实现 |
+| `Constraint_Set` 缺失 | 标准 9.4.5 定义了 `Constraint_Set`，继承 `Item`，用于注册约束 | 已补充（`ConstraintSet` 实体、`registered_item_constraint_set` 关联、CRUD API、种子数据） | 完成 |
 | `Naming_Convention` 缺失 | 标准 8.4.4 定义了 `Naming_Convention`，继承 `Item`，用于命名规则 | 未实现 | 补充实现 |
-| `Registry_Specification` 缺失 | 标准 9.4.10 定义了 `Registry_Specification`，描述注册环境 | 未实现 | 补充实现 |
+| `Registry_Specification` 缺失 | 标准 9.4.10 定义了 `Registry_Specification`，描述注册环境 | 已补充（`RegistrySpecification` 实体、Table 28 属性、CRUD API、前端页面、种子数据） | 完成 |
 
 ---
 
@@ -145,7 +145,7 @@
 | `Namespace` ↔ `Naming_Convention`（`naming_convention_utilization`） | 无关联 | 缺失 |
 | `Namespace` 的约束属性（`one_name_per_item_indicator`, `one_item_per_name_indicator`, `mandatory_naming_convention_indicator`, `shorthand_prefix`, `scheme_reference`） | `Namespace` 仅包含 `scopedIdentifiers` 和 `namingAuthority`，缺少上述属性 | 缺失 |
 | `Scoped_Identifier` 的派生属性（`full_expansion`, `shorthand_expansion`） | `ScopedIdentifier` 仅有 `identifier` 和 `version` | 缺失 |
-| `RegisteredItem` ↔ `Constraint_Set`（`registered_item_constraint_set`） | 无关联 | 缺失 |
+| `RegisteredItem` ↔ `Constraint_Set`（`registered_item_constraint_set`） | `@ManyToOne` 关联（`RegisteredItem.constraintSet`） | 已补充 |
 
 ---
 
@@ -186,3 +186,29 @@
 6. **补充 `Constraint_Set`** 和 **`Naming_Convention`** 类。
 7. **补充 `Registry_Specification`** 类。
 8. **将部分 `String` 属性统一为 `Text` 类型**（如 `changeDescription`, `explanatoryComment` 等），以保持与标准的数据类型严格一致。
+
+
+---
+
+## 五、已补充的实现（2026-07-24 变更 `iso-11179-3-chapter-9-registration-package`）
+
+本次 OpenSpec 变更补齐了 ISO/IEC 11179-3:2023 第9章 Registration package 中缺失的元模型元素与关联：
+
+| 标准元素 | 项目实现 | 状态 |
+|---|---|---|
+| `Constraint_Set` (9.4.5) | `ConstraintSet` 实体类，继承 `Item`，包含 `itemShallBeDesignatedIndicator`、`itemShallBeDefinedIndicator`、`itemShallBeClassifiedIndicator` | 完成 |
+| `Registry_Specification` (9.4.10) | `RegistrySpecification` 实体类，包含 Table 28 全部属性；新增 `DegreeOfConformance` 枚举 | 完成 |
+| `reference` association (9.5.2) | `RegisteredItem` 与 `ReferenceDocument` 的 `@ManyToMany` 关联表 | 完成 |
+| `registered_item_constraint_set` association (9.5.3) | `RegisteredItem` 与 `ConstraintSet` 的 `@ManyToOne` 关联 | 完成 |
+| `Registration_Status` 枚举 | 恢复 `APPLICATION` 状态，覆盖标准 Table 30 中的 `Application` | 完成 |
+| REST API | `/api/v1/constraint-sets`、`/api/v1/registry-specifications`、`/api/v1/registered-items/{id}/reference-documents`、`/api/v1/registered-items/{id}/constraint-set` | 完成 |
+| 前端 | 新增 `RegistrySpecificationSettings.vue`，补充 `registrySpecificationApi` 与 i18n | 完成 |
+| 种子数据 | `DataInitializer` 初始化默认 `ConstraintSet` 与 `RegistrySpecification` | 完成 |
+| 测试 | 新增 `ConstraintSetServiceTest`、`RegistrySpecificationServiceTest`、`ConstraintSetControllerTest`、`RegistrySpecificationControllerTest`；扩展 `RegistrationLifecycleServiceTest` 覆盖 `APPLICATION` 状态迁移 | 完成 |
+
+### 说明
+
+- 前端路由 `/registry-specifications` 与菜单“注册规范”此前已存在，但仅指向占位组件；本次变更创建了实际可运行的 `RegistrySpecificationSettings.vue` 并对接后端 API。
+- 标准 Table 30 同时包含 `Candidate` 状态，但项目历史变更 WI-019 已明确将其映射为 `SUBMITTED`，本变更未恢复 `CANDIDATE` 枚举值。
+- `OpenSpec validate --changes --json` 验证通过。
+

@@ -3,6 +3,7 @@ package io.github.matrixlane.metadataregistry.web.dto.administereditem;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationStatus;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 public record AdministeredItemResponse(
@@ -19,6 +20,9 @@ public record AdministeredItemResponse(
         RegistrationStatus registrationStatus,
         LocalDateTime stateEffectiveDate,
         String administrativeNote,
+        UUID constraintSetId,
+        String constraintSetLabel,
+        List<UUID> referenceDocumentIds,
         LocalDateTime creationDateTime,
         LocalDateTime lastChangeDateTime,
         String changeDescription) {
