@@ -1,0 +1,11 @@
+-- Dameng (DM8) baseline (no-op by design)
+--
+-- Portability policy (see openspec/changes/edition-aware-init-and-db-portability):
+--   * Table structure is owned by Hibernate ddl-auto from entity metadata.
+--   * Indexes and check constraints that JPA can express live in entity
+--     annotations (@Table(indexes/uniqueConstraints), @Check).
+--   * This directory carries only what Hibernate cannot express for Dameng.
+--   * New migrations MUST be portable across sqlserver/sqlite/dm, or ship one
+--     script per dialect directory.
+--
+-- Intentionally left without DDL statements.
