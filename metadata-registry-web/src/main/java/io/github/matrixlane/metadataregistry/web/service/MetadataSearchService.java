@@ -152,6 +152,9 @@ public class MetadataSearchService {
                 status(rs, "registration_status"),
                 ldt(rs, "effective_date"),
                 rs.getString("administrative_note"),
+                null,
+                null,
+                List.of(),
                 ldt(rs, "creation_date_time"),
                 ldt(rs, "last_change_date_time"),
                 rs.getString("change_description")

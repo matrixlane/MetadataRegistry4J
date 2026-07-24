@@ -153,6 +153,7 @@ class MetadataSearchControllerTest {
                 RegistrationStatus.STANDARD,
                 LocalDateTime.now(),
                 "自动生成",
+                null, null, null,
                 LocalDateTime.now(),
                 LocalDateTime.now(),
                 "初始版本"

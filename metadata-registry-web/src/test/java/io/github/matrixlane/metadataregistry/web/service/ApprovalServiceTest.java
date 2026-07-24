@@ -499,6 +499,7 @@ class ApprovalServiceTest {
     void approve_fromIncomplete_shouldTransitionForward() {
         authenticateAs("approver", AppUserRole.ADMIN);
         ApprovalRecord record = createPendingRecord();
+        item.setRegistrationState(createState(RegistrationStatus.INCOMPLETE));
         // INCOMPLETE → SUBMITTED → RECORDED → QUALIFIED → STANDARD
 
         when(approvalRecordRepository.findById(recordId)).thenReturn(Optional.of(record));

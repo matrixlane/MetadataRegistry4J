@@ -36,6 +36,7 @@ export const appUserApi = crud('/app-users');
 export const languageApi = crud('/languages');
 export const documentTypeApi = crud('/document-types');
 
+export const registrySpecificationApi = crud('/registry-specifications');
 
 export const contextApi = {
   list: (params?: PageQuery) => request.get<PageResponse<any>>('/contexts', { params }),
