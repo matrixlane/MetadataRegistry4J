@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "frontend",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--prefix", "metadata-registry-ui"],
+      "port": 5173
+    },
+    {
+      "name": "backend",
+      "runtimeExecutable": "E:\\Workspace\\GitHub\\matrixlane\\MetadataRegistry4j\\mvnw.cmd",
+      "runtimeArgs": ["-f", "metadata-registry-web/pom.xml", "spring-boot:run"],
+      "port": 8081
+    }
+  ]
+}

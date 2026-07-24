@@ -1,0 +1,38 @@
+# 标识符自动生成 (Identifier Auto-Generation)
+
+## Purpose
+This capability defines the rules for namespace-level unique identifier auto-generation (supporting UUID, SEQUENCE with pessimistic locking, and TEMPLATE strategies) and frontend form control / validation switching.
+
+## Requirements
+
+### Requirement: 命名空间内唯一标识符自动生成 (Auto-Generation of Unique Identifiers)
+对于本地注册元数据，当且仅当用户选择自动生成且注册请求中没有填写标识符时，系统 MUST 基于命名空间的策略配置自动分配唯一的标识符。若选择手动输入，则系统 MUST 对输入的标识符执行格式与唯一性验证。
+
+#### Scenario: 自动生成 UUID 标识符
+- **WHEN** 用户在创建数据元时选择自动生成，并且请求中的标识符为空，且该命名空间默认或全局策略为 UUID
+- **THEN** 系统必须自动生成一个有效的 UUID 作为标识符，并成功注册
+
+#### Scenario: 自动生成自增序列标识符
+- **WHEN** 用户在创建数据元时选择自动生成，并且请求中的标识符为空，且命名空间配置了 SEQUENCE 生成策略
+- **THEN** 系统必须以悲观锁保护的行级排他锁形式，从数据库中查询并递增获取下一个序列号，加上配置的 Prefix 后保存，确保在高并发下不出现重复冲突
+
+#### Scenario: 自动生成模板标识符
+- **WHEN** 用户在创建数据元时选择自动生成，并且请求中的标识符为空，且命名空间配置了 TEMPLATE 生成策略
+- **THEN** 系统必须基于配置的模板（如 `{prefix}-{yyyyMM}-{seq:4}`）以及分配的序列号，渲染生成出最终标识符
+
+---
+
+### Requirement: 前端标识符生成模式切换与验证控制 (Dynamic Validation and Form Control)
+前端项创建表单 MUST 提供“自动生成”与“手动输入”单选框。当切换到“自动生成”时，输入框 MUST 被禁用，提示“保存后自动生成”占位符，且前端表单必填校验 MUST 放过；当切换到“手动输入”时，MUST 启用输入框并强制必填校验。当编辑已有项时，标识符及生成方式组件 MUST 全部置灰禁用。
+
+#### Scenario: 切换为自动生成模式
+- **WHEN** 用户在新建元数据表单中点击“自动生成”单选按钮
+- **THEN** 标识符输入框变为禁用状态，值被清空，且前端表单通过“标识符必填项”的校验
+
+#### Scenario: 切换为手动输入模式
+- **WHEN** 用户在新建元数据表单中点击“手动输入”单选按钮
+- **THEN** 标识符输入框变为可用状态，用户可以直接编辑，并且前端提交前必须通过“标识符不能为空”的非空规则校验
+
+#### Scenario: 编辑已有元数据项
+- **WHEN** 用户打开已有数据元的编辑表单
+- **THEN** 生成方式组件不显示或置灰，标识符输入框呈现禁用状态，显示当前的标识符，且不可编辑

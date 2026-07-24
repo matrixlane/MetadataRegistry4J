@@ -1,0 +1,19 @@
+# 团队版 profile：默认 SQL Server；可通过 DB_VENDOR/DB_URL/DB_DRIVER 切换到达梦等独立数据库。
+# 注意：团队版不支持 SQLite（由数据源配置校验强制，见 datasource-configuration 能力）。
+# 用法：java -jar metadata-registry-web.jar --spring.profiles.active=team
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:sqlserver://localhost:1433;databaseName=metadata_registry;encrypt=true;trustServerCertificate=true;integratedSecurity=true}
+    driver-class-name: ${DB_DRIVER:com.microsoft.sqlserver.jdbc.SQLServerDriver}
+    # 先于 EMF 执行（保证在 ddl-auto 前创建 mdr schema；DM 语法不兼容由 continue-on-error 跳过）
+    schema: classpath:db/schema-init.sql
+    continue-on-error: true
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+  jpa:
+    properties:
+      hibernate:
+        default_schema: ${DB_DEFAULT_SCHEMA:mdr}
+  flyway:
+    locations: classpath:db/migration/${DB_VENDOR:sqlserver}

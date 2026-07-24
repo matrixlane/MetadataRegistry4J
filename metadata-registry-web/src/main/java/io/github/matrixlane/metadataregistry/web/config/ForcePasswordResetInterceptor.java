@@ -1,0 +1,44 @@
+package io.github.matrixlane.metadataregistry.web.config;
+
+import io.github.matrixlane.metadataregistry.web.auth.AuthenticatedUser;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.stereotype.Component;
+import org.springframework.web.servlet.HandlerInterceptor;
+
+@Component
+public class ForcePasswordResetInterceptor implements HandlerInterceptor {
+
+    @Override
+    public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.getPrincipal() instanceof AuthenticatedUser) {
+            AuthenticatedUser user = (AuthenticatedUser) auth.getPrincipal();
+            if (user.forceChangePassword()) {
+                String path = request.getRequestURI();
+                // Whitelist endpoints for password reset process
+                if (path.endsWith("/api/v1/auth/login") ||
+                        path.endsWith("/api/v1/auth/change-password") ||
+                        path.endsWith("/api/v1/auth/logout") ||
+                        path.endsWith("/api/v1/auth/me") ||
+                        // Escape hatch: factory reset re-verifies the admin
+                        // password itself, so it is safe (and useful) to
+                        // allow while the session is in force-change state.
+                        path.endsWith("/api/v1/system/factory-reset") ||
+                        path.endsWith("/api/v1/init-wizard/status") ||
+                        path.endsWith("/api/v1/init-wizard/setup") ||
+                        path.endsWith("/api/v1/init-wizard/commit") ||
+                        path.endsWith("/api/v1/init-wizard/abort") ||
+                        path.endsWith("/api/v1/init-wizard/wizard-state")) {
+                    return true;
+                }
+                
+                // Throw exception to be handled by GlobalExceptionHandler and mapped to 498 status
+                throw new io.github.matrixlane.metadataregistry.web.common.ForcePasswordResetException("安全提示：请先修改默认密码或临时密码");
+            }
+        }
+        return true;
+    }
+}
