@@ -205,7 +205,6 @@
                             <goal>copy</goal>
                         </goals>
                         <configuration>
-                            <skip>true</skip>
                             <artifactItems>
                                 <artifactItem>
                                     <groupId>com.microsoft.sqlserver</groupId>

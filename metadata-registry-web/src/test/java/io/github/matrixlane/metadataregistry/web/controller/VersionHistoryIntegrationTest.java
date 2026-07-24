@@ -1,6 +1,9 @@
 package io.github.matrixlane.metadataregistry.web.controller;
 
 import io.github.matrixlane.metadataregistry.web.common.ApiResponse;
+import io.github.matrixlane.metadataregistry.web.auth.AppUser;
+import io.github.matrixlane.metadataregistry.web.auth.AppUserRole;
+import io.github.matrixlane.metadataregistry.web.auth.JwtService;
 import io.github.matrixlane.metadataregistry.web.dto.version.VersionDiffResponse;
 import io.github.matrixlane.metadataregistry.web.dto.version.VersionHistoryEntryResponse;
 import io.github.matrixlane.metadataregistry.web.dto.version.VersionSnapshotResponse;
@@ -13,6 +16,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -32,7 +37,23 @@ class VersionHistoryIntegrationTest {
     @Autowired
     private VersionHistoryRepository repository;
 
+    @Autowired
+    private JwtService jwtService;
+
     private static final UUID ITEM_ID = UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
+
+    // The /api/v1/** endpoints require a JWT; mint an admin token directly
+    // (the JWT filter authenticates from claims, no DB user is needed).
+    private HttpEntity<Void> adminEntity() {
+        AppUser admin = new AppUser();
+        admin.setId(UUID.randomUUID());
+        admin.setUsername("version-history-it");
+        admin.setRole(AppUserRole.ADMIN);
+        admin.setDisplayName("Version History IT");
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(jwtService.generateToken(admin));
+        return new HttpEntity<>(headers);
+    }
 
     @BeforeEach
     void setUp() {
@@ -63,7 +84,7 @@ class VersionHistoryIntegrationTest {
         ResponseEntity<ApiResponse<List<VersionHistoryEntryResponse>>> response = restTemplate.exchange(
                 "/api/v1/items/{id}/versions",
                 HttpMethod.GET,
-                null,
+                adminEntity(),
                 new ParameterizedTypeReference<>() {},
                 ITEM_ID);
 
@@ -86,7 +107,7 @@ class VersionHistoryIntegrationTest {
         ResponseEntity<ApiResponse<VersionDiffResponse>> response = restTemplate.exchange(
                 "/api/v1/items/{id}/versions/{versionId}/diff?compareVersionId={compareVersionId}",
                 HttpMethod.GET,
-                null,
+                adminEntity(),
                 new ParameterizedTypeReference<>() {},
                 ITEM_ID, 1, 2);
 
@@ -122,7 +143,7 @@ class VersionHistoryIntegrationTest {
         ResponseEntity<ApiResponse<VersionDiffResponse>> response = restTemplate.exchange(
                 "/api/v1/items/{id}/versions/{versionId}/diff?compareVersionId={compareVersionId}",
                 HttpMethod.GET,
-                null,
+                adminEntity(),
                 new ParameterizedTypeReference<>() {},
                 ITEM_ID, 2, 2);
 
@@ -137,7 +158,7 @@ class VersionHistoryIntegrationTest {
         ResponseEntity<ApiResponse<VersionSnapshotResponse>> response = restTemplate.exchange(
                 "/api/v1/items/{id}/versions/{versionId}/snapshot",
                 HttpMethod.GET,
-                null,
+                adminEntity(),
                 new ParameterizedTypeReference<>() {},
                 ITEM_ID, 2);
 
@@ -157,7 +178,7 @@ class VersionHistoryIntegrationTest {
         ResponseEntity<ApiResponse<Object>> response = restTemplate.exchange(
                 "/api/v1/items/{id}/versions/{versionId}/snapshot",
                 HttpMethod.GET,
-                null,
+                adminEntity(),
                 new ParameterizedTypeReference<>() {},
                 ITEM_ID, 999);
 
@@ -176,7 +197,7 @@ class VersionHistoryIntegrationTest {
         ResponseEntity<ApiResponse<VersionDiffResponse>> response = restTemplate.exchange(
                 "/api/v1/items/{id}/versions/{versionId}/diff?compareVersionId={compareVersionId}",
                 HttpMethod.GET,
-                null,
+                adminEntity(),
                 new ParameterizedTypeReference<>() {},
                 ITEM_ID, 3, 4);
 

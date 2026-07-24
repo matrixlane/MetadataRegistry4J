@@ -27,6 +27,13 @@
             <scope>provided</scope>
         </dependency>
 
+        <!-- Compile-time only: Hibernate annotations used by entities (e.g. @BatchSize) -->
+        <dependency>
+            <groupId>org.hibernate.orm</groupId>
+            <artifactId>hibernate-core</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
         <!-- Test dependencies -->
         <dependency>
             <groupId>org.junit.jupiter</groupId>
