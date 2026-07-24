@@ -1,0 +1,32 @@
+package io.github.matrixlane.metadataregistry.web;
+
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.crypto.password.PasswordEncoder;
+
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.test.annotation.Commit;
+
+@SpringBootTest
+public class ResetDatabaseHelperTest {
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
+    @Test
+    @Transactional
+    @Commit
+    public void resetAdminPassword() {
+        String encodedPassword = passwordEncoder.encode("Admin@123");
+        jdbcTemplate.update("UPDATE mdr.account SET password_hash = ?, force_password_reset = 0 WHERE username = 'admin'", encodedPassword);
+        System.out.println("=== Reset admin password to Admin@123 success ===");
+        
+        java.util.Map<String, Object> admin = jdbcTemplate.queryForMap("SELECT username, password_hash, force_password_reset, enabled FROM mdr.account WHERE username = 'admin'");
+        System.out.println("DATABASE ADMIN STATE: " + admin);
+    }
+}

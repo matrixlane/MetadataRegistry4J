@@ -1,0 +1,37 @@
+# 个人版 profile：默认 SQLite 文件库，零外部依赖。
+# 用法：java -jar metadata-registry-web.jar --spring.profiles.active=personal
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:sqlite:./data/metadata-registry.db}
+    # sqlite-jdbc 不在 Spring Boot DatabaseDriver 枚举中，Hikari 无法从 URL
+    # 推断驱动类，必须显式指定（否则启动报 Failed to determine a suitable driver class）。
+    driver-class-name: org.sqlite.JDBC
+    hikari:
+      # SQLite 单写者模型：连接池保持 1，避免 SQLITE_BUSY 雪崩
+      maximum-pool-size: 1
+      minimum-idle: 1
+      # 注意：不要用 connection-init-sql 设置 WAL —— Hikari 在 autoCommit=false
+      # 下执行 init SQL，SQLite 报 "cannot change into wal mode from within a transaction"。
+      # 需要 WAL 时在 JDBC URL 追加查询参数：?journal_mode=WAL
+  jpa:
+    properties:
+      hibernate:
+        # 显式指定方言（关闭 JDBC 元数据默认后无法自动探测方言）
+        dialect: org.hibernate.community.dialect.SQLiteDialect
+        # SQLite 无 schema 概念；DatabaseEnvironment 对 SQLITE 一律返回 null
+        default_schema: ${DB_DEFAULT_SCHEMA:}
+        # 避免启动时批量读取 JDBC 元数据（既有库上 SQLite 方言的
+        # 复合 SELECT 会超出 SQLITE_LIMIT_COMPOUND_SELECT 导致启动失败）
+        temp:
+          use_jdbc_metadata_defaults: false
+    hibernate:
+      # SQLite 上 ddl-auto=update 在既有库会因批量表元数据读取
+      # （too many terms in compound SELECT）失败；表结构改由 Flyway 基线管理
+      ddl-auto: none
+  flyway:
+    enabled: true
+    locations: classpath:db/migration/sqlite
+
+app:
+  cors:
+    allowed-origins: ${CORS_ORIGINS:http://localhost:5173}
