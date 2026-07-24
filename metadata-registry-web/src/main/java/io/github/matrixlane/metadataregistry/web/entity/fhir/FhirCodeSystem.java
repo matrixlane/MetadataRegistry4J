@@ -47,7 +47,7 @@ public class FhirCodeSystem {
     private String fhirVersion;
 
     @Lob
-    @Column(columnDefinition = "NVARCHAR(MAX)")
+    @Column
     private String description;
 
     @Column(length = 50)

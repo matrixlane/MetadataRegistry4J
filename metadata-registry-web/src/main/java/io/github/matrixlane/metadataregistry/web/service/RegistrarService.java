@@ -2,7 +2,8 @@ package io.github.matrixlane.metadataregistry.web.service;
 
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Individual;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Organization;
-import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.User;
+import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Account;
+import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Role;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.Registrar;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationAuthority;
 import io.github.matrixlane.metadataregistry.web.common.ResourceNotFoundException;
@@ -12,7 +13,8 @@ import io.github.matrixlane.metadataregistry.web.repository.IndividualRepository
 import io.github.matrixlane.metadataregistry.web.repository.OrganizationRepository;
 import io.github.matrixlane.metadataregistry.web.repository.RegistrarRepository;
 import io.github.matrixlane.metadataregistry.web.repository.RegistrationAuthorityRepository;
-import io.github.matrixlane.metadataregistry.web.repository.UserRepository;
+import io.github.matrixlane.metadataregistry.web.auth.AccountRepository;
+import io.github.matrixlane.metadataregistry.web.repository.RoleRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -29,9 +31,10 @@ public class RegistrarService {
 
     private final RegistrarRepository registrarRepository;
     private final RegistrationAuthorityRepository registrationAuthorityRepository;
-    private final UserRepository userRepository;
+    private final AccountRepository accountRepository;
     private final OrganizationRepository organizationRepository;
     private final IndividualRepository individualRepository;
+    private final RoleRepository roleRepository;
 
     @Transactional(readOnly = true)
     public Page<RegistrarResponse> list(String keyword, Pageable pageable) {
@@ -84,11 +87,11 @@ public class RegistrarService {
         }
 
         if (request.userId() != null) {
-            User user = userRepository.findById(request.userId())
-                    .orElseThrow(() -> new ResourceNotFoundException("User", request.userId()));
-            entity.setUser(user);
+            Account account = accountRepository.findById(request.userId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Account", request.userId()));
+            entity.setAccount(account);
         } else {
-            entity.setUser(null);
+            entity.setAccount(null);
         }
 
         if (request.organizationId() != null) {
@@ -116,12 +119,36 @@ public class RegistrarService {
                 entity.getRegistrationAuthority() != null
                         ? entity.getRegistrationAuthority().getName().stream().findFirst().map(n -> n.getValue()).orElse(null)
                         : null,
-                entity.getUser() != null ? entity.getUser().getId() : null,
+                entity.getAccount() != null ? entity.getAccount().getId() : null,
                 entity.getOrganization() != null ? entity.getOrganization().getId() : null,
                 entity.getOrganization() != null
                         ? entity.getOrganization().getName().stream().findFirst().map(n -> n.getValue()).orElse(null)
                         : null,
                 entity.getIndividual() != null ? entity.getIndividual().getId() : null,
                 entity.getIndividual() != null ? entity.getIndividual().getName().getValue() : null);
+    }
+
+    public Registrar createRegistrarForUser(UUID accountId, String username, String displayName, String email, RegistrationAuthority ra) {
+        // 1. Get current Account
+        Account account = accountRepository.findById(accountId)
+                .orElseThrow(() -> new ResourceNotFoundException("Account", accountId));
+
+        // 2. Ensure business Role "注册管理员" exists
+        Role role = roleRepository.findByRoleName("注册管理员")
+                .orElseGet(() -> {
+                    Role r = new Role();
+                    r.setRoleName("注册管理员");
+                    return roleRepository.save(r);
+                });
+
+        // 3. Create Registrar (no Individual generated yet!)
+        Registrar registrar = new Registrar();
+        registrar.setIdentifier(username + "-registrar");
+        registrar.setAccount(account);
+        registrar.setIndividual(null); // Keep individual empty initially!
+        registrar.setRole(role);
+        registrar.setRegistrationAuthority(ra);
+        registrar.setOrganization(ra); // RegistrationAuthority extends Organization
+        return registrarRepository.save(registrar);
     }
 }

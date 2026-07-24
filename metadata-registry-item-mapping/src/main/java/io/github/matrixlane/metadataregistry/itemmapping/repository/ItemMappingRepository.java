@@ -140,41 +140,4 @@ public interface ItemMappingRepository extends JpaRepository<ItemMapping, UUID> 
            "WHERE im.mappingScheme.id = :schemeId")
     List<MappingType> findDistinctMappingTypesBySchemeId(@Param("schemeId") UUID schemeId);
 
-    /**
-     * Recursively finds all item IDs reachable from the given item ID via
-     * internal-to-internal mappings, up to 3 levels deep.
-     *
-     * <p>Uses a recursive CTE compatible with PostgreSQL and SQL Server.
-     * This is intended as a database-level optimization for large mapping networks.
-     *
-     * @param itemId the starting item UUID
-     * @return list of reachable item IDs (excluding the starting item)
-     */
-    @Query(value = """
-        WITH RECURSIVE mapping_path(start_item, neighbor_item, depth) AS (
-            SELECT s.item_id, o.item_id, 1
-            FROM item_mapping im
-            JOIN item_mapping_subject s ON im.subject_id = s.id
-            JOIN item_mapping_object o ON im.object_id = o.id
-            WHERE s.item_id = :itemId AND o.item_id IS NOT NULL
-
-            UNION ALL
-
-            SELECT s.item_id, o.item_id, mp.depth + 1
-            FROM mapping_path mp
-            JOIN item_mapping im ON (im.subject_id IN (
-                SELECT id FROM item_mapping_subject WHERE item_id = mp.neighbor_item
-            ) OR im.object_id IN (
-                SELECT id FROM item_mapping_object WHERE item_id = mp.neighbor_item
-            ))
-            JOIN item_mapping_subject s ON im.subject_id = s.id
-            JOIN item_mapping_object o ON im.object_id = o.id
-            WHERE mp.depth < 3
-              AND s.item_id IS NOT NULL
-              AND o.item_id IS NOT NULL
-              AND s.item_id <> mp.start_item
-        )
-        SELECT DISTINCT neighbor_item FROM mapping_path
-        """, nativeQuery = true)
-    List<UUID> findReachableItemIdsByRecursiveCte(@Param("itemId") UUID itemId);
 }

@@ -15,11 +15,27 @@ function crud<T>(base: string) {
 
 export const registrationAuthorityApi = crud('/registration-authorities');
 export const registrarApi = crud('/registrars');
-export const namespaceApi = crud('/namespaces');
+export const namespaceApi = {
+  ...crud<any>('/namespaces'),
+  deletionCheck: (id: string) =>
+    request.get<{ hasIdentifiers: boolean; count: number; message: string }>(`/namespaces/${id}/deletion-check`),
+  createExternal: (data: Record<string, unknown>) =>
+    request.post<any>('/namespaces/external', data),
+  getPermissions: (id: string) =>
+    request.get<any[]>(`/namespaces/${id}/permissions`),
+  savePermission: (id: string, data: Record<string, unknown>) =>
+    request.post<any>(`/namespaces/${id}/permissions`, data),
+  deletePermission: (permissionId: string) =>
+    request.delete<any>(`/namespaces/permissions/${permissionId}`),
+};
 export const administeredItemApi = crud('/administered-items');
 export const organizationApi = crud('/organizations');
 export const individualApi = crud('/individuals');
-export const contactApi = crud('/contacts');
+export const contactApi = {
+  ...crud<any>('/contacts'),
+  batchConfigure: (data: { appUserIds: string[]; organizationId: string; roleName: string }) =>
+    request.post<void>('/contacts/batch', data),
+};
 export const referenceDocumentApi = crud('/reference-documents');
 export const objectClassApi = crud('/object-classes');
 export const propertyApi = crud('/properties');
@@ -32,7 +48,13 @@ export const unitOfMeasureApi = crud('/units-of-measure');
 export const measureClassApi = crud('/measure-classes');
 export const valueMeaningApi = crud('/value-meanings');
 export const dataElementApi = crud('/data-elements');
-export const appUserApi = crud('/app-users');
+export const appUserApi = {
+  ...crud<any>('/accounts'),
+  audit: (id: string, enabled: boolean) =>
+    request.put<any>(`/accounts/${id}/audit`, null, { params: { enabled } }),
+  resetPassword: (id: string) =>
+    request.post<string>(`/accounts/${id}/reset-password`),
+};
 export const languageApi = crud('/languages');
 export const documentTypeApi = crud('/document-types');
 
@@ -58,8 +80,6 @@ export const classificationSchemeApi = {
   delete: (id: string) => request.delete(`/classification-schemes/${id}`),
   getTree: (schemeId: string) =>
     request.get<any[]>(`/classification-schemes/${schemeId}/nodes/tree`),
-  listNodes: (schemeId: string) =>
-    request.get<any[]>(`/classification-schemes/${schemeId}/nodes`),
   getChildren: (schemeId: string, parentId?: string) =>
     request.get<any[]>(`/classification-schemes/${schemeId}/nodes/children`, {
       params: parentId ? { parentId } : {},
@@ -72,26 +92,6 @@ export const classificationSchemeApi = {
     request.put<any>(`/classification-schemes/${schemeId}/nodes/${nodeId}`, data),
   deleteNode: (schemeId: string, nodeId: string) =>
     request.delete(`/classification-schemes/${schemeId}/nodes/${nodeId}`),
-  deleteNodeCascade: (schemeId: string, nodeId: string) =>
-    request.delete(`/classification-schemes/${schemeId}/nodes/${nodeId}/cascade`),
-  moveNode: (schemeId: string, nodeId: string, targetParentId: string | null) =>
-    request.put<any>(`/classification-schemes/${schemeId}/nodes/${nodeId}/move`, { targetParentId }),
-  validateImport: (file: File, schemeId?: string) => {
-    const formData = new FormData();
-    formData.append('file', file);
-    if (schemeId) formData.append('schemeId', schemeId);
-    return request.post<any>('/classification-schemes/import/validate', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
-  },
-  importFile: (file: File, schemeId?: string) => {
-    const formData = new FormData();
-    formData.append('file', file);
-    if (schemeId) formData.append('schemeId', schemeId);
-    return request.post<any>('/classification-schemes/import', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
-  },
   searchNodes: (schemeId: string, keyword: string) =>
     request.get<any[]>(`/classification-schemes/${schemeId}/nodes/search`, {
       params: { keyword },

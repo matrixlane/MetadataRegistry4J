@@ -11,6 +11,7 @@ import io.github.matrixlane.metadataregistry.web.repository.LanguageIdentificati
 import io.github.matrixlane.metadataregistry.web.repository.NamespaceRepository;
 import io.github.matrixlane.metadataregistry.web.repository.RegistrationAuthorityRepository;
 import io.github.matrixlane.metadataregistry.web.service.ContextService;
+import io.github.matrixlane.metadataregistry.web.service.database.DatabaseEnvironment;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
@@ -37,14 +38,16 @@ public class ContextTestDataInitializer implements CommandLineRunner {
     private final RegistrationAuthorityRepository registrationAuthorityRepository;
     private final ContextService contextService;
     private final JdbcTemplate jdbcTemplate;
+    private final DatabaseEnvironment databaseEnvironment;
 
     @Override
     @Transactional
     public void run(String... args) {
         long oldCount = contextRepository.count();
         if (oldCount > 0) {
-            deleteAllContextsViaJdbc();
-            log.info("已清空 {} 条旧 Context 数据", oldCount);
+            // 幂等：已有上下文数据时跳过，避免每次启动删除并重建用户/合并来的数据
+            log.info("已有 {} 条 Context 数据，跳过测试数据初始化", oldCount);
+            return;
         }
 
         LanguageIdentification zh = findOrCreateLanguage("zh-CN", "Hans", "CN");
@@ -78,40 +81,61 @@ public class ContextTestDataInitializer implements CommandLineRunner {
      * identified_item.id 与 item.id 是分离的，需先查后删。
      */
     private void deleteAllContextsViaJdbc() {
-        List<UUID> itemIds = jdbcTemplate.queryForList("SELECT id FROM context", UUID.class);
+        List<UUID> itemIds = queryUuids("SELECT id FROM " + t("context"));
         if (itemIds.isEmpty()) return;
 
         String itemIn = inClause(itemIds.size());
-        List<UUID> identifiedItemIds = jdbcTemplate.queryForList(
-                "SELECT id FROM identified_item WHERE item_id IN (" + itemIn + ")", UUID.class, itemIds.toArray());
+        List<UUID> identifiedItemIds = queryUuids(
+                "SELECT id FROM " + t("identified_item") + " WHERE item_id IN (" + itemIn + ")", uuidParams(itemIds));
         String identifiedIn = identifiedItemIds.isEmpty() ? null : inClause(identifiedItemIds.size());
 
         // 子表 -> 父表，遵循 FK 约束顺序
-        deleteWhereIn("submission_record_registered_item", "registered_item_id", identifiedItemIds, identifiedIn);
-        deleteWhereIn("designation_context", "context_id", itemIds, itemIn);
-        deleteWhereIn("definition_context", "context_id", itemIds, itemIn);
-        deleteWhereIn("designation", "item_id", itemIds, itemIn);
-        deleteWhereIn("definition", "item_id", itemIds, itemIn);
-        deleteWhereIn("scoped_identifier", "identified_item_id", identifiedItemIds, identifiedIn);
-        deleteWhereIn("attached_item", "administered_item_id", identifiedItemIds, identifiedIn);
+        deleteWhereIn(t("submission_record_registered_item"), "registered_item_id", identifiedItemIds, identifiedIn);
+        deleteWhereIn(t("designation_context_relation"), "context_id", itemIds, itemIn);
+        deleteWhereIn(t("definition_context_relation"), "context_id", itemIds, itemIn);
+        deleteWhereIn(t("designation"), "item_id", itemIds, itemIn);
+        deleteWhereIn(t("definition"), "item_id", itemIds, itemIn);
+        deleteWhereIn(t("scoped_identifier"), "identified_item_id", identifiedItemIds, identifiedIn);
+        deleteWhereIn(t("attached_item"), "administered_item_id", identifiedItemIds, identifiedIn);
 
         List<UUID> stateIds = identifiedIn == null ? List.of()
-                : jdbcTemplate.queryForList(
-                        "SELECT registration_state_id FROM administered_item WHERE id IN (" + identifiedIn + ")",
-                        UUID.class, identifiedItemIds.toArray());
+                : queryUuids(
+                        "SELECT registration_state_id FROM " + t("administered_item") + " WHERE id IN (" + identifiedIn + ")",
+                        uuidParams(identifiedItemIds));
         String stateIn = stateIds.isEmpty() ? null : inClause(stateIds.size());
 
-        deleteWhereIn("administered_item", "id", identifiedItemIds, identifiedIn);
-        deleteWhereIn("registered_item", "id", identifiedItemIds, identifiedIn);
-        deleteWhereIn("registration_state", "id", stateIds, stateIn);
-        deleteWhereIn("identified_item", "id", identifiedItemIds, identifiedIn);
-        deleteWhereIn("context", "id", itemIds, itemIn);
-        deleteWhereIn("item", "id", itemIds, itemIn);
+        deleteWhereIn(t("administered_item"), "id", identifiedItemIds, identifiedIn);
+        deleteWhereIn(t("registered_item"), "id", identifiedItemIds, identifiedIn);
+        deleteWhereIn(t("registration_state"), "id", stateIds, stateIn);
+        deleteWhereIn(t("identified_item"), "id", identifiedItemIds, identifiedIn);
+        deleteWhereIn(t("context"), "id", itemIds, itemIn);
+        deleteWhereIn(t("item"), "id", itemIds, itemIn);
+    }
+
+    /**
+     * 表名按当前方言/schema 限定（SQL Server: "mdr"."x"；SQLite: "x"）。
+     */
+    private String t(String table) {
+        return databaseEnvironment.qualify(table);
+    }
+
+    /**
+     * 原生 JDBC 查询 UUID 列：兼容 SQL Server 的 UNIQUEIDENTIFIER 与 SQLite 的 BLOB 存储。
+     */
+    private List<UUID> queryUuids(String sql, Object... args) {
+        return jdbcTemplate.query(sql, (rs, rowNum) -> DatabaseEnvironment.toUuid(rs.getObject(1)), args);
     }
 
     private void deleteWhereIn(String table, String column, List<UUID> ids, String inClause) {
         if (inClause == null || ids.isEmpty()) return;
-        jdbcTemplate.update("DELETE FROM " + table + " WHERE " + column + " IN (" + inClause + ")", ids.toArray());
+        jdbcTemplate.update("DELETE FROM " + table + " WHERE " + column + " IN (" + inClause + ")", uuidParams(ids));
+    }
+
+    /**
+     * UUID 参数按当前方言转换为可绑定形式（DM/SQLite 用 byte[16]，SQL Server 用字符串）。
+     */
+    private Object[] uuidParams(List<UUID> ids) {
+        return ids.stream().map(databaseEnvironment::toJdbcUuid).toArray();
     }
 
     private String inClause(int count) {

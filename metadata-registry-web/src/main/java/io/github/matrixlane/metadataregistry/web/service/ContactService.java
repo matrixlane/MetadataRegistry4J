@@ -4,13 +4,16 @@ import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basic
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Individual;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Organization;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Role;
+import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Account;
 import io.github.matrixlane.metadataregistry.web.common.ResourceNotFoundException;
 import io.github.matrixlane.metadataregistry.web.dto.contact.ContactRequest;
 import io.github.matrixlane.metadataregistry.web.dto.contact.ContactResponse;
+import io.github.matrixlane.metadataregistry.web.dto.contact.ContactBatchRequest;
 import io.github.matrixlane.metadataregistry.web.repository.ContactRepository;
 import io.github.matrixlane.metadataregistry.web.repository.IndividualRepository;
 import io.github.matrixlane.metadataregistry.web.repository.OrganizationRepository;
 import io.github.matrixlane.metadataregistry.web.repository.RoleRepository;
+import io.github.matrixlane.metadataregistry.web.auth.AccountRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -29,6 +32,7 @@ public class ContactService {
     private final OrganizationRepository organizationRepository;
     private final IndividualRepository individualRepository;
     private final RoleRepository roleRepository;
+    private final AccountRepository accountRepository;
 
     @Transactional(readOnly = true)
     public Page<ContactResponse> list(String keyword, Pageable pageable) {
@@ -111,5 +115,30 @@ public class ContactService {
                 entity.getIndividual() != null ? entity.getIndividual().getName().getValue() : null,
                 entity.getRole() != null ? entity.getRole().getId() : null,
                 entity.getRole() != null ? entity.getRole().getRoleName() : null);
+    }
+
+    public void batchConfigure(ContactBatchRequest request) {
+        Organization org = organizationRepository.findById(request.organizationId())
+                .orElseThrow(() -> new ResourceNotFoundException("Organization", request.organizationId()));
+
+        Role role = roleRepository.findByRoleName(request.roleName())
+                .orElseGet(() -> {
+                    Role r = new Role();
+                    r.setRoleName(request.roleName());
+                    return roleRepository.save(r);
+                });
+
+        for (UUID accountId : request.appUserIds()) {
+            Account account = accountRepository.findById(accountId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Account", accountId));
+
+            // Create and save Contact linking directly to Account and its Individual (if exists)
+            Contact contact = new Contact();
+            contact.setAccount(account);
+            contact.setIndividual(account.getIndividual());
+            contact.setOrganization(org);
+            contact.setRole(role);
+            contactRepository.save(contact);
+        }
     }
 }

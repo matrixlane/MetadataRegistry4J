@@ -74,11 +74,27 @@ export interface PairingForm {
   acceptability: 'PREFERRED' | 'ADMITTED' | 'DEPRECATED' | 'SUPERSEDED' | 'OBSOLETE';
 }
 
+export interface UserRoleAssignmentDto {
+  role: 'ADMIN' | 'REGISTRAR' | 'VIEWER';
+  registryId?: string;
+  namespaceId?: string;
+}
+
 export interface AppUserDto {
   id: string;
   username: string;
-  displayName: string;
-  email: string;
-  role: 'ADMIN' | 'REGISTRAR' | 'VIEWER';
+  sysRole?: 'SUPER_ADMIN' | null;
+  isRegistrar?: boolean;
   enabled: boolean;
+  createdAt?: string;
+  lastLoginAt?: string;
+  individualId?: string | null;
+  forceChangePassword?: boolean;
+  emergencyLogin?: boolean;
+  tempPasswordUsed?: boolean;
+  // Keep legacy properties as optional to prevent compilation issues
+  displayName?: string;
+  email?: string;
+  role?: 'ADMIN' | 'REGISTRAR' | 'VIEWER';
+  roleAssignments?: UserRoleAssignmentDto[];
 }

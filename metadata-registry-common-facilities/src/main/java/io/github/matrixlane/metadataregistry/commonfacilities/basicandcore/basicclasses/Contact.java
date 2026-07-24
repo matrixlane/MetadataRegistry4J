@@ -34,6 +34,10 @@ public class Contact extends Entity {
     @JoinColumn(name = "role_id")
     private Role role;
 
+    @ManyToOne
+    @JoinColumn(name = "account_id")
+    private Account account;
+
     public Contact(Organization organization) {
         this.organization = organization;
     }

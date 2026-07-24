@@ -105,6 +105,12 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error(ApiCodes.BAD_REQUEST, "不支持的排序或查询字段: " + ex.getPropertyName()));
     }
 
+    @ExceptionHandler(ForcePasswordResetException.class)
+    public ResponseEntity<ApiResponse<Void>> handleForcePasswordReset(ForcePasswordResetException ex) {
+        return ResponseEntity.status(498)
+                .body(ApiResponse.error(498, ex.getMessage()));
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Void>> handleAny(Exception ex) {
         log.error("未处理的服务器异常", ex);

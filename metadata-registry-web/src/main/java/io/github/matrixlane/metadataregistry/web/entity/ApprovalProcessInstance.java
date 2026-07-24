@@ -122,3 +122,4 @@ public class ApprovalProcessInstance {
         return this.status == ApprovalProcessStatus.PENDING;
     }
 }
+

@@ -61,7 +61,7 @@ public class FhirResource {
     private String type;
 
     @Lob
-    @Column(columnDefinition = "NVARCHAR(MAX)")
+    @Column
     private String description;
 
     @Column(length = 500)

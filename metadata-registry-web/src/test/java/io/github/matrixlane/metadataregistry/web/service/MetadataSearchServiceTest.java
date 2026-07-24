@@ -2,6 +2,8 @@ package io.github.matrixlane.metadataregistry.web.service;
 
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationStatus;
 import io.github.matrixlane.metadataregistry.web.dto.administereditem.AdministeredItemResponse;
+import io.github.matrixlane.metadataregistry.web.service.database.DatabaseEnvironment;
+import io.github.matrixlane.metadataregistry.web.service.database.DatabaseVendor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -38,12 +40,17 @@ class MetadataSearchServiceTest {
     @Mock
     private JdbcTemplate jdbcTemplate;
 
+    @Mock
+    private DatabaseEnvironment env;
+
     private MetadataSearchService searchService;
     private AdministeredItemResponse sampleResponse;
 
     @BeforeEach
     void setUp() {
-        searchService = new MetadataSearchService(jdbcTemplate);
+        lenient().when(env.vendor()).thenReturn(DatabaseVendor.SQLSERVER);
+        lenient().when(env.qualify(anyString())).thenAnswer(inv -> "mdr." + inv.getArgument(0));
+        searchService = new MetadataSearchService(jdbcTemplate, env);
         sampleResponse = new AdministeredItemResponse(
                 UUID.randomUUID(),
                 UUID.randomUUID(),

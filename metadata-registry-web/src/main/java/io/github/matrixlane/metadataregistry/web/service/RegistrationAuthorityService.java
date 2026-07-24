@@ -8,6 +8,8 @@ import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.prede
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.Sign;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationAuthority;
+import io.github.matrixlane.metadataregistry.web.common.BusinessException;
+import io.github.matrixlane.metadataregistry.web.common.ApiCodes;
 import io.github.matrixlane.metadataregistry.web.common.ResourceNotFoundException;
 import io.github.matrixlane.metadataregistry.web.dto.registrationauthority.RegistrationAuthorityRequest;
 import io.github.matrixlane.metadataregistry.web.dto.registrationauthority.RegistrationAuthorityResponse;
@@ -34,6 +36,7 @@ public class RegistrationAuthorityService {
     private final RegistrationAuthorityRepository repository;
     private final NamespaceRepository namespaceRepository;
     private final LanguageIdentificationRepository languageRepository;
+    private final SystemSettingService systemSettingService;
 
     @Transactional(readOnly = true)
     public Page<RegistrationAuthorityResponse> list(String keyword, Pageable pageable) {
@@ -55,6 +58,9 @@ public class RegistrationAuthorityService {
     }
 
     public RegistrationAuthorityResponse create(RegistrationAuthorityRequest request) {
+        if ("SINGLE".equalsIgnoreCase(systemSettingService.getRunningMode()) && repository.count() >= 1) {
+            throw new BusinessException(ApiCodes.VALIDATION_FAILED, "单注册表模式下只能创建一个注册机构");
+        }
         RegistrationAuthority entity = new RegistrationAuthority();
         applyRequest(entity, request);
         return toResponse(repository.save(entity));
@@ -67,6 +73,9 @@ public class RegistrationAuthorityService {
     }
 
     public void delete(UUID id) {
+        if ("SINGLE".equalsIgnoreCase(systemSettingService.getRunningMode())) {
+            throw new BusinessException(ApiCodes.VALIDATION_FAILED, "单注册表模式下不允许删除注册机构");
+        }
         if (!repository.existsById(id)) {
             throw new ResourceNotFoundException("RegistrationAuthority", id);
         }
@@ -81,6 +90,9 @@ public class RegistrationAuthorityService {
     private void applyRequest(RegistrationAuthority entity, RegistrationAuthorityRequest request) {
         entity.getName().clear();
         entity.getName().add(Sign.of(request.name()));
+        if (request.englishName() != null && !request.englishName().isBlank()) {
+            entity.getName().add(Sign.of(request.englishName()));
+        }
 
         entity.setMailAddress(request.mailAddress() == null
                 ? new PostalAddress()
@@ -131,9 +143,13 @@ public class RegistrationAuthorityService {
             langIds.add(lang.getId());
             langCodes.add(lang.getLanguageIdentifier());
         }
+        List<String> names = entity.getName().stream().map(Sign::getValue).toList();
+        String name = names.isEmpty() ? null : names.get(0);
+        String englishName = names.size() > 1 ? names.get(1) : null;
         return new RegistrationAuthorityResponse(
                 entity.getId(),
-                entity.getName().isEmpty() ? null : entity.getName().get(0).getValue(),
+                name,
+                englishName,
                 entity.getMailAddress() == null ? null : entity.getMailAddress().getValue(),
                 entity.getEmailAddress().stream().map(EmailAddress::getValue).toList(),
                 entity.getPhoneNumber().stream().map(PhoneNumber::getValue).toList(),

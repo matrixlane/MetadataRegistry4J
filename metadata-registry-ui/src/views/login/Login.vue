@@ -32,6 +32,15 @@
             :prefix-icon="Lock"
           />
         </el-form-item>
+        <el-form-item v-if="errorMessage" class="error-alert-item">
+          <el-alert
+            :title="errorMessage"
+            type="error"
+            :closable="false"
+            show-icon
+            effect="light"
+          />
+        </el-form-item>
         <el-form-item>
           <el-button
             type="primary"
@@ -43,7 +52,7 @@
             {{ $t('auth.login') }}
           </el-button>
         </el-form-item>
-        <div style="text-align: center; margin-top: 16px;">
+        <div v-if="allowRegistration" style="text-align: center; margin-top: 16px;">
           <el-link type="primary" @click="showRegister = true">新用户注册</el-link>
         </div>
       </el-form>
@@ -98,8 +107,9 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref } from 'vue';
+import { reactive, ref, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 import type { FormInstance, FormRules } from 'element-plus';
 import { ElMessage } from 'element-plus';
 import { useAuthStore } from '@/stores/auth';
@@ -108,9 +118,11 @@ import LoginLayout from '@/layouts/LoginLayout.vue';
 import request from '@/utils/request';
 
 const router = useRouter();
+const { t } = useI18n();
 const auth = useAuthStore();
 const formRef = ref<FormInstance>();
 const loading = ref(false);
+const errorMessage = ref('');
 
 const form = reactive({
   username: '',
@@ -122,9 +134,27 @@ const rules = reactive<FormRules>({
   password: [{ required: true, message: '请输入密码', trigger: 'blur' }],
 });
 
+watch([() => form.username, () => form.password], () => {
+  errorMessage.value = '';
+});
+
 const showRegister = ref(false);
 const registerLoading = ref(false);
 const registerFormRef = ref<FormInstance>();
+const allowRegistration = ref(true);
+
+async function checkAllowRegistration() {
+  try {
+    const res = await request.get<boolean>('/auth/allow-registration');
+    allowRegistration.value = res;
+  } catch (err) {
+    // Fallback to true
+  }
+}
+
+onMounted(() => {
+  checkAllowRegistration();
+});
 
 const registerForm = reactive({
   username: '',
@@ -181,6 +211,7 @@ async function handleSubmit() {
   if (!formRef.value) return;
   await formRef.value.validate(async (valid) => {
     if (!valid) return;
+    errorMessage.value = '';
     loading.value = true;
     try {
       await auth.login(form);
@@ -188,6 +219,12 @@ async function handleSubmit() {
       // Factory-reset followed by a re-login must land on the wizard, not the app.
       const isInitialized = await auth.checkInitialized();
       router.push(isInitialized ? '/' : '/init-wizard');
+    } catch (err: any) {
+      // Show the error directly on the login form. The request interceptor is
+      // intentionally skipped for /login 401s so the message appears here.
+      const msg = err?.response?.data?.message || err?.message || t('auth.invalidCredentials');
+      errorMessage.value = msg;
+      ElMessage.error(msg);
     } finally {
       loading.value = false;
     }
@@ -238,6 +275,14 @@ async function handleSubmit() {
 
   &.is-focus {
     box-shadow: 0 0 0 1px #2563eb inset;
+  }
+}
+
+.error-alert-item {
+  margin-bottom: 4px;
+
+  :deep(.el-alert) {
+    padding: 8px 12px;
   }
 }
 </style>

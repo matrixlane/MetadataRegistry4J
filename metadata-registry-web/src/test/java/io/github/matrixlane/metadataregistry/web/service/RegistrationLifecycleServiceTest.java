@@ -5,10 +5,16 @@ import io.github.matrixlane.metadataregistry.commonfacilities.registration.Regis
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationStatus;
 import io.github.matrixlane.metadataregistry.web.auth.AppUserRole;
 import io.github.matrixlane.metadataregistry.web.auth.AuthenticatedUser;
+import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.SystemRole;
 import io.github.matrixlane.metadataregistry.web.common.ApiCodes;
 import io.github.matrixlane.metadataregistry.web.common.BusinessException;
 import io.github.matrixlane.metadataregistry.web.dto.registration.RegistrationStateHistoryEntry;
 import io.github.matrixlane.metadataregistry.web.repository.AdministeredItemRepository;
+import io.github.matrixlane.metadataregistry.web.auth.AccountRepository;
+import io.github.matrixlane.metadataregistry.web.repository.ContactRepository;
+import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Account;
+import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Contact;
+import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Role;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -57,6 +63,12 @@ class RegistrationLifecycleServiceTest {
 
     @Mock
     private AdministeredItemRepository administeredItemRepository;
+
+    @Mock
+    private AccountRepository accountRepository;
+
+    @Mock
+    private ContactRepository contactRepository;
 
     @InjectMocks
     private RegistrationLifecycleService registrationLifecycleService;
@@ -603,7 +615,7 @@ class RegistrationLifecycleServiceTest {
     @Test
     @DisplayName("resolveCurrentRole: 从 AuthenticatedUser 解析角色")
     void resolveCurrentRole_fromAuthenticatedUser() {
-        AuthenticatedUser user = new AuthenticatedUser(UUID.randomUUID(), "admin", AppUserRole.ADMIN);
+        AuthenticatedUser user = new AuthenticatedUser(UUID.randomUUID(), "admin", SystemRole.SUPER_ADMIN);
         Authentication auth = new UsernamePasswordAuthenticationToken(
                 user, null, List.of(new SimpleGrantedAuthority("ROLE_ADMIN")));
         SecurityContextHolder.getContext().setAuthentication(auth);
@@ -652,10 +664,27 @@ class RegistrationLifecycleServiceTest {
     // =========================================================================
 
     private void authenticateAs(AppUserRole role) {
-        AuthenticatedUser user = new AuthenticatedUser(UUID.randomUUID(), "testuser", role);
+        UUID userId = UUID.randomUUID();
+        AuthenticatedUser user = new AuthenticatedUser(userId, "testuser", role == AppUserRole.ADMIN ? SystemRole.SUPER_ADMIN : null);
         Authentication auth = new UsernamePasswordAuthenticationToken(
                 user, null, List.of(new SimpleGrantedAuthority(role.authority())));
         SecurityContextHolder.getContext().setAuthentication(auth);
+
+        if (role == AppUserRole.REGISTRAR) {
+            Account account = new Account();
+            account.setId(userId);
+            org.mockito.Mockito.lenient().when(accountRepository.findById(userId)).thenReturn(Optional.of(account));
+            Contact contact = new Contact();
+            Role contactRole = new Role();
+            contactRole.setRoleName("注册管理员");
+            contact.setRole(contactRole);
+            org.mockito.Mockito.lenient().when(contactRepository.findByAccount(account)).thenReturn(List.of(contact));
+        } else if (role == AppUserRole.VIEWER) {
+            Account account = new Account();
+            account.setId(userId);
+            org.mockito.Mockito.lenient().when(accountRepository.findById(userId)).thenReturn(Optional.of(account));
+            org.mockito.Mockito.lenient().when(contactRepository.findByAccount(account)).thenReturn(List.of());
+        }
     }
 
     private RegistrationState createState(RegistrationStatus status) {

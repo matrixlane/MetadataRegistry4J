@@ -9,6 +9,7 @@ import io.github.matrixlane.metadataregistry.web.common.ResourceNotFoundExceptio
 import io.github.matrixlane.metadataregistry.web.dto.individual.IndividualRequest;
 import io.github.matrixlane.metadataregistry.web.dto.individual.IndividualResponse;
 import io.github.matrixlane.metadataregistry.web.repository.IndividualRepository;
+import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Account;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -27,7 +28,16 @@ public class IndividualService {
 
     @Transactional(readOnly = true)
     public Page<IndividualResponse> list(String keyword, Pageable pageable) {
-        Specification<Individual> spec = Specification.where(null);
+        Specification<Individual> spec = Specification.where((root, query, cb) -> {
+            jakarta.persistence.criteria.Subquery<Long> subquery = query.subquery(Long.class);
+            jakarta.persistence.criteria.Root<Account> userRoot = subquery.from(Account.class);
+            subquery.select(cb.literal(1L))
+                    .where(
+                        cb.equal(userRoot.get("individual"), root),
+                        cb.equal(userRoot.get("enabled"), false)
+                    );
+            return cb.not(cb.exists(subquery));
+        });
         if (keyword != null && !keyword.isBlank()) {
             String like = "%" + keyword.toLowerCase() + "%";
             spec = spec.and((root, q, cb) -> cb.or(

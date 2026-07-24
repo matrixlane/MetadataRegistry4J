@@ -15,6 +15,12 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
+import org.springframework.boot.SpringBootConfiguration;
+import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
+import org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration;
+import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
+import org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration;
+
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -32,7 +38,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * Uses dummy controllers to simulate actuator endpoints and verifies
  * that the security rules from SecurityConfig are correctly applied.
  */
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK, classes = LoggingActuatorSecurityTestConfig.class, properties = {
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK, classes = LoggingActuatorSecurityTest.TestConfig.class, properties = {
         "management.endpoints.web.exposure.include=health,info,loggers",
         "management.endpoint.loggers.enabled=true",
         "app.cors.allowed-origins=http://localhost:5173",
@@ -49,6 +55,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 })
 @AutoConfigureMockMvc
 class LoggingActuatorSecurityTest {
+
+    @SpringBootConfiguration
+    @EnableAutoConfiguration(exclude = {
+            DataSourceAutoConfiguration.class,
+            HibernateJpaAutoConfiguration.class,
+            FlywayAutoConfiguration.class
+    })
+    static class TestConfig {
+    }
 
     @Autowired
     private MockMvc mockMvc;
@@ -72,7 +87,7 @@ class LoggingActuatorSecurityTest {
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(exp))
                 .claim("username", "admin")
-                .claim("role", AppUserRole.ADMIN.name())
+                .claim("role", "SUPER_ADMIN")
                 .claim("displayName", "Admin User")
                 .signWith(key)
                 .compact();
@@ -83,7 +98,6 @@ class LoggingActuatorSecurityTest {
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(exp))
                 .claim("username", "registrar")
-                .claim("role", AppUserRole.REGISTRAR.name())
                 .claim("displayName", "Registrar User")
                 .signWith(key)
                 .compact();
