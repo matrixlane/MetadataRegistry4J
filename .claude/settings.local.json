@@ -4,7 +4,9 @@
       "Bash(python3 -c \"import PyPDF2; print\\('PyPDF2 available'\\)\")",
       "Bash(python3 -c \"import pypdf; print\\('pypdf available'\\)\")",
       "Bash(python3 -c \"import pdfplumber; print\\('pdfplumber available'\\)\")",
-      "Bash(python3 *)"
+      "Bash(python3 *)",
+      "Bash(./mvnw.cmd -pl metadata-registry-web -am compile)",
+      "Bash(./mvnw.cmd -pl metadata-registry-web -am install -DskipTests)"
     ]
   }
 }

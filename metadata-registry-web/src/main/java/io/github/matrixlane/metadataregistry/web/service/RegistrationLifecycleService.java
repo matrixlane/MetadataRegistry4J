@@ -10,6 +10,11 @@ import io.github.matrixlane.metadataregistry.web.common.BusinessException;
 import io.github.matrixlane.metadataregistry.web.common.ResourceNotFoundException;
 import io.github.matrixlane.metadataregistry.web.dto.registration.RegistrationStateHistoryEntry;
 import io.github.matrixlane.metadataregistry.web.repository.AdministeredItemRepository;
+import io.github.matrixlane.metadataregistry.web.auth.AccountRepository;
+import io.github.matrixlane.metadataregistry.web.repository.ContactRepository;
+import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Account;
+import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Contact;
+import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.SystemRole;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -154,6 +159,8 @@ public class RegistrationLifecycleService {
     }
 
     private final AdministeredItemRepository administeredItemRepository;
+    private final AccountRepository accountRepository;
+    private final ContactRepository contactRepository;
 
     /**
      * 执行状态转换。
@@ -331,16 +338,33 @@ public class RegistrationLifecycleService {
 
         Object principal = authentication.getPrincipal();
         if (principal instanceof AuthenticatedUser user) {
-            return user.role() != null ? user.role() : AppUserRole.VIEWER;
+            if (user.role() == SystemRole.SUPER_ADMIN) {
+                return AppUserRole.ADMIN;
+            }
+            // Check if they are a registrar contact
+            Account account = accountRepository.findById(user.id()).orElse(null);
+            if (account != null) {
+                List<Contact> contacts = contactRepository.findByAccount(account);
+                boolean isRegistrar = contacts.stream()
+                        .anyMatch(c -> c.getRole() != null && "注册管理员".equals(c.getRole().getRoleName()));
+                if (isRegistrar) {
+                    return AppUserRole.REGISTRAR;
+                }
+            }
+            return AppUserRole.VIEWER;
         }
 
-        // 回退：从 authorities 中解析
+        // Fallback or authority checks
         return authentication.getAuthorities().stream()
                 .map(grantedAuthority -> {
                     String auth = grantedAuthority.getAuthority();
                     if (auth.startsWith("ROLE_")) {
                         try {
-                            return AppUserRole.valueOf(auth.substring(5));
+                            String roleName = auth.substring(5);
+                            if ("SUPER_ADMIN".equals(roleName)) {
+                                return AppUserRole.ADMIN;
+                            }
+                            return AppUserRole.valueOf(roleName);
                         } catch (IllegalArgumentException ignored) {
                             return null;
                         }

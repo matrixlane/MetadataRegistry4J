@@ -6,6 +6,7 @@ import java.util.UUID;
 public record RegistrationAuthorityResponse(
         UUID id,
         String name,
+        String englishName,
         String mailAddress,
         List<String> emailAddress,
         List<String> phoneNumber,

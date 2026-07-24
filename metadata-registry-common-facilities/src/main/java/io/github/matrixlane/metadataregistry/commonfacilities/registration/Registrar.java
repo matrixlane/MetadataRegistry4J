@@ -1,7 +1,6 @@
 package io.github.matrixlane.metadataregistry.commonfacilities.registration;
 
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Contact;
-import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.User;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToOne;
@@ -16,10 +15,6 @@ import lombok.Setter;
 public class Registrar extends Contact {
 
     private String identifier;
-
-    @OneToOne
-    @JoinColumn(name = "user_id")
-    private User user;
 
     @ManyToOne
     @JoinColumn(name = "registration_authority_id")

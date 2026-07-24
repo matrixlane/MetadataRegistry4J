@@ -6,6 +6,8 @@ import io.github.matrixlane.metadataregistry.web.dto.namespace.NamespaceDetailRe
 import io.github.matrixlane.metadataregistry.web.dto.namespace.NamespaceRequest;
 import io.github.matrixlane.metadataregistry.web.dto.namespace.NamespaceResponse;
 import io.github.matrixlane.metadataregistry.web.dto.namespace.NamespaceWizardRequest;
+import io.github.matrixlane.metadataregistry.web.dto.namespace.ExternalNamespaceRequest;
+import io.github.matrixlane.metadataregistry.web.dto.namespace.DeletionCheckResponse;
 import io.github.matrixlane.metadataregistry.web.service.NamespaceService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -75,5 +77,17 @@ public class NamespaceController {
     public ApiResponse<Void> delete(@PathVariable UUID id) {
         service.delete(id);
         return ApiResponse.ok();
+    }
+
+    @GetMapping("/{id}/deletion-check")
+    @Operation(summary = "删除命名空间前的关联性检查")
+    public ApiResponse<DeletionCheckResponse> checkDeletion(@PathVariable UUID id) {
+        return ApiResponse.ok(service.checkDeletion(id));
+    }
+
+    @PostMapping("/external")
+    @Operation(summary = "新增外部命名空间")
+    public ApiResponse<NamespaceResponse> createExternal(@Valid @RequestBody ExternalNamespaceRequest request) {
+        return ApiResponse.ok(service.createExternal(request));
     }
 }

@@ -10,5 +10,6 @@ public record LanguageResponse(
         String geopoliticalTerritoryIdentifier,
         List<String> variantIdentifier,
         List<String> extensionIdentifier,
-        String privateUseQualifier) {
+        String privateUseQualifier,
+        Boolean enabled) {
 }

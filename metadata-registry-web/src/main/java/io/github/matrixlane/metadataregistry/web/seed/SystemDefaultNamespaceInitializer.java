@@ -47,6 +47,11 @@ public class SystemDefaultNamespaceInitializer implements ApplicationRunner {
     @Override
     @Transactional
     public void run(org.springframework.boot.ApplicationArguments args) {
+        initializeSystemDefaultNamespace();
+    }
+
+    @Transactional
+    public void initializeSystemDefaultNamespace() {
         try {
             if (namespaceRepository.existsByShorthandPrefix(SYSTEM_DEFAULT_PREFIX)) {
                 log.info("system-default Namespace 已存在，跳过初始化（幂等）");
@@ -59,10 +64,8 @@ public class SystemDefaultNamespaceInitializer implements ApplicationRunner {
             ns.setNamingAuthority("system");
 
             // 获取语言标识（默认取 en-US）
-            LanguageIdentification langEn = languageRepository.findByLanguageIdentifier("en-US")
-                    .orElseGet(() -> createLanguage("en-US", "Latn", "US"));
-            LanguageIdentification langZh = languageRepository.findByLanguageIdentifier("zh-CN")
-                    .orElseGet(() -> createLanguage("zh-CN", "Hans", "CN"));
+            LanguageIdentification langEn = createLanguage("en-US", "Latn", "US");
+            LanguageIdentification langZh = createLanguage("zh-CN", "Hans", "CN");
 
             // 添加多语言 Designation
             io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.Designation dEn =
@@ -87,10 +90,14 @@ public class SystemDefaultNamespaceInitializer implements ApplicationRunner {
     }
 
     private LanguageIdentification createLanguage(String identifier, String script, String territory) {
-        LanguageIdentification lang = new LanguageIdentification();
-        lang.setLanguageIdentifier(identifier);
-        lang.setScriptIdentifier(script);
-        lang.setGeopoliticalTerritoryIdentifier(territory);
-        return languageRepository.save(lang);
+        return languageRepository.findByLanguageIdentifier(identifier)
+                .orElseGet(() -> {
+                    LanguageIdentification lang = new LanguageIdentification();
+                    lang.setLanguageIdentifier(identifier);
+                    lang.setScriptIdentifier(script);
+                    lang.setGeopoliticalTerritoryIdentifier(territory);
+                    lang.setEnabled(true);
+                    return languageRepository.save(lang);
+                });
     }
 }

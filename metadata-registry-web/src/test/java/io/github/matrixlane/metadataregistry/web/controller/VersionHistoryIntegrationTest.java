@@ -6,6 +6,10 @@ import io.github.matrixlane.metadataregistry.web.dto.version.VersionHistoryEntry
 import io.github.matrixlane.metadataregistry.web.dto.version.VersionSnapshotResponse;
 import io.github.matrixlane.metadataregistry.web.entity.VersionHistory;
 import io.github.matrixlane.metadataregistry.web.repository.VersionHistoryRepository;
+import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Account;
+import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.SystemRole;
+import io.github.matrixlane.metadataregistry.web.auth.JwtService;
+import io.github.matrixlane.metadataregistry.web.service.SystemSettingService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -16,6 +20,7 @@ import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.test.context.ActiveProfiles;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -24,6 +29,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@ActiveProfiles("test")
 class VersionHistoryIntegrationTest {
 
     @Autowired
@@ -32,10 +38,30 @@ class VersionHistoryIntegrationTest {
     @Autowired
     private VersionHistoryRepository repository;
 
+    @Autowired
+    private JwtService jwtService;
+
+    @Autowired
+    private SystemSettingService systemSettingService;
+
     private static final UUID ITEM_ID = UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
 
     @BeforeEach
     void setUp() {
+        systemSettingService.setInitialized(true);
+
+        Account user = new Account();
+        user.setId(UUID.randomUUID());
+        user.setUsername("admin");
+        user.setSysRole(SystemRole.SUPER_ADMIN);
+        String token = jwtService.generateToken(user);
+
+        restTemplate.getRestTemplate().getInterceptors().clear();
+        restTemplate.getRestTemplate().getInterceptors().add((request, body, execution) -> {
+            request.getHeaders().add("Authorization", "Bearer " + token);
+            return execution.execute(request, body);
+        });
+
         repository.deleteAllByItemId(ITEM_ID);
 
         VersionHistory v1 = VersionHistory.of(ITEM_ID, "DataElement", 1, "CREATE",

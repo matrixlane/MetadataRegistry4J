@@ -73,6 +73,9 @@ public class ReadinessController {
             guidance.add("请通过 /api/v1/registration-authorities 接口创建第一个注册机构");
             guidance.add("注册机构创建后，才能进行元数据项的注册流程");
         }
+        if (!checklist.registrySpecificationExists()) {
+            guidance.add("请通过 /api/v1/registry-specifications 接口创建注册规范");
+        }
         return ApiResponse.ok(ReadinessChecklistResponse.from(null, checklist, "系统全局", guidance));
     }
 
@@ -90,6 +93,9 @@ public class ReadinessController {
         var guidance = new ArrayList<String>();
         if (!checklist.registrationAuthorityExists()) {
             guidance.add("请先创建 RegistrationAuthority（注册机构）");
+        }
+        if (!checklist.registrySpecificationExists()) {
+            guidance.add("注册规范（Registry Specification）未配置，请先创建");
         }
         if (!checklist.namespaceExists()) {
             guidance.add("Namespace 不存在，请通过 /api/v1/namespaces 创建");

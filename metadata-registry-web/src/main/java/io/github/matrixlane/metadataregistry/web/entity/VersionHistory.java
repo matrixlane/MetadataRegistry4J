@@ -5,6 +5,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import lombok.Getter;
@@ -46,7 +47,8 @@ public class VersionHistory {
     @Column(name = "changed_at", nullable = false)
     private LocalDateTime changedAt;
 
-    @Column(name = "snapshot_json", nullable = false, columnDefinition = "NVARCHAR(MAX)")
+    @Lob
+    @Column(name = "snapshot_json", nullable = false)
     private String snapshotJson;
 
     @Column(name = "change_summary", length = 512)

@@ -48,6 +48,7 @@ public class DataGovernanceReadinessService {
     private final RegistrationAuthorityRepository registrationAuthorityRepository;
     private final NamespaceRepository namespaceRepository;
     private final NamingConventionEngine namingConventionEngine;
+    private final RegistrySpecificationService registrySpecificationService;
 
     /**
      * 检查指定用户在指定 Namespace 下的就绪状态。
@@ -69,21 +70,27 @@ public class DataGovernanceReadinessService {
             missing.add("RegistrationAuthority 不存在，请先初始化注册机构");
         }
 
-        // 2. Namespace 存在性
+        // 2. RegistrySpecification 存在性
+        boolean specExists = registrySpecificationService.exists();
+        if (!specExists) {
+            missing.add("注册规范（Registry Specification）未配置，请先创建注册规范");
+        }
+
+        // 3. Namespace 存在性
         Namespace ns = namespaceRepository.findById(namespaceId).orElse(null);
         boolean nsExists = ns != null;
         if (!nsExists) {
             missing.add("Namespace 不存在，ID: " + namespaceId);
-            return buildChecklist(namespaceId, raExists, false, false, false, false, missing);
+            return new ReadinessChecklist(namespaceId, raExists, specExists, false, false, false, false, missing);
         }
 
-        // 3. Namespace ACTIVE 状态（暂以 namingAuthority != null 判断）
+        // 4. Namespace ACTIVE 状态（暂以 namingAuthority != null 判断）
         boolean nsActive = isNamespaceActive(ns);
         if (!nsActive) {
             missing.add("Namespace 未激活，请检查命名空间状态");
         }
 
-        // 4. NamingConvention 有效性（仅当 mandatory=TRUE 时检查）
+        // 5. NamingConvention 有效性（仅当 mandatory=TRUE 时检查）
         boolean ncValid = true;
         if (Boolean.TRUE.equals(ns.getMandatoryNamingConventionIndicator())) {
             ncValid = checkNamingConventionValid(ns);
@@ -92,12 +99,13 @@ public class DataGovernanceReadinessService {
             }
         }
 
-        // 5. 用户权限（MVP 阶段暂时硬编码返回 true）
+        // 6. 用户权限（MVP 阶段暂时硬编码返回 true）
         boolean userHasPermission = checkUserHasPermission(userId, ns);
 
         return new ReadinessChecklist(
                 namespaceId,
                 raExists,
+                specExists,
                 nsExists,
                 nsActive,
                 ncValid,
@@ -116,9 +124,14 @@ public class DataGovernanceReadinessService {
         if (!raExists) {
             missing.add("RegistrationAuthority 不存在，系统尚未初始化");
         }
+        boolean specExists = registrySpecificationService.exists();
+        if (!specExists) {
+            missing.add("注册规范（Registry Specification）未配置，请先创建注册规范");
+        }
         return new ReadinessChecklist(
                 null,
                 raExists,
+                specExists,
                 true,  // system-wide check, no specific namespace
                 true,
                 true,
@@ -154,16 +167,5 @@ public class DataGovernanceReadinessService {
     private boolean checkUserHasPermission(UUID userId, Namespace ns) {
         // TODO: 接入 RBAC 权限模块，根据用户在 Namespace 下的角色判断 CREATE 权限
         return true;
-    }
-
-    private ReadinessChecklist buildChecklist(UUID namespaceId,
-                                              boolean raExists,
-                                              boolean nsExists,
-                                              boolean nsActive,
-                                              boolean ncValid,
-                                              boolean userHasPermission,
-                                              List<String> missing) {
-        return new ReadinessChecklist(namespaceId, raExists, nsExists, nsActive,
-                ncValid, userHasPermission, missing);
     }
 }

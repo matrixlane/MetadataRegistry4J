@@ -13,6 +13,7 @@ import java.util.UUID;
 public record ReadinessChecklist(
         UUID namespaceId,
         boolean registrationAuthorityExists,
+        boolean registrySpecificationExists,
         boolean namespaceExists,
         boolean namespaceActive,
         boolean namingConventionValid,
@@ -25,6 +26,7 @@ public record ReadinessChecklist(
 
     public boolean isAllReady() {
         return registrationAuthorityExists
+                && registrySpecificationExists
                 && namespaceExists
                 && namespaceActive
                 && namingConventionValid

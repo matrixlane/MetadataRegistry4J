@@ -41,4 +41,10 @@ public interface ScopedIdentifierRepository extends JpaRepository<ScopedIdentifi
             ORDER BY si.createdAt DESC
             """)
     List<ScopedIdentifier> findByIdentifiedItemId(@Param("identifiedItemId") UUID identifiedItemId);
+
+    @Query("""
+            SELECT si FROM ScopedIdentifier si
+            WHERE si.identifiedItem.item.id = :itemId
+            """)
+    List<ScopedIdentifier> findByItemId(@Param("itemId") UUID itemId);
 }

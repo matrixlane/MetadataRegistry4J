@@ -38,8 +38,23 @@ public abstract class Item extends Entity {
     @OneToMany(mappedBy = "item", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Definition> definitions = new ArrayList<>();
 
-    @OneToOne(mappedBy = "item", cascade = CascadeType.ALL, orphanRemoval = true)
-    private IdentifiedItem identifiedItem;
+    @OneToMany(mappedBy = "item", cascade = CascadeType.ALL, orphanRemoval = true, fetch = jakarta.persistence.FetchType.LAZY)
+    private List<IdentifiedItem> identifiedItems = new ArrayList<>();
+
+    public IdentifiedItem getIdentifiedItem() {
+        return (identifiedItems == null || identifiedItems.isEmpty()) ? null : identifiedItems.get(0);
+    }
+
+    public void setIdentifiedItem(IdentifiedItem identifiedItem) {
+        if (this.identifiedItems == null) {
+            this.identifiedItems = new ArrayList<>();
+        }
+        this.identifiedItems.clear();
+        if (identifiedItem != null) {
+            this.identifiedItems.add(identifiedItem);
+            identifiedItem.setItem(this);
+        }
+    }
 
     @Override
     public String toString() {

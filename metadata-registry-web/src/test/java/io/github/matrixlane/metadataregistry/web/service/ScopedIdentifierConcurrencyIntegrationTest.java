@@ -43,6 +43,9 @@ class ScopedIdentifierConcurrencyIntegrationTest {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
+    @Autowired
+    private org.springframework.transaction.PlatformTransactionManager transactionManager;
+
     private UUID namespaceId;
     private UUID identifiedItemId;
     private static final String CONCURRENT_IDENTIFIER = "concurrent-test-id";
@@ -61,11 +64,13 @@ class ScopedIdentifierConcurrencyIntegrationTest {
 
     @AfterEach
     void tearDown() {
-        // Delete version history first due to FK constraint
-        jdbcTemplate.update("DELETE FROM identifier_version_history WHERE scoped_identifier_id IN (SELECT id FROM scoped_identifier WHERE identifier = ?)", CONCURRENT_IDENTIFIER);
-        jdbcTemplate.update("DELETE FROM identifier_version_history WHERE scoped_identifier_id IN (SELECT id FROM scoped_identifier WHERE identifier LIKE 'concurrent-unique-%')");
-        jdbcTemplate.update("DELETE FROM scoped_identifier WHERE identifier = ?", CONCURRENT_IDENTIFIER);
-        jdbcTemplate.update("DELETE FROM scoped_identifier WHERE identifier LIKE 'concurrent-unique-%'");
+        new org.springframework.transaction.support.TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+            // Delete version history first due to FK constraint
+            jdbcTemplate.update("DELETE FROM mdr.identifier_version_history WHERE scoped_identifier_id IN (SELECT id FROM mdr.scoped_identifier WHERE identifier = ?)", CONCURRENT_IDENTIFIER);
+            jdbcTemplate.update("DELETE FROM mdr.identifier_version_history WHERE scoped_identifier_id IN (SELECT id FROM mdr.scoped_identifier WHERE identifier LIKE 'concurrent-unique-%')");
+            jdbcTemplate.update("DELETE FROM mdr.scoped_identifier WHERE identifier = ?", CONCURRENT_IDENTIFIER);
+            jdbcTemplate.update("DELETE FROM mdr.scoped_identifier WHERE identifier LIKE 'concurrent-unique-%'");
+        });
     }
 
     @Test

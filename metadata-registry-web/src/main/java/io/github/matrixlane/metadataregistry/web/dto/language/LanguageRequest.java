@@ -11,5 +11,6 @@ public record LanguageRequest(
         String geopoliticalTerritoryIdentifier,
         List<String> variantIdentifier,
         List<String> extensionIdentifier,
-        String privateUseQualifier) {
+        String privateUseQualifier,
+        Boolean enabled) {
 }

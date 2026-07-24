@@ -16,7 +16,10 @@ import lombok.Setter;
 import java.util.UUID;
 
 @jakarta.persistence.Entity
-@Table(name = "definition_context_relation")
+@Table(name = "definition_context_relation", indexes = {
+        @jakarta.persistence.Index(name = "idx_definition_context_relation_definition_id", columnList = "definition_id"),
+        @jakarta.persistence.Index(name = "idx_definition_context_relation_context_id", columnList = "context_id")
+})
 @Getter
 @Setter
 @NoArgsConstructor
@@ -37,3 +40,4 @@ public class DefinitionContext {
     @JoinColumn(name = "context_id")
     private Context context;
 }
+

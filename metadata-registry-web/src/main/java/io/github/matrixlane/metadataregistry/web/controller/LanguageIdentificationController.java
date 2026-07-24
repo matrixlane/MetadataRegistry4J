@@ -33,8 +33,9 @@ public class LanguageIdentificationController {
     @GetMapping
     @Operation(summary = "分页列出语言")
     public ApiResponse<PageResponse<LanguageResponse>> list(@RequestParam(required = false) String q,
+                                                            @RequestParam(required = false) Boolean enabled,
                                                             Pageable pageable) {
-        return ApiResponse.ok(PageResponse.of(service.list(q, pageable)));
+        return ApiResponse.ok(PageResponse.of(service.list(q, enabled, pageable)));
     }
 
     @GetMapping("/{id}")

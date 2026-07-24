@@ -37,14 +37,14 @@ public class ExportTask {
     private int totalCount;
 
     @Lob
-    @Column(columnDefinition = "NVARCHAR(MAX)")
+    @Column
     private String requestParams;
 
     @Column(length = 500)
     private String resultFilePath;
 
     @Lob
-    @Column(columnDefinition = "NVARCHAR(MAX)")
+    @Column
     private String errorMessage;
 
     @Column(nullable = false, updatable = false)
@@ -142,3 +142,4 @@ public class ExportTask {
         }
     }
 }
+

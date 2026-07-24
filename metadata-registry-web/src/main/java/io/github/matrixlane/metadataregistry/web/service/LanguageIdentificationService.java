@@ -24,7 +24,7 @@ public class LanguageIdentificationService {
     private final LanguageIdentificationRepository repository;
 
     @Transactional(readOnly = true)
-    public Page<LanguageResponse> list(String keyword, Pageable pageable) {
+    public Page<LanguageResponse> list(String keyword, Boolean enabled, Pageable pageable) {
         Specification<LanguageIdentification> spec = Specification.where(null);
         if (keyword != null && !keyword.isBlank()) {
             String like = "%" + keyword.toLowerCase() + "%";
@@ -32,6 +32,9 @@ public class LanguageIdentificationService {
                     cb.like(cb.lower(root.get("languageIdentifier")), like),
                     cb.like(cb.lower(root.get("scriptIdentifier")), like),
                     cb.like(cb.lower(root.get("geopoliticalTerritoryIdentifier")), like)));
+        }
+        if (enabled != null) {
+            spec = spec.and((root, q, cb) -> cb.equal(root.get("enabled"), enabled));
         }
         return repository.findAll(spec, pageable).map(this::toResponse);
     }
@@ -77,6 +80,9 @@ public class LanguageIdentificationService {
         entity.setScriptIdentifier(request.scriptIdentifier());
         entity.setGeopoliticalTerritoryIdentifier(request.geopoliticalTerritoryIdentifier());
         entity.setPrivateUseQualifier(request.privateUseQualifier());
+        if (request.enabled() != null) {
+            entity.setEnabled(request.enabled());
+        }
         entity.getVariantIdentifier().clear();
         if (request.variantIdentifier() != null) {
             entity.getVariantIdentifier().addAll(request.variantIdentifier());
@@ -95,6 +101,7 @@ public class LanguageIdentificationService {
                 entity.getGeopoliticalTerritoryIdentifier(),
                 new ArrayList<>(entity.getVariantIdentifier()),
                 new ArrayList<>(entity.getExtensionIdentifier()),
-                entity.getPrivateUseQualifier());
+                entity.getPrivateUseQualifier(),
+                entity.getEnabled());
     }
 }
