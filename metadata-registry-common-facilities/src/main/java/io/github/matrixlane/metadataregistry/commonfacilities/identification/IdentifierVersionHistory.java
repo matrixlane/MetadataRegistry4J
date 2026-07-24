@@ -68,3 +68,4 @@ public class IdentifierVersionHistory {
         this.changeSummary = changeSummary;
     }
 }
+

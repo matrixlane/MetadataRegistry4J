@@ -227,6 +227,24 @@ const router = createRouter({
           component: () => import('@/views/placeholder/PlaceholderPage.vue'),
           meta: { title: '维度', routeKey: 'dimensionality' },
         },
+        {
+          path: 'federation/nodes',
+          name: 'FederationNodes',
+          component: () => import('@/views/federation/FederationNodesView.vue'),
+          meta: { title: '联邦节点', routeKey: 'federation-nodes', minRole: 'ADMIN' },
+        },
+        {
+          path: 'federation/merge-requests',
+          name: 'FederationMergeRequests',
+          component: () => import('@/views/federation/MergeRequestListView.vue'),
+          meta: { title: '合并请求', routeKey: 'federation-merge-requests', minRole: 'ADMIN' },
+        },
+        {
+          path: 'federation/merge-requests/:id',
+          name: 'FederationMergeRequestReview',
+          component: () => import('@/views/federation/MergeRequestReviewView.vue'),
+          meta: { title: '合并评审', routeKey: 'federation-merge-request-review', minRole: 'ADMIN' },
+        },
       ],
     },
     {
@@ -275,6 +293,8 @@ routeTable.register(
   { key: 'registry-specifications', path: '/registry-specifications', title: '注册规范', status: 'implemented' },
   { key: 'system-settings', path: '/system-settings', title: '系统设置', status: 'implemented', minRole: 'ADMIN' },
   { key: 'my-profile', path: '/my-profile', title: '我的', status: 'implemented' },
+  { key: 'federation-nodes', path: '/federation/nodes', title: '联邦节点', status: 'implemented', minRole: 'ADMIN' },
+  { key: 'federation-merge-requests', path: '/federation/merge-requests', title: '合并请求', status: 'implemented', minRole: 'ADMIN' },
 
   // ── Planned features (will show PlaceholderPage) ─────────────
   { key: 'dimensionality', path: '/dimensionality', title: '维度', status: 'planned' },
@@ -287,13 +307,26 @@ routeTable.register(
 router.beforeEach(async (to) => {
   const auth = useAuthStore();
 
+  // ── Initialization guard (highest priority) ────────────────────────────
+  // Check whether the system has been set up. If not, force ALL routes —
+  // including /login — to the init wizard. This catches the case where a
+  // factory reset was performed while the user still has a valid token, and
+  // also the case where a freshly-reset system has no token at all and the
+  // user lands on the root URL.
+  // Skip the check for the wizard itself to avoid an infinite redirect.
+  if (to.path !== '/init-wizard') {
+    const isInitialized = await auth.checkInitialized();
+    if (!isInitialized) {
+      return '/init-wizard';
+    }
+  }
+
   // Allow public routes (login, init-wizard) without auth
   if (to.meta.public) {
     // Already logged-in users should not see the login page,
     // but only redirect them to dashboard if the system is initialized.
     if (auth.isLoggedIn && to.path === '/login') {
-      const isInit = await auth.checkInitialized();
-      return isInit ? '/dashboard' : '/init-wizard';
+      return '/dashboard';
     }
     return true;
   }
@@ -301,15 +334,6 @@ router.beforeEach(async (to) => {
   // Redirect to login if not authenticated
   if (!auth.isLoggedIn) {
     return { path: '/login', query: { redirect: to.fullPath } };
-  }
-
-  // ── Initialization guard ──────────────────────────────────────────────────
-  // Check whether the system has been set up. If not, block ALL protected
-  // routes and redirect to the init wizard. This catches the case where a
-  // factory reset was performed while the user still has a valid token.
-  const isInitialized = await auth.checkInitialized();
-  if (!isInitialized) {
-    return '/init-wizard';
   }
 
   // Fetch user profile if needed (silent auth check)

@@ -5,6 +5,7 @@ import io.github.matrixlane.metadataregistry.commonfacilities.registration.Regis
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationStatus;
 import io.github.matrixlane.metadataregistry.web.auth.AppUserRole;
 import io.github.matrixlane.metadataregistry.web.auth.AuthenticatedUser;
+import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.SystemRole;
 import io.github.matrixlane.metadataregistry.web.common.ApiCodes;
 import io.github.matrixlane.metadataregistry.web.common.BusinessException;
 import io.github.matrixlane.metadataregistry.web.entity.ApprovalProcessInstance;
@@ -706,7 +707,7 @@ class MultiLevelApprovalServiceTest {
     // =========================================================================
 
     private void authenticateAs(String username, AppUserRole role) {
-        AuthenticatedUser user = new AuthenticatedUser(UUID.randomUUID(), username, role);
+        AuthenticatedUser user = new AuthenticatedUser(UUID.randomUUID(), username, role == AppUserRole.ADMIN ? SystemRole.SUPER_ADMIN : null);
         Authentication auth = new UsernamePasswordAuthenticationToken(
                 user, null, List.of(new SimpleGrantedAuthority(role.authority())));
         SecurityContextHolder.getContext().setAuthentication(auth);

@@ -71,7 +71,9 @@ public class IdentifierGenerationStrategyRegistry {
     private void registerBuiltInStrategies() {
         register(new UuidGenerationStrategy());
         register(new UrnGenerationStrategy());
-        System.out.println("[IdentifierGenerationStrategyRegistry] Registered built-in strategies: UUID, URN");
+        register(new SequenceGenerationStrategy());
+        register(new TemplateGenerationStrategy());
+        System.out.println("[IdentifierGenerationStrategyRegistry] Registered built-in strategies: UUID, URN, SEQUENCE, TEMPLATE");
     }
 
     /**

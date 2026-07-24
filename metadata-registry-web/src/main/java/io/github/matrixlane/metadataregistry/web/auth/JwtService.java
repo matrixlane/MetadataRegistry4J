@@ -1,5 +1,6 @@
 package io.github.matrixlane.metadataregistry.web.auth;
 
+import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Account;
 import io.github.matrixlane.metadataregistry.web.config.AppProperties;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
@@ -29,17 +30,29 @@ public class JwtService {
         this.signingKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
     }
 
-    public String generateToken(AppUser user) {
+    public String generateToken(Account user) {
+        return generateToken(user, user.isForcePasswordReset(), false, user.isTempPasswordUsed());
+    }
+
+    public String generateToken(Account user, boolean forceChangePassword, boolean emergencyLogin, boolean tempPasswordUsed) {
         Instant now = Instant.now();
         Instant exp = now.plusSeconds(props.getJwt().getExpiresMinutes() * 60L);
+
+        String displayName = user.getIndividual() != null && user.getIndividual().getName() != null
+                ? user.getIndividual().getName().getValue()
+                : user.getUsername();
+
         return Jwts.builder()
                 .subject(user.getId().toString())
                 .issuer(props.getJwt().getIssuer())
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(exp))
                 .claim("username", user.getUsername())
-                .claim("role", user.getRole().name())
-                .claim("displayName", user.getDisplayName())
+                .claim("role", user.getSysRole() != null ? user.getSysRole().name() : null)
+                .claim("displayName", displayName)
+                .claim("forceChangePassword", forceChangePassword)
+                .claim("emergencyLogin", emergencyLogin)
+                .claim("tempPasswordUsed", tempPasswordUsed)
                 .signWith(signingKey)
                 .compact();
     }

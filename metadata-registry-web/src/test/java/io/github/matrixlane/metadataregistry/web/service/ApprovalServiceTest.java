@@ -4,6 +4,7 @@ import io.github.matrixlane.metadataregistry.commonfacilities.registration.Admin
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationState;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationStatus;
 import io.github.matrixlane.metadataregistry.web.auth.AppUserRole;
+import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.SystemRole;
 import io.github.matrixlane.metadataregistry.web.auth.AuthenticatedUser;
 import io.github.matrixlane.metadataregistry.web.common.ApiCodes;
 import io.github.matrixlane.metadataregistry.web.common.BusinessException;
@@ -499,6 +500,7 @@ class ApprovalServiceTest {
     void approve_fromIncomplete_shouldTransitionForward() {
         authenticateAs("approver", AppUserRole.ADMIN);
         ApprovalRecord record = createPendingRecord();
+        item.setRegistrationState(createState(RegistrationStatus.INCOMPLETE));
         // INCOMPLETE → SUBMITTED → RECORDED → QUALIFIED → STANDARD
 
         when(approvalRecordRepository.findById(recordId)).thenReturn(Optional.of(record));
@@ -524,7 +526,8 @@ class ApprovalServiceTest {
     // =========================================================================
 
     private void authenticateAs(String username, AppUserRole role) {
-        AuthenticatedUser user = new AuthenticatedUser(UUID.randomUUID(), username, role);
+        SystemRole sysRole = (role == AppUserRole.ADMIN) ? SystemRole.SUPER_ADMIN : null;
+        AuthenticatedUser user = new AuthenticatedUser(UUID.randomUUID(), username, sysRole);
         Authentication auth = new UsernamePasswordAuthenticationToken(
                 user, null, List.of(new SimpleGrantedAuthority(role.authority())));
         SecurityContextHolder.getContext().setAuthentication(auth);

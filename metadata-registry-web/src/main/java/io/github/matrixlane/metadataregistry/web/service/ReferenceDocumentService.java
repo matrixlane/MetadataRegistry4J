@@ -117,7 +117,8 @@ public class ReferenceDocumentService {
                         li.getGeopoliticalTerritoryIdentifier(),
                         new ArrayList<>(li.getVariantIdentifier()),
                         new ArrayList<>(li.getExtensionIdentifier()),
-                        li.getPrivateUseQualifier()));
+                        li.getPrivateUseQualifier(),
+                        li.getEnabled()));
             }
         }
         return new ReferenceDocumentResponse(

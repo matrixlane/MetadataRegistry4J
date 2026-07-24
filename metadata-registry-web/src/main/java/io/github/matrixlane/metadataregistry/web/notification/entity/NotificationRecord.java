@@ -106,3 +106,4 @@ public class NotificationRecord {
         return this.retryCount < this.maxRetries;
     }
 }
+

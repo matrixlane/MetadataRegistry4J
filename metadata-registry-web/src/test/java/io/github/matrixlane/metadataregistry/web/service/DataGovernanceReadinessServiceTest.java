@@ -53,6 +53,9 @@ class DataGovernanceReadinessServiceTest {
     @Mock
     private NamingConventionEngine namingConventionEngine;
 
+    @Mock
+    private RegistrySpecificationService registrySpecificationService;
+
     @InjectMocks
     private DataGovernanceReadinessService readinessService;
 
@@ -65,6 +68,7 @@ class DataGovernanceReadinessServiceTest {
     @DisplayName("BC-01: RegistrationAuthority 不存在时，registrationAuthorityExists=false")
     void whenRaDoesNotExist_thenRegistrationAuthorityExistsIsFalse() {
         when(registrationAuthorityRepository.count()).thenReturn(0L);
+        when(registrySpecificationService.exists()).thenReturn(true);
 
         ReadinessChecklist result = readinessService.checkReadiness(USER_ID, NS_ID);
 
@@ -73,12 +77,28 @@ class DataGovernanceReadinessServiceTest {
                 .anyMatch(m -> m.contains("RegistrationAuthority 不存在"));
     }
 
+    // --- BC-01-spec: RegistrySpecification 不存在 ---
+
+    @Test
+    @DisplayName("注册规范不存在时，registrySpecificationExists=false")
+    void whenRegistrySpecDoesNotExist_thenRegistrySpecificationExistsIsFalse() {
+        when(registrationAuthorityRepository.count()).thenReturn(1L);
+        when(registrySpecificationService.exists()).thenReturn(false);
+
+        ReadinessChecklist result = readinessService.checkReadiness(USER_ID, NS_ID);
+
+        assertThat(result.registrySpecificationExists()).isFalse();
+        assertThat(result.missingPrerequisites())
+                .anyMatch(m -> m.contains("注册规范（Registry Specification）未配置"));
+    }
+
     // --- BC-02: Namespace 不存在 ---
 
     @Test
     @DisplayName("BC-02: Namespace 不存在时，namespaceExists=false")
     void whenNamespaceDoesNotExist_thenNamespaceExistsIsFalse() {
         when(registrationAuthorityRepository.count()).thenReturn(1L);
+        when(registrySpecificationService.exists()).thenReturn(true);
         when(namespaceRepository.findById(NS_ID)).thenReturn(Optional.empty());
 
         ReadinessChecklist result = readinessService.checkReadiness(USER_ID, NS_ID);
@@ -94,6 +114,7 @@ class DataGovernanceReadinessServiceTest {
     @DisplayName("BC-03: Namespace 无关联 RA 时，namespaceActive=false")
     void whenNamespaceHasNoRa_thenNamespaceActiveIsFalse() {
         when(registrationAuthorityRepository.count()).thenReturn(1L);
+        when(registrySpecificationService.exists()).thenReturn(true);
 
         Namespace ns = new Namespace();
         ns.setId(NS_ID);
@@ -114,6 +135,7 @@ class DataGovernanceReadinessServiceTest {
     @DisplayName("所有前置条件满足时，allReady=true")
     void whenAllPrerequisitesMet_thenAllReadyIsTrue() {
         when(registrationAuthorityRepository.count()).thenReturn(1L);
+        when(registrySpecificationService.exists()).thenReturn(true);
 
         RegistrationAuthority ra = new RegistrationAuthority();
         Namespace ns = new Namespace();
@@ -134,6 +156,7 @@ class DataGovernanceReadinessServiceTest {
     @DisplayName("system-readiness: RA 不存在时返回正确状态")
     void whenSystemRaMissing_thenSystemReadinessReturnsFalse() {
         when(registrationAuthorityRepository.count()).thenReturn(0L);
+        when(registrySpecificationService.exists()).thenReturn(true);
 
         ReadinessChecklist result = readinessService.checkSystemReadiness();
 
@@ -146,6 +169,7 @@ class DataGovernanceReadinessServiceTest {
     @DisplayName("system-readiness: RA 存在时 allReady=true")
     void whenSystemRaExists_thenSystemReadinessAllReady() {
         when(registrationAuthorityRepository.count()).thenReturn(1L);
+        when(registrySpecificationService.exists()).thenReturn(true);
 
         ReadinessChecklist result = readinessService.checkSystemReadiness();
 

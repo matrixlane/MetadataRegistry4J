@@ -9,6 +9,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -19,6 +20,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 @Configuration
+@EnableMethodSecurity
 @RequiredArgsConstructor
 public class SecurityConfig {
 
@@ -48,23 +50,32 @@ public class SecurityConfig {
                                 ApiResponse.error(ApiCodes.FORBIDDEN, "无权访问此资源"))))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                        .requestMatchers("/api/v1/auth/login").permitAll()
+                        .requestMatchers("/api/v1/auth/login", "/api/v1/auth/register", "/api/v1/auth/allow-registration",
+                                "/api/v1/datasource/**",
+                                "/api/v1/migration/**",
+                                "/api/v1/init-wizard/status", "/api/v1/init-wizard/wizard-state",
+                                "/api/v1/init-wizard/setup", "/api/v1/init-wizard/commit",
+                                "/api/v1/init-wizard/abort").permitAll()
                         .requestMatchers("/swagger-ui.html",
                                 "/swagger-ui/**",
                                 "/v3/api-docs",
                                 "/v3/api-docs/**",
                                 "/actuator/health",
                                 "/actuator/info").permitAll()
-                        .requestMatchers("/actuator/loggers/**").hasRole("ADMIN")
+                        .requestMatchers("/actuator/loggers/**").hasRole("SUPER_ADMIN")
+                        .requestMatchers("/api/v1/system/**").hasRole("SUPER_ADMIN")
+                        .requestMatchers("/api/v1/federation/inbound/**").permitAll()
+                        .requestMatchers("/api/v1/federation/**").hasRole("SUPER_ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/v1/**").authenticated()
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/change-password").authenticated()
-                        .requestMatchers(HttpMethod.POST, "/api/v1/app-users/**").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.PUT, "/api/v1/app-users/**").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.DELETE, "/api/v1/app-users/**").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.POST, "/api/v1/**").hasAnyRole("ADMIN", "REGISTRAR")
-                        .requestMatchers(HttpMethod.PUT, "/api/v1/**").hasAnyRole("ADMIN", "REGISTRAR")
-                        .requestMatchers(HttpMethod.PATCH, "/api/v1/**").hasAnyRole("ADMIN", "REGISTRAR")
-                        .requestMatchers(HttpMethod.DELETE, "/api/v1/**").hasAnyRole("ADMIN", "REGISTRAR")
+                        .requestMatchers(HttpMethod.PUT, "/api/v1/auth/me/individual").authenticated()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/accounts/**").hasRole("SUPER_ADMIN")
+                        .requestMatchers(HttpMethod.PUT, "/api/v1/accounts/**").hasRole("SUPER_ADMIN")
+                        .requestMatchers(HttpMethod.DELETE, "/api/v1/accounts/**").hasRole("SUPER_ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/api/v1/**").hasAnyRole("SUPER_ADMIN", "REGISTRAR")
+                        .requestMatchers(HttpMethod.PUT, "/api/v1/**").hasAnyRole("SUPER_ADMIN", "REGISTRAR")
+                        .requestMatchers(HttpMethod.PATCH, "/api/v1/**").hasAnyRole("SUPER_ADMIN", "REGISTRAR")
+                        .requestMatchers(HttpMethod.DELETE, "/api/v1/**").hasAnyRole("SUPER_ADMIN", "REGISTRAR")
                         .anyRequest().authenticated())
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();

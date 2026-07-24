@@ -19,7 +19,6 @@ import java.util.UUID;
 @Getter
 @Setter
 @NoArgsConstructor
-@org.hibernate.annotations.BatchSize(size = 100)
 public class Namespace extends Item {
 
     /**

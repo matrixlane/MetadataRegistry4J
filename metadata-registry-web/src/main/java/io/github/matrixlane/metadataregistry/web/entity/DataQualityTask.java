@@ -49,15 +49,15 @@ public class DataQualityTask {
     private String dataSourceKey;
 
     @Lob
-    @Column(name = "request_params", columnDefinition = "NVARCHAR(MAX)")
+    @Column(name = "request_params")
     private String requestParams;
 
     @Lob
-    @Column(name = "result_json", columnDefinition = "NVARCHAR(MAX)")
+    @Column(name = "result_json")
     private String resultJson;
 
     @Lob
-    @Column(name = "error_message", columnDefinition = "NVARCHAR(MAX)")
+    @Column(name = "error_message")
     private String errorMessage;
 
     @Column(nullable = false, updatable = false)
@@ -167,3 +167,4 @@ public class DataQualityTask {
     public UUID getCreatedBy() { return createdBy; }
     public void setCreatedBy(UUID createdBy) { this.createdBy = createdBy; }
 }
+

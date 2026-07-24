@@ -151,7 +151,6 @@
       <main class="app-main">
         <router-view />
       </main>
-    </div>
 
     <!-- 安全改密弹窗 -->
     <el-dialog
@@ -172,7 +171,7 @@
           {{ auth.user?.emergencyLogin ? '您当前使用的是应急码登录，为了系统安全，请立即设置新密码。新密码不能与原密码相同。' : '您当前使用的是临时密码或系统初始凭证登录，请设置新密码以继续使用系统。' }}
         </p>
         <el-form-item
-          v-if="!isFirstLoginAdmin"
+          v-if="requireOldPassword"
           label="原密码 (或应急码)"
           prop="oldPassword"
         >
@@ -211,6 +210,7 @@
         </el-button>
       </template>
     </el-dialog>
+    </div>
   </div>
 </template>
 
@@ -261,6 +261,12 @@ const isFirstLoginAdmin = computed(() => {
     !auth.user?.lastLoginAt;
 });
 
+const requireOldPassword = computed(() => {
+  return !isFirstLoginAdmin.value &&
+    !auth.user?.emergencyLogin &&
+    !auth.user?.tempPasswordUsed;
+});
+
 const pwdFormRef = ref<FormInstance>();
 const submitLoading = ref(false);
 
@@ -289,7 +295,7 @@ const pwdRules = computed(() => {
       { validator: validateConfirmPassword, trigger: 'blur' }
     ]
   };
-  if (!isFirstLoginAdmin.value) {
+  if (requireOldPassword.value) {
     rules.oldPassword = [
       { required: true, message: '请输入原密码或应急码', trigger: 'blur' }
     ];

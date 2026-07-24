@@ -21,6 +21,26 @@ package io.github.matrixlane.metadataregistry.commonfacilities.identification;
 public class IdentifierStrategyConfigService {
 
     private final IdentifierGenerationStrategyRegistry registry;
+    private SequenceProvider sequenceProvider = new SequenceProvider() {
+        private long sequenceCounter = 0;
+
+        @Override
+        public synchronized long getNextValue(Namespace namespace, IdentifierType identifierType,
+                                              long start, int increment, int pad, String prefix) {
+            if (sequenceCounter == 0) {
+                sequenceCounter = start;
+            } else {
+                sequenceCounter += increment;
+            }
+            return sequenceCounter;
+        }
+    };
+
+    public void setSequenceProvider(SequenceProvider sequenceProvider) {
+        if (sequenceProvider != null) {
+            this.sequenceProvider = sequenceProvider;
+        }
+    }
 
     public IdentifierStrategyConfigService() {
         this.registry = IdentifierGenerationStrategyRegistry.getInstance();
@@ -73,17 +93,24 @@ public class IdentifierStrategyConfigService {
     private synchronized String generateSequenceIdentifier(Namespace namespace,
                                                            IdentifierType identifierType,
                                                            GenerationContext context) {
+        if (namespace == null) {
+            System.out.println("[IdentifierStrategyConfigService] Namespace is null for SEQUENCE strategy, falling back to UUID");
+            return registry.getStrategyInstance("UUID").generate(namespace);
+        }
+
         // Get the sequence config from the strategy config
         IdentifierStrategyConfig config = resolveStrategyConfig(namespace, identifierType);
 
         SequenceGenerationStrategy.Config seqConfig =
                 SequenceGenerationStrategy.Config.fromJson(config != null ? config.getConfigJson() : null);
 
-        // Simple atomic counter for demo (replace with DB SELECT FOR UPDATE in production)
-        long nextSeq = getNextSequenceValue(namespace, identifierType, seqConfig);
-
-        String prefix = seqConfig != null ? seqConfig.resolvePrefix() : "";
+        long start = seqConfig != null ? seqConfig.getStart() : 1;
+        int increment = seqConfig != null ? seqConfig.getIncrementBy() : 1;
         int pad = seqConfig != null ? seqConfig.getPad() : 6;
+        String prefix = seqConfig != null ? seqConfig.resolvePrefix() : "";
+
+        long nextSeq = sequenceProvider.getNextValue(namespace, identifierType, start, increment, pad, prefix);
+
         String paddedSeq = String.format("%0" + pad + "d", nextSeq);
 
         return prefix + paddedSeq;
@@ -93,8 +120,8 @@ public class IdentifierStrategyConfigService {
      * Generates a template-based identifier.
      */
     private String generateTemplateIdentifier(Namespace namespace,
-                                              IdentifierType identifierType,
-                                              GenerationContext context) {
+                                               IdentifierType identifierType,
+                                               GenerationContext context) {
         IdentifierStrategyConfig config = resolveStrategyConfig(namespace, identifierType);
         TemplateGenerationStrategy.Config tmplConfig =
                 TemplateGenerationStrategy.Config.fromJson(config != null ? config.getConfigJson() : null);
@@ -129,24 +156,6 @@ public class IdentifierStrategyConfigService {
 
         // Try global default
         return registry.resolveGlobalDefault(identifierType);
-    }
-
-    // --- Simple in-memory sequence state (replace with DB-backed service) ---
-
-    private long sequenceCounter = 0;
-
-    private synchronized long getNextSequenceValue(Namespace namespace,
-                                                  IdentifierType identifierType,
-                                                  SequenceGenerationStrategy.Config config) {
-        long start = config != null ? config.getStart() : 1;
-        long increment = config != null ? config.getIncrementBy() : 1;
-
-        if (sequenceCounter == 0) {
-            sequenceCounter = start;
-        } else {
-            sequenceCounter += increment;
-        }
-        return sequenceCounter;
     }
 
     /**

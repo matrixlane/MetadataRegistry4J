@@ -1,7 +1,8 @@
 package io.github.matrixlane.metadataregistry.web.notification.service;
 
-import io.github.matrixlane.metadataregistry.web.auth.AppUser;
-import io.github.matrixlane.metadataregistry.web.auth.AppUserRepository;
+import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Account;
+import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Individual;
+import io.github.matrixlane.metadataregistry.web.auth.AccountRepository;
 import io.github.matrixlane.metadataregistry.web.notification.entity.NotificationChannel;
 import io.github.matrixlane.metadataregistry.web.notification.entity.NotificationRecord;
 import io.github.matrixlane.metadataregistry.web.notification.entity.NotificationStatus;
@@ -38,7 +39,7 @@ class NotificationRetryServiceTest {
     private JavaMailSender mailSender;
 
     @Mock
-    private AppUserRepository appUserRepository;
+    private AccountRepository accountRepository;
 
     @InjectMocks
     private NotificationRetryService retryService;
@@ -58,13 +59,15 @@ class NotificationRetryServiceTest {
         NotificationRecord record = createEmailRecord(1);
         record.setNextRetryAt(LocalDateTime.now().minusMinutes(1));
 
-        AppUser user = new AppUser();
+        Account user = new Account();
         user.setUsername("user1");
-        user.setEmail("user1@example.com");
-
+        Individual ind = new Individual();
+        ind.getEmailAddress().add(io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.EmailAddress.of("user1@example.com"));
+        user.setIndividual(ind);
+ 
         when(recordRepository.findPendingRetries(any(LocalDateTime.class)))
                 .thenReturn(List.of(record));
-        when(appUserRepository.findByUsername("user1")).thenReturn(Optional.of(user));
+        when(accountRepository.findByUsername("user1")).thenReturn(Optional.of(user));
         when(recordRepository.save(any(NotificationRecord.class))).thenAnswer(i -> i.getArgument(0));
 
         retryService.retryPendingNotifications();
@@ -79,13 +82,13 @@ class NotificationRetryServiceTest {
         NotificationRecord record = createEmailRecord(2);
         record.setNextRetryAt(LocalDateTime.now().minusMinutes(1));
 
-        AppUser user = new AppUser();
+        Account user = new Account();
         user.setUsername("user1");
-        user.setEmail(null);
-
+        user.setIndividual(null);
+ 
         when(recordRepository.findPendingRetries(any(LocalDateTime.class)))
                 .thenReturn(List.of(record));
-        when(appUserRepository.findByUsername("user1")).thenReturn(Optional.of(user));
+        when(accountRepository.findByUsername("user1")).thenReturn(Optional.of(user));
         when(recordRepository.save(any(NotificationRecord.class))).thenAnswer(i -> i.getArgument(0));
 
         retryService.retryPendingNotifications();
@@ -114,13 +117,15 @@ class NotificationRetryServiceTest {
         NotificationRecord record = createEmailRecord(1);
         record.setNextRetryAt(LocalDateTime.now().minusMinutes(1));
 
-        AppUser user = new AppUser();
+        Account user = new Account();
         user.setUsername("user1");
-        user.setEmail("user1@example.com");
-
+        Individual ind = new Individual();
+        ind.getEmailAddress().add(io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.EmailAddress.of("user1@example.com"));
+        user.setIndividual(ind);
+ 
         when(recordRepository.findPendingRetries(any(LocalDateTime.class)))
                 .thenReturn(List.of(record));
-        when(appUserRepository.findByUsername("user1")).thenReturn(Optional.of(user));
+        when(accountRepository.findByUsername("user1")).thenReturn(Optional.of(user));
         doThrow(new MailSendException("SMTP down")).when(mailSender).send(any(SimpleMailMessage.class));
         when(recordRepository.save(any(NotificationRecord.class))).thenAnswer(i -> i.getArgument(0));
 

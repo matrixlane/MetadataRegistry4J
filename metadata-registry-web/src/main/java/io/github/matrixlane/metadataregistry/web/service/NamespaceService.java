@@ -11,8 +11,12 @@ import io.github.matrixlane.metadataregistry.web.dto.namespace.NamespaceDetailRe
 import io.github.matrixlane.metadataregistry.web.dto.namespace.NamespaceRequest;
 import io.github.matrixlane.metadataregistry.web.dto.namespace.NamespaceResponse;
 import io.github.matrixlane.metadataregistry.web.dto.namespace.NamespaceWizardRequest;
+import io.github.matrixlane.metadataregistry.web.dto.namespace.DeletionCheckResponse;
 import io.github.matrixlane.metadataregistry.web.repository.NamespaceRepository;
 import io.github.matrixlane.metadataregistry.web.repository.RegistrationAuthorityRepository;
+import io.github.matrixlane.metadataregistry.web.repository.OrganizationRepository;
+import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Organization;
+import io.github.matrixlane.metadataregistry.web.dto.namespace.ExternalNamespaceRequest;
 import io.github.matrixlane.metadataregistry.web.util.ItemNamingHelper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -32,6 +36,7 @@ public class NamespaceService {
     private final NamespaceRepository repository;
     private final RegistrationAuthorityRepository registrationAuthorityRepository;
     private final ItemAdministrationService itemAdministrationService;
+    private final OrganizationRepository organizationRepository;
 
     /**
      * Create namespace using wizard request with full ISO 11179-3 attributes.
@@ -52,6 +57,8 @@ public class NamespaceService {
                     .orElseThrow(() -> new ResourceNotFoundException(
                             "RegistrationAuthority", request.namingAuthorityId()));
             entity.setRegistrationAuthority(ra);
+            String raName = ra.getName().isEmpty() ? "" : ra.getName().get(0).getValue();
+            entity.setNamingAuthority(raName);
         }
         
         // Apply parent hierarchy
@@ -135,7 +142,8 @@ public class NamespaceService {
                 return cb.like(cb.lower(d.get("sign").get("value")), like);
             });
         }
-        return repository.findAll(spec, pageable).map(this::toResponse);
+        Page<Namespace> page = repository.findAll(spec, pageable);
+        return page.map(this::toResponse);
     }
 
     @Transactional(readOnly = true)
@@ -168,11 +176,19 @@ public class NamespaceService {
     }
 
     private void applyRequest(Namespace entity, NamespaceRequest request) {
+        if (entity.getId() != null && entity.getRegistrationAuthority() != null) {
+            if (request.namingAuthorityId() == null || !request.namingAuthorityId().equals(entity.getRegistrationAuthority().getId())) {
+                throw new BusinessException(ApiCodes.VALIDATION_FAILED, "Cannot modify registration authority for an internal namespace");
+            }
+        }
+
         if (request.namingAuthorityId() != null) {
             RegistrationAuthority ra = registrationAuthorityRepository.findById(request.namingAuthorityId())
                     .orElseThrow(() -> new ResourceNotFoundException(
                             "RegistrationAuthority", request.namingAuthorityId()));
             entity.setRegistrationAuthority(ra);
+            String raName = ra.getName().isEmpty() ? "" : ra.getName().get(0).getValue();
+            entity.setNamingAuthority(raName);
         } else {
             entity.setRegistrationAuthority(null);
         }
@@ -189,14 +205,18 @@ public class NamespaceService {
         if (ra != null && !ra.getName().isEmpty()) {
             raName = ra.getName().get(0).getValue();
         }
+        var des = itemAdministrationService.mapDesignations(entity);
+        var def = itemAdministrationService.mapDefinitions(entity);
+        var meta = itemAdministrationService.buildItemMeta(entity);
+        String prefDes = ItemNamingHelper.preferredDesignation(entity);
         return new NamespaceResponse(
                 entity.getId(),
-                ItemNamingHelper.preferredDesignation(entity),
+                prefDes,
                 ra == null ? null : ra.getId(),
                 raName,
-                itemAdministrationService.mapDesignations(entity),
-                itemAdministrationService.mapDefinitions(entity),
-                itemAdministrationService.buildItemMeta(entity));
+                des,
+                def,
+                meta);
     }
 
     private void validateNamingConventionRequired(UUID namingConventionId) {
@@ -264,5 +284,38 @@ public class NamespaceService {
             throw new BusinessException(ApiCodes.VALIDATION_FAILED,
                     "NamingAuthority is required when creating Namespace");
         }
+    }
+
+    @Transactional(readOnly = true)
+    public DeletionCheckResponse checkDeletion(UUID id) {
+        Namespace ns = loadOrThrow(id);
+        int scopedIdentifierCount = ns.getScopedIdentifiers().size();
+        boolean hasIdentifiers = scopedIdentifierCount > 0;
+        return new DeletionCheckResponse(hasIdentifiers, scopedIdentifierCount, 
+                "Namespace has " + scopedIdentifierCount + " associated scoped identifier(s).");
+    }
+
+    public NamespaceResponse createExternal(ExternalNamespaceRequest request) {
+        Organization org = null;
+        if (request.organizationId() != null) {
+            org = organizationRepository.findById(request.organizationId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Organization", request.organizationId()));
+        } else if (request.newOrganizationName() != null && !request.newOrganizationName().isBlank()) {
+            org = new Organization();
+            org.getName().add(Sign.of(request.newOrganizationName()));
+            org = organizationRepository.save(org);
+        } else {
+            throw new BusinessException(ApiCodes.VALIDATION_FAILED, "必须提供已有组织ID或者新组织名称");
+        }
+
+        Namespace entity = new Namespace();
+        entity.setRegistrationAuthority(null);
+        entity.setNamingAuthority(org.getName().isEmpty() ? "" : org.getName().get(0).getValue());
+        
+        itemAdministrationService.applyDesignations(entity, request.designations());
+        itemAdministrationService.applyDefinitions(entity, request.definitions());
+
+        Namespace saved = repository.save(entity);
+        return toResponse(saved);
     }
 }

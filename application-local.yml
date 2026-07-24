@@ -8,12 +8,16 @@ spring:
   jpa:
     hibernate:
       ddl-auto: update
-    show-sql: false
+    show-sql: true
+
+  flyway:
+    enabled: false
 
 logging:
   level:
     com.zaxxer.hikari: DEBUG
     org.springframework.jdbc: DEBUG
+    org.hibernate.SQL: DEBUG
 
 app:
   jwt:

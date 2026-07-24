@@ -75,6 +75,9 @@ public class OrganizationService {
     private void applyRequest(Organization entity, OrganizationRequest request) {
         entity.getName().clear();
         entity.getName().add(Sign.of(request.name()));
+        if (request.englishName() != null && !request.englishName().isBlank()) {
+            entity.getName().add(Sign.of(request.englishName()));
+        }
 
         entity.setMailAddress(request.mailAddress() == null
                 ? new PostalAddress()
@@ -99,11 +102,22 @@ public class OrganizationService {
 
     private OrganizationResponse toResponse(Organization entity) {
         List<String> names = entity.getName().stream().map(Sign::getValue).toList();
-        String first = names.isEmpty() ? null : names.get(0);
-        List<String> additional = names.size() <= 1 ? List.of() : new ArrayList<>(names.subList(1, names.size()));
+        String name = names.isEmpty() ? null : names.get(0);
+        String englishName = names.size() > 1 ? names.get(1) : null;
+        List<String> additional = names.size() <= 2 ? List.of() : new ArrayList<>(names.subList(2, names.size()));
+
+        String identifier = null;
+        if (entity instanceof io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationAuthority ra) {
+            if (ra.getRegistrationAuthorityIdentifier() != null) {
+                identifier = ra.getRegistrationAuthorityIdentifier().getOrganizationIdentifier();
+            }
+        }
+
         return new OrganizationResponse(
                 entity.getId(),
-                first,
+                identifier,
+                name,
+                englishName,
                 additional,
                 entity.getMailAddress() == null ? null : entity.getMailAddress().getValue(),
                 entity.getEmailAddress().stream().map(EmailAddress::getValue).toList(),

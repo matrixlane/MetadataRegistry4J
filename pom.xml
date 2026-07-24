@@ -32,6 +32,9 @@
         <jakarta.annotation.version>3.0.0</jakarta.annotation.version>
 
         <spring-boot.version>3.3.4</spring-boot.version>
+        <!-- 升级 Hibernate 以规避 SQLite 既有库启动时"too many terms in compound SELECT"
+             （6.5.x 批量表元数据读取超出 SQLITE_LIMIT_COMPOUND_SELECT） -->
+        <hibernate.version>6.6.11.Final</hibernate.version>
         <mssql-jdbc.version>12.6.3.jre11</mssql-jdbc.version>
         <mapstruct.version>1.6.2</mapstruct.version>
         <jjwt.version>0.12.6</jjwt.version>

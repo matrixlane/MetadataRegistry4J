@@ -2,6 +2,8 @@ package io.github.matrixlane.metadataregistry.web.service;
 
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationStatus;
 import io.github.matrixlane.metadataregistry.web.dto.administereditem.AdministeredItemResponse;
+import io.github.matrixlane.metadataregistry.web.service.database.DatabaseEnvironment;
+import io.github.matrixlane.metadataregistry.web.service.database.DatabaseVendor;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.data.domain.Page;
@@ -37,6 +39,27 @@ import java.util.UUID;
 public class MetadataSearchService {
 
     private final JdbcTemplate jdbcTemplate;
+    private final DatabaseEnvironment env;
+
+    /** 表名按当前方言/schema 限定。 */
+    private String t(String table) {
+        return env.qualify(table);
+    }
+
+    /** "取第一行"标量子查询：SQL Server 用 TOP 1，其余方言用 LIMIT 1。 */
+    private String firstOne(String column, String table, String condition) {
+        if (env.vendor() == DatabaseVendor.SQLSERVER) {
+            return "(SELECT TOP 1 " + column + " FROM " + table + " WHERE " + condition + ")";
+        }
+        return "(SELECT " + column + " FROM " + table + " WHERE " + condition + " LIMIT 1)";
+    }
+
+    /** 分页子句与参数顺序因方言而异。 */
+    private String pagingClause() {
+        return env.vendor() == DatabaseVendor.SQLSERVER
+                ? " OFFSET ? ROWS FETCH NEXT ? ROWS ONLY"
+                : " LIMIT ? OFFSET ?";
+    }
 
     /**
      * Unified search across all metadata entities.
@@ -61,9 +84,9 @@ public class MetadataSearchService {
         List<Object> selectParams = new ArrayList<>();
 
         if (keywordPattern != null) {
-            where.append(" AND (EXISTS (SELECT 1 FROM designation d WHERE d.item_id = i.id AND LOWER(d.value) LIKE ?)");
-            where.append(" OR EXISTS (SELECT 1 FROM definition df WHERE df.item_id = i.id AND LOWER(df.value) LIKE ?)");
-            where.append(" OR EXISTS (SELECT 1 FROM scoped_identifier si2 WHERE si2.identified_item_id = ai.id AND LOWER(si2.identifier) LIKE ?))");
+            where.append(" AND (EXISTS (SELECT 1 FROM " + t("designation") + " d WHERE d.item_id = i.id AND LOWER(d.value) LIKE ?)");
+            where.append(" OR EXISTS (SELECT 1 FROM " + t("definition") + " df WHERE df.item_id = i.id AND LOWER(df.value) LIKE ?)");
+            where.append(" OR EXISTS (SELECT 1 FROM " + t("scoped_identifier") + " si2 WHERE si2.identified_item_id = ai.id AND LOWER(si2.identifier) LIKE ?))");
             countParams.add(keywordPattern);
             countParams.add(keywordPattern);
             countParams.add(keywordPattern);
@@ -88,10 +111,10 @@ public class MetadataSearchService {
         }
 
         // Count query
-        String countSql = "SELECT COUNT(DISTINCT ai.id) FROM administered_item ai " +
-                "JOIN identified_item ii ON ai.id = ii.id " +
-                "JOIN item i ON ii.item_id = i.id " +
-                "LEFT JOIN registration_state rs ON ai.registration_state_id = rs.id" +
+        String countSql = "SELECT COUNT(DISTINCT ai.id) FROM " + t("administered_item") + " ai " +
+                "JOIN " + t("identified_item") + " ii ON ai.id = ii.id " +
+                "JOIN " + t("item") + " i ON ii.item_id = i.id " +
+                "LEFT JOIN " + t("registration_state") + " rs ON ai.registration_state_id = rs.id" +
                 where;
 
         Long total = jdbcTemplate.queryForObject(countSql, Long.class, countParams.toArray());
@@ -105,32 +128,37 @@ public class MetadataSearchService {
         String selectSql = "SELECT DISTINCT " +
                 "ai.id, " +
                 "i.id AS item_id, " +
-                "(SELECT TOP 1 d.value FROM designation d WHERE d.item_id = i.id) AS item_label, " +
+                firstOne("d.value", t("designation") + " d", "d.item_id = i.id") + " AS item_label, " +
                 "si.identifier, " +
                 "si.version, " +
                 "ns.id AS ns_id, " +
-                "(SELECT TOP 1 d2.value FROM designation d2 WHERE d2.item_id = ns.id) AS ns_label, " +
+                firstOne("d2.value", t("designation") + " d2", "d2.item_id = ns.id") + " AS ns_label, " +
                 "ra.id AS ra_id, " +
-                "(SELECT TOP 1 oname.value FROM organization_name oname WHERE oname.organization_id = ra.id) AS ra_label, " +
+                firstOne("oname.value", t("organization_name") + " oname", "oname.organization_id = ra.id") + " AS ra_label, " +
                 "rs.registration_status, " +
                 "rs.effective_date, " +
                 "rs.administrative_note, " +
                 "ai.creation_date_time, " +
                 "ai.last_change_date_time, " +
                 "ai.change_description " +
-                "FROM administered_item ai " +
-                "JOIN identified_item ii ON ai.id = ii.id " +
-                "JOIN item i ON ii.item_id = i.id " +
-                "LEFT JOIN scoped_identifier si ON si.identified_item_id = ai.id " +
-                "LEFT JOIN namespace ns ON si.namespace_id = ns.id " +
-                "LEFT JOIN registration_authority ra ON ai.registration_authority_id = ra.id " +
-                "LEFT JOIN registration_state rs ON ai.registration_state_id = rs.id" +
+                "FROM " + t("administered_item") + " ai " +
+                "JOIN " + t("identified_item") + " ii ON ai.id = ii.id " +
+                "JOIN " + t("item") + " i ON ii.item_id = i.id " +
+                "LEFT JOIN " + t("scoped_identifier") + " si ON si.identified_item_id = ai.id " +
+                "LEFT JOIN " + t("namespace") + " ns ON si.namespace_id = ns.id " +
+                "LEFT JOIN " + t("registration_authority") + " ra ON ai.registration_authority_id = ra.id " +
+                "LEFT JOIN " + t("registration_state") + " rs ON ai.registration_state_id = rs.id" +
                 where +
-                " ORDER BY ai.creation_date_time DESC " +
-                "OFFSET ? ROWS FETCH NEXT ? ROWS ONLY";
+                " ORDER BY ai.creation_date_time DESC" +
+                pagingClause();
 
-        selectParams.add(pageable.getOffset());
-        selectParams.add(pageable.getPageSize());
+        if (env.vendor() == DatabaseVendor.SQLSERVER) {
+            selectParams.add(pageable.getOffset());
+            selectParams.add(pageable.getPageSize());
+        } else {
+            selectParams.add(pageable.getPageSize());
+            selectParams.add(pageable.getOffset());
+        }
 
         List<AdministeredItemResponse> results = jdbcTemplate.query(selectSql, this::mapRow, selectParams.toArray());
 
@@ -160,7 +188,7 @@ public class MetadataSearchService {
 
     private UUID uuid(ResultSet rs, String column) throws SQLException {
         Object value = rs.getObject(column);
-        return value == null ? null : UUID.fromString(value.toString());
+        return DatabaseEnvironment.toUuid(value);
     }
 
     private RegistrationStatus status(ResultSet rs, String column) throws SQLException {

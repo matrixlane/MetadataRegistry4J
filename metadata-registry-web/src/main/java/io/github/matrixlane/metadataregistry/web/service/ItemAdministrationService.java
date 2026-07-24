@@ -12,6 +12,7 @@ import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefi
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifiedItem;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.ScopedIdentifier;
+import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifierStrategyConfigService;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.AdministeredItem;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationAuthority;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationState;
@@ -24,6 +25,8 @@ import io.github.matrixlane.metadataregistry.web.dto.common.ItemRegistrationRequ
 import io.github.matrixlane.metadataregistry.web.dto.common.TextLine;
 import io.github.matrixlane.metadataregistry.web.dto.common.TextLineContextResponse;
 import io.github.matrixlane.metadataregistry.web.dto.common.TextLineResponse;
+import io.github.matrixlane.metadataregistry.web.repository.AdministeredItemRepository;
+import io.github.matrixlane.metadataregistry.web.repository.ScopedIdentifierRepository;
 import io.github.matrixlane.metadataregistry.web.repository.ContextRepository;
 import io.github.matrixlane.metadataregistry.web.repository.LanguageIdentificationRepository;
 import io.github.matrixlane.metadataregistry.web.repository.NamespaceRepository;
@@ -58,6 +61,9 @@ public class ItemAdministrationService {
     private final ContextRepository contextRepository;
     private final NamingConventionEngine namingConventionEngine;
     private final DefinitionAuditLogService definitionAuditLogService;
+    private final ScopedIdentifierRepository scopedIdentifierRepository;
+    private final AdministeredItemRepository administeredItemRepository;
+    private final IdentifierStrategyConfigService identifierStrategyConfigService;
 
     public void applyDesignations(Item item, List<TextLine> designations) {
         if (designations == null) return;
@@ -217,14 +223,25 @@ public class ItemAdministrationService {
 
         if (ai.getScopedIdentifiers() == null || ai.getScopedIdentifiers().isEmpty()) {
             ScopedIdentifier si = new ScopedIdentifier();
-            si.setIdentifier(req.identifier());
+            String identifier = req.identifier();
+            if (identifier == null || identifier.isBlank()) {
+                identifier = identifierStrategyConfigService.generateIdentifier(
+                        ns,
+                        io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifierType.INTERNAL,
+                        null
+                );
+            }
+            si.setIdentifier(identifier);
             si.setVersion(req.version());
             si.setNamespace(ns);
             si.setIdentifiedItem(ai);
             ai.getScopedIdentifiers().add(si);
         } else {
             ScopedIdentifier si = ai.getScopedIdentifiers().get(0);
-            si.setIdentifier(req.identifier());
+            String identifier = req.identifier();
+            if (identifier != null && !identifier.isBlank()) {
+                si.setIdentifier(identifier);
+            }
             si.setVersion(req.version());
             si.setNamespace(ns);
         }
@@ -255,32 +272,77 @@ public class ItemAdministrationService {
         if (item == null) {
             return null;
         }
-        IdentifiedItem ii = item.getIdentifiedItem();
-        UUID administeredItemId = ii instanceof AdministeredItem ai ? ai.getId() : null;
+
+        UUID administeredItemId = null;
+        RegistrationStatus registrationStatus = null;
         UUID nsId = null;
         String nsLabel = null;
         String identifier = null;
         String version = null;
-        if (ii != null && ii.getScopedIdentifiers() != null && !ii.getScopedIdentifiers().isEmpty()) {
-            ScopedIdentifier si = ii.getScopedIdentifiers().get(0);
+        String scopedIdentifierStr = null;
+
+        // Try to query AdministeredItem by itemId
+        List<Object[]> metaList = administeredItemRepository.findMetaByItemId(item.getId());
+        if (metaList != null && !metaList.isEmpty()) {
+            Object[] metaRow = metaList.get(0);
+            administeredItemId = (UUID) metaRow[0];
+            registrationStatus = (RegistrationStatus) metaRow[1];
+        }
+
+        // Try to query ScopedIdentifier by itemId
+        List<ScopedIdentifier> siList = scopedIdentifierRepository.findByItemId(item.getId());
+        if (siList != null && !siList.isEmpty()) {
+            ScopedIdentifier si = siList.get(0);
             identifier = si.getIdentifier();
             version = si.getVersion();
             if (si.getNamespace() != null) {
                 nsId = si.getNamespace().getId();
                 nsLabel = ItemNamingHelper.preferredDesignation(si.getNamespace());
             }
+            
+            // Build scopedIdentifierStr: namespace:identifier@version
+            StringBuilder sb = new StringBuilder();
+            if (nsLabel != null) sb.append(nsLabel).append(':');
+            sb.append(identifier == null ? "" : identifier);
+            if (version != null && !version.isBlank()) {
+                sb.append('@').append(version);
+            }
+            scopedIdentifierStr = sb.toString();
         }
+
+        // Fallback for Namespace items if they do not have registered AdministeredItem/ScopedIdentifier rows
+        if (item instanceof Namespace ns) {
+            if (identifier == null) {
+                identifier = ns.getShorthandPrefix();
+            }
+            if (registrationStatus == null) {
+                registrationStatus = mapNamespaceStatus(ns.getNamespaceStatus());
+            }
+        }
+
         return new ItemMetaResponse(
                 item.getId(),
                 ItemNamingHelper.preferredDesignation(item),
                 ItemNamingHelper.preferredDefinition(item),
-                ItemNamingHelper.firstScopedIdentifier(item),
+                scopedIdentifierStr,
                 nsId,
                 nsLabel,
                 identifier,
                 version,
-                ItemNamingHelper.currentRegistrationStatus(item),
+                registrationStatus,
                 administeredItemId);
+    }
+
+    private RegistrationStatus mapNamespaceStatus(io.github.matrixlane.metadataregistry.commonfacilities.identification.NamespaceStatus status) {
+        if (status == null) return null;
+        switch (status) {
+            case DRAFT: return RegistrationStatus.INCOMPLETE;
+            case SUBMITTED: return RegistrationStatus.SUBMITTED;
+            case ACTIVE: return RegistrationStatus.STANDARD;
+            case DEPRECATED: return RegistrationStatus.RETIRED;
+            case OBSOLETE: return RegistrationStatus.HISTORICAL;
+            default: return null;
+        }
     }
 
     public List<TextLineResponse> mapDesignations(Item item) {

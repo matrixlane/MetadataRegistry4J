@@ -5,7 +5,9 @@ import java.util.UUID;
 
 public record OrganizationResponse(
         UUID id,
+        String identifier,
         String name,
+        String englishName,
         List<String> additionalNames,
         String mailAddress,
         List<String> emailAddress,

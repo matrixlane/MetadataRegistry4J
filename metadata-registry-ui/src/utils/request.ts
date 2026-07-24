@@ -29,8 +29,25 @@ request.interceptors.response.use(
     return body.data;
   },
   (error: AxiosError<{ message?: string }>) => {
-    if (error.response?.status === 401) {
+    if ((error.response?.data as any)?.code === 499) {
+      window.location.href = '/init-wizard';
+    } else if ((error.response?.data as any)?.code === 498 || error.response?.status === 498) {
+      // Session is in force-change-password state (e.g. wizard session token,
+      // temp password, emergency login). Surface the dialog in AppLayout so
+      // the user can set a new password without being kicked back to login.
+      const auth = useAuthStore();
+      if (auth.user) {
+        auth.user.forceChangePassword = true;
+      }
+      ElMessage.warning('当前会话需要先修改密码才能继续操作');
+    } else if (error.response?.status === 401) {
       useAuthStore().logout();
+      if (window.location.pathname === '/login') {
+        // Let the Login page display the message itself to avoid duplicates.
+        return Promise.reject(error);
+      }
+      const msg = (error.response?.data as any)?.message || '认证失败，请重新登录';
+      ElMessage.error(msg);
       window.location.href = '/login';
     } else {
       ElMessage.error(error.response?.data?.message || error.message || '网络错误');

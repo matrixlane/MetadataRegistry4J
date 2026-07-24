@@ -5,7 +5,12 @@ import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.
 import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.Acceptability;
 import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.Designation;
 import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.Definition;
+import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifierStrategyConfigService;
+import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifierType;
+import io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace;
+import io.github.matrixlane.metadataregistry.commonfacilities.registration.AdministeredItem;
 import io.github.matrixlane.metadataregistry.web.common.BusinessException;
+import io.github.matrixlane.metadataregistry.web.dto.common.ItemRegistrationRequest;
 import io.github.matrixlane.metadataregistry.web.dto.common.TextLine;
 import io.github.matrixlane.metadataregistry.web.dto.common.TextLineContextEntry;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.Context;
@@ -41,6 +46,7 @@ class ItemAdministrationServiceTest {
     @Mock private ContextRepository contextRepository;
     @Mock private NamingConventionEngine namingConventionEngine;
     @Mock private DefinitionAuditLogService definitionAuditLogService;
+    @Mock private IdentifierStrategyConfigService identifierStrategyConfigService;
 
     @InjectMocks
     private ItemAdministrationService itemAdministrationService;
@@ -149,6 +155,46 @@ class ItemAdministrationServiceTest {
         assertThat(log.getAction()).isEqualTo("UPDATE");
         assertThat(log.getOldValueSummary()).isEqualTo("旧定义");
         assertThat(log.getNewValueSummary()).isEqualTo("新定义");
+    }
+
+    @Test
+    void ensureAdministeredItem_shouldUseManualIdentifier() {
+        UUID namespaceId = UUID.randomUUID();
+        Namespace ns = new Namespace();
+        ns.setId(namespaceId);
+        when(namespaceRepository.findById(namespaceId)).thenReturn(Optional.of(ns));
+
+        ItemRegistrationRequest req = new ItemRegistrationRequest(
+                namespaceId, "MANUAL-123", "1.0.0", null, List.of(), List.of()
+        );
+
+        AdministeredItem ai = itemAdministrationService.ensureAdministeredItem(item, req);
+
+        assertThat(ai).isNotNull();
+        assertThat(ai.getScopedIdentifiers()).hasSize(1);
+        assertThat(ai.getScopedIdentifiers().get(0).getIdentifier()).isEqualTo("MANUAL-123");
+        verifyNoInteractions(identifierStrategyConfigService);
+    }
+
+    @Test
+    void ensureAdministeredItem_shouldAutoGenerateIdentifierWhenEmpty() {
+        UUID namespaceId = UUID.randomUUID();
+        Namespace ns = new Namespace();
+        ns.setId(namespaceId);
+        when(namespaceRepository.findById(namespaceId)).thenReturn(Optional.of(ns));
+        when(identifierStrategyConfigService.generateIdentifier(eq(ns), eq(IdentifierType.INTERNAL), any()))
+                .thenReturn("AUTO-999");
+
+        ItemRegistrationRequest req = new ItemRegistrationRequest(
+                namespaceId, "", "1.0.0", null, List.of(), List.of()
+        );
+
+        AdministeredItem ai = itemAdministrationService.ensureAdministeredItem(item, req);
+
+        assertThat(ai).isNotNull();
+        assertThat(ai.getScopedIdentifiers()).hasSize(1);
+        assertThat(ai.getScopedIdentifiers().get(0).getIdentifier()).isEqualTo("AUTO-999");
+        verify(identifierStrategyConfigService).generateIdentifier(eq(ns), eq(IdentifierType.INTERNAL), any());
     }
 
     @jakarta.persistence.Entity

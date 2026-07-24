@@ -11,6 +11,9 @@ spring:
       ddl-auto: update
     show-sql: false
 
+  flyway:
+    enabled: false
+
 logging:
   level:
     com.zaxxer.hikari: DEBUG
