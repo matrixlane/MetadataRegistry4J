@@ -57,7 +57,7 @@ public class FhirElement {
     private String shortDescription;
 
     @Lob
-    @Column(columnDefinition = "NVARCHAR(MAX)")
+    @Column
     private String definition;
 
     @Column(name = "binding_value_set", length = 500)

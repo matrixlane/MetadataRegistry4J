@@ -82,3 +82,4 @@ public class MappingSubscription {
         return id == null ? 0 : id.hashCode();
     }
 }
+

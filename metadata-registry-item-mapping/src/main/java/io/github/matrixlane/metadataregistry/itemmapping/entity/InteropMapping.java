@@ -29,7 +29,13 @@ import java.util.UUID;
  * <p>Schema aligns with the {@code interop_mapping} table defined in WI-013-2a.
  */
 @Entity
-@Table(name = "interop_mapping")
+@Table(name = "interop_mapping", uniqueConstraints = {
+        @jakarta.persistence.UniqueConstraint(name = "uq_interop_mapping_pair",
+                columnNames = {"interop_data_element_id", "local_item_id"})
+})
+@org.hibernate.annotations.Check(constraints =
+        "confidence_score >= 0.00 AND confidence_score <= 1.00 "
+                + "AND status IN ('AUTO_MATCHED','PENDING','CONFIRMED','REJECTED')")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -262,3 +268,4 @@ public class InteropMapping {
                 '}';
     }
 }
+

@@ -47,11 +47,11 @@ public class FhirValueSet {
     private String fhirVersion;
 
     @Lob
-    @Column(columnDefinition = "NVARCHAR(MAX)")
+    @Column
     private String description;
 
     @Lob
-    @Column(columnDefinition = "NVARCHAR(MAX)")
+    @Column
     private String purpose;
 
     @Column(nullable = false)

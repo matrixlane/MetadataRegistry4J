@@ -16,6 +16,7 @@ interface LoginResult {
 interface InitWizardStatus {
   initialized: boolean;
   runningMode: string;
+  edition?: string | null;
 }
 
 /** Role hierarchy: higher number = more privileges */
@@ -35,6 +36,7 @@ export const useAuthStore = defineStore('auth', () => {
    * false = system is NOT initialized → must go through init-wizard
    */
   const initialized = ref<boolean | null>(null);
+  const edition = ref<string | null>(null);
 
   const isLoggedIn = computed(() => !!token.value);
   const isAdmin = computed(() => user.value?.sysRole === 'SUPER_ADMIN');
@@ -73,6 +75,7 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       const status = await request.get<InitWizardStatus>('/init-wizard/status');
       initialized.value = status.initialized;
+      edition.value = status.edition ?? null;
       return status.initialized;
     } catch {
       // If the check fails we conservatively treat the system as initialized
@@ -105,8 +108,21 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.removeItem('token');
   }
 
+  /**
+   * Adopt an externally-issued session (e.g. one returned by the init-wizard
+   * setup endpoint) without re-issuing a /auth/login. This is used to keep
+   * the passwordless initialization flow single round-trip.
+   */
+  function adoptSession(payload: { token: string; user: AppUserDto }) {
+    token.value = payload.token;
+    user.value = payload.user;
+    localStorage.setItem('token', payload.token);
+    initialized.value = true;
+  }
+
   return {
     token, user, isLoggedIn, isAdmin, isRegistrar, initialized,
-    hasRole, setInitialized, checkInitialized, login, fetchMe, logout,
+    hasRole, setInitialized, checkInitialized, login, fetchMe, logout, adoptSession,
+    edition,
   };
 });

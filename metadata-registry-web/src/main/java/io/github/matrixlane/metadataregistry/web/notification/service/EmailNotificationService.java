@@ -1,7 +1,7 @@
 package io.github.matrixlane.metadataregistry.web.notification.service;
 
-import io.github.matrixlane.metadataregistry.web.auth.AppUser;
-import io.github.matrixlane.metadataregistry.web.auth.AppUserRepository;
+import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Account;
+import io.github.matrixlane.metadataregistry.web.auth.AccountRepository;
 import io.github.matrixlane.metadataregistry.web.notification.entity.NotificationChannel;
 import io.github.matrixlane.metadataregistry.web.notification.entity.NotificationPreference;
 import io.github.matrixlane.metadataregistry.web.notification.entity.NotificationRecord;
@@ -28,7 +28,7 @@ import java.util.Optional;
 public class EmailNotificationService implements NotificationService {
 
     private final JavaMailSender mailSender;
-    private final AppUserRepository appUserRepository;
+    private final AccountRepository accountRepository;
     private final NotificationRecordRepository notificationRecordRepository;
     private final NotificationPreferenceRepository preferenceRepository;
 
@@ -92,8 +92,13 @@ public class EmailNotificationService implements NotificationService {
     }
 
     private Optional<String> resolveEmail(String recipientId) {
-        return appUserRepository.findByUsername(recipientId)
-                .map(AppUser::getEmail)
-                .filter(e -> !e.isBlank());
+        return accountRepository.findByUsername(recipientId)
+                .map(account -> {
+                    if (account.getIndividual() != null && !account.getIndividual().getEmailAddress().isEmpty()) {
+                        return account.getIndividual().getEmailAddress().get(0).getValue();
+                    }
+                    return null;
+                })
+                .filter(e -> e != null && !e.isBlank());
     }
 }

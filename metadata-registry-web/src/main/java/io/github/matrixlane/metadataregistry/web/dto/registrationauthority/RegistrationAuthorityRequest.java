@@ -8,6 +8,7 @@ import java.util.UUID;
 public record RegistrationAuthorityRequest(
         @NotBlank(message = "name 不能为空")
         String name,
+        String englishName,
         String mailAddress,
         List<String> emailAddress,
         List<String> phoneNumber,

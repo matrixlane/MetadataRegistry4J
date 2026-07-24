@@ -29,6 +29,9 @@ public class LanguageIdentification extends Entity {
 
     private String languageIdentifier;
 
+    @Column(name = "enabled")
+    private Boolean enabled = true;
+
     private String scriptIdentifier;
 
     private String geopoliticalTerritoryIdentifier;

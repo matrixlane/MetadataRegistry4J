@@ -442,6 +442,13 @@ public class MetadataExportService {
     /**
      * 将 AdministeredItem 转换为导出 DTO
      */
+    /**
+     * 公开的条目快照导出（供联邦合并包使用）。
+     */
+    public AdministeredItemExport exportItem(AdministeredItem ai) {
+        return toExport(ai);
+    }
+
     AdministeredItemExport toExport(AdministeredItem ai) {
         Item item = ai.getItem();
         Item realItem = item == null ? null : (Item) Hibernate.unproxy(item);

@@ -38,7 +38,27 @@ const router = useRouter();
 const hasError = ref(false);
 const errorMessage = ref(props.message);
 
-onErrorCaptured((err) => {
+onErrorCaptured((err: any) => {
+  // If this is a force password reset error (498), ignore it to let the dialog handle it
+  const errStr = String(err);
+  const errMessage = err?.message ? String(err.message) : '';
+  const errStatus = err?.response?.status || err?.status || (err?.response?.data as any)?.code;
+
+  const is498 = errStatus === 498 ||
+                errStr.includes('498') ||
+                errMessage.includes('498');
+  if (is498) {
+    return false;
+  }
+
+  // On the login page, authentication failures (401) are already shown by the
+  // request interceptor (ElMessage). Do not render the full error boundary.
+  const is401 = errStatus === 401 ||
+                errStr.includes('401') ||
+                errMessage.includes('401');
+  if (is401 && window.location.pathname === '/login') {
+    return false;
+  }
   hasError.value = true;
   errorMessage.value = err instanceof Error ? err.message : props.message;
   // Prevent the error from bubbling further

@@ -12,7 +12,7 @@
         <el-table-column prop="identifier" label="标识符" width="160" sortable />
         <el-table-column label="名称">
           <template #default="{ row }">
-            {{ row.names?.[0]?.sign || '-' }}
+            {{ row.name || '-' }}
           </template>
         </el-table-column>
         <el-table-column prop="webAddress" label="网站" />
@@ -30,10 +30,10 @@
           <el-input v-model="form.identifier" />
         </el-form-item>
         <el-form-item label="中文名称">
-          <el-input v-model="form.titleZh" />
+          <el-input v-model="form.name" />
         </el-form-item>
         <el-form-item label="英文名称">
-          <el-input v-model="form.titleEn" />
+          <el-input v-model="form.englishName" />
         </el-form-item>
         <el-form-item label="网站">
           <el-input v-model="form.webAddress" />

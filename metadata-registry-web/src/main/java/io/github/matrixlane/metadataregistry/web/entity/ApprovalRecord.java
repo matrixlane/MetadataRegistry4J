@@ -89,3 +89,4 @@ public class ApprovalRecord {
         this.result = ApprovalResult.REJECTED;
     }
 }
+

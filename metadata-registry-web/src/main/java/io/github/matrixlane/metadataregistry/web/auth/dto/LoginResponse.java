@@ -4,9 +4,9 @@ public record LoginResponse(
         String token,
         String tokenType,
         long expiresInSeconds,
-        UserProfileResponse profile) {
+        AccountProfileResponse user) {
 
-    public static LoginResponse of(String token, long expiresInSeconds, UserProfileResponse profile) {
-        return new LoginResponse(token, "Bearer", expiresInSeconds, profile);
+    public static LoginResponse of(String token, long expiresInSeconds, AccountProfileResponse user) {
+        return new LoginResponse(token, "Bearer", expiresInSeconds, user);
     }
 }

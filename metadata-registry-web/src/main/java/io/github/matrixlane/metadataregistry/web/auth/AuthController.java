@@ -3,7 +3,8 @@ package io.github.matrixlane.metadataregistry.web.auth;
 import io.github.matrixlane.metadataregistry.web.auth.dto.ChangePasswordRequest;
 import io.github.matrixlane.metadataregistry.web.auth.dto.LoginRequest;
 import io.github.matrixlane.metadataregistry.web.auth.dto.LoginResponse;
-import io.github.matrixlane.metadataregistry.web.auth.dto.UserProfileResponse;
+import io.github.matrixlane.metadataregistry.web.auth.dto.AccountProfileResponse;
+import io.github.matrixlane.metadataregistry.web.auth.dto.AccountCreateRequest;
 import io.github.matrixlane.metadataregistry.web.common.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -11,10 +12,14 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.GetMapping;
+import io.github.matrixlane.metadataregistry.web.dto.individual.IndividualRequest;
+import io.github.matrixlane.metadataregistry.web.dto.individual.IndividualResponse;
+import io.github.matrixlane.metadataregistry.web.service.SystemSettingService;
 
 @RestController
 @RequestMapping("/api/v1/auth")
@@ -23,6 +28,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 public class AuthController {
 
     private final AuthService authService;
+    private final SystemSettingService systemSettingService;
 
     @PostMapping("/login")
     @Operation(summary = "用户名密码登录，返回 JWT token")
@@ -32,15 +38,54 @@ public class AuthController {
 
     @GetMapping("/me")
     @Operation(summary = "获取当前登录用户信息")
-    public ApiResponse<UserProfileResponse> me(@AuthenticationPrincipal AuthenticatedUser user) {
-        return ApiResponse.ok(authService.profile(user.id()));
+    public ApiResponse<AccountProfileResponse> me(@AuthenticationPrincipal AuthenticatedUser user) {
+        AccountProfileResponse profile = authService.profile(user.id());
+        AccountProfileResponse sessionProfile = new AccountProfileResponse(
+                profile.id(),
+                profile.username(),
+                profile.sysRole(),
+                profile.enabled(),
+                profile.createdAt(),
+                profile.lastLoginAt(),
+                profile.individualId(),
+                profile.isRegistrar(),
+                user.forceChangePassword(),
+                user.emergencyLogin(),
+                user.tempPasswordUsed()
+        );
+        return ApiResponse.ok(sessionProfile);
+    }
+
+    @PostMapping("/register")
+    @Operation(summary = "用户自助注册")
+    public ApiResponse<AccountProfileResponse> register(@Valid @RequestBody AccountCreateRequest request) {
+        return ApiResponse.ok(authService.register(request));
+    }
+
+    @GetMapping("/me/individual")
+    @Operation(summary = "获取当前登录用户的个人信息")
+    public ApiResponse<IndividualResponse> getMyIndividual(@AuthenticationPrincipal AuthenticatedUser user) {
+        return ApiResponse.ok(authService.getMyIndividual(user.id()));
+    }
+
+    @PutMapping("/me/individual")
+    @Operation(summary = "设置或更新当前登录用户的个人信息")
+    public ApiResponse<IndividualResponse> updateMyIndividual(@AuthenticationPrincipal AuthenticatedUser user,
+                                                               @Valid @RequestBody IndividualRequest request) {
+        return ApiResponse.ok(authService.updateMyIndividual(user.id(), request));
     }
 
     @PostMapping("/change-password")
     @Operation(summary = "修改当前用户密码")
     public ApiResponse<Void> changePassword(@AuthenticationPrincipal AuthenticatedUser user,
                                             @Valid @RequestBody ChangePasswordRequest request) {
-        authService.changePassword(user.id(), request);
+        authService.changePassword(user.id(), request, user.emergencyLogin());
         return ApiResponse.ok();
+    }
+
+    @GetMapping("/allow-registration")
+    @Operation(summary = "获取当前系统是否允许自主注册的开关状态")
+    public ApiResponse<Boolean> getAllowRegistration() {
+        return ApiResponse.ok(systemSettingService.isAllowUserRegistration());
     }
 }

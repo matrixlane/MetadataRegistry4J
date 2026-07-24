@@ -1,14 +1,15 @@
 package io.github.matrixlane.metadataregistry.web.controller;
 
 import io.github.matrixlane.metadataregistry.web.common.ApiResponse;
-import io.github.matrixlane.metadataregistry.web.auth.AppUser;
-import io.github.matrixlane.metadataregistry.web.auth.AppUserRole;
-import io.github.matrixlane.metadataregistry.web.auth.JwtService;
 import io.github.matrixlane.metadataregistry.web.dto.version.VersionDiffResponse;
 import io.github.matrixlane.metadataregistry.web.dto.version.VersionHistoryEntryResponse;
 import io.github.matrixlane.metadataregistry.web.dto.version.VersionSnapshotResponse;
 import io.github.matrixlane.metadataregistry.web.entity.VersionHistory;
 import io.github.matrixlane.metadataregistry.web.repository.VersionHistoryRepository;
+import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Account;
+import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.SystemRole;
+import io.github.matrixlane.metadataregistry.web.auth.JwtService;
+import io.github.matrixlane.metadataregistry.web.service.SystemSettingService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -16,11 +17,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.core.ParameterizedTypeReference;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.test.context.ActiveProfiles;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -29,6 +29,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@ActiveProfiles("test")
 class VersionHistoryIntegrationTest {
 
     @Autowired
@@ -40,23 +41,27 @@ class VersionHistoryIntegrationTest {
     @Autowired
     private JwtService jwtService;
 
-    private static final UUID ITEM_ID = UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
+    @Autowired
+    private SystemSettingService systemSettingService;
 
-    // The /api/v1/** endpoints require a JWT; mint an admin token directly
-    // (the JWT filter authenticates from claims, no DB user is needed).
-    private HttpEntity<Void> adminEntity() {
-        AppUser admin = new AppUser();
-        admin.setId(UUID.randomUUID());
-        admin.setUsername("version-history-it");
-        admin.setRole(AppUserRole.ADMIN);
-        admin.setDisplayName("Version History IT");
-        HttpHeaders headers = new HttpHeaders();
-        headers.setBearerAuth(jwtService.generateToken(admin));
-        return new HttpEntity<>(headers);
-    }
+    private static final UUID ITEM_ID = UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
 
     @BeforeEach
     void setUp() {
+        systemSettingService.setInitialized(true);
+
+        Account user = new Account();
+        user.setId(UUID.randomUUID());
+        user.setUsername("admin");
+        user.setSysRole(SystemRole.SUPER_ADMIN);
+        String token = jwtService.generateToken(user);
+
+        restTemplate.getRestTemplate().getInterceptors().clear();
+        restTemplate.getRestTemplate().getInterceptors().add((request, body, execution) -> {
+            request.getHeaders().add("Authorization", "Bearer " + token);
+            return execution.execute(request, body);
+        });
+
         repository.deleteAllByItemId(ITEM_ID);
 
         VersionHistory v1 = VersionHistory.of(ITEM_ID, "DataElement", 1, "CREATE",
@@ -84,7 +89,7 @@ class VersionHistoryIntegrationTest {
         ResponseEntity<ApiResponse<List<VersionHistoryEntryResponse>>> response = restTemplate.exchange(
                 "/api/v1/items/{id}/versions",
                 HttpMethod.GET,
-                adminEntity(),
+                null,
                 new ParameterizedTypeReference<>() {},
                 ITEM_ID);
 
@@ -107,7 +112,7 @@ class VersionHistoryIntegrationTest {
         ResponseEntity<ApiResponse<VersionDiffResponse>> response = restTemplate.exchange(
                 "/api/v1/items/{id}/versions/{versionId}/diff?compareVersionId={compareVersionId}",
                 HttpMethod.GET,
-                adminEntity(),
+                null,
                 new ParameterizedTypeReference<>() {},
                 ITEM_ID, 1, 2);
 
@@ -143,7 +148,7 @@ class VersionHistoryIntegrationTest {
         ResponseEntity<ApiResponse<VersionDiffResponse>> response = restTemplate.exchange(
                 "/api/v1/items/{id}/versions/{versionId}/diff?compareVersionId={compareVersionId}",
                 HttpMethod.GET,
-                adminEntity(),
+                null,
                 new ParameterizedTypeReference<>() {},
                 ITEM_ID, 2, 2);
 
@@ -158,7 +163,7 @@ class VersionHistoryIntegrationTest {
         ResponseEntity<ApiResponse<VersionSnapshotResponse>> response = restTemplate.exchange(
                 "/api/v1/items/{id}/versions/{versionId}/snapshot",
                 HttpMethod.GET,
-                adminEntity(),
+                null,
                 new ParameterizedTypeReference<>() {},
                 ITEM_ID, 2);
 
@@ -178,7 +183,7 @@ class VersionHistoryIntegrationTest {
         ResponseEntity<ApiResponse<Object>> response = restTemplate.exchange(
                 "/api/v1/items/{id}/versions/{versionId}/snapshot",
                 HttpMethod.GET,
-                adminEntity(),
+                null,
                 new ParameterizedTypeReference<>() {},
                 ITEM_ID, 999);
 
@@ -197,7 +202,7 @@ class VersionHistoryIntegrationTest {
         ResponseEntity<ApiResponse<VersionDiffResponse>> response = restTemplate.exchange(
                 "/api/v1/items/{id}/versions/{versionId}/diff?compareVersionId={compareVersionId}",
                 HttpMethod.GET,
-                adminEntity(),
+                null,
                 new ParameterizedTypeReference<>() {},
                 ITEM_ID, 3, 4);
 

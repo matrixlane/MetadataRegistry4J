@@ -4,6 +4,7 @@ import io.github.matrixlane.metadataregistry.web.common.ApiResponse;
 import io.github.matrixlane.metadataregistry.web.common.PageResponse;
 import io.github.matrixlane.metadataregistry.web.dto.contact.ContactRequest;
 import io.github.matrixlane.metadataregistry.web.dto.contact.ContactResponse;
+import io.github.matrixlane.metadataregistry.web.dto.contact.ContactBatchRequest;
 import io.github.matrixlane.metadataregistry.web.service.ContactService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -60,6 +61,13 @@ public class ContactController {
     @Operation(summary = "删除联系人")
     public ApiResponse<Void> delete(@PathVariable UUID id) {
         service.delete(id);
+        return ApiResponse.ok();
+    }
+
+    @PostMapping("/batch")
+    @Operation(summary = "批量配置联系人与角色")
+    public ApiResponse<Void> batchConfigure(@Valid @RequestBody ContactBatchRequest request) {
+        service.batchConfigure(request);
         return ApiResponse.ok();
     }
 }

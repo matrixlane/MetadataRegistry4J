@@ -15,6 +15,8 @@ import io.github.matrixlane.metadataregistry.web.repository.NamespaceRepository;
 import io.github.matrixlane.metadataregistry.web.repository.OrganizationRepository;
 import io.github.matrixlane.metadataregistry.web.service.namespace.NamespaceConstraintValidator;
 import io.github.matrixlane.metadataregistry.web.util.ItemNamingHelper;
+import io.github.matrixlane.metadataregistry.web.dto.namespace.DeletionCheckResponse;
+import io.github.matrixlane.metadataregistry.web.dto.namespace.ExternalNamespaceRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -285,4 +287,40 @@ public class NamespaceService {
                 parentLabel,
                 calculateDepth(entity));
     }
+
+    private void validateNamingAuthorityRequired(UUID namingAuthorityId) {
+        if (namingAuthorityId == null) {
+            throw new BusinessException(ApiCodes.VALIDATION_FAILED,
+                    "NamingAuthority is required when creating Namespace");
+        }
+    }public DeletionCheckResponse checkDeletion(UUID id) {
+        Namespace ns = loadOrThrow(id);
+        int scopedIdentifierCount = ns.getScopedIdentifiers().size();
+        boolean hasIdentifiers = scopedIdentifierCount > 0;
+        return new DeletionCheckResponse(hasIdentifiers, scopedIdentifierCount,
+                "Namespace has " + scopedIdentifierCount + " associated scoped identifier(s).");
+    }public NamespaceResponse createExternal(ExternalNamespaceRequest request) {
+        Organization org = null;
+        if (request.organizationId() != null) {
+            org = organizationRepository.findById(request.organizationId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Organization", request.organizationId()));
+        } else if (request.newOrganizationName() != null && !request.newOrganizationName().isBlank()) {
+            org = new Organization();
+            org.getName().add(Sign.of(request.newOrganizationName()));
+            org = organizationRepository.save(org);
+        } else {
+            throw new BusinessException(ApiCodes.VALIDATION_FAILED, "必须提供已有组织ID或者新组织名称");
+        }
+
+        Namespace entity = new Namespace();
+        entity.setRegistrationAuthority(null);
+        entity.setNamingAuthority(org.getName().isEmpty() ? "" : org.getName().get(0).getValue());
+
+        itemAdministrationService.applyDesignations(entity, request.designations());
+        itemAdministrationService.applyDefinitions(entity, request.definitions());
+
+        Namespace saved = repository.save(entity);
+        return toResponse(saved);
+    }
 }
+

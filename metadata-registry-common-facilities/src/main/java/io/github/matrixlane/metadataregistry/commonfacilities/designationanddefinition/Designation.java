@@ -21,6 +21,10 @@ import java.util.ArrayList;
 import java.util.List;
 
 @jakarta.persistence.Entity
+@jakarta.persistence.Table(name = "designation", indexes = {
+        @jakarta.persistence.Index(name = "idx_designation_item_id", columnList = "item_id"),
+        @jakarta.persistence.Index(name = "idx_designation_language_id", columnList = "language_id")
+})
 @Getter
 @Setter
 @NoArgsConstructor

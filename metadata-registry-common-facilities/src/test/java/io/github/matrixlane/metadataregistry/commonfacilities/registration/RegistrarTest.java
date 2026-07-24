@@ -1,6 +1,6 @@
 package io.github.matrixlane.metadataregistry.commonfacilities.registration;
 
-import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.User;
+import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Account;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -22,10 +22,10 @@ class RegistrarTest {
     }
 
     @Test
-    void shouldSetUser() {
+    void shouldSetAccount() {
         Registrar registrar = new Registrar();
-        User user = new User();
-        registrar.setUser(user);
-        assertThat(registrar.getUser()).isEqualTo(user);
+        Account account = new Account();
+        registrar.setAccount(account);
+        assertThat(registrar.getAccount()).isEqualTo(account);
     }
 }
