@@ -21,11 +21,11 @@
             <groupId>jakarta.annotation</groupId>
             <artifactId>jakarta.annotation-api</artifactId>
         </dependency>
-         <dependency>
-             <groupId>org.projectlombok</groupId>
-             <artifactId>lombok</artifactId>
-             <scope>provided</scope>
-         </dependency>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <scope>provided</scope>
+        </dependency>
 
         <!-- Compile-time only: Hibernate annotations used by entities (e.g. @BatchSize) -->
         <dependency>
@@ -33,8 +33,8 @@
             <artifactId>hibernate-core</artifactId>
             <scope>provided</scope>
         </dependency>
- 
-         <!-- Test dependencies -->
+
+        <!-- Test dependencies -->
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>

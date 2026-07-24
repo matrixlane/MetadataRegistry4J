@@ -501,6 +501,7 @@ class ApprovalServiceTest {
         ApprovalRecord record = createPendingRecord();
         item.setRegistrationState(createState(RegistrationStatus.INCOMPLETE));
         // INCOMPLETE → SUBMITTED → RECORDED → QUALIFIED → STANDARD
+        item.setRegistrationState(createState(RegistrationStatus.INCOMPLETE));
 
         when(approvalRecordRepository.findById(recordId)).thenReturn(Optional.of(record));
         when(administeredItemRepository.findById(itemId)).thenReturn(Optional.of(item));

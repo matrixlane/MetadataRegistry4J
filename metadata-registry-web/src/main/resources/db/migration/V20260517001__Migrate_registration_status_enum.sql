@@ -1,5 +1,9 @@
 -- WI-019: Migration script for RegistrationStatus enum alignment with ISO/IEC 11179-6:2023
 -- Migrates legacy status values to new standard values.
+-- All statements are qualified with dbo: the application tables live in the
+-- connection's default schema (dbo). Unqualified references break when legacy
+-- tables with the same name exist in another schema (e.g. mdr), because
+-- INFORMATION_SCHEMA matches across schemas while DML resolves to dbo.
 --
 -- Mappings:
 --   COMPATIBLE → INCOMPLETE  (legacy value had no ISO 11179-6 meaning; treated as incomplete draft)
@@ -15,22 +19,23 @@
 -- ============================================================
 IF EXISTS (
     SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
-    WHERE TABLE_NAME = 'registration_state'
+    WHERE TABLE_SCHEMA = 'dbo'
+      AND TABLE_NAME = 'registration_state'
       AND COLUMN_NAME = 'registration_status'
       AND DATA_TYPE LIKE '%char%'
 )
 BEGIN
     UPDATE rs
     SET rs.registration_status = 'INCOMPLETE'
-    FROM registration_state rs
+    FROM dbo.registration_state rs
     WHERE rs.registration_status = 'COMPATIBLE';
 
     -- Log affected rows (for debugging/verification)
     DECLARE @compat_count INT;
     SELECT @compat_count = COUNT(*)
-    FROM registration_state
+    FROM dbo.registration_state
     WHERE registration_status = 'INCOMPLETE'
-      AND id IN (SELECT id FROM registration_state WHERE registration_status = 'COMPATIBLE');
+      AND id IN (SELECT id FROM dbo.registration_state WHERE registration_status = 'COMPATIBLE');
 END
 
 -- ============================================================
@@ -38,14 +43,15 @@ END
 -- ============================================================
 IF EXISTS (
     SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
-    WHERE TABLE_NAME = 'registration_state'
+    WHERE TABLE_SCHEMA = 'dbo'
+      AND TABLE_NAME = 'registration_state'
       AND COLUMN_NAME = 'registration_status'
       AND DATA_TYPE LIKE '%char%'
 )
 BEGIN
     UPDATE rs
     SET rs.registration_status = 'PREFERRED'
-    FROM registration_state rs
+    FROM dbo.registration_state rs
     WHERE rs.registration_status = 'PREFERRED_STANDARD';
 END
 
@@ -55,14 +61,15 @@ END
 -- ============================================================
 IF EXISTS (
     SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
-    WHERE TABLE_NAME = 'registration_state'
+    WHERE TABLE_SCHEMA = 'dbo'
+      AND TABLE_NAME = 'registration_state'
       AND COLUMN_NAME = 'registration_status'
       AND DATA_TYPE LIKE '%char%'
 )
 BEGIN
     UPDATE rs
     SET rs.registration_status = 'SUBMITTED'
-    FROM registration_state rs
+    FROM dbo.registration_state rs
     WHERE rs.registration_status = 'CANDIDATE';
 END
 
@@ -72,14 +79,15 @@ END
 -- ============================================================
 IF EXISTS (
     SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
-    WHERE TABLE_NAME = 'registration_state'
+    WHERE TABLE_SCHEMA = 'dbo'
+      AND TABLE_NAME = 'registration_state'
       AND COLUMN_NAME = 'registration_status'
       AND DATA_TYPE LIKE '%char%'
 )
 BEGIN
     UPDATE rs
     SET rs.registration_status = 'SUBMITTED'
-    FROM registration_state rs
+    FROM dbo.registration_state rs
     WHERE rs.registration_status = 'APPLICATION';
 END
 
@@ -89,14 +97,15 @@ END
 -- ============================================================
 IF EXISTS (
     SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
-    WHERE TABLE_NAME = 'registration_state'
+    WHERE TABLE_SCHEMA = 'dbo'
+      AND TABLE_NAME = 'registration_state'
       AND COLUMN_NAME = 'registration_status'
       AND DATA_TYPE LIKE '%char%'
 )
 BEGIN
     DECLARE @unmigrated INT;
     SELECT @unmigrated = COUNT(*)
-    FROM registration_state
+    FROM dbo.registration_state
     WHERE registration_status NOT IN (
         'INCOMPLETE', 'SUBMITTED', 'RECORDED', 'QUALIFIED',
         'STANDARD', 'PREFERRED', 'SUPERSEDED', 'RETIRED', 'HISTORICAL'

@@ -43,6 +43,9 @@ class ScopedIdentifierConcurrencyIntegrationTest {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
+    @Autowired
+    private javax.sql.DataSource dataSource;
+
     private UUID namespaceId;
     private UUID identifiedItemId;
     private static final String CONCURRENT_IDENTIFIER = "concurrent-test-id";
@@ -61,11 +64,19 @@ class ScopedIdentifierConcurrencyIntegrationTest {
 
     @AfterEach
     void tearDown() {
-        // Delete version history first due to FK constraint
-        jdbcTemplate.update("DELETE FROM identifier_version_history WHERE scoped_identifier_id IN (SELECT id FROM scoped_identifier WHERE identifier = ?)", CONCURRENT_IDENTIFIER);
-        jdbcTemplate.update("DELETE FROM identifier_version_history WHERE scoped_identifier_id IN (SELECT id FROM scoped_identifier WHERE identifier LIKE 'concurrent-unique-%')");
-        jdbcTemplate.update("DELETE FROM scoped_identifier WHERE identifier = ?", CONCURRENT_IDENTIFIER);
-        jdbcTemplate.update("DELETE FROM scoped_identifier WHERE identifier LIKE 'concurrent-unique-%'");
+        // Delete version history first due to FK constraint.
+        // NOTE: the pool is configured with auto-commit=false (application-local.yml)
+        // while Hibernate assumes provider_disables_autocommit, so bare JdbcTemplate
+        // updates would stay uncommitted and be rolled back on connection return.
+        // Run cleanup inside an explicit transaction to be independent of that.
+        new org.springframework.transaction.support.TransactionTemplate(
+                new org.springframework.jdbc.datasource.DataSourceTransactionManager(dataSource))
+                .executeWithoutResult(status -> {
+                    jdbcTemplate.update("DELETE FROM identifier_version_history WHERE scoped_identifier_id IN (SELECT id FROM scoped_identifier WHERE identifier = ?)", CONCURRENT_IDENTIFIER);
+                    jdbcTemplate.update("DELETE FROM identifier_version_history WHERE scoped_identifier_id IN (SELECT id FROM scoped_identifier WHERE identifier LIKE 'concurrent-unique-%')");
+                    jdbcTemplate.update("DELETE FROM scoped_identifier WHERE identifier = ?", CONCURRENT_IDENTIFIER);
+                    jdbcTemplate.update("DELETE FROM scoped_identifier WHERE identifier LIKE 'concurrent-unique-%'");
+                });
     }
 
     @Test
@@ -93,7 +104,12 @@ class ScopedIdentifierConcurrencyIntegrationTest {
         }
 
         executor.shutdown();
-        assertThat(executor.awaitTermination(30, TimeUnit.SECONDS)).isTrue();
+        // Worker threads must fully finish before assertions/cleanup, otherwise
+        // in-flight INSERTs race with tearDown DELETEs and cause FK violations.
+        assertThat(executor.awaitTermination(120, TimeUnit.SECONDS)).isTrue();
+        for (Future<Boolean> f : futures) {
+            assertThat(f).succeedsWithin(java.time.Duration.ofSeconds(1));
+        }
 
         long successCount = futures.stream()
                 .map(f -> {
@@ -139,7 +155,12 @@ class ScopedIdentifierConcurrencyIntegrationTest {
         }
 
         executor.shutdown();
-        assertThat(executor.awaitTermination(30, TimeUnit.SECONDS)).isTrue();
+        // See note above: on SQL Server, concurrent INSERTs against the same
+        // unique-index region serialize on lock waits, which can exceed 30s.
+        assertThat(executor.awaitTermination(120, TimeUnit.SECONDS)).isTrue();
+        for (Future<Boolean> f : futures) {
+            assertThat(f).succeedsWithin(java.time.Duration.ofSeconds(1));
+        }
 
         long successCount = futures.stream()
                 .map(f -> {
