@@ -1,3 +1,5 @@
+**Note (2026-07-27)**: `IdentifierType` 概念已在本变更 `cleanup-identifier-type-and-simplify-strategy-routing` 中清理。LOINC/SNOMED CT 等代码集应以 `Namespace` 表达，而非 `IdentifierType` 枚举值。
+
 ## Context
 
 系统目前已在 `common-facilities` 模块中支持复杂的标识符生成机制（如基于自增序列 `SEQUENCE` 或模板 `TEMPLATE` 的生成策略 `IdentifierStrategyConfigService`），但在业务元数据项（如 DataElement）创建和注册逻辑中，均是硬编码式地要求手动输入，或仅使用了较简单的全局 `IdentifierGenerationService` 默认逻辑。

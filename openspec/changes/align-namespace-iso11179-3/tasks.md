@@ -55,6 +55,6 @@
 - [x] 7.6 编写 `specs/naming-convention-management/spec.md`。
 
 ### 8. 可选后续（不在本次范围）
-- [ ] 8.1 前端表单增加 Namespace 治理属性输入字段。
+- [x] 8.1 前端表单增加 Namespace 治理属性输入字段。
 - [ ] 8.2 将 `NamingConvention` 的自然语言规则与 `NamingConventionEngine` 的机器可执行规则对接。
 - [ ] 8.3 批量导入场景下提供 `skipNamespaceValidation` 开关以提升性能。

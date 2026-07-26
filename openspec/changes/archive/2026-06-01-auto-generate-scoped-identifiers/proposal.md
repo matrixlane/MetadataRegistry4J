@@ -1,3 +1,5 @@
+**Note (2026-07-27)**: `IdentifierType` 概念已在本变更 `cleanup-identifier-type-and-simplify-strategy-routing` 中清理。LOINC/SNOMED CT 等代码集应以 `Namespace` 表达，而非 `IdentifierType` 枚举值。
+
 ## Why
 
 目前注册表标识符的唯一标识必须由用户手动输入，系统虽然预留了标识符生成策略的配置，但并未在元数据项创建/更新流程中集成该自动生成功能。对于本地元数据，自动生成可以显著提高注册效率，避免手动输入带来的编码冲突；而对于外部标准元数据，则依然支持手动录入以维持其原有的外部标识。

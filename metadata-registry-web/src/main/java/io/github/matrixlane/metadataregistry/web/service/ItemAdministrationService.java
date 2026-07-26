@@ -311,9 +311,6 @@ public class ItemAdministrationService {
             if (identifier == null) {
                 identifier = ns.getShorthandPrefix();
             }
-            if (registrationStatus == null) {
-                registrationStatus = mapNamespaceStatus(ns.getNamespaceStatus());
-            }
         }
 
         return new ItemMetaResponse(
@@ -327,18 +324,6 @@ public class ItemAdministrationService {
                 version,
                 registrationStatus,
                 administeredItemId);
-    }
-
-    private RegistrationStatus mapNamespaceStatus(io.github.matrixlane.metadataregistry.commonfacilities.identification.NamespaceStatus status) {
-        if (status == null) return null;
-        switch (status) {
-            case DRAFT: return RegistrationStatus.INCOMPLETE;
-            case SUBMITTED: return RegistrationStatus.SUBMITTED;
-            case ACTIVE: return RegistrationStatus.STANDARD;
-            case DEPRECATED: return RegistrationStatus.RETIRED;
-            case OBSOLETE: return RegistrationStatus.HISTORICAL;
-            default: return null;
-        }
     }
 
     public List<TextLineResponse> mapDesignations(Item item) {

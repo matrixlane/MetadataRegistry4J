@@ -186,7 +186,7 @@ public class InitWizardService {
             ns.getDesignations().add(d);
 
             ns.setRegistrationAuthority(ra);
-            ns.setNamingAuthority(raName);
+            ns.setNamingAuthority(ra);
 
             Namespace nsSaved = namespaceRepository.save(ns);
 
@@ -196,16 +196,15 @@ public class InitWizardService {
 
         // 3.5 Create registry specification if checked
         if (createSpec) {
-            RegistrySpecification spec = new RegistrySpecification();
-            spec.setRegistryName(registryName != null ? registryName : "默认元数据注册表");
-            spec.setIdentifierPrefix(request.identifierPrefix());
-            spec.setAutoGenerateIdentifier(request.autoGenerateIdentifier() != null ? request.autoGenerateIdentifier() : true);
-            spec.setIdentifierPattern(request.identifierPattern());
-            spec.setVersioningPolicy(request.versioningPolicy() != null ? request.versioningPolicy() : "SEMVER");
-            spec.setMandatoryClassification(request.mandatoryClassification() != null ? request.mandatoryClassification() : false);
-            spec.setDefaultLanguage(request.defaultLanguage() != null ? request.defaultLanguage() : "zh-CN");
-            spec.setDescription(request.registryDescription());
-            registrySpecificationService.create(spec);
+            registrySpecificationService.createDefault(
+                    registryName,
+                    request.identifierPrefix(),
+                    request.autoGenerateIdentifier(),
+                    request.identifierPattern(),
+                    request.versioningPolicy(),
+                    request.mandatoryClassification(),
+                    request.defaultLanguage(),
+                    request.registryDescription());
         }
 
         // 3.6 Initialize languages and system default namespace
