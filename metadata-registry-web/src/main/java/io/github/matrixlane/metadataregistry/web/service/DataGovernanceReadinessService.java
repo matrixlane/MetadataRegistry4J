@@ -172,12 +172,13 @@ public class DataGovernanceReadinessService {
 
     private ReadinessChecklist buildChecklist(UUID namespaceId,
                                               boolean raExists,
+                                              boolean specExists,
                                               boolean nsExists,
                                               boolean nsActive,
                                               boolean ncValid,
                                               boolean userHasPermission,
                                               List<String> missing) {
-        return new ReadinessChecklist(namespaceId, raExists, nsExists, nsActive,
+        return new ReadinessChecklist(namespaceId, raExists, specExists, nsExists, nsActive,
                 ncValid, userHasPermission, missing);
     }
 }

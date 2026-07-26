@@ -1,6 +1,7 @@
 package io.github.matrixlane.metadataregistry.web.service;
 
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Organization;
+import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.Sign;
 import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.NamingConvention;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace;
 import io.github.matrixlane.metadataregistry.web.common.ApiCodes;
@@ -314,7 +315,7 @@ public class NamespaceService {
 
         Namespace entity = new Namespace();
         entity.setRegistrationAuthority(null);
-        entity.setNamingAuthority(org.getName().isEmpty() ? "" : org.getName().get(0).getValue());
+        entity.setNamingAuthority(org);
 
         itemAdministrationService.applyDesignations(entity, request.designations());
         itemAdministrationService.applyDefinitions(entity, request.definitions());

@@ -42,29 +42,65 @@ public class RegistrySpecificationService {
         return toResponse(loadOrThrow(id));
     }
 
-    public RegistrySpecificationResponse create(RegistrySpecificationRequest request) {
-        RegistrySpecification entity = new RegistrySpecification();
-        applyRequest(entity, request);
-        return toResponse(repository.save(entity));
-    }
+   public RegistrySpecificationResponse create(RegistrySpecificationRequest request) {
+       RegistrySpecification entity = new RegistrySpecification();
+       applyRequest(entity, request);
+       return toResponse(repository.save(entity));
+   }
 
-    public RegistrySpecificationResponse update(UUID id, RegistrySpecificationRequest request) {
+   public RegistrySpecificationResponse update(UUID id, RegistrySpecificationRequest request) {
         RegistrySpecification entity = loadOrThrow(id);
         applyRequest(entity, request);
         return toResponse(repository.save(entity));
     }
 
-    public void delete(UUID id) {
-        if (!repository.existsById(id)) {
-            throw new ResourceNotFoundException("RegistrySpecification", id);
-        }
-        repository.deleteById(id);
+   public void delete(UUID id) {
+       if (!repository.existsById(id)) {
+           throw new ResourceNotFoundException("RegistrySpecification", id);
+       }
+       repository.deleteById(id);
+   }
+
+    @Transactional(readOnly = true)
+    public boolean exists() {
+        return repository.count() > 0;
     }
 
-    private RegistrySpecification loadOrThrow(UUID id) {
-        return repository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("RegistrySpecification", id));
+    public RegistrySpecificationResponse createDefault(String registryName,
+                                                     String identifierPrefix,
+                                                     Boolean autoGenerateIdentifier,
+                                                     String identifierPattern,
+                                                     String versioningPolicy,
+                                                     Boolean mandatoryClassification,
+                                                     String defaultLanguage,
+                                                     String description) {
+        RegistrySpecificationRequest request = new RegistrySpecificationRequest(
+                registryName != null ? registryName : "默认元数据注册表",
+                description,
+                null,
+                null,
+                null,
+                "UTF-8",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "UTC+8",
+                List.of(new io.github.matrixlane.metadataregistry.web.dto.common.TextLine(null, registryName, null, null)),
+                null,
+                null);
+        return create(request);
     }
+
+   private RegistrySpecification loadOrThrow(UUID id) {
+       return repository.findById(id)
+               .orElseThrow(() -> new ResourceNotFoundException("RegistrySpecification", id));
+   }
 
     private void applyRequest(RegistrySpecification entity, RegistrySpecificationRequest request) {
         entity.setName(request.name());

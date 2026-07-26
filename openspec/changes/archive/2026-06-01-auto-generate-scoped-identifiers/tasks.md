@@ -1,3 +1,5 @@
+**Note (2026-07-27)**: `IdentifierType` 概念已在本变更 `cleanup-identifier-type-and-simplify-strategy-routing` 中清理。LOINC/SNOMED CT 等代码集应以 `Namespace` 表达，而非 `IdentifierType` 枚举值。
+
 ## 1. 后端基础设施实现 (Backend Infrastructure)
 
 - [x] 1.1 创建 `IdentifierStrategyConfigRepository` 以从数据库查询有效的策略配置
