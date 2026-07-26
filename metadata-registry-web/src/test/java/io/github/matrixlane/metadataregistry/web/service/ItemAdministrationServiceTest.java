@@ -6,7 +6,6 @@ import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefi
 import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.Designation;
 import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.Definition;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifierStrategyConfigService;
-import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifierType;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.AdministeredItem;
 import io.github.matrixlane.metadataregistry.web.common.BusinessException;
@@ -182,7 +181,7 @@ class ItemAdministrationServiceTest {
         Namespace ns = new Namespace();
         ns.setId(namespaceId);
         when(namespaceRepository.findById(namespaceId)).thenReturn(Optional.of(ns));
-        when(identifierStrategyConfigService.generateIdentifier(eq(ns), eq(IdentifierType.INTERNAL), any()))
+        when(identifierStrategyConfigService.generateIdentifier(eq(ns), any()))
                 .thenReturn("AUTO-999");
 
         ItemRegistrationRequest req = new ItemRegistrationRequest(
@@ -194,7 +193,7 @@ class ItemAdministrationServiceTest {
         assertThat(ai).isNotNull();
         assertThat(ai.getScopedIdentifiers()).hasSize(1);
         assertThat(ai.getScopedIdentifiers().get(0).getIdentifier()).isEqualTo("AUTO-999");
-        verify(identifierStrategyConfigService).generateIdentifier(eq(ns), eq(IdentifierType.INTERNAL), any());
+        verify(identifierStrategyConfigService).generateIdentifier(eq(ns), any());
     }
 
     @jakarta.persistence.Entity

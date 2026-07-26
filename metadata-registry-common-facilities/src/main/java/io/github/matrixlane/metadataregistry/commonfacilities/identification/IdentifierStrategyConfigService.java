@@ -1,10 +1,10 @@
 package io.github.matrixlane.metadataregistry.commonfacilities.identification;
 
 /**
- * WI-028-B: Service layer for identifier generation and strategy management.
+ * Service layer for identifier generation and strategy management.
  *
  * <p>This service provides the main entry point for generating scoped identifiers
- * with type-driven strategy selection. It coordinates:
+ * with namespace-driven strategy selection. It coordinates:
  * <ul>
  *   <li>Strategy resolution via IdentifierGenerationStrategyRegistry</li>
  *   <li>Sequence allocation for SequenceGenerationStrategy</li>
@@ -25,7 +25,7 @@ public class IdentifierStrategyConfigService {
         private long sequenceCounter = 0;
 
         @Override
-        public synchronized long getNextValue(Namespace namespace, IdentifierType identifierType,
+        public synchronized long getNextValue(Namespace namespace,
                                               long start, int increment, int pad, String prefix) {
             if (sequenceCounter == 0) {
                 sequenceCounter = start;
@@ -51,16 +51,14 @@ public class IdentifierStrategyConfigService {
     }
 
     /**
-     * Generates a new identifier for the given namespace and type.
+     * Generates a new identifier for the given namespace.
      *
      * @param namespace the namespace context (may be null for global defaults)
-     * @param identifierType the type of identifier to generate
      * @param context optional generation context (for sequence/template strategies)
      * @return the generated identifier string
      */
-    public String generateIdentifier(Namespace namespace, IdentifierType identifierType,
-                                    GenerationContext context) {
-        IdentifierGenerationStrategy strategy = registry.resolve(namespace, identifierType);
+    public String generateIdentifier(Namespace namespace, GenerationContext context) {
+        IdentifierGenerationStrategy strategy = registry.resolve(namespace);
         String strategyType = strategy.getType();
 
         switch (strategyType) {
@@ -71,10 +69,10 @@ public class IdentifierStrategyConfigService {
                 return strategy.generate(namespace);
 
             case "SEQUENCE":
-                return generateSequenceIdentifier(namespace, identifierType, context);
+                return generateSequenceIdentifier(namespace, context);
 
             case "TEMPLATE":
-                return generateTemplateIdentifier(namespace, identifierType, context);
+                return generateTemplateIdentifier(namespace, context);
 
             default:
                 System.out.println("[IdentifierStrategyConfigService] Unknown strategy type '"
@@ -91,7 +89,6 @@ public class IdentifierStrategyConfigService {
      * that handles database-level locking.
      */
     private synchronized String generateSequenceIdentifier(Namespace namespace,
-                                                           IdentifierType identifierType,
                                                            GenerationContext context) {
         if (namespace == null) {
             System.out.println("[IdentifierStrategyConfigService] Namespace is null for SEQUENCE strategy, falling back to UUID");
@@ -99,7 +96,7 @@ public class IdentifierStrategyConfigService {
         }
 
         // Get the sequence config from the strategy config
-        IdentifierStrategyConfig config = resolveStrategyConfig(namespace, identifierType);
+        IdentifierStrategyConfig config = resolveStrategyConfig(namespace);
 
         SequenceGenerationStrategy.Config seqConfig =
                 SequenceGenerationStrategy.Config.fromJson(config != null ? config.getConfigJson() : null);
@@ -109,7 +106,7 @@ public class IdentifierStrategyConfigService {
         int pad = seqConfig != null ? seqConfig.getPad() : 6;
         String prefix = seqConfig != null ? seqConfig.resolvePrefix() : "";
 
-        long nextSeq = sequenceProvider.getNextValue(namespace, identifierType, start, increment, pad, prefix);
+        long nextSeq = sequenceProvider.getNextValue(namespace, start, increment, pad, prefix);
 
         String paddedSeq = String.format("%0" + pad + "d", nextSeq);
 
@@ -120,9 +117,8 @@ public class IdentifierStrategyConfigService {
      * Generates a template-based identifier.
      */
     private String generateTemplateIdentifier(Namespace namespace,
-                                               IdentifierType identifierType,
                                                GenerationContext context) {
-        IdentifierStrategyConfig config = resolveStrategyConfig(namespace, identifierType);
+        IdentifierStrategyConfig config = resolveStrategyConfig(namespace);
         TemplateGenerationStrategy.Config tmplConfig =
                 TemplateGenerationStrategy.Config.fromJson(config != null ? config.getConfigJson() : null);
 
@@ -140,22 +136,14 @@ public class IdentifierStrategyConfigService {
     }
 
     /**
-     * Resolves the effective strategy config for (namespace, type).
+     * Resolves the effective strategy config for the given namespace.
      */
-    private IdentifierStrategyConfig resolveStrategyConfig(Namespace namespace, IdentifierType identifierType) {
+    private IdentifierStrategyConfig resolveStrategyConfig(Namespace namespace) {
         if (namespace != null && namespace.getId() != null) {
-            // Try namespace+type specific
-            IdentifierStrategyConfig nsTypeConfig = registry.resolveNamespaceTypeConfig(
-                    namespace.getId(), identifierType);
-            if (nsTypeConfig != null) return nsTypeConfig;
-
-            // Try namespace default
-            IdentifierStrategyConfig nsDefault = registry.resolveNamespaceDefault(namespace.getId());
-            if (nsDefault != null) return nsDefault;
+            IdentifierStrategyConfig nsConfig = registry.resolveNamespaceConfig(namespace.getId());
+            if (nsConfig != null) return nsConfig;
         }
-
-        // Try global default
-        return registry.resolveGlobalDefault(identifierType);
+        return registry.resolveGlobalDefault();
     }
 
     /**

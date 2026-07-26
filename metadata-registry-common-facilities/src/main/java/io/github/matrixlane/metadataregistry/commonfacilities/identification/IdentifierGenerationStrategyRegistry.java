@@ -1,22 +1,20 @@
 package io.github.matrixlane.metadataregistry.commonfacilities.identification;
 
-import java.util.EnumMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * WI-028-B: Global registry for identifier generation strategies.
+ * Global registry for identifier generation strategies.
  *
- * <p>Provides (Namespace, IdentifierType) routing with priority:
+ * <p>Provides Namespace-based routing with priority:
  * <ol>
- *   <li>Namespace + Type specific strategy (highest priority)</li>
- *   <li>Namespace default strategy (any type fallback)</li>
- *   <li>Global default strategy (lowest priority)</li>
+ *   <li>Namespace-specific strategy (highest priority)</li>
+ *   <li>Global default strategy (fallback)</li>
  * </ol>
  *
  * <p>Supports runtime registration of strategies.
- * Built-in strategies (UUID, URN) are registered by default.
+ * Built-in strategies (UUID, URN, SEQUENCE, TEMPLATE) are registered by default.
  *
  * <p>Thread-safe for concurrent reads; write operations (register/clear) are synchronized.
  */
@@ -30,22 +28,15 @@ public class IdentifierGenerationStrategyRegistry {
     private final Map<String, IdentifierGenerationStrategy> strategies = new ConcurrentHashMap<>();
 
     /**
-     * Per-type cache of the global default strategy config.
-     * Key: IdentifierType.name()
+     * Global default strategy config (single fallback for all namespaces).
      */
-    private final Map<IdentifierType, IdentifierStrategyConfig> globalDefaults = new EnumMap<>(IdentifierType.class);
+    private volatile IdentifierStrategyConfig globalDefault;
 
     /**
-     * Namespace-specific default configs.
+     * Namespace-specific strategy configs.
      * Key: namespace.getId()
      */
-    private final Map<UUID, IdentifierStrategyConfig> namespaceDefaults = new ConcurrentHashMap<>();
-
-    /**
-     * (Namespace, Type) specific configs.
-     * Key: namespaceId * 100 + type.ordinal() (composite key)
-     */
-    private final Map<CompositeKey, IdentifierStrategyConfig> namespaceTypeConfigs = new ConcurrentHashMap<>();
+    private final Map<UUID, IdentifierStrategyConfig> namespaceConfigs = new ConcurrentHashMap<>();
 
     private IdentifierGenerationStrategyRegistry() {
         registerBuiltInStrategies();
@@ -89,47 +80,31 @@ public class IdentifierGenerationStrategyRegistry {
     }
 
     /**
-     * Resolves the effective strategy for the given namespace and identifier type.
+     * Resolves the effective strategy for the given namespace.
      *
      * <p>Resolution order:
-     * 1. (Namespace, Type) specific config → 2. Namespace default config → 3. Global default
+     * 1. Namespace-specific config → 2. Global default config → 3. UUID strategy
      *
      * @param namespace the namespace context (may be null for global resolution)
-     * @param identifierType the identifier type
      * @return the resolved IdentifierGenerationStrategy (never null; falls back to UUID)
      */
-    public IdentifierGenerationStrategy resolve(Namespace namespace, IdentifierType identifierType) {
-        if (identifierType == null) {
-            identifierType = IdentifierType.INTERNAL;
-        }
-
-        // Try (namespace, type) specific config
-        UUID nsId = namespace != null ? namespace.getId() : null;
-        if (nsId != null) {
-            IdentifierStrategyConfig nsTypeConfig = namespaceTypeConfigs.get(
-                    new CompositeKey(nsId, identifierType));
-            if (nsTypeConfig != null && nsTypeConfig.isEffective()) {
-                return getStrategyInstance(nsTypeConfig.getStrategyType());
+    public IdentifierGenerationStrategy resolve(Namespace namespace) {
+        // Try namespace-specific config
+        if (namespace != null && namespace.getId() != null) {
+            IdentifierStrategyConfig nsConfig = namespaceConfigs.get(namespace.getId());
+            if (nsConfig != null && nsConfig.isEffective()) {
+                return getStrategyInstance(nsConfig.getStrategyType());
             }
         }
 
-        // Try namespace default config
-        if (nsId != null) {
-            IdentifierStrategyConfig nsDefault = namespaceDefaults.get(nsId);
-            if (nsDefault != null && nsDefault.isEffective()) {
-                return getStrategyInstance(nsDefault.getStrategyType());
-            }
-        }
-
-        // Try global default for this type
-        IdentifierStrategyConfig globalDefault = globalDefaults.get(identifierType);
+        // Try global default config
         if (globalDefault != null && globalDefault.isEffective()) {
             return getStrategyInstance(globalDefault.getStrategyType());
         }
 
         // Ultimate fallback: UUID
         System.out.println("[IdentifierGenerationStrategyRegistry] No config found for namespace="
-                + (namespace != null ? namespace.getId() : "null") + ", type=" + identifierType
+                + (namespace != null ? namespace.getId() : "null")
                 + ". Falling back to UUIDStrategy.");
         return strategies.get("UUID");
     }
@@ -153,34 +128,21 @@ public class IdentifierGenerationStrategyRegistry {
     // --- Configuration management (for repository/service layer) ---
 
     /**
-     * Sets the global default strategy config for a given type.
+     * Sets the global default strategy config.
      * Called by the service layer when loading configs from DB.
      */
-    public void setGlobalDefault(IdentifierType identifierType, IdentifierStrategyConfig config) {
-        if (config != null) {
-            globalDefaults.put(identifierType, config);
-        }
+    public void setGlobalDefault(IdentifierStrategyConfig config) {
+        this.globalDefault = config;
     }
 
     /**
-     * Sets a namespace default strategy config.
+     * Sets a namespace-specific strategy config.
      */
-    public void setNamespaceDefault(UUID namespaceId, IdentifierStrategyConfig config) {
+    public void setNamespaceConfig(UUID namespaceId, IdentifierStrategyConfig config) {
         if (config != null) {
-            namespaceDefaults.put(namespaceId, config);
+            namespaceConfigs.put(namespaceId, config);
         } else {
-            namespaceDefaults.remove(namespaceId);
-        }
-    }
-
-    /**
-     * Sets a (namespace, type) specific strategy config.
-     */
-    public void setNamespaceTypeConfig(UUID namespaceId, IdentifierType identifierType, IdentifierStrategyConfig config) {
-        if (config != null) {
-            namespaceTypeConfigs.put(new CompositeKey(namespaceId, identifierType), config);
-        } else {
-            namespaceTypeConfigs.remove(new CompositeKey(namespaceId, identifierType));
+            namespaceConfigs.remove(namespaceId);
         }
     }
 
@@ -188,9 +150,8 @@ public class IdentifierGenerationStrategyRegistry {
      * Clears all cached configs (useful for refreshing from DB).
      */
     public void clearCache() {
-        globalDefaults.clear();
-        namespaceDefaults.clear();
-        namespaceTypeConfigs.clear();
+        globalDefault = null;
+        namespaceConfigs.clear();
         System.out.println("[IdentifierGenerationStrategyRegistry] Strategy registry cache cleared");
     }
 
@@ -204,24 +165,17 @@ public class IdentifierGenerationStrategyRegistry {
     // --- Config resolution helpers (for service layer) ---
 
     /**
-     * Resolves the global default strategy config for a type.
+     * Resolves the global default strategy config.
      */
-    public IdentifierStrategyConfig resolveGlobalDefault(IdentifierType identifierType) {
-        return globalDefaults.get(identifierType);
+    public IdentifierStrategyConfig resolveGlobalDefault() {
+        return globalDefault;
     }
 
     /**
-     * Resolves the namespace default strategy config.
+     * Resolves the namespace-specific strategy config.
      */
-    public IdentifierStrategyConfig resolveNamespaceDefault(UUID namespaceId) {
-        return namespaceDefaults.get(namespaceId);
-    }
-
-    /**
-     * Resolves the (namespace, type) specific strategy config.
-     */
-    public IdentifierStrategyConfig resolveNamespaceTypeConfig(UUID namespaceId, IdentifierType identifierType) {
-        return namespaceTypeConfigs.get(new CompositeKey(namespaceId, identifierType));
+    public IdentifierStrategyConfig resolveNamespaceConfig(UUID namespaceId) {
+        return namespaceConfigs.get(namespaceId);
     }
 
     /**
@@ -236,30 +190,5 @@ public class IdentifierGenerationStrategyRegistry {
      */
     public IdentifierGenerationStrategy unregister(String strategyType) {
         return strategies.remove(strategyType.toUpperCase());
-    }
-
-    // --- Composite key for (namespace, type) lookup ---
-
-    private static class CompositeKey {
-        private final UUID namespaceId;
-        private final IdentifierType identifierType;
-
-        CompositeKey(UUID namespaceId, IdentifierType identifierType) {
-            this.namespaceId = namespaceId;
-            this.identifierType = identifierType;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (!(o instanceof CompositeKey ck)) return false;
-            return java.util.Objects.equals(namespaceId, ck.namespaceId)
-                    && identifierType == ck.identifierType;
-        }
-
-        @Override
-        public int hashCode() {
-            return java.util.Objects.hash(namespaceId, identifierType);
-        }
     }
 }

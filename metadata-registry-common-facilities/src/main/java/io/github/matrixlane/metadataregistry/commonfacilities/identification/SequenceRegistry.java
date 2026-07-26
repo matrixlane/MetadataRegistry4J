@@ -19,10 +19,10 @@ import lombok.Setter;
 import java.time.LocalDateTime;
 
 /**
- * WI-028-B: Tracks sequence state for SequenceGenerationStrategy.
+ * Tracks sequence state for SequenceGenerationStrategy.
  *
- * <p>Each (namespace, identifierType) combination has its own sequence counter.
- * The counter is incremented atomically when a new identifier is generated.
+ * <p>Each namespace has its own sequence counter, incremented atomically when
+ * a new identifier is generated.
  *
  * <p>Thread-safety: Uses database-level locking (SELECT FOR UPDATE) to ensure
  * atomic increment in concurrent scenarios.
@@ -30,8 +30,8 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "identifier_sequence_registry",
         uniqueConstraints = @UniqueConstraint(
-                name = "uk_seq_registry_namespace_type",
-                columnNames = {"namespace_id", "identifier_type"}))
+                name = "uk_seq_registry_namespace",
+                columnNames = {"namespace_id"}))
 @Getter
 @Setter
 @NoArgsConstructor
@@ -48,13 +48,6 @@ public class SequenceRegistry {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "namespace_id", nullable = false)
     private Namespace namespace;
-
-    /**
-     * The identifier type this sequence is for.
-     */
-    @Enumerated(EnumType.STRING)
-    @Column(name = "identifier_type", nullable = false, length = 32)
-    private IdentifierType identifierType = IdentifierType.INTERNAL;
 
     /**
      * The current sequence value (the last allocated number).
@@ -105,9 +98,8 @@ public class SequenceRegistry {
     @Column(name = "modified_at")
     private LocalDateTime modifiedAt;
 
-    public SequenceRegistry(Namespace namespace, IdentifierType identifierType) {
+    public SequenceRegistry(Namespace namespace) {
         this.namespace = namespace;
-        this.identifierType = identifierType != null ? identifierType : IdentifierType.INTERNAL;
         this.currentValue = 0L;
         this.incrementBy = 1;
         this.startValue = 1L;

@@ -225,11 +225,7 @@ public class ItemAdministrationService {
             ScopedIdentifier si = new ScopedIdentifier();
             String identifier = req.identifier();
             if (identifier == null || identifier.isBlank()) {
-                identifier = identifierStrategyConfigService.generateIdentifier(
-                        ns,
-                        io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifierType.INTERNAL,
-                        null
-                );
+                identifier = identifierStrategyConfigService.generateIdentifier(ns, null);
             }
             si.setIdentifier(identifier);
             si.setVersion(req.version());
