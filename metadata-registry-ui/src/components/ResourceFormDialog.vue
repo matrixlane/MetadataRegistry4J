@@ -39,7 +39,7 @@ const emit = defineEmits<{ success: [] }>();
 const visible = ref(false);
 const saving = ref(false);
 const formRef = ref<FormInstance>();
-const form = reactive<Record<string, unknown>>({});
+const form = reactive<Record<string, any>>({});
 
 function open(initial?: Record<string, unknown>) {
   reset();
@@ -49,7 +49,7 @@ function open(initial?: Record<string, unknown>) {
 }
 
 function reset() {
-  Object.keys(form).forEach((k) => delete form[k]);
+  Object.keys(form).forEach((k) => delete (form as Record<string, unknown>)[k]);
   formRef.value?.resetFields();
 }
 
@@ -59,7 +59,7 @@ async function handleSubmit() {
     if (!valid) return;
     saving.value = true;
     try {
-      await props.submitFn({ ...form });
+      await props.submitFn({ ...(form as Record<string, unknown>) });
       ElMessage.success('保存成功');
       visible.value = false;
       emit('success');

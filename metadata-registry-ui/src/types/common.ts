@@ -80,6 +80,105 @@ export interface UserRoleAssignmentDto {
   namespaceId?: string;
 }
 
+// ─── Namespace / NamingConvention shared DTOs ────────────────────────────
+// Aligned with backend DTOs (NamespaceRequest/Response, NamingConventionRequest/Response).
+
+export interface ItemMetaResponse {
+  itemId?: string;
+  preferredDesignation?: string;
+  preferredDefinition?: string;
+  scopedIdentifier?: string;
+  namespaceId?: string;
+  namespaceLabel?: string;
+  identifier?: string;
+  version?: string;
+  registrationStatus?: string;
+  administeredItemId?: string;
+}
+
+export interface TextLineContextResponse {
+  id?: string;
+  contextId: string;
+  acceptability: 'PREFERRED' | 'ADMITTED' | 'DEPRECATED' | 'SUPERSEDED' | 'OBSOLETE';
+}
+
+export interface TextLineResponse {
+  id?: string;
+  languageId: string;
+  languageCode?: string;
+  value: string;
+  sourceId?: string;
+  sourceTitle?: string;
+  contexts?: TextLineContextResponse[];
+}
+
+export interface ItemRegistrationRequest {
+  namespaceId?: string;
+  identifier?: string;
+  version?: string;
+  registrationAuthorityId?: string;
+  designations?: TextLineForm[];
+  definitions?: TextLineForm[];
+}
+
+// ── Namespace DTOs ──────────────────────────────────────────────────────
+
+export interface NamespaceResponse {
+  id: string;
+  label?: string;
+  namingAuthorityId?: string;
+  namingAuthorityName?: string;
+  designations?: TextLineResponse[];
+  definitions?: TextLineResponse[];
+  meta?: ItemMetaResponse;
+  shorthandPrefix?: string;
+  schemeReference?: string;
+  mandatoryNamingConventionIndicator?: boolean;
+  namingConventionIds?: string[];
+  oneNamePerItemIndicator?: boolean;
+  oneItemPerNameIndicator?: boolean;
+  parentId?: string;
+}
+
+export interface NamespaceDetailResponse extends NamespaceResponse {
+  parentLabel?: string;
+  depth?: number;
+}
+
+export interface NamespaceRequest {
+  namingAuthorityId?: string;
+  designations: TextLineForm[];
+  definitions?: TextLineForm[];
+  registration?: ItemRegistrationRequest;
+  parentId?: string;
+  shorthandPrefix?: string;
+  schemeReference?: string;
+  mandatoryNamingConventionIndicator?: boolean;
+  namingConventionIds?: string[];
+  oneNamePerItemIndicator?: boolean;
+  oneItemPerNameIndicator?: boolean;
+}
+
+// ── NamingConvention DTOs ──────────────────────────────────────────────
+
+export interface NamingConventionResponse {
+  id: string;
+  label?: string;
+  scopeRule?: string;
+  authorityRule?: string;
+  designations?: TextLineResponse[];
+  definitions?: TextLineResponse[];
+  meta?: ItemMetaResponse;
+}
+
+export interface NamingConventionRequest {
+  scopeRule: string;
+  authorityRule?: string;
+  designations: TextLineForm[];
+  definitions?: TextLineForm[];
+  registration?: ItemRegistrationRequest;
+}
+
 export interface AppUserDto {
   id: string;
   username: string;
