@@ -1,6 +1,5 @@
 package io.github.matrixlane.metadataregistry.web.service;
 
-import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifierType;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.SequenceProvider;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.SequenceRegistry;
@@ -19,16 +18,15 @@ public class SequenceRegistryService implements SequenceProvider {
     private final SequenceRegistryRepository repository;
 
     @Override
-    public long getNextValue(Namespace namespace, IdentifierType identifierType, 
+    public long getNextValue(Namespace namespace,
                              long start, int increment, int pad, String prefix) {
         if (namespace == null || namespace.getId() == null) {
             throw new IllegalArgumentException("Namespace must not be null and must have an ID for sequence generation.");
         }
 
-        SequenceRegistry registry = repository.findByNamespaceIdAndIdentifierTypeWithLock(
-                namespace.getId(), identifierType)
+        SequenceRegistry registry = repository.findByNamespaceIdWithLock(namespace.getId())
                 .orElseGet(() -> {
-                    SequenceRegistry r = new SequenceRegistry(namespace, identifierType);
+                    SequenceRegistry r = new SequenceRegistry(namespace);
                     r.setStartValue(start);
                     r.setCurrentValue(start - increment);
                     r.setIncrementBy(increment);

@@ -19,21 +19,21 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 /**
- * WI-028-B: Configuration entity for identifier generation strategies.
+ * Configuration entity for identifier generation strategies.
  *
- * <p>Stores strategy configuration in the database, supporting versioning, auditing,
- * and (Namespace, Type) routing. The combination of namespace and identifierType
- * determines the routing priority.
+ * <p>Stores strategy configuration in the database, supporting versioning and
+ * auditing. Each strategy is bound to a single Namespace, or marked as the
+ * global default fallback.
  *
- * <p>Routing priority (highest to lowest):
+ * <p>Resolution order (highest to lowest):
  * <ol>
- *   <li>Namespace + Type specific strategy (most specific)</li>
- *   <li>Namespace default strategy (any type fallback)</li>
+ *   <li>Namespace-specific strategy (most specific)</li>
  *   <li>Global default strategy (fallback)</li>
  * </ol>
  *
- * <p>Strategy changes do NOT affect existing ScopedIdentifiers because each
- * ScopedIdentifier stores a snapshot of the effective strategy config ID.
+ * <p>Strategy changes do NOT retroactively affect identifiers already generated
+ * under a previous strategy version. Historical versions remain queryable for
+ * auditability (lookup by {@code namespace_id, created_at}).
  */
 @Entity
 @Table(name = "identifier_strategy_config")
@@ -53,15 +53,6 @@ public class IdentifierStrategyConfig {
      */
     @Column(name = "strategy_type", nullable = false, length = 32)
     private String strategyType;
-
-    /**
-     * WI-028-B: The identifier type this strategy applies to.
-     * Use INTERNAL for the default/generic type.
-     * NULL means this config applies to all types (namespace default fallback).
-     */
-    @Enumerated(EnumType.STRING)
-    @Column(name = "identifier_type", nullable = false, length = 32)
-    private IdentifierType identifierType = IdentifierType.INTERNAL;
 
     /**
      * The namespace this strategy is bound to.
@@ -87,7 +78,7 @@ public class IdentifierStrategyConfig {
     /**
      * Version number for immutability tracking.
      * When a strategy is modified, a new version is created with incremented version number.
-     * Historical versions remain for existing ScopedIdentifier references.
+     * Historical versions remain for auditability.
      */
     @Column(name = "version", nullable = false)
     private Integer version = 1;
@@ -101,18 +92,10 @@ public class IdentifierStrategyConfig {
 
     /**
      * TRUE if this is the global default fallback strategy.
-     * There should be exactly one global default per identifierType.
+     * There should be exactly one global default.
      */
     @Column(name = "is_global_default", nullable = false)
     private Boolean isGlobalDefault = false;
-
-    /**
-     * Sequence scope for SEQUENCE strategy.
-     * PER_NAMESPACE: one sequence counter per namespace
-     * PER_NAMESPACE_TYPE: one sequence counter per (namespace, identifierType)
-     */
-    @Column(name = "sequence_scope", nullable = false, length = 16)
-    private String sequenceScope = "PER_NAMESPACE_TYPE";
 
     /**
      * When this strategy version became/becomes effective.
@@ -141,9 +124,8 @@ public class IdentifierStrategyConfig {
 
     // --- Constructor helpers ---
 
-    public IdentifierStrategyConfig(String strategyType, IdentifierType identifierType) {
+    public IdentifierStrategyConfig(String strategyType) {
         this.strategyType = strategyType;
-        this.identifierType = identifierType != null ? identifierType : IdentifierType.INTERNAL;
         this.effectiveFrom = LocalDateTime.now();
     }
 
