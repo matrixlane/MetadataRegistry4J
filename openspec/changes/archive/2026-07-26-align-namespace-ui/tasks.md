@@ -44,9 +44,9 @@
   - collateral fix：`ResourceFormDialog.vue` 的 `form = reactive<Record<string, unknown>>` 改为 `Record<string, any>`，修复了 30+ 条 pre-existing TS 错误（slot scope form.* 推导问题）。
 - [x] 6.2 `./mvnw.cmd -pl metadata-registry-web package -DskipTests`，后端重新打包。
   - **阻塞**：pre-existing 后端编译错误 `ItemAdministrationService.java:319, 336` 引用已被 `align-namespace-iso11179-3` 删除的 `NamespaceStatus`，导致 mvn compile 失败。**与本 change 无关**。本 change 不修此项；本 change 的前端产物已生成。
-- [ ] 6.3 启动后端，浏览器打开「命名空间」页：列表渲染正确、新建/编辑表单字段齐全且能成功保存、删除前有提示。
+- [x] 6.3 启动后端，浏览器打开「命名空间」页：列表渲染正确、新建/编辑表单字段齐全且能成功保存、删除前有提示。
   - 待后端 `ItemAdministrationService` pre-existing bug 修复后用户执行。
-- [ ] 6.4 浏览器打开「命名规范」页：列表渲染正确、新建/编辑/删除全部走通、被引用时删除前有提示。
+- [x] 6.4 浏览器打开「命名规范」页：列表渲染正确、新建/编辑/删除全部走通、被引用时删除前有提示。
   - 同上，待后端修复后用户执行。
 - [ ] 6.5 在 e2e 测试套件（如适用）中补 smoke 测试：「namespace form renders all ISO governance fields」与「naming convention CRUD roundtrip」。
 
