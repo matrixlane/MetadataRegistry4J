@@ -53,6 +53,12 @@ const router = createRouter({
           meta: { title: '命名空间', routeKey: 'namespaces' },
         },
         {
+          path: 'naming-conventions',
+          name: 'NamingConventions',
+          component: () => import('@/views/naming-convention/NamingConventionList.vue'),
+          meta: { title: '命名规范', routeKey: 'naming-conventions' },
+        },
+        {
           path: 'administered-items',
           name: 'AdministeredItems',
           component: () => import('@/views/administered-item/AdministeredItemList.vue'),
@@ -267,6 +273,7 @@ routeTable.register(
   { key: 'registration-authorities', path: '/registration-authorities', title: '注册机构', status: 'implemented' },
   { key: 'registrars', path: '/registrars', title: '注册人员', status: 'implemented' },
   { key: 'namespaces', path: '/namespaces', title: '命名空间', status: 'implemented' },
+  { key: 'naming-conventions', path: '/naming-conventions', title: '命名规范', status: 'implemented' },
   { key: 'administered-items', path: '/administered-items', title: '注册项生命周期', status: 'implemented' },
   { key: 'organizations', path: '/organizations', title: '组织', status: 'implemented' },
   { key: 'individuals', path: '/individuals', title: '个人', status: 'implemented' },

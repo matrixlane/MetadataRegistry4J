@@ -1,5 +1,13 @@
 import request from '@/utils/request';
-import type { PageQuery, PageResponse } from '@/types/common';
+import type {
+  PageQuery,
+  PageResponse,
+  NamespaceRequest,
+  NamespaceResponse,
+  NamespaceDetailResponse,
+  NamingConventionRequest,
+  NamingConventionResponse,
+} from '@/types/common';
 
 function crud<T>(base: string) {
   return {
@@ -16,17 +24,38 @@ function crud<T>(base: string) {
 export const registrationAuthorityApi = crud('/registration-authorities');
 export const registrarApi = crud('/registrars');
 export const namespaceApi = {
-  ...crud<any>('/namespaces'),
+  list: (params?: PageQuery) =>
+    request.get<PageResponse<NamespaceResponse>>('/namespaces', { params }),
+  get: (id: string) =>
+    request.get<NamespaceResponse>(`/namespaces/${id}`),
+  detail: (id: string) =>
+    request.get<NamespaceDetailResponse>(`/namespaces/${id}/detail`),
+  create: (data: NamespaceRequest) =>
+    request.post<NamespaceResponse>('/namespaces', data),
+  update: (id: string, data: NamespaceRequest) =>
+    request.put<NamespaceResponse>(`/namespaces/${id}`, data),
+  delete: (id: string) => request.delete(`/namespaces/${id}`),
   deletionCheck: (id: string) =>
     request.get<{ hasIdentifiers: boolean; count: number; message: string }>(`/namespaces/${id}/deletion-check`),
   createExternal: (data: Record<string, unknown>) =>
-    request.post<any>('/namespaces/external', data),
+    request.post<NamespaceResponse>('/namespaces/external', data),
   getPermissions: (id: string) =>
-    request.get<any[]>(`/namespaces/${id}/permissions`),
+    request.get<unknown[]>(`/namespaces/${id}/permissions`),
   savePermission: (id: string, data: Record<string, unknown>) =>
-    request.post<any>(`/namespaces/${id}/permissions`, data),
+    request.post<unknown>(`/namespaces/${id}/permissions`, data),
   deletePermission: (permissionId: string) =>
-    request.delete<any>(`/namespaces/permissions/${permissionId}`),
+    request.delete(`/namespaces/permissions/${permissionId}`),
+};
+export const namingConventionApi = {
+  list: (params?: PageQuery) =>
+    request.get<PageResponse<NamingConventionResponse>>('/naming-conventions', { params }),
+  get: (id: string) =>
+    request.get<NamingConventionResponse>(`/naming-conventions/${id}`),
+  create: (data: NamingConventionRequest) =>
+    request.post<NamingConventionResponse>('/naming-conventions', data),
+  update: (id: string, data: NamingConventionRequest) =>
+    request.put<NamingConventionResponse>(`/naming-conventions/${id}`, data),
+  delete: (id: string) => request.delete(`/naming-conventions/${id}`),
 };
 export const administeredItemApi = crud('/administered-items');
 export const organizationApi = crud('/organizations');

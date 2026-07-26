@@ -73,6 +73,7 @@
               <el-menu-item index="/registry-specifications">{{ $t('nav.registrySpecification') }}</el-menu-item>
               <el-menu-item index="/registrars">{{ $t('nav.registrar') }}</el-menu-item>
               <el-menu-item index="/namespaces">{{ $t('nav.namespace') }}</el-menu-item>
+              <el-menu-item index="/naming-conventions">{{ $t('nav.namingConvention') }}</el-menu-item>
               <el-menu-item index="/languages">{{ $t('nav.language') }}</el-menu-item>
               <el-menu-item index="/contexts">{{ $t('nav.context') }}</el-menu-item>
             </el-sub-menu>
