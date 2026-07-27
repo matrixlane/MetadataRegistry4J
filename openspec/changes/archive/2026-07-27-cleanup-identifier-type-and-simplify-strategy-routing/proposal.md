@@ -8,6 +8,19 @@ updated: 2026-07-27
 
 # OpenSpec 提案：清理 IdentifierType 并简化策略路由
 
+## Why
+
+2026-06-01 的归档变更 `2026-06-01-auto-generate-scoped-identifiers` 引入了 `IdentifierType` 枚举与 `(Namespace, IdentifierType)` 双键路由，但 `IdentifierType` 并非 ISO/IEC 11179-3:2023 标准概念。LOINC、SNOMED CT 等外部代码集本身即是 `Namespace`，不应作为标识符类型枚举值；多键路由与 `ScopedIdentifier.effectiveStrategyConfig` 字段也引入了不必要的复杂度。
+
+## What Changes
+
+- 删除 `IdentifierType` 枚举及其全部引用。
+- 简化 `IdentifierGenerationStrategyRegistry`：从 `(namespace, type)` 双键路由简化为 `namespace` 单键。
+- 简化 `IdentifierStrategyConfig`、`identifier_sequence_registry` 表结构：去掉 `identifier_type` 列。
+- 简化 `ScopedIdentifier` 实体：去掉 `identifierType` 与 `effectiveStrategyConfig` 字段。
+- 新增三方言 Flyway 迁移 `V20260727001__Remove_identifier_type_columns.sql`，平滑移除相关列与约束。
+- 保持自动生成、并发控制、版本管理等既有功能可用，且保留既有 ScopedIdentifier 的 `identifier` 值。
+
 ## 背景
 
 2026-06-01 的归档变更 `2026-06-01-auto-generate-scoped-identifiers`（WI-028-B）为支持"按类型路由的自动生成策略"，引入了 `IdentifierType` 枚举（`INTERNAL/URN/OID/LOINC/SNOMED/CUSTOM`）和 `(Namespace, IdentifierType)` 双键路由。
