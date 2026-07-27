@@ -53,65 +53,6 @@ class NamespaceTest {
     }
 
     @Nested
-    @DisplayName("Hierarchical Namespace Support")
-    class HierarchyTests {
-
-        @Test
-        @DisplayName("Parent-child relationship can be established")
-        void parentChildRelationship_canBeEstablished() {
-            Namespace parent = new Namespace();
-            UUID parentId = UUID.randomUUID();
-            parent.setId(parentId);
-            
-            Namespace child = new Namespace();
-            UUID childId = UUID.randomUUID();
-            child.setId(childId);
-            child.setParent(parent);
-            
-            assertThat(child.getParent()).isEqualTo(parent);
-            assertThat(child.getParent().getId()).isEqualTo(parentId);
-        }
-
-        @Test
-        @DisplayName("Root namespace has no parent")
-        void rootNamespace_hasNoParent() {
-            Namespace root = new Namespace();
-            root.setId(UUID.randomUUID());
-            
-            assertThat(root.getParent()).isNull();
-        }
-
-        @Test
-        @DisplayName("Children collection is initialized")
-        void childrenCollection_isInitialized() {
-            Namespace parent = new Namespace();
-            parent.setId(UUID.randomUUID());
-            
-            assertThat(parent.getChildren()).isNotNull();
-            assertThat(parent.getChildren()).isEmpty();
-        }
-
-        @Test
-        @DisplayName("Multi-level hierarchy can be represented")
-        void multiLevelHierarchy_canBeRepresented() {
-            Namespace root = new Namespace();
-            root.setId(UUID.randomUUID());
-            
-            Namespace level1 = new Namespace();
-            level1.setId(UUID.randomUUID());
-            level1.setParent(root);
-            
-            Namespace level2 = new Namespace();
-            level2.setId(UUID.randomUUID());
-            level2.setParent(level1);
-            
-            assertThat(level2.getParent()).isEqualTo(level1);
-            assertThat(level2.getParent().getParent()).isEqualTo(root);
-            assertThat(level2.getParent().getParent().getParent()).isNull();
-        }
-    }
-
-    @Nested
     @DisplayName("Naming Authority")
     class NamingAuthorityTests {
 

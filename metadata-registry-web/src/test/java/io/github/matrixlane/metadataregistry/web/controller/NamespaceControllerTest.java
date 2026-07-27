@@ -85,7 +85,7 @@ class NamespaceControllerTest {
     void create_shouldReturnCreated() throws Exception {
         NamespaceRequest req = new NamespaceRequest(RA_ID,
                 List.of(new TextLine(UUID.randomUUID(), "Test Namespace", null, null)),
-                null, null, null, null, null, null, EMPTY_NC, null, null);
+                null, null, null, null, EMPTY_NC, null, null);
         when(service.create(any())).thenReturn(createResponse());
 
         mockMvc.perform(post("/api/v1/namespaces")
@@ -98,7 +98,7 @@ class NamespaceControllerTest {
     @Test
     void create_shouldRejectEmptyDesignations() throws Exception {
         NamespaceRequest req = new NamespaceRequest(RA_ID, List.of(), null, null,
-                null, null, null, null, EMPTY_NC, null, null);
+                null, null, EMPTY_NC, null, null);
 
         mockMvc.perform(post("/api/v1/namespaces")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -110,7 +110,7 @@ class NamespaceControllerTest {
     void update_shouldReturnOk() throws Exception {
         NamespaceRequest req = new NamespaceRequest(RA_ID,
                 List.of(new TextLine(UUID.randomUUID(), "Updated", null, null)),
-                null, null, null, null, null, null, EMPTY_NC, null, null);
+                null, null, null, null, EMPTY_NC, null, null);
         when(service.update(eq(NS_ID), any())).thenReturn(createResponse());
 
         mockMvc.perform(put("/api/v1/namespaces/{id}", NS_ID)
@@ -129,7 +129,7 @@ class NamespaceControllerTest {
     private NamespaceResponse createResponse() {
         return new NamespaceResponse(
                 NS_ID, "Test Namespace", RA_ID, "Test RA",
-                List.of(), List.of(), null,
-                null, null, null, EMPTY_NC, null, null, null);
+                List.of(), List.of(),
+                null, null, null, EMPTY_NC, null, null);
     }
 }

@@ -306,13 +306,6 @@ public class ItemAdministrationService {
             scopedIdentifierStr = sb.toString();
         }
 
-        // Fallback for Namespace items if they do not have registered AdministeredItem/ScopedIdentifier rows
-        if (item instanceof Namespace ns) {
-            if (identifier == null) {
-                identifier = ns.getShorthandPrefix();
-            }
-        }
-
         return new ItemMetaResponse(
                 item.getId(),
                 ItemNamingHelper.preferredDesignation(item),

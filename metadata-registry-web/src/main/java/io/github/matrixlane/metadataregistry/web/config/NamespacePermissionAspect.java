@@ -93,11 +93,6 @@ public class NamespacePermissionAspect {
         if (userId == null) {
             throw new AccessDeniedException("Access denied: Unauthenticated.");
         }
-        if (request != null && request.parentId() != null) {
-            if (!permissionEvaluator.hasWritePermission(request.parentId(), userId)) {
-                throw new AccessDeniedException("Access denied: You do not have write permission on the parent namespace.");
-            }
-        }
     }
 
     @Before("execution(* io.github.matrixlane.metadataregistry.web.service.NamespacePermissionService.getPermissions(..)) && args(namespaceId)")

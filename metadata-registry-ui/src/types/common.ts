@@ -130,27 +130,21 @@ export interface NamespaceResponse {
   namingAuthorityName?: string;
   designations?: TextLineResponse[];
   definitions?: TextLineResponse[];
-  meta?: ItemMetaResponse;
   shorthandPrefix?: string;
   schemeReference?: string;
   mandatoryNamingConventionIndicator?: boolean;
   namingConventionIds?: string[];
   oneNamePerItemIndicator?: boolean;
   oneItemPerNameIndicator?: boolean;
-  parentId?: string;
 }
 
 export interface NamespaceDetailResponse extends NamespaceResponse {
-  parentLabel?: string;
-  depth?: number;
 }
 
 export interface NamespaceRequest {
   namingAuthorityId?: string;
   designations: TextLineForm[];
   definitions?: TextLineForm[];
-  registration?: ItemRegistrationRequest;
-  parentId?: string;
   shorthandPrefix?: string;
   schemeReference?: string;
   mandatoryNamingConventionIndicator?: boolean;
@@ -168,7 +162,6 @@ export interface NamingConventionResponse {
   authorityRule?: string;
   designations?: TextLineResponse[];
   definitions?: TextLineResponse[];
-  meta?: ItemMetaResponse;
 }
 
 export interface NamingConventionRequest {
@@ -176,7 +169,6 @@ export interface NamingConventionRequest {
   authorityRule?: string;
   designations: TextLineForm[];
   definitions?: TextLineForm[];
-  registration?: ItemRegistrationRequest;
 }
 
 export interface AppUserDto {
