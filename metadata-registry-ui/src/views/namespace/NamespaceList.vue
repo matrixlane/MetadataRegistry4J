@@ -9,11 +9,6 @@
       @delete="(r) => handleDelete(r as any)"
     >
       <template #columns>
-        <el-table-column :label="$t('common.identifier')" width="200">
-          <template #default="{ row }">
-            <code style="font-size: 12px;">{{ row.meta?.identifier || row.id?.slice(0, 8) || '-' }}</code>
-          </template>
-        </el-table-column>
         <el-table-column :label="$t('common.name')" min-width="200">
           <template #default="{ row }">
             {{ row.label || preferredDesignation(row) || '-' }}
@@ -22,12 +17,6 @@
         <el-table-column :label="$t('namespace.shorthandPrefix')" width="160">
           <template #default="{ row }">
             <code v-if="row.shorthandPrefix" style="font-size: 12px;">{{ row.shorthandPrefix }}</code>
-            <span v-else>-</span>
-          </template>
-        </el-table-column>
-        <el-table-column :label="$t('namespace.parentNamespace')" width="180">
-          <template #default="{ row }">
-            <span v-if="row.parentId">{{ parentLabelMap.get(row.parentId) || row.parentId.slice(0, 8) }}</span>
             <span v-else>-</span>
           </template>
         </el-table-column>
@@ -177,22 +166,6 @@
                 />
               </el-select>
             </el-form-item>
-            <el-form-item :label="$t('namespace.parentNamespace')">
-              <el-select
-                v-model="form.parentId"
-                :placeholder="$t('namespace.parentNamespacePlaceholder')"
-                clearable
-                filterable
-                style="width: 100%;"
-              >
-                <el-option
-                  v-for="ns in parentOptions"
-                  :key="ns.id"
-                  :label="ns.label || preferredDesignation(ns) || ns.id.slice(0, 8)"
-                  :value="ns.id"
-                />
-              </el-select>
-            </el-form-item>
           </el-tab-pane>
         </el-tabs>
       </template>
@@ -221,12 +194,9 @@ const dialog = ref<InstanceType<typeof ResourceFormDialog>>();
 const activeTab = ref('basic');
 
 const editingId = ref<string | null>(null);
-const editingIdentifier = ref<string | undefined>(undefined);
 
 const organizationOptions = ref<{ id: string; name: string; identifier?: string }[]>([]);
 const namingConventionOptions = ref<{ id: string; label?: string; scopeRule?: string }[]>([]);
-const parentOptions = ref<NamespaceResponse[]>([]);
-const parentLabelMap = ref<Map<string, string>>(new Map());
 
 onMounted(async () => {
   try {
@@ -249,15 +219,6 @@ onMounted(async () => {
   } catch {
     namingConventionOptions.value = [];
   }
-  try {
-    const nsRes = await namespaceApi.list({ size: 200 });
-    parentOptions.value = nsRes.content || [];
-    parentLabelMap.value = new Map(
-      parentOptions.value.map((ns) => [ns.id, ns.label || preferredDesignation(ns) || ns.id.slice(0, 8)])
-    );
-  } catch {
-    parentOptions.value = [];
-  }
 });
 
 function preferredDesignation(row: NamespaceResponse | NamespaceDetailResponse): string {
@@ -276,7 +237,6 @@ function onMandatoryNCChange(val: boolean | string | number) {
 
 function handleCreate() {
   editingId.value = null;
-  editingIdentifier.value = undefined;
   activeTab.value = 'basic';
   dialog.value?.open({});
 }
@@ -286,7 +246,6 @@ async function handleEdit(row: NamespaceResponse) {
   try {
     const detail = await namespaceApi.detail(row.id);
     editingId.value = detail.id;
-    editingIdentifier.value = detail.meta?.identifier;
     dialog.value?.open(buildFormFromDetail(detail));
   } catch {
     ElMessage.error('加载命名空间详情失败');
@@ -306,11 +265,6 @@ function buildFormFromDetail(detail: NamespaceDetailResponse): Record<string, un
       value: d.value,
       contexts: d.contexts,
     })) as TextLineForm[],
-    registration: {
-      identifier: detail.meta?.identifier,
-      version: detail.meta?.version || '1.0',
-    },
-    parentId: detail.parentId,
     shorthandPrefix: detail.shorthandPrefix,
     schemeReference: detail.schemeReference,
     mandatoryNamingConventionIndicator: !!detail.mandatoryNamingConventionIndicator,
@@ -341,27 +295,10 @@ function buildPayload(data: Record<string, unknown>): NamespaceRequest {
     ElMessage.error('已开启强制命名规范，必须至少绑定一个命名规范');
     throw new Error('mandatory NC requires namingConventionIds');
   }
-  if (data.parentId && editingId.value && data.parentId === editingId.value) {
-    ElMessage.error('不能将命名空间设为自身的父级');
-    throw new Error('parent cycle');
-  }
-  // 父命名空间循环引用防护
-  if (data.parentId && editingId.value) {
-    const chain = collectAncestorIds(editingId.value);
-    if (chain.has(data.parentId as string)) {
-      ElMessage.error('不能将命名空间设为自身的父级（会形成循环）');
-      throw new Error('parent cycle in chain');
-    }
-  }
   return {
     namingAuthorityId: (data.namingAuthorityId as string) || undefined,
     designations,
     definitions: (data.definitions as TextLineForm[]) || [],
-    registration: {
-      identifier: editingIdentifier.value,
-      version: '1.0',
-    },
-    parentId: (data.parentId as string) || undefined,
     shorthandPrefix: (data.shorthandPrefix as string) || undefined,
     schemeReference: (data.schemeReference as string) || undefined,
     mandatoryNamingConventionIndicator: !!data.mandatoryNamingConventionIndicator,
@@ -369,17 +306,6 @@ function buildPayload(data: Record<string, unknown>): NamespaceRequest {
     oneNamePerItemIndicator: !!data.oneNamePerItemIndicator,
     oneItemPerNameIndicator: !!data.oneItemPerNameIndicator,
   };
-}
-
-function collectAncestorIds(id: string): Set<string> {
-  const result = new Set<string>();
-  let current = parentOptions.value.find((p) => p.id === id);
-  while (current?.parentId) {
-    if (result.has(current.parentId)) break;
-    result.add(current.parentId);
-    current = parentOptions.value.find((p) => p.id === current!.parentId);
-  }
-  return result;
 }
 
 async function handleDelete(row: NamespaceResponse) {

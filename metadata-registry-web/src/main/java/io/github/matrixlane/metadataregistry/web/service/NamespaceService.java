@@ -122,14 +122,6 @@ public class NamespaceService {
             entity.setNamingAuthority(null);
         }
 
-        if (request.parentId() != null) {
-            Namespace parent = repository.findById(request.parentId())
-                    .orElseThrow(() -> new ResourceNotFoundException(
-                            "Parent Namespace", request.parentId()));
-            entity.setParent(parent);
-            inheritFromParent(entity, parent);
-        }
-
         if (request.shorthandPrefix() != null) {
             entity.setShorthandPrefix(request.shorthandPrefix());
         }
@@ -149,9 +141,6 @@ public class NamespaceService {
 
         itemAdministrationService.applyDesignations(entity, request.designations());
         itemAdministrationService.applyDefinitions(entity, request.definitions());
-        if (request.registration() != null) {
-            itemAdministrationService.ensureAdministeredItem(entity, request.registration());
-        }
     }
 
     private void applyWizardRequest(Namespace entity, NamespaceWizardRequest request) {
@@ -160,14 +149,6 @@ public class NamespaceService {
                     .orElseThrow(() -> new ResourceNotFoundException(
                             "Organization", request.namingAuthorityId()));
             entity.setNamingAuthority(org);
-        }
-
-        if (request.parentId() != null) {
-            Namespace parent = repository.findById(request.parentId())
-                    .orElseThrow(() -> new ResourceNotFoundException(
-                            "Parent Namespace", request.parentId()));
-            entity.setParent(parent);
-            inheritFromParent(entity, parent);
         }
 
         if (request.shorthandPrefix() != null) {
@@ -193,9 +174,6 @@ public class NamespaceService {
 
         itemAdministrationService.applyDesignations(entity, request.designations());
         itemAdministrationService.applyDefinitions(entity, request.definitions());
-        if (request.registration() != null) {
-            itemAdministrationService.ensureAdministeredItem(entity, request.registration());
-        }
     }
 
     private void applyNamingConventions(Namespace entity, List<UUID> ids) {
@@ -229,40 +207,15 @@ public class NamespaceService {
                 namingAuthorityName,
                 itemAdministrationService.mapDesignations(entity),
                 itemAdministrationService.mapDefinitions(entity),
-                itemAdministrationService.buildItemMeta(entity),
                 entity.getShorthandPrefix(),
                 entity.getSchemeReference(),
                 entity.getMandatoryNamingConventionIndicator(),
                 namingConventionIds,
                 entity.getOneNamePerItemIndicator(),
-                entity.getOneItemPerNameIndicator(),
-                entity.getParent() == null ? null : entity.getParent().getId());
-    }
-
-    private void inheritFromParent(Namespace child, Namespace parent) {
-        if (child.getNamingAuthority() == null && parent.getNamingAuthority() != null) {
-            child.setNamingAuthority(parent.getNamingAuthority());
-        }
-        if (child.getSchemeReference() == null && parent.getSchemeReference() != null) {
-            child.setSchemeReference(parent.getSchemeReference());
-        }
-    }
-
-    private int calculateDepth(Namespace ns) {
-        int depth = 0;
-        Namespace current = ns.getParent();
-        while (current != null) {
-            depth++;
-            current = current.getParent();
-        }
-        return depth;
+                entity.getOneItemPerNameIndicator());
     }
 
     private NamespaceDetailResponse toDetailResponse(Namespace entity) {
-        String parentLabel = null;
-        if (entity.getParent() != null) {
-            parentLabel = ItemNamingHelper.preferredDesignation(entity.getParent());
-        }
         Organization namingAuthority = entity.getNamingAuthority();
         String namingAuthorityName = namingAuthority == null || namingAuthority.getName().isEmpty()
                 ? null : namingAuthority.getName().get(0).getValue();
@@ -277,16 +230,12 @@ public class NamespaceService {
                 namingAuthorityName,
                 itemAdministrationService.mapDesignations(entity),
                 itemAdministrationService.mapDefinitions(entity),
-                itemAdministrationService.buildItemMeta(entity),
                 entity.getShorthandPrefix(),
                 entity.getSchemeReference(),
                 entity.getMandatoryNamingConventionIndicator(),
                 namingConventionIds,
                 entity.getOneNamePerItemIndicator(),
-                entity.getOneItemPerNameIndicator(),
-                entity.getParent() == null ? null : entity.getParent().getId(),
-                parentLabel,
-                calculateDepth(entity));
+                entity.getOneItemPerNameIndicator());
     }
 
     private void validateNamingAuthorityRequired(UUID namingAuthorityId) {

@@ -6,7 +6,6 @@ import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefi
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationAuthority;
 import io.github.matrixlane.metadataregistry.web.common.ResourceNotFoundException;
-import io.github.matrixlane.metadataregistry.web.dto.common.ItemMetaResponse;
 import io.github.matrixlane.metadataregistry.web.dto.common.TextLineResponse;
 import io.github.matrixlane.metadataregistry.web.dto.namespace.NamespaceRequest;
 import io.github.matrixlane.metadataregistry.web.dto.namespace.NamespaceResponse;
@@ -84,7 +83,6 @@ class NamespaceServiceTest {
         when(repository.findAll(any(Specification.class), eq(PageRequest.of(0, 10)))).thenReturn(page);
         when(itemAdministrationService.mapDesignations(any())).thenReturn(List.of());
         when(itemAdministrationService.mapDefinitions(any())).thenReturn(List.of());
-        when(itemAdministrationService.buildItemMeta(any())).thenReturn(mockItemMeta());
 
         Page<NamespaceResponse> result = service.list(null, PageRequest.of(0, 10));
 
@@ -98,7 +96,6 @@ class NamespaceServiceTest {
         when(repository.findAll(any(Specification.class), eq(PageRequest.of(0, 10)))).thenReturn(page);
         when(itemAdministrationService.mapDesignations(any())).thenReturn(List.of());
         when(itemAdministrationService.mapDefinitions(any())).thenReturn(List.of());
-        when(itemAdministrationService.buildItemMeta(any())).thenReturn(mockItemMeta());
 
         Page<NamespaceResponse> result = service.list("test", PageRequest.of(0, 10));
 
@@ -110,7 +107,6 @@ class NamespaceServiceTest {
         when(repository.findById(namespaceId)).thenReturn(Optional.of(namespace));
         when(itemAdministrationService.mapDesignations(any())).thenReturn(List.of());
         when(itemAdministrationService.mapDefinitions(any())).thenReturn(List.of());
-        when(itemAdministrationService.buildItemMeta(any())).thenReturn(mockItemMeta());
 
         NamespaceResponse result = service.get(namespaceId);
 
@@ -131,7 +127,7 @@ class NamespaceServiceTest {
     @Test
     void create_shouldSaveAndReturnNamespace() {
         NamespaceRequest request = new NamespaceRequest(raId, List.of(), List.of(), null,
-                null, null, null, null, List.of(), null, null);
+                null, null, List.of(), null, null);
 
         when(organizationRepository.findById(raId)).thenReturn(Optional.of(registrationAuthority));
         when(repository.save(any(Namespace.class))).thenAnswer(i -> {
@@ -141,7 +137,6 @@ class NamespaceServiceTest {
         });
         when(itemAdministrationService.mapDesignations(any())).thenReturn(List.of());
         when(itemAdministrationService.mapDefinitions(any())).thenReturn(List.of());
-        when(itemAdministrationService.buildItemMeta(any())).thenReturn(mockItemMeta());
 
         NamespaceResponse result = service.create(request);
 
@@ -154,7 +149,7 @@ class NamespaceServiceTest {
     @Test
     void create_shouldThrowWhenRegistrationAuthorityNotFound() {
         NamespaceRequest request = new NamespaceRequest(raId, List.of(), List.of(), null,
-                null, null, null, null, List.of(), null, null);
+                null, null, List.of(), null, null);
         when(organizationRepository.findById(raId)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.create(request))
@@ -165,14 +160,13 @@ class NamespaceServiceTest {
     @Test
     void update_shouldModifyAndReturnNamespace() {
         NamespaceRequest request = new NamespaceRequest(raId, List.of(), List.of(), null,
-                null, null, null, null, List.of(), null, null);
+                null, null, List.of(), null, null);
 
         when(repository.findById(namespaceId)).thenReturn(Optional.of(namespace));
         when(organizationRepository.findById(raId)).thenReturn(Optional.of(registrationAuthority));
         when(repository.save(any(Namespace.class))).thenReturn(namespace);
         when(itemAdministrationService.mapDesignations(any())).thenReturn(List.of());
         when(itemAdministrationService.mapDefinitions(any())).thenReturn(List.of());
-        when(itemAdministrationService.buildItemMeta(any())).thenReturn(mockItemMeta());
 
         NamespaceResponse result = service.update(namespaceId, request);
 
@@ -184,7 +178,7 @@ class NamespaceServiceTest {
     @Test
     void update_shouldThrowWhenNamespaceNotFound() {
         NamespaceRequest request = new NamespaceRequest(null, List.of(), List.of(), null,
-                null, null, null, null, List.of(), null, null);
+                null, null, List.of(), null, null);
         when(repository.findById(namespaceId)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.update(namespaceId, request))
@@ -213,7 +207,7 @@ class NamespaceServiceTest {
     @Test
     void create_shouldAllowNullNamingAuthority() {
         NamespaceRequest request = new NamespaceRequest(null, List.of(), List.of(), null,
-                null, null, null, null, List.of(), null, null);
+                null, null, List.of(), null, null);
 
         when(repository.save(any(Namespace.class))).thenAnswer(i -> {
             Namespace ns = i.getArgument(0);
@@ -222,18 +216,10 @@ class NamespaceServiceTest {
         });
         when(itemAdministrationService.mapDesignations(any())).thenReturn(List.of());
         when(itemAdministrationService.mapDefinitions(any())).thenReturn(List.of());
-        when(itemAdministrationService.buildItemMeta(any())).thenReturn(mockItemMeta());
 
         NamespaceResponse result = service.create(request);
 
         assertThat(result.namingAuthorityId()).isNull();
         assertThat(result.namingAuthorityName()).isNull();
-    }
-
-    private ItemMetaResponse mockItemMeta() {
-        return new ItemMetaResponse(
-                namespaceId, null, null, null,
-                null, null, null, null,
-                null, null);
     }
 }

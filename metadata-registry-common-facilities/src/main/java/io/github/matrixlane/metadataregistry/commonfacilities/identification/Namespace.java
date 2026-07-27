@@ -60,15 +60,6 @@ public class Namespace extends Item {
     private Boolean oneNamePerItemIndicator = false;
 
     /**
-     * Parent namespace for hierarchical namespace support.
-     * ISO/IEC 11179-3:2023, 7.3.3 — namespaces can be organized in hierarchy.
-     * Child namespace inherits namingAuthority and scheme_reference from parent.
-     */
-    @ManyToOne(fetch = jakarta.persistence.FetchType.LAZY)
-    @JoinColumn(name = "parent_id")
-    private Namespace parent;
-
-    /**
      * ISO/IEC 11179-3:2023, Table 13 — naming_authority.
      * Organization that has the authority for naming in this namespace.
      */
@@ -99,7 +90,4 @@ public class Namespace extends Item {
             inverseJoinColumns = @JoinColumn(name = "naming_convention_id")
     )
     private List<NamingConvention> namingConventions = new ArrayList<>();
-
-    @OneToMany(mappedBy = "parent", cascade = jakarta.persistence.CascadeType.ALL)
-    private List<Namespace> children = new ArrayList<>();
 }
