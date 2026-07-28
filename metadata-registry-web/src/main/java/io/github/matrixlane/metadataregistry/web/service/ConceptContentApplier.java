@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.UUID;
 
 /**
  * 通用的 Item / Concept 内容应用器：将 designations / definitions / sourceUri /
@@ -23,7 +24,9 @@ public class ConceptContentApplier {
                       List<TextLine> designations,
                       List<TextLine> definitions,
                       ItemRegistrationRequest registration) {
-        itemAdministrationService.applyDesignations(item, designations);
+        itemAdministrationService.applyDesignations(
+                item, designations,
+                registration == null ? null : registration.namespaceId());
         itemAdministrationService.applyDefinitions(item, definitions);
         if (registration != null) {
             itemAdministrationService.ensureAdministeredItem(item, registration);

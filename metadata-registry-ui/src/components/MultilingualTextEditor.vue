@@ -42,6 +42,15 @@
           <el-tag v-if="row.contexts?.length" size="small" type="info" round style="margin-left: 8px;">
             {{ row.contexts.length }}
           </el-tag>
+          <el-tag
+            v-if="namingConventionOptions && namingConventionOptions.length > 0"
+            size="small"
+            :type="(row.namingConventionIds || []).length > 0 ? 'success' : (requireNamingConventions ? 'danger' : 'info')"
+            round
+            style="margin-left: 8px;"
+          >
+            命名规范 {{ (row.namingConventionIds || []).length }}
+          </el-tag>
         </div>
         <el-collapse-transition>
           <div v-show="expanded[index]" class="context-body">
@@ -90,6 +99,26 @@
                 <el-icon><Delete /></el-icon>
               </el-button>
             </div>
+            <div v-if="namingConventionOptions && namingConventionOptions.length > 0" class="naming-convention-row">
+              <span class="nc-label">命名规范</span>
+              <el-select
+                v-model="row.namingConventionIds"
+                multiple
+                collapse-tags
+                collapse-tags-tooltip
+                placeholder="选择适用的命名规范"
+                size="small"
+                style="flex: 1;"
+                :class="{ 'is-error': requireNamingConventions && !(row.namingConventionIds || []).length }"
+              >
+                <el-option
+                  v-for="nc in namingConventionOptions"
+                  :key="nc.id"
+                  :label="nc.label || nc.scopeRule || nc.id.slice(0, 8)"
+                  :value="nc.id"
+                />
+              </el-select>
+            </div>
             <el-button
               type="primary"
               size="small"
@@ -119,11 +148,13 @@
 import { ref, onMounted } from 'vue';
 import { Plus, Delete, ArrowRight, ArrowDown } from '@element-plus/icons-vue';
 import { languageApi, contextApi } from '@/api/resources';
-import type { TextLineForm } from '@/types/common';
+import type { TextLineForm, NamingConventionResponse } from '@/types/common';
 
 interface Props {
   modelValue: TextLineForm[];
   label: string;
+  namingConventionOptions?: NamingConventionResponse[];
+  requireNamingConventions?: boolean;
 }
 
 const props = defineProps<Props>();
@@ -234,5 +265,21 @@ function removeContext(rowIndex: number, ctxIndex: number) {
   align-items: center;
   gap: 8px;
   margin-bottom: 6px;
+}
+.naming-convention-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed #e2e8f0;
+}
+.nc-label {
+  font-size: 12px;
+  color: #6b7280;
+  white-space: nowrap;
+}
+.is-error .el-input__wrapper {
+  box-shadow: 0 0 0 1px #f56c6c inset;
 }
 </style>

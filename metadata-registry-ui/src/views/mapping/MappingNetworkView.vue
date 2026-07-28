@@ -186,12 +186,12 @@ function buildGraphOption(): echarts.EChartsOption {
     id: e.mappingId,
     source: e.sourceId,
     target: e.targetId,
-    value: e.mappingType,
+    value: e.mappingType === 'EQUIVALENT' ? 2 : 1,
     lineStyle: {
       color: typeColors[e.mappingType] || '#999',
       width: e.mappingType === 'EQUIVALENT' ? 2.5 : 2,
       curveness: 0.15,
-      type: e.mappingType === 'EQUIVALENT' ? 'solid' : 'dashed' as const,
+      type: (e.mappingType === 'EQUIVALENT' ? 'solid' : 'dashed') as 'solid' | 'dashed',
     },
     // Store description for tooltip
     rawMappingType: e.mappingType,

@@ -17,7 +17,9 @@ import io.github.matrixlane.metadataregistry.web.entity.DefinitionAuditLog;
 import io.github.matrixlane.metadataregistry.web.repository.ContextRepository;
 import io.github.matrixlane.metadataregistry.web.repository.LanguageIdentificationRepository;
 import io.github.matrixlane.metadataregistry.web.repository.ReferenceDocumentRepository;
+import io.github.matrixlane.metadataregistry.web.repository.NamingConventionRepository;
 import io.github.matrixlane.metadataregistry.web.service.namingconvention.NamingConventionEngine;
+import io.github.matrixlane.metadataregistry.web.service.namespace.NamespaceConstraintValidator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -46,6 +48,8 @@ class ItemAdministrationServiceTest {
     @Mock private NamingConventionEngine namingConventionEngine;
     @Mock private DefinitionAuditLogService definitionAuditLogService;
     @Mock private IdentifierStrategyConfigService identifierStrategyConfigService;
+    @Mock private NamingConventionRepository namingConventionRepository;
+    @Mock private NamespaceConstraintValidator namespaceConstraintValidator;
 
     @InjectMocks
     private ItemAdministrationService itemAdministrationService;
@@ -113,6 +117,42 @@ class ItemAdministrationServiceTest {
         assertThatThrownBy(() -> itemAdministrationService.applyDesignations(item, List.of(line1, line2)))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("只能有一个首选名称");
+    }
+
+    @Test
+    void applyDesignations_withNamespaceId_shouldApplyNamingConventions() {
+        when(namingConventionEngine.validate(any())).thenReturn(List.of());
+        when(languageRepository.findById(languageId)).thenReturn(Optional.of(lang));
+
+        UUID namespaceId = UUID.randomUUID();
+        UUID ncId = UUID.randomUUID();
+        io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.NamingConvention nc =
+                new io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.NamingConvention();
+        nc.setId(ncId);
+        when(namingConventionRepository.findAllById(List.of(ncId))).thenReturn(List.of(nc));
+
+        TextLine line = new TextLine(languageId, "患者姓名", null, null, List.of(ncId));
+
+        itemAdministrationService.applyDesignations(item, List.of(line), namespaceId);
+
+        assertThat(item.getDesignations()).hasSize(1);
+        assertThat(item.getDesignations().get(0).getNamingConventions())
+                .hasSize(1)
+                .extracting("id")
+                .containsExactly(ncId);
+        verify(namespaceConstraintValidator).validateDesignation(eq(namespaceId), any(Designation.class), eq(null));
+    }
+
+    @Test
+    void applyDesignations_withMandatoryNamespace_shouldRejectMissingNamingConvention() {
+        UUID namespaceId = UUID.randomUUID();
+        TextLine line = new TextLine(languageId, "患者姓名", null, null, null);
+        when(namingConventionEngine.validate(any())).thenReturn(List.of());
+        when(languageRepository.findById(languageId)).thenReturn(Optional.of(lang));
+
+        itemAdministrationService.applyDesignations(item, List.of(line), namespaceId);
+
+        verify(namespaceConstraintValidator).validateDesignation(eq(namespaceId), any(Designation.class), eq(null));
     }
 
     @Test

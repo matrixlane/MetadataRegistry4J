@@ -125,6 +125,28 @@ export const classificationSchemeApi = {
     request.get<any[]>(`/classification-schemes/${schemeId}/nodes/search`, {
       params: { keyword },
     }),
+  listNodes: (schemeId: string) =>
+    request.get<any[]>(`/classification-schemes/${schemeId}/nodes`),
+  moveNode: (schemeId: string, nodeId: string, parentId: string | null) =>
+    request.put<any>(`/classification-schemes/${schemeId}/nodes/${nodeId}/move`, { parentId }),
+  deleteNodeCascade: (schemeId: string, nodeId: string) =>
+    request.delete(`/classification-schemes/${schemeId}/nodes/${nodeId}/cascade`),
+  validateImport: (file: File, targetSchemeId?: string) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (targetSchemeId) formData.append('schemeId', targetSchemeId);
+    return request.post<any>('/classification-schemes/import/validate', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+  importFile: (file: File, targetSchemeId?: string) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (targetSchemeId) formData.append('schemeId', targetSchemeId);
+    return request.post<any>('/classification-schemes/import', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
 };
 
 /** Unified metadata search (WI-015a) */

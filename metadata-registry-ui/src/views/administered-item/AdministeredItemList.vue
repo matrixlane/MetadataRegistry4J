@@ -72,12 +72,12 @@ const allowedStatuses = computed(() => [
   'STANDARD', 'PREFERRED', 'SUPERSEDED', 'RETIRED', 'HISTORICAL'
 ]);
 
-function statusType(status?: string) {
+function statusType(status?: string): import('@/types/common').ElTagType | undefined {
   switch (status) {
     case 'STANDARD': return 'success';
     case 'PREFERRED': return 'success';
     case 'INCOMPLETE': return 'info';
-    case 'SUBMITTED': return '';
+    case 'SUBMITTED': return undefined;
     case 'RETIRED': return 'danger';
     default: return 'warning';
   }

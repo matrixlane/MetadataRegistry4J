@@ -9,6 +9,7 @@ import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefi
 import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.DefinitionContext;
 import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.Designation;
 import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.DesignationContext;
+import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.NamingConvention;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifiedItem;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.ScopedIdentifier;
@@ -30,10 +31,12 @@ import io.github.matrixlane.metadataregistry.web.repository.ScopedIdentifierRepo
 import io.github.matrixlane.metadataregistry.web.repository.ContextRepository;
 import io.github.matrixlane.metadataregistry.web.repository.LanguageIdentificationRepository;
 import io.github.matrixlane.metadataregistry.web.repository.NamespaceRepository;
+import io.github.matrixlane.metadataregistry.web.repository.NamingConventionRepository;
 import io.github.matrixlane.metadataregistry.web.repository.ReferenceDocumentRepository;
 import io.github.matrixlane.metadataregistry.web.repository.RegistrationAuthorityRepository;
 import io.github.matrixlane.metadataregistry.web.service.namingconvention.NamingConventionEngine;
 import io.github.matrixlane.metadataregistry.web.service.namingconvention.NamingConventionRuleResult;
+import io.github.matrixlane.metadataregistry.web.service.namespace.NamespaceConstraintValidator;
 import io.github.matrixlane.metadataregistry.web.util.ItemNamingHelper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -64,8 +67,18 @@ public class ItemAdministrationService {
     private final ScopedIdentifierRepository scopedIdentifierRepository;
     private final AdministeredItemRepository administeredItemRepository;
     private final IdentifierStrategyConfigService identifierStrategyConfigService;
+    private final NamingConventionRepository namingConventionRepository;
+    private final NamespaceConstraintValidator namespaceConstraintValidator;
 
     public void applyDesignations(Item item, List<TextLine> designations) {
+        applyDesignations(item, designations, null);
+    }
+
+    /**
+     * Apply designations to an item and validate them against the given namespace's
+     * naming convention constraints when the namespace enforces mandatory naming conventions.
+     */
+    public void applyDesignations(Item item, List<TextLine> designations, UUID namespaceId) {
         if (designations == null) return;
 
         validateNamingConventions(designations);
@@ -78,6 +91,7 @@ public class ItemAdministrationService {
             d.setSign(Sign.of(line.value()));
             d.setLanguage(loadLanguage(line.languageId()));
             d.setSource(loadSourceOrNull(line.sourceId()));
+            applyNamingConventions(d, line.namingConventionIds());
             if (line.contexts() != null) {
                 for (var ce : line.contexts()) {
                     DesignationContext dc = new DesignationContext();
@@ -88,7 +102,23 @@ public class ItemAdministrationService {
                 }
             }
             item.getDesignations().add(d);
+            if (namespaceId != null) {
+                namespaceConstraintValidator.validateDesignation(namespaceId, d, null);
+            }
         }
+    }
+
+    private void applyNamingConventions(Designation d, List<UUID> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return;
+        }
+        List<NamingConvention> conventions = namingConventionRepository.findAllById(ids);
+        if (conventions.size() != ids.size()) {
+            List<UUID> found = conventions.stream().map(NamingConvention::getId).toList();
+            List<UUID> missing = ids.stream().filter(id -> !found.contains(id)).toList();
+            throw new ResourceNotFoundException("NamingConvention", missing);
+        }
+        d.getNamingConventions().addAll(conventions);
     }
 
     private void validateNamingConventions(List<TextLine> designations) {
