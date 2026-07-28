@@ -3,6 +3,7 @@ package io.github.matrixlane.metadataregistry.web.common;
 import io.github.matrixlane.metadataregistry.schemaextraction.javasource.JavaSourceParseException;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -97,6 +98,17 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleIllegalArgument(IllegalArgumentException ex) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ApiResponse.error(ApiCodes.BAD_REQUEST, ex.getMessage()));
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiResponse<Void>> handleHttpMessageNotReadable(HttpMessageNotReadableException ex) {
+        log.warn("请求体 JSON 解析失败", ex);
+        String message = ex.getMessage();
+        String detail = message != null && message.contains("was expecting double-quote to start field name")
+                ? "请求体 JSON 格式非法：字段名必须用双引号包裹"
+                : "请求体格式错误，请检查 JSON 语法";
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.error(ApiCodes.BAD_REQUEST, detail));
     }
 
     @ExceptionHandler(org.springframework.data.mapping.PropertyReferenceException.class)
