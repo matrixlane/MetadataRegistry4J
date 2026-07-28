@@ -60,7 +60,9 @@ public class DataTypeSchemeService {
 
     private void applyRequest(DataTypeScheme entity, DataTypeSchemeRequest request) {
         entity.setReference(request.reference());
-        itemAdministrationService.applyDesignations(entity, request.designations());
+        itemAdministrationService.applyDesignations(
+                entity, request.designations(),
+                request.registration() == null ? null : request.registration().namespaceId());
         itemAdministrationService.applyDefinitions(entity, request.definitions());
         if (request.registration() != null) {
             itemAdministrationService.ensureAdministeredItem(entity, request.registration());

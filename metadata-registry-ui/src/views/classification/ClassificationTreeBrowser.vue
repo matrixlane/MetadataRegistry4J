@@ -420,7 +420,7 @@
             >
               <el-option
                 label="（设置为根节点 / 无父节点）"
-                :value="null"
+                :value="(null as any)"
               />
               <el-option
                 v-for="node in availableNodesForMove"
@@ -639,10 +639,10 @@ interface NodeDetail {
 }
 
 // Tree structure props
-const treeProps = {
+const treeProps: import('element-plus/es/components/tree/src/tree.type').TreeOptionProps = {
   children: 'children',
   label: 'label',
-  isLeaf: (data: TreeNode) => !data.hasChildren,
+  isLeaf: (data: any) => !data.hasChildren,
 };
 
 // Core States
@@ -1097,7 +1097,7 @@ async function handleExport(format: string) {
       responseType: 'blob'
     });
 
-    const blob = new Blob([response.data], { type: response.headers['content-type'] });
+    const blob = new Blob([response.data], { type: (response.headers['content-type'] as string | undefined) });
     const filename = format === 'csv'
       ? `classification-scheme-${currentSchemeId.value}.csv`
       : `classification-scheme-${currentSchemeId.value}.xlsx`;

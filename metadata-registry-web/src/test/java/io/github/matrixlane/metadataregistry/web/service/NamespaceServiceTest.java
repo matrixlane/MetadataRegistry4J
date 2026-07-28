@@ -2,6 +2,7 @@ package io.github.matrixlane.metadataregistry.web.service;
 
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Organization;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.Sign;
+import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.NamingConvention;
 import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.Designation;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationAuthority;
@@ -221,5 +222,28 @@ class NamespaceServiceTest {
 
         assertThat(result.namingAuthorityId()).isNull();
         assertThat(result.namingAuthorityName()).isNull();
+    }
+
+    @Test
+    void create_shouldPassWithMandatoryNamingConventionAndConventions() {
+        UUID ncId = UUID.fromString("cccccccc-cccc-cccc-cccc-cccccccccccc");
+        NamespaceRequest request = new NamespaceRequest(null, List.of(), List.of(), null,
+                null, true, List.of(ncId), null, null);
+
+        NamingConvention nc = new NamingConvention();
+        nc.setId(ncId);
+        when(namingConventionRepository.findAllById(List.of(ncId))).thenReturn(List.of(nc));
+        when(repository.save(any(Namespace.class))).thenAnswer(i -> {
+            Namespace ns = i.getArgument(0);
+            ns.setId(namespaceId);
+            return ns;
+        });
+        when(itemAdministrationService.mapDesignations(any())).thenReturn(List.of());
+        when(itemAdministrationService.mapDefinitions(any())).thenReturn(List.of());
+
+        NamespaceResponse result = service.create(request);
+
+        assertThat(result.id()).isEqualTo(namespaceId);
+        assertThat(result.mandatoryNamingConventionIndicator()).isTrue();
     }
 }

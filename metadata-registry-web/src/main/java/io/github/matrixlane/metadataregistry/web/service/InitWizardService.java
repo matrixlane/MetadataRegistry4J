@@ -176,6 +176,10 @@ public class InitWizardService {
             );
         }
 
+        // 3.5 Initialize languages before creating registry specification,
+        // because the default specification needs a valid languageId.
+        languageInitializer.initializeLanguages();
+
         // 3. Create default namespace if checked
         if (createNamespace) {
             Namespace ns = new Namespace();
@@ -203,12 +207,11 @@ public class InitWizardService {
                     request.identifierPattern(),
                     request.versioningPolicy(),
                     request.mandatoryClassification(),
-                    request.defaultLanguage(),
+                    request.defaultLanguage() != null ? request.defaultLanguage() : "zh-CN",
                     request.registryDescription());
         }
 
-        // 3.6 Initialize languages and system default namespace
-        languageInitializer.initializeLanguages();
+        // 3.6 Initialize system default namespace
         systemDefaultNamespaceInitializer.ifPresent(SystemDefaultNamespaceInitializer::initializeSystemDefaultNamespace);
 
         // NOTE: system.initialized stays FALSE; admin password is NOT reset
