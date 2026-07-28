@@ -2,15 +2,18 @@ package io.github.matrixlane.metadataregistry.web.service;
 
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.LanguageIdentification;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.Context;
+import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.Item;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrySpecification;
 import io.github.matrixlane.metadataregistry.web.common.ResourceNotFoundException;
 import io.github.matrixlane.metadataregistry.web.dto.registries.RegistrySpecificationRequest;
 import io.github.matrixlane.metadataregistry.web.dto.registries.RegistrySpecificationResponse;
 import io.github.matrixlane.metadataregistry.web.repository.LanguageIdentificationRepository;
 import io.github.matrixlane.metadataregistry.web.repository.ContextRepository;
+import io.github.matrixlane.metadataregistry.web.repository.ItemRepository;
 import io.github.matrixlane.metadataregistry.web.repository.RegistrySpecificationRepository;
 import io.github.matrixlane.metadataregistry.web.util.ItemNamingHelper;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -21,12 +24,14 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional
 public class RegistrySpecificationService {
 
     private final RegistrySpecificationRepository repository;
+    private final ItemRepository itemRepository;
     private final LanguageIdentificationRepository languageRepository;
     private final ContextRepository contextRepository;
     private final ItemAdministrationService itemAdministrationService;
@@ -64,6 +69,29 @@ public class RegistrySpecificationService {
     @Transactional(readOnly = true)
     public boolean exists() {
         return repository.count() > 0;
+    }
+
+    /**
+     * Clean up orphan registry_specification rows whose id no longer exists in the
+     * inherited item table. This prevents Hibernate from failing to add the FK
+     * constraint on startup. Idempotent: does nothing if no orphans are found.
+     */
+    @org.springframework.context.event.EventListener(org.springframework.boot.context.event.ApplicationReadyEvent.class)
+    public void cleanupOrphanRecords() {
+        long total = repository.count();
+        if (total == 0) {
+            return;
+        }
+        List<UUID> itemIds = itemRepository.findAll().stream()
+                .map(Item::getId)
+                .toList();
+        List<RegistrySpecification> orphans = repository.findAll().stream()
+                .filter(rs -> !itemIds.contains(rs.getId()))
+                .toList();
+        if (!orphans.isEmpty()) {
+            log.warn("发现 {} 条 registry_specification 孤儿记录（在 item 表中无对应 id），即将清理", orphans.size());
+            repository.deleteAll(orphans);
+        }
     }
 
     public RegistrySpecificationResponse createDefault(String registryName,

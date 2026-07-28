@@ -55,7 +55,8 @@ public class SecurityConfig {
                                 "/api/v1/migration/**",
                                 "/api/v1/init-wizard/status", "/api/v1/init-wizard/wizard-state",
                                 "/api/v1/init-wizard/setup", "/api/v1/init-wizard/commit",
-                                "/api/v1/init-wizard/abort").permitAll()
+                                "/api/v1/init-wizard/abort",
+                                "/", "/index.html", "/favicon.svg", "/assets/**").permitAll()
                         .requestMatchers("/swagger-ui.html",
                                 "/swagger-ui/**",
                                 "/v3/api-docs",

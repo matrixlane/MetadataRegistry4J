@@ -33,7 +33,7 @@ import java.util.List;
 @NoArgsConstructor
 public class RegistrySpecification extends Item {
 
-    @Column(name = "name", nullable = false, length = 255)
+    @Column(name = "name", nullable = true, length = 255)
     private String name;
 
     @Column(name = "comment", length = 4000)
@@ -54,7 +54,7 @@ public class RegistrySpecification extends Item {
     )
     private List<LanguageIdentification> alternativeLanguages = new ArrayList<>();
 
-    @Column(name = "character_repertoire", nullable = false, length = 255)
+    @Column(name = "character_repertoire", nullable = true, length = 255)
     private String characterRepertoire;
 
     @ElementCollection
