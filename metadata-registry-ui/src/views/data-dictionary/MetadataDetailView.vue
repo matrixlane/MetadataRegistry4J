@@ -244,12 +244,12 @@ function typeLabel(type: string): string {
   return t?.label || type || '未知';
 }
 
-function typeBadgeType(type: string): string {
+function typeBadgeType(type: string): import('@/types/common').ElTagType | undefined {
   return type === 'DataElement' ? 'success'
     : type === 'ValueDomain' ? 'warning'
     : type === 'ConceptualDomain' ? 'info'
     : type === 'ObjectClass' ? 'primary'
-    : undefined as any;
+    : undefined;
 }
 
 function statusLabel(status?: string): string {
@@ -257,7 +257,7 @@ function statusLabel(status?: string): string {
   return s?.label || status || '未知';
 }
 
-function statusTagType(status?: string): string {
+function statusTagType(status?: string): import('@/types/common').ElTagType | undefined {
   switch (status) {
     case 'STANDARD':
     case 'PREFERRED':

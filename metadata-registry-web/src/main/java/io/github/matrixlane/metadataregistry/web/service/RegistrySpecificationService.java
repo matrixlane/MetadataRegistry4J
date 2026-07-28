@@ -119,13 +119,22 @@ public class RegistrySpecificationService {
                 null,
                 null,
                 "UTC+8",
-                List.of(new io.github.matrixlane.metadataregistry.web.dto.common.TextLine(null, registryName, null, null)),
+                List.of(new io.github.matrixlane.metadataregistry.web.dto.common.TextLine(defaultLanguageId(defaultLanguage), registryName, null, null)),
                 null,
                 null);
         return create(request);
     }
 
-   private RegistrySpecification loadOrThrow(UUID id) {
+    private UUID defaultLanguageId(String languageIdentifier) {
+        if (languageIdentifier == null || languageIdentifier.isBlank()) {
+            return null;
+        }
+        return languageRepository.findByLanguageIdentifier(languageIdentifier)
+                .map(LanguageIdentification::getId)
+                .orElse(null);
+    }
+
+    private RegistrySpecification loadOrThrow(UUID id) {
        return repository.findById(id)
                .orElseThrow(() -> new ResourceNotFoundException("RegistrySpecification", id));
    }
@@ -176,7 +185,9 @@ public class RegistrySpecificationService {
             entity.setContext(null);
         }
 
-        itemAdministrationService.applyDesignations(entity, request.designations());
+        itemAdministrationService.applyDesignations(
+                entity, request.designations(),
+                request.registration() == null ? null : request.registration().namespaceId());
         itemAdministrationService.applyDefinitions(entity, request.definitions());
         if (request.registration() != null) {
             itemAdministrationService.ensureAdministeredItem(entity, request.registration());

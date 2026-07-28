@@ -34,7 +34,7 @@
     <!-- Filters: Tabs + Status -->
     <div class="filter-section">
       <div class="type-tabs">
-        <el-radio-group v-model="selectedType" size="default" @change="handleTypeChange">
+        <el-radio-group v-model="selectedType" size="default" @change="handleTypeChange as any">
           <el-radio-button value="">全部类型</el-radio-button>
           <el-radio-button
             v-for="t in entityTypes"
@@ -223,12 +223,12 @@ function typeLabel(type: string): string {
   return t?.label || type || '未知';
 }
 
-function typeBadgeType(type: string): string {
+function typeBadgeType(type: string): import('@/types/common').ElTagType | undefined {
   return type === 'DataElement' ? 'success'
     : type === 'ValueDomain' ? 'warning'
     : type === 'ConceptualDomain' ? 'info'
     : type === 'ObjectClass' ? 'primary'
-    : undefined as any;
+    : undefined;
 }
 
 function statusLabel(status?: string): string {
@@ -236,7 +236,7 @@ function statusLabel(status?: string): string {
   return s?.label || status || '未知';
 }
 
-function statusTagType(status?: string): string {
+function statusTagType(status?: string): import('@/types/common').ElTagType | undefined {
   switch (status) {
     case 'STANDARD':
     case 'PREFERRED':

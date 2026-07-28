@@ -17,6 +17,7 @@ export interface PageQuery {
   size?: number;
   sort?: string;
   q?: string;
+  enabled?: boolean;
 }
 
 export interface ScopedIdentifierDto {
@@ -53,6 +54,8 @@ export type RegistrationStatus =
   | 'HISTORICAL'
   | 'APPLICATION';
 
+export type ElTagType = 'primary' | 'success' | 'warning' | 'info' | 'danger';
+
 export interface TextLineContextForm {
   contextId: string;
   acceptability: 'PREFERRED' | 'ADMITTED' | 'DEPRECATED' | 'SUPERSEDED' | 'OBSOLETE';
@@ -64,6 +67,7 @@ export interface TextLineForm {
   value: string;
   sourceId?: string;
   contexts?: TextLineContextForm[];
+  namingConventionIds?: string[];
 }
 
 export interface PairingForm {
@@ -162,6 +166,11 @@ export interface NamingConventionResponse {
   authorityRule?: string;
   designations?: TextLineResponse[];
   definitions?: TextLineResponse[];
+  registrationStatus?: string;
+  meta?: {
+    identifier?: string;
+    registrationStatus?: string;
+  };
 }
 
 export interface NamingConventionRequest {
@@ -169,6 +178,10 @@ export interface NamingConventionRequest {
   authorityRule?: string;
   designations: TextLineForm[];
   definitions?: TextLineForm[];
+  registration?: {
+    identifier?: string;
+    version?: string;
+  };
 }
 
 export interface AppUserDto {
