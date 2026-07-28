@@ -73,6 +73,8 @@
             <MultilingualTextEditor
               v-model="form.designations"
               label="指称"
+              :naming-convention-options="designationNamingConventionOptions"
+              :require-naming-conventions="namespaceMandatoryNC"
             />
           </el-form-item>
         </el-tab-pane>
@@ -125,12 +127,13 @@
 <script setup lang="ts">
 import { reactive, ref, onMounted, computed } from 'vue';
 import { ElMessage } from 'element-plus';
+import { watch } from 'vue';
 import { Warning } from '@element-plus/icons-vue';
 import type { FormInstance, FormRules } from 'element-plus';
 import MultilingualTextEditor from './MultilingualTextEditor.vue';
 import DesignationDefinitionPairingEditor from './DesignationDefinitionPairingEditor.vue';
-import { namespaceApi, registrationAuthorityApi, pairingApi } from '@/api/resources';
-import type { TextLineForm, PairingForm } from '@/types/common';
+import { namingConventionApi, namespaceApi, registrationAuthorityApi, pairingApi } from '@/api/resources';
+import type { TextLineForm, PairingForm, NamespaceDetailResponse } from '@/types/common';
 
 interface RegistrationForm {
   namespaceId?: string;
@@ -206,6 +209,16 @@ const form = reactive<ItemForm>({
 
 const namespaces = ref<{ id: string; identifier?: string; name?: string }[]>([]);
 const registrationAuthorities = ref<{ id: string; identifier?: string; name?: string }[]>([]);
+const namespaceNamingConventions = ref<{ id: string; label?: string; scopeRule?: string }[]>([]);
+const namespaceMandatoryNC = ref(false);
+
+const designationNamingConventionOptions = computed(() =>
+  props.showRegistration ? namespaceNamingConventions.value : []
+);
+
+watch(() => form.registration.namespaceId, (namespaceId) => {
+  loadNamespaceDetail(namespaceId);
+});
 
 const designationOptions = computed(() =>
   form.designations
@@ -234,6 +247,15 @@ const rules: FormRules = {
           callback(new Error('至少有一条完整的指称（语言+内容）'));
           return;
         }
+        if (namespaceMandatoryNC.value) {
+          const missing = value.filter(
+            (v) => v.languageId && v.value?.trim() && !(v.namingConventionIds || []).length
+          );
+          if (missing.length > 0) {
+            callback(new Error('该命名空间要求强制命名规范，请为每条指称至少选择一个命名规范'));
+            return;
+          }
+        }
         callback();
       },
       trigger: 'change',
@@ -242,6 +264,39 @@ const rules: FormRules = {
 };
 
 const loaded = ref(false);
+
+async function loadNamespaceDetail(namespaceId: string | undefined) {
+  if (!namespaceId) {
+    namespaceNamingConventions.value = [];
+    namespaceMandatoryNC.value = false;
+    return;
+  }
+  try {
+    const detail = await namespaceApi.detail(namespaceId) as NamespaceDetailResponse;
+    namespaceNamingConventions.value = (detail.namingConventionIds || []).map((id) => ({
+      id,
+      label: detail.label,
+      scopeRule: undefined,
+    }));
+    namespaceMandatoryNC.value = !!detail.mandatoryNamingConventionIndicator;
+    // Try to fetch full naming convention labels
+    try {
+      const ncRes = await namingConventionApi.list({ size: 200 });
+      const ncMap = new Map(((ncRes.content || []) as any[]).map((n) => [n.id, n]));
+      namespaceNamingConventions.value = namespaceNamingConventions.value.map((nc) => {
+        const found = ncMap.get(nc.id);
+        return found
+          ? { id: nc.id, label: found.label, scopeRule: found.scopeRule }
+          : nc;
+      });
+    } catch {
+      // ignore label enrichment failures
+    }
+  } catch {
+    namespaceNamingConventions.value = [];
+    namespaceMandatoryNC.value = false;
+  }
+}
 
 async function loadOptions() {
   if (loaded.value) return;
@@ -269,6 +324,7 @@ async function open(initial?: Record<string, unknown>) {
       pairings: normalizePairings(initial.pairings as any),
       registration: normalizeRegistration(initial.registration as any, initial.meta as any),
     });
+    await loadNamespaceDetail(form.registration.namespaceId);
     if (initial.id) {
       try {
         const res = await pairingApi.list(initial.id as string);
@@ -304,6 +360,9 @@ function normalizeTextLines(raw: unknown): TextLineForm[] {
     value: r.value || r.sign || r.text || '',
     sourceId: r.sourceId || r.source_id || r.sourceID || undefined,
     contexts: normalizeContexts(r.contexts),
+    namingConventionIds: Array.isArray(r.namingConventionIds)
+      ? r.namingConventionIds
+      : (Array.isArray(r.namingConvention_ids) ? r.namingConvention_ids : undefined),
   }));
 }
 
@@ -373,6 +432,7 @@ async function handleSubmit() {
           languageId: d.languageId,
           value: d.value.trim(),
           sourceId: d.sourceId || null,
+          namingConventionIds: d.namingConventionIds || [],
           contexts: (d.contexts || []).map((c) => ({
             contextId: c.contextId,
             acceptability: c.acceptability,
@@ -384,6 +444,7 @@ async function handleSubmit() {
           languageId: d.languageId,
           value: d.value.trim(),
           sourceId: d.sourceId || null,
+          namingConventionIds: d.namingConventionIds || [],
           contexts: (d.contexts || []).map((c) => ({
             contextId: c.contextId,
             acceptability: c.acceptability,
@@ -408,6 +469,10 @@ async function handleSubmit() {
       ElMessage.success('保存成功');
       visible.value = false;
       emit('success');
+    } catch (err: any) {
+      // submitFn implementations usually show their own ElMessage.error;
+      // swallow the error here so it does not become an unhandled rejection.
+      console.error('提交失败', err);
     } finally {
       saving.value = false;
     }

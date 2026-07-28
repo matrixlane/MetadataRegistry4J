@@ -92,7 +92,7 @@
         <el-form-item label="系统角色">
           <el-select v-model="form.sysRole" placeholder="普通用户" clearable style="width: 100%;" :disabled="form.username === 'admin'">
             <el-option label="超级管理员" value="SUPER_ADMIN" disabled />
-            <el-option label="普通用户" :value="null" />
+            <el-option label="普通用户" :value="(null as any)" />
           </el-select>
         </el-form-item>
         <el-form-item label="启用" prop="enabled">
@@ -172,7 +172,7 @@ async function handleResetPassword(row: Record<string, unknown>) {
       {
         dangerouslyUseHTMLString: true,
         confirmButtonText: '复制并关闭',
-        callback: action => {
+        callback: (action: string) => {
           if (action === 'confirm') {
             navigator.clipboard.writeText(tempPassword);
             ElMessage.success('密码已复制到剪贴板');

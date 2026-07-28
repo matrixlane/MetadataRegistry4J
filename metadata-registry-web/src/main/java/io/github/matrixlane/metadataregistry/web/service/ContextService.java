@@ -46,7 +46,9 @@ public class ContextService {
 
     public ContextResponse create(ContextRequest request) {
         Context entity = new Context();
-        itemAdministrationService.applyDesignations(entity, request.designations());
+        itemAdministrationService.applyDesignations(
+                entity, request.designations(),
+                request.registration() == null ? null : request.registration().namespaceId());
         itemAdministrationService.applyDefinitions(entity, request.definitions());
         if (request.registration() != null) {
             itemAdministrationService.ensureAdministeredItem(entity, request.registration());
@@ -56,7 +58,9 @@ public class ContextService {
 
     public ContextResponse update(UUID id, ContextRequest request) {
         Context entity = loadOrThrow(id);
-        itemAdministrationService.applyDesignations(entity, request.designations());
+        itemAdministrationService.applyDesignations(
+                entity, request.designations(),
+                request.registration() == null ? null : request.registration().namespaceId());
         itemAdministrationService.applyDefinitions(entity, request.definitions());
         if (request.registration() != null) {
             itemAdministrationService.ensureAdministeredItem(entity, request.registration());

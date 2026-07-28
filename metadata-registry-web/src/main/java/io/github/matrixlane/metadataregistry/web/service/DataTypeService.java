@@ -70,7 +70,9 @@ public class DataTypeService {
         } else {
             entity.setDataTypeScheme(null);
         }
-        itemAdministrationService.applyDesignations(entity, request.designations());
+        itemAdministrationService.applyDesignations(
+                entity, request.designations(),
+                request.registration() == null ? null : request.registration().namespaceId());
         itemAdministrationService.applyDefinitions(entity, request.definitions());
         if (request.registration() != null) {
             itemAdministrationService.ensureAdministeredItem(entity, request.registration());

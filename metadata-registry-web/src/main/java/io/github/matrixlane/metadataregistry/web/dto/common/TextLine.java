@@ -14,5 +14,10 @@ public record TextLine(
         String value,
         UUID sourceId,
         @Valid
-        List<TextLineContextEntry> contexts) {
+        List<TextLineContextEntry> contexts,
+        List<UUID> namingConventionIds) {
+
+    public TextLine(UUID languageId, String value, UUID sourceId, List<TextLineContextEntry> contexts) {
+        this(languageId, value, sourceId, contexts, null);
+    }
 }

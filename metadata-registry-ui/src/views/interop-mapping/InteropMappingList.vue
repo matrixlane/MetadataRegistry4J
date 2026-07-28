@@ -449,7 +449,7 @@ async function handleBatchReject() {
     await ElMessageBox.confirm(
       `确定要批量拒绝当前数据集的 ${pendingCount.value} 条待确认记录吗？`,
       '批量拒绝',
-      { type: 'danger', confirmButtonText: '确认拒绝' }
+      { type: 'error', confirmButtonText: '确认拒绝' }
     );
     const res = await interopMappingApi.batchReject(query.datasetId!, currentUserId.value);
     ElMessage.success(`批量拒绝成功，共 ${res.affectedCount} 条记录`);

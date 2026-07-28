@@ -24,6 +24,7 @@
 
 <script setup lang="ts">
 import { reactive, ref } from 'vue';
+import { ElMessage } from 'element-plus';
 import type { FormInstance, FormRules } from 'element-plus';
 
 interface Props {
@@ -63,6 +64,10 @@ async function handleSubmit() {
       ElMessage.success('保存成功');
       visible.value = false;
       emit('success');
+    } catch (err: any) {
+      // submitFn implementations usually show their own ElMessage.error;
+      // swallow the error here so it does not become an unhandled rejection.
+      console.error('提交失败', err);
     } finally {
       saving.value = false;
     }
