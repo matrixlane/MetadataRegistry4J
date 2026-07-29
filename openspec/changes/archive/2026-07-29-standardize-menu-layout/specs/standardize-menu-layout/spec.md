@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: 侧边栏导航分类和顺序对齐标准
-系统侧边栏导航的一级和二级菜单必须按照 ISO/IEC 11179-3:2023 和 ISO/IEC 11179-31:2023 Annex A Consolidated class hierarchy 定义的继承层次进行划分和排列。菜单项的分类和顺序必须为：
+系统侧边栏导航的一级和二级菜单 MUST 按照 ISO/IEC 11179-3:2023 和 ISO/IEC 11179-31:2023 Annex A Consolidated class hierarchy 定义的继承层次进行划分和排列。菜单项的分类和顺序 MUST 为：
 1. **工作台** (Dashboard)
 2. **数据字典** (Data Dictionary)
 3. **注册与公共设施** (Registration & Common Facilities)
@@ -45,7 +45,7 @@
 - **THEN** 系统展示 `PlaceholderPage.vue` 占位页面，标题为“维度”，内容提示“功能开发中，敬请期待”
 
 ### Requirement: 国际化语言包翻译规范
-所有新增和修改的一级及二级导航菜单标题必须支持中英文国际化，并使用 ISO/IEC 11179 规范的中文和英文术语。
+所有新增和修改的一级及二级导航菜单标题 MUST 支持中英文国际化，并使用 ISO/IEC 11179 规范的中文和英文术语。
 新增或修改的翻译键包括：
 - `nav.commonFacilities`: "注册与公共设施" / "Common Facilities"
 - `nav.partyAndDocument`: "相关方与文献" / "Parties & Documents"
@@ -61,7 +61,7 @@
 - **THEN** 侧边栏和系统标题中显示对应的英文名，例如“Common Facilities”, “Parties & Documents”, “Concept Region”, “Representation Region”, “Classification & Mapping”, “Dimensionality”
 
 ### Requirement: 路由权限与菜单过滤
-侧边栏的渲染和路由安全必须与用户角色的权限绑定。系统管理菜单及其子路由只能对超级管理员角色（ADMIN）显示，普通用户登录后应被过滤隐藏且不能通过手动输入路径访问。
+侧边栏的渲染和路由安全 MUST 与用户角色的权限绑定。系统管理菜单及其子路由只能对超级管理员角色（ADMIN）显示，普通用户登录后应被过滤隐藏且不能通过手动输入路径访问。
 
 #### Scenario: 普通用户隐藏系统管理
 - **WHEN** 拥有普通用户角色的账号登录并查看侧边栏

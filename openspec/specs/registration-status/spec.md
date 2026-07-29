@@ -1,5 +1,8 @@
-## MODIFIED Requirements
+# registration-status Specification
 
+## Purpose
+TBD - created by archiving change iso-11179-3-chapter-9-registration-package. Update Purpose after archive.
+## Requirements
 ### Requirement: RegistrationStatus covers ISO/IEC 11179-3:2023 states
 The system SHALL provide a `RegistrationStatus` enumeration that includes all statuses defined in ISO/IEC 11179-3:2023, 9.6.2: `INCOMPLETE`, `SUBMITTED`, `RECORDED`, `QUALIFIED`, `STANDARD`, `PREFERRED`, `SUPERSEDED`, `RETIRED`, `HISTORICAL`, and `APPLICATION`.
 
@@ -12,6 +15,3 @@ The system SHALL provide a `RegistrationStatus` enumeration that includes all st
 - **WHEN** the administrator transitions it to `APPLICATION`
 - **THEN** the transition is persisted without validation errors
 
-## REMOVED Requirements
-
-None.
