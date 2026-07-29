@@ -8,6 +8,8 @@ public record LanguageResponse(
         String languageIdentifier,
         String scriptIdentifier,
         String geopoliticalTerritoryIdentifier,
+        String languageName,
+        String geopoliticalTerritoryName,
         List<String> variantIdentifier,
         List<String> extensionIdentifier,
         String privateUseQualifier,

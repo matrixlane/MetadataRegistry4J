@@ -12,6 +12,8 @@
         <el-table-column prop="languageIdentifier" label="语言标识" width="140" sortable />
         <el-table-column prop="scriptIdentifier" label="文字" width="100" />
         <el-table-column prop="geopoliticalTerritoryIdentifier" label="地区" width="100" />
+        <el-table-column prop="languageName" label="语言名称" width="120" />
+        <el-table-column prop="geopoliticalTerritoryName" label="地区名称" width="120" />
       </template>
     </DataTablePage>
 
