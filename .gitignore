@@ -30,3 +30,10 @@ metadata-registry-ui/test-results/
 # Notification backup
 .notification_backup_wi0104a/
 .notification_test_backup_wi0104a/
+
+# Local agent tooling / scratch
+.agent/
+.claude/
+.worktrees/
+BOOT-INF/
+emergency-code.txt
