@@ -10,10 +10,12 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.Locale;
 import java.util.UUID;
 
 @Service
@@ -94,11 +96,14 @@ public class LanguageIdentificationService {
     }
 
     private LanguageResponse toResponse(LanguageIdentification entity) {
+        Locale displayLocale = LocaleContextHolder.getLocale();
         return new LanguageResponse(
                 entity.getId(),
                 entity.getLanguageIdentifier(),
                 entity.getScriptIdentifier(),
                 entity.getGeopoliticalTerritoryIdentifier(),
+                LanguageDisplayNames.languageName(entity.getLanguageIdentifier(), displayLocale),
+                LanguageDisplayNames.territoryName(entity.getGeopoliticalTerritoryIdentifier(), displayLocale),
                 new ArrayList<>(entity.getVariantIdentifier()),
                 new ArrayList<>(entity.getExtensionIdentifier()),
                 entity.getPrivateUseQualifier(),
