@@ -8,7 +8,7 @@
       <div class="multilingual-row">
         <el-select
           v-model="row.languageId"
-          placeholder="语言"
+          :placeholder="$t('multilingual.languagePlaceholder')"
           style="width: 140px; flex-shrink: 0;"
           size="small"
         >
@@ -21,9 +21,23 @@
         </el-select>
         <el-input
           v-model="row.value"
-          :placeholder="`${label}内容`"
+          :placeholder="$t('multilingual.valuePlaceholder', { label })"
           size="small"
         />
+        <el-select
+          v-model="row.sourceId"
+          :placeholder="$t('multilingual.sourcePlaceholder')"
+          size="small"
+          style="width: 160px; flex-shrink: 0;"
+          clearable
+        >
+          <el-option
+            v-for="doc in referenceDocuments"
+            :key="doc.id"
+            :label="doc.title || doc.identifier || doc.id.slice(0, 8)"
+            :value="doc.id"
+          />
+        </el-select>
         <el-button
           type="danger"
           size="small"
@@ -38,7 +52,7 @@
       <div class="context-section">
         <div class="context-header" @click="toggleExpand(index)">
           <el-icon size="12"><component :is="expanded[index] ? ArrowDown : ArrowRight" /></el-icon>
-          <span>上下文关联</span>
+          <span>{{ $t('multilingual.contextAssociation') }}</span>
           <el-tag v-if="row.contexts?.length" size="small" type="info" round style="margin-left: 8px;">
             {{ row.contexts.length }}
           </el-tag>
@@ -49,7 +63,7 @@
             round
             style="margin-left: 8px;"
           >
-            命名规范 {{ (row.namingConventionIds || []).length }}
+            {{ $t('multilingual.namingConvention') }} {{ (row.namingConventionIds || []).length }}
           </el-tag>
         </div>
         <el-collapse-transition>
@@ -61,7 +75,7 @@
             >
               <el-select
                 v-model="ctx.contextId"
-                placeholder="选择上下文"
+                :placeholder="$t('multilingual.contextPlaceholder')"
                 size="small"
                 style="width: 180px;"
                 filterable
@@ -79,15 +93,15 @@
               </el-select>
               <el-select
                 v-model="ctx.acceptability"
-                placeholder="可接受性"
+                :placeholder="$t('multilingual.acceptabilityPlaceholder')"
                 size="small"
                 style="width: 140px;"
               >
-                <el-option label="首选" value="PREFERRED" />
-                <el-option label="认可" value="ADMITTED" />
-                <el-option label="已弃用" value="DEPRECATED" />
-                <el-option label="已取代" value="SUPERSEDED" />
-                <el-option label="已过时" value="OBSOLETE" />
+                <el-option :label="$t('acceptability.PREFERRED')" value="PREFERRED" />
+                <el-option :label="$t('acceptability.ADMITTED')" value="ADMITTED" />
+                <el-option :label="$t('acceptability.DEPRECATED')" value="DEPRECATED" />
+                <el-option :label="$t('acceptability.SUPERSEDED')" value="SUPERSEDED" />
+                <el-option :label="$t('acceptability.OBSOLETE')" value="OBSOLETE" />
               </el-select>
               <el-button
                 type="danger"
@@ -100,13 +114,13 @@
               </el-button>
             </div>
             <div v-if="namingConventionOptions && namingConventionOptions.length > 0" class="naming-convention-row">
-              <span class="nc-label">命名规范</span>
+              <span class="nc-label">{{ $t('multilingual.namingConvention') }}</span>
               <el-select
                 v-model="row.namingConventionIds"
                 multiple
                 collapse-tags
                 collapse-tags-tooltip
-                placeholder="选择适用的命名规范"
+                :placeholder="$t('multilingual.namingConventionPlaceholder')"
                 size="small"
                 style="flex: 1;"
                 :class="{ 'is-error': requireNamingConventions && !(row.namingConventionIds || []).length }"
@@ -126,7 +140,7 @@
               @click="addContext(index)"
             >
               <el-icon><Plus /></el-icon>
-              添加上下文
+              {{ $t('multilingual.addContext') }}
             </el-button>
           </div>
         </el-collapse-transition>
@@ -139,7 +153,7 @@
       @click="addRow"
     >
       <el-icon><Plus /></el-icon>
-      添加{{ label }}
+      {{ $t('multilingual.addLabel', { label }) }}
     </el-button>
   </div>
 </template>
@@ -147,7 +161,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { Plus, Delete, ArrowRight, ArrowDown } from '@element-plus/icons-vue';
-import { languageApi, contextApi } from '@/api/resources';
+import { languageApi, contextApi, referenceDocumentApi } from '@/api/resources';
 import type { TextLineForm, NamingConventionResponse } from '@/types/common';
 
 interface Props {
@@ -164,6 +178,7 @@ const emit = defineEmits<{
 
 const languages = ref<{ id: string; languageIdentifier: string }[]>([]);
 const contextOptions = ref<{ id: string; label: string }[]>([]);
+const referenceDocuments = ref<{ id: string; title?: string; identifier?: string }[]>([]);
 const searchingContexts = ref(false);
 const expanded = ref<Record<number, boolean>>({});
 
@@ -175,6 +190,16 @@ onMounted(async () => {
       languageIdentifier: l.languageIdentifier || l.identifier || '',
     }));
     await searchContexts('');
+  } catch {
+    // fallback
+  }
+  try {
+    const refRes = await referenceDocumentApi.list({ size: 200 });
+    referenceDocuments.value = (refRes.content || []).map((d: any) => ({
+      id: d.id,
+      title: d.title,
+      identifier: d.identifier,
+    }));
   } catch {
     // fallback
   }
@@ -283,3 +308,4 @@ function removeContext(rowIndex: number, ctxIndex: number) {
   box-shadow: 0 0 0 1px #f56c6c inset;
 }
 </style>
+*** End of File

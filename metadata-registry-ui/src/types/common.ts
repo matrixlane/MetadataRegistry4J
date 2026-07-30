@@ -78,6 +78,18 @@ export interface PairingForm {
   acceptability: 'PREFERRED' | 'ADMITTED' | 'DEPRECATED' | 'SUPERSEDED' | 'OBSOLETE';
 }
 
+export interface ItemRelationshipContextResponse {
+  id: string;
+  label: string;
+}
+
+export interface ItemRelationshipResponse {
+  designations: TextLineResponse[];
+  definitions: TextLineResponse[];
+  contexts: ItemRelationshipContextResponse[];
+  pairings: PairingForm[];
+}
+
 export interface UserRoleAssignmentDto {
   role: 'ADMIN' | 'REGISTRAR' | 'VIEWER';
   registryId?: string;

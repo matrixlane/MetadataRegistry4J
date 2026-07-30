@@ -7,6 +7,7 @@ import type {
   NamespaceDetailResponse,
   NamingConventionRequest,
   NamingConventionResponse,
+  ItemRelationshipResponse,
 } from '@/types/common';
 
 function crud<T>(base: string) {
@@ -204,6 +205,11 @@ export const pairingApi = {
     request.put<any>(`/items/${itemId}/designation-definition-pairings/${id}`, data),
   delete: (itemId: string, id: string) =>
     request.delete(`/items/${itemId}/designation-definition-pairings/${id}`),
+};
+
+export const itemRelationshipApi = {
+  get: (itemId: string) =>
+    request.get<ItemRelationshipResponse>(`/items/${itemId}/designation-definition-relationships`),
 };
 
 /** Version history (WI-015b) */

@@ -228,5 +228,30 @@
     "scopeRulePlaceholder": "如 ^[a-z]+$ 或 全部以小写字母命名",
     "authorityRulePlaceholder": "如 由组织 X 命名 / 由管理员审核",
     "empty": "暂无命名规范，点击「新建命名规范」开始创建"
+  },
+  "multilingual": {
+    "languagePlaceholder": "语言",
+    "valuePlaceholder": "{label}内容",
+    "sourcePlaceholder": "来源文档",
+    "contextAssociation": "上下文关联",
+    "contextPlaceholder": "选择上下文",
+    "acceptabilityPlaceholder": "可接受性",
+    "namingConvention": "命名规范",
+    "namingConventionPlaceholder": "选择适用的命名规范",
+    "addContext": "添加上下文",
+    "addLabel": "添加{label}"
+  },
+  "acceptability": {
+    "PREFERRED": "首选",
+    "ADMITTED": "认可",
+    "DEPRECATED": "已弃用",
+    "SUPERSEDED": "已取代",
+    "OBSOLETE": "已过时"
+  },
+  "relationship": {
+    "designations": "指称",
+    "definitions": "定义",
+    "contexts": "上下文",
+    "pairings": "配对"
   }
 }

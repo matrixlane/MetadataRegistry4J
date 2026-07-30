@@ -22,6 +22,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
@@ -156,16 +157,14 @@ public class DefinitionService {
     }
 
     private DefinitionResponse toResponse(Definition d) {
-        UUID ctxId = null;
-        String ctxLabel = null;
-        String acceptability = null;
+        List<DefinitionResponse.ContextResponse> contexts = Collections.emptyList();
         if (d.getDefinitionContexts() != null && !d.getDefinitionContexts().isEmpty()) {
-            DefinitionContext dc = d.getDefinitionContexts().get(0);
-            if (dc.getContext() != null) {
-                ctxId = dc.getContext().getId();
-                ctxLabel = ItemNamingHelper.preferredDesignation(dc.getContext());
-            }
-            acceptability = dc.getAcceptability() == null ? null : dc.getAcceptability().name();
+            contexts = d.getDefinitionContexts().stream()
+                    .map(dc -> new DefinitionResponse.ContextResponse(
+                            dc.getContext() == null ? null : dc.getContext().getId(),
+                            dc.getContext() == null ? null : ItemNamingHelper.preferredDesignation(dc.getContext()),
+                            dc.getAcceptability() == null ? null : dc.getAcceptability().name()))
+                    .toList();
         }
         return new DefinitionResponse(
                 d.getId(),
@@ -176,8 +175,6 @@ public class DefinitionService {
                 d.getSource() == null ? null : d.getSource().getId(),
                 d.getSource() == null || d.getSource().getTitle() == null
                         ? null : d.getSource().getTitle().getValue(),
-                ctxId,
-                ctxLabel,
-                acceptability);
+                contexts);
     }
 }
