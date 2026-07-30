@@ -5,6 +5,8 @@ import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefi
 import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.Designation;
 import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.DesignationDefinitionPairing;
 import io.github.matrixlane.metadataregistry.web.common.ResourceNotFoundException;
+import io.github.matrixlane.metadataregistry.web.common.ApiCodes;
+import io.github.matrixlane.metadataregistry.web.common.BusinessException;
 import io.github.matrixlane.metadataregistry.web.dto.designationdefinition.DesignationDefinitionPairingRequest;
 import io.github.matrixlane.metadataregistry.web.dto.designationdefinition.DesignationDefinitionPairingResponse;
 import io.github.matrixlane.metadataregistry.web.repository.ContextRepository;
@@ -18,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 @Service
 @RequiredArgsConstructor
@@ -37,7 +40,13 @@ public class DesignationDefinitionPairingService {
 
     @Transactional
     public DesignationDefinitionPairingResponse create(DesignationDefinitionPairingRequest request) {
+        if (request.contextId() == null) {
+            throw new BusinessException("指称-定义配对必须关联一个上下文（contextId）");
+        }
         DesignationDefinitionPairing pairing = new DesignationDefinitionPairing();
+        Designation designation = designationRepository.findById(request.designationId())
+                .orElseThrow(() -> new ResourceNotFoundException("Designation", request.designationId()));
+        validatePreferredPairingUniqueness(designation, request.contextId(), null);
         applyRequest(pairing, request);
         return toResponse(pairingRepository.save(pairing));
     }
@@ -46,6 +55,10 @@ public class DesignationDefinitionPairingService {
     public DesignationDefinitionPairingResponse update(UUID id, DesignationDefinitionPairingRequest request) {
         DesignationDefinitionPairing pairing = pairingRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("DesignationDefinitionPairing", id));
+        if (request.contextId() == null) {
+            throw new BusinessException("指称-定义配对必须关联一个上下文（contextId）");
+        }
+        validatePreferredPairingUniqueness(pairing.getDesignation(), request.contextId(), id);
         applyRequest(pairing, request);
         return toResponse(pairingRepository.save(pairing));
     }
@@ -56,18 +69,33 @@ public class DesignationDefinitionPairingService {
     }
 
     private void applyRequest(DesignationDefinitionPairing pairing, DesignationDefinitionPairingRequest request) {
-        Designation d = designationRepository.findById(request.designationId())
-                .orElseThrow(() -> new ResourceNotFoundException("Designation", request.designationId()));
+        Designation d = pairing.getDesignation() != null ? pairing.getDesignation()
+                : designationRepository.findById(request.designationId())
+                        .orElseThrow(() -> new ResourceNotFoundException("Designation", request.designationId()));
         Definition def = definitionRepository.findById(request.definitionId())
                 .orElseThrow(() -> new ResourceNotFoundException("Definition", request.definitionId()));
-        Context ctx = request.contextId() == null ? null
-                : contextRepository.findById(request.contextId())
+        Context ctx = contextRepository.findById(request.contextId())
                 .orElseThrow(() -> new ResourceNotFoundException("Context", request.contextId()));
 
         pairing.setDesignation(d);
         pairing.setDefinition(def);
         pairing.setContext(ctx);
         pairing.setAcceptability(request.acceptability());
+    }
+
+    private void validatePreferredPairingUniqueness(Designation designation, UUID contextId, UUID excludePairingId) {
+        if (designation == null || designation.getItem() == null || contextId == null) return;
+        UUID itemId = designation.getItem().getId();
+        List<DesignationDefinitionPairing> existing = pairingRepository.findByDesignation_Item_Id(itemId);
+        boolean conflict = existing.stream()
+                .filter(p -> excludePairingId == null || !excludePairingId.equals(p.getId()))
+                .filter(p -> contextId.equals(p.getContext() == null ? null : p.getContext().getId()))
+                .filter(p -> p.getAcceptability() == io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.Acceptability.PREFERRED)
+                .anyMatch(p -> true);
+        if (conflict) {
+            throw new BusinessException(ApiCodes.CONFLICT,
+                    "同一项目+上下文下已存在首选 (PREFERRED) 配对，contextId=" + contextId);
+        }
     }
 
     private DesignationDefinitionPairingResponse toResponse(DesignationDefinitionPairing pairing) {

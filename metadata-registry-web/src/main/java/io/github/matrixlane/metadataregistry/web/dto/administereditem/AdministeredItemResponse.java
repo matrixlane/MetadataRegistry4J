@@ -23,6 +23,7 @@ public record AdministeredItemResponse(
         UUID constraintSetId,
         String constraintSetLabel,
         List<UUID> referenceDocumentIds,
+        Boolean hasPreferred,
         LocalDateTime creationDateTime,
         LocalDateTime lastChangeDateTime,
         String changeDescription) {

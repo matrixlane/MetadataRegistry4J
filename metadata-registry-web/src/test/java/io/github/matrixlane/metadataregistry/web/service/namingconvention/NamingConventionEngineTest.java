@@ -1,6 +1,9 @@
 package io.github.matrixlane.metadataregistry.web.service.namingconvention;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.Sign;
+import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.Text;
+import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.NamingConvention;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -12,8 +15,8 @@ class NamingConventionEngineTest {
     @Test
     void defaultEngine_shouldContainLengthCharsetAndRegexRules() {
         NamingConventionEngine engine = new NamingConventionEngine();
-        assertThat(engine.getRules()).hasSize(3);
-        assertThat(engine.getRules().stream().map(NamingConventionRule::getName))
+        assertThat(engine.getDefaultRules()).hasSize(3);
+        assertThat(engine.getDefaultRules().stream().map(NamingConventionRule::getName))
                 .containsExactly("length", "charset", "regex");
     }
 
@@ -63,16 +66,51 @@ class NamingConventionEngineTest {
     void customEngine_shouldUseProvidedRules() {
         NamingConventionEngine engine = new NamingConventionEngine(List.of(
                 new RegexNamingConventionRule("uppercase", "^[A-Z]+$", "全大写")
-        ));
-        assertThat(engine.getRules()).hasSize(1);
+        ), new ObjectMapper());
+        assertThat(engine.getDefaultRules()).hasSize(1);
         assertThat(engine.isValid(Sign.of("ABC"))).isTrue();
         assertThat(engine.isValid(Sign.of("abc"))).isFalse();
     }
 
     @Test
     void customEngine_withNullRules_shouldBeEmpty() {
-        NamingConventionEngine engine = new NamingConventionEngine(null);
-        assertThat(engine.getRules()).isEmpty();
+        NamingConventionEngine engine = new NamingConventionEngine(null, new ObjectMapper());
+        assertThat(engine.getDefaultRules()).isEmpty();
         assertThat(engine.isValid(Sign.of("anything"))).isTrue();
+    }
+
+    @Test
+    void buildRulesFromConvention_shouldGenerateRulesFromStandardAttributes() {
+        NamingConvention convention = new NamingConvention();
+        convention.setLexicalRule(Text.of("/^[\\u4e00-\\u9fa5]+$/"));
+        convention.setSemanticRule(Text.of("患者,姓名"));
+
+        NamingConventionEngine engine = new NamingConventionEngine();
+        List<NamingConventionRule> rules = engine.buildRulesFromConvention(convention);
+
+        assertThat(rules).hasSize(2);
+        assertThat(rules.get(0).getName()).isEqualTo("lexical");
+        assertThat(rules.get(1).getName()).isEqualTo("semantic");
+        assertThat(engine.isValid(Sign.of("患者姓名"), convention)).isTrue();
+        assertThat(engine.isValid(Sign.of("PatientName"), convention)).isFalse();
+    }
+
+    @Test
+    void buildRulesFromConvention_shouldParseJsonRules() {
+        NamingConvention convention = new NamingConvention();
+        convention.setRulesJson("[{\"type\": \"regex\", \"pattern\": \"^[A-Z]+$\", \"description\": \"全大写\"}]");
+
+        NamingConventionEngine engine = new NamingConventionEngine();
+        List<NamingConventionRule> rules = engine.buildRulesFromConvention(convention);
+
+        assertThat(rules).hasSize(1);
+        assertThat(engine.isValid(Sign.of("ABC"), convention)).isTrue();
+        assertThat(engine.isValid(Sign.of("abc"), convention)).isFalse();
+    }
+
+    @Test
+    void buildRulesFromConvention_withNullConvention_shouldReturnDefaultRules() {
+        NamingConventionEngine engine = new NamingConventionEngine();
+        assertThat(engine.buildRulesFromConvention(null)).hasSize(3);
     }
 }

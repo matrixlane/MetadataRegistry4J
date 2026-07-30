@@ -8,6 +8,7 @@ import jakarta.persistence.AttributeOverrides;
 import jakarta.persistence.Column;
 import jakarta.persistence.Embedded;
 import jakarta.persistence.Entity;
+import jakarta.persistence.Lob;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -43,4 +44,39 @@ public class NamingConvention extends Item {
             @AttributeOverride(name = "value", column = @Column(name = "authority_rule"))
     })
     private Text authorityRule;
+
+    /**
+     * Semantic rule: what concepts the name should express.
+     */
+    @Embedded
+    @AttributeOverrides({
+            @AttributeOverride(name = "value", column = @Column(name = "semantic_rule"))
+    })
+    private Text semanticRule;
+
+    /**
+     * Syntactic rule: how words should be ordered or structured.
+     */
+    @Embedded
+    @AttributeOverrides({
+            @AttributeOverride(name = "value", column = @Column(name = "syntactic_rule"))
+    })
+    private Text syntacticRule;
+
+    /**
+     * Lexical rule: what character set or vocabulary may be used.
+     */
+    @Embedded
+    @AttributeOverrides({
+            @AttributeOverride(name = "value", column = @Column(name = "lexical_rule"))
+    })
+    private Text lexicalRule;
+
+    /**
+     * Machine-executable rules serialized as JSON. When present, the engine uses these rules
+     * directly; otherwise it falls back to generating rules from the standard attributes above.
+     */
+    @Lob
+    @Column(name = "rules_json")
+    private String rulesJson;
 }

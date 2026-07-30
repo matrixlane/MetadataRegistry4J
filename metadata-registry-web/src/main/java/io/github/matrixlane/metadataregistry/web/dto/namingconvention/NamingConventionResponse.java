@@ -1,4 +1,3 @@
-
 package io.github.matrixlane.metadataregistry.web.dto.namingconvention;
 
 import io.github.matrixlane.metadataregistry.web.dto.common.ItemMetaResponse;
@@ -12,6 +11,10 @@ public record NamingConventionResponse(
         String label,
         String scopeRule,
         String authorityRule,
+        String semanticRule,
+        String syntacticRule,
+        String lexicalRule,
+        String rulesJson,
         List<TextLineResponse> designations,
         List<TextLineResponse> definitions,
         ItemMetaResponse meta) {
