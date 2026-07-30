@@ -47,6 +47,22 @@
         >
           <el-icon><Delete /></el-icon>
         </el-button>
+        <el-tooltip
+          v-if="isIsolated(index)"
+          :content="row.isolatedException ? '已标记为例外' : '无上下文且未被配对引用，点击标记为例外'"
+          placement="top"
+        >
+          <el-button
+            size="small"
+            text
+            circle
+            :type="row.isolatedException ? 'success' : 'warning'"
+            @click="toggleException(index)"
+            data-testid="isolated-toggle"
+          >
+            <el-icon><Warning /></el-icon>
+          </el-button>
+        </el-tooltip>
       </div>
 
       <div class="context-section">
@@ -96,6 +112,7 @@
                 :placeholder="$t('multilingual.acceptabilityPlaceholder')"
                 size="small"
                 style="width: 140px;"
+                @change="updateConflicts"
               >
                 <el-option :label="$t('acceptability.PREFERRED')" value="PREFERRED" />
                 <el-option :label="$t('acceptability.ADMITTED')" value="ADMITTED" />
@@ -147,6 +164,7 @@
       </div>
     </div>
     <el-button
+      class="add-row-button"
       type="primary"
       size="small"
       text
@@ -160,20 +178,24 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
-import { Plus, Delete, ArrowRight, ArrowDown } from '@element-plus/icons-vue';
+import { useI18n } from 'vue-i18n';
+const { t } = useI18n();
+import { Plus, Delete, ArrowRight, ArrowDown, Warning } from '@element-plus/icons-vue';
 import { languageApi, contextApi, referenceDocumentApi } from '@/api/resources';
-import type { TextLineForm, NamingConventionResponse } from '@/types/common';
+import type { TextLineForm, PairingForm, NamingConventionResponse } from '@/types/common';
 
 interface Props {
   modelValue: TextLineForm[];
   label: string;
   namingConventionOptions?: NamingConventionResponse[];
   requireNamingConventions?: boolean;
+  pairings?: PairingForm[];
 }
 
 const props = defineProps<Props>();
 const emit = defineEmits<{
   'update:modelValue': [value: TextLineForm[]];
+  conflicts: [conflicts: { type: 'PREFERRED' | 'ISOLATED'; message: string; index: number }[]];
 }>();
 
 const languages = ref<{ id: string; languageIdentifier: string }[]>([]);
@@ -181,6 +203,56 @@ const contextOptions = ref<{ id: string; label: string }[]>([]);
 const referenceDocuments = ref<{ id: string; title?: string; identifier?: string }[]>([]);
 const searchingContexts = ref(false);
 const expanded = ref<Record<number, boolean>>({});
+
+function isIsolated(index: number): boolean {
+  const row = props.modelValue[index];
+  if (!row) return false;
+  if (row.contexts && row.contexts.length > 0) return false;
+  if (!row.id) return false;
+  return !(props.pairings || []).some((p) => p.designationId === row.id || p.definitionId === row.id);
+}
+
+function preferredConflicts() {
+  const conflicts: { type: 'PREFERRED'; message: string; index: number }[] = [];
+  const keyMap = new Map<string, number[]>();
+  props.modelValue.forEach((row, index) => {
+    if (!row.contexts) return;
+    row.contexts.forEach((ctx) => {
+      if (ctx.acceptability === 'PREFERRED') {
+        const key = `${row.languageId}|${ctx.contextId}`;
+        const indices = keyMap.get(key) || [];
+        indices.push(index);
+        keyMap.set(key, indices);
+      }
+    });
+  });
+  keyMap.forEach((indices) => {
+    if (indices.length > 1) {
+      indices.forEach((index) => {
+        conflicts.push({ type: 'PREFERRED', message: '同一语言+上下文下存在多个首选', index });
+      });
+    }
+  });
+  return conflicts;
+}
+
+function isolatedWarnings() {
+  return props.modelValue
+    .map((row, index) => ({ row, index }))
+    .filter(({ row, index }) => isIsolated(index) && !row.isolatedException)
+    .map(({ index }) => ({ type: 'ISOLATED' as const, message: '该行无上下文且未被配对引用', index }));
+}
+
+function updateConflicts() {
+  emit('conflicts', [...preferredConflicts(), ...isolatedWarnings()]);
+}
+
+function toggleException(index: number) {
+  const next = [...props.modelValue];
+  next[index] = { ...next[index], isolatedException: !next[index].isolatedException };
+  emit('update:modelValue', next);
+  updateConflicts();
+}
 
 onMounted(async () => {
   try {
@@ -222,13 +294,15 @@ function toggleExpand(index: number) {
 }
 
 function addRow() {
-  const next = [...props.modelValue, { languageId: '', value: '' }];
+  const next = [...props.modelValue, { languageId: '', value: '', isolatedException: false }];
   emit('update:modelValue', next);
+  updateConflicts();
 }
 
 function removeRow(index: number) {
   const next = props.modelValue.filter((_, i) => i !== index);
   emit('update:modelValue', next);
+  updateConflicts();
 }
 
 function addContext(rowIndex: number) {
@@ -238,6 +312,7 @@ function addContext(rowIndex: number) {
   }
   next[rowIndex].contexts!.push({ contextId: '', acceptability: 'ADMITTED' });
   emit('update:modelValue', next);
+  updateConflicts();
   expanded.value[rowIndex] = true;
 }
 
@@ -245,7 +320,10 @@ function removeContext(rowIndex: number, ctxIndex: number) {
   const next = [...props.modelValue];
   next[rowIndex].contexts!.splice(ctxIndex, 1);
   emit('update:modelValue', next);
+  updateConflicts();
 }
+
+defineExpose({ isIsolated, preferredConflicts, isolatedWarnings, updateConflicts });
 </script>
 
 <style scoped>

@@ -71,10 +71,13 @@
           </template>
           <el-form-item label="指称" prop="designations">
             <MultilingualTextEditor
+              ref="designationEditorRef"
               v-model="form.designations"
               label="指称"
               :naming-convention-options="designationNamingConventionOptions"
               :require-naming-conventions="namespaceMandatoryNC"
+              :pairings="form.pairings"
+              @conflicts="designationConflicts = $event"
             />
           </el-form-item>
         </el-tab-pane>
@@ -89,19 +92,23 @@
           </template>
           <el-form-item label="定义">
             <MultilingualTextEditor
+              ref="definitionEditorRef"
               v-model="form.definitions"
               label="定义"
+              :pairings="form.pairings"
+              @conflicts="definitionConflicts = $event"
             />
           </el-form-item>
         </el-tab-pane>
 
         <!-- Pairings Tab -->
         <el-tab-pane v-if="form.id" label="指称-定义配对" name="pairings">
-          <DesignationDefinitionPairingEditor
-            v-model="form.pairings"
-            :designations="designationOptions"
-            :definitions="definitionOptions"
-          />
+        <DesignationDefinitionPairingEditor
+          ref="pairingEditorRef"
+          v-model="form.pairings"
+          :designations="designationOptions"
+          :definitions="definitionOptions"
+        />
         </el-tab-pane>
 
         <!-- Resource-specific fields Tab -->
@@ -117,6 +124,44 @@
       </el-tabs>
     </el-form>
 
+    <el-alert
+      v-if="allConflicts.length"
+      :title="`存在 ${allConflicts.length} 项冲突/警告`"
+      type="warning"
+      :closable="false"
+      style="margin-top: 12px;"
+    >
+      <div class="conflict-list">
+        <div v-for="(c, idx) in allConflicts.slice(0, 5)" :key="idx" class="conflict-item">
+          <el-tag :type="c.type === 'PREFERRED' ? 'danger' : 'warning'" size="small">
+            {{ c.type === 'PREFERRED' ? 'PREFERRED 冲突' : '孤立行' }}
+          </el-tag>
+          <span>{{ c.label }} 第 {{ c.index + 1 }} 行：{{ c.message }}</span>
+        </div>
+        <div v-if="allConflicts.length > 5">…等 {{ allConflicts.length }} 项</div>
+      </div>
+    </el-alert>
+
+    <el-dialog
+      v-model="isolatedConfirmVisible"
+      title="发现孤立行"
+      width="520px"
+      :close-on-click-modal="false"
+      append-to-body
+    >
+      <p>以下 {{ pendingIsolatedRows.length }} 行既没有上下文也未标记为例外，是否继续保存？</p>
+      <ul class="isolated-list">
+        <li v-for="(r, idx) in pendingIsolatedRows" :key="idx">
+          {{ r.label }} 第 {{ r.index + 1 }} 行：{{ r.value }}
+        </li>
+      </ul>
+      <template #footer>
+        <el-button @click="isolatedConfirmVisible = false">取消</el-button>
+        <el-button type="warning" @click="markAllIsolatedExceptions">全部标记为例外并保存</el-button>
+        <el-button type="primary" @click="confirmSubmitAnyway">仍然保存</el-button>
+      </template>
+    </el-dialog>
+
     <template #footer>
       <el-button @click="visible = false">取消</el-button>
       <el-button type="primary" :loading="saving" @click="handleSubmit">保存</el-button>
@@ -126,6 +171,8 @@
 
 <script setup lang="ts">
 import { reactive, ref, onMounted, computed } from 'vue';
+import { useI18n } from 'vue-i18n';
+const { t } = useI18n();
 import { ElMessage } from 'element-plus';
 import { watch } from 'vue';
 import { Warning } from '@element-plus/icons-vue';
@@ -133,6 +180,7 @@ import type { FormInstance, FormRules } from 'element-plus';
 import MultilingualTextEditor from './MultilingualTextEditor.vue';
 import DesignationDefinitionPairingEditor from './DesignationDefinitionPairingEditor.vue';
 import { namingConventionApi, namespaceApi, registrationAuthorityApi, pairingApi } from '@/api/resources';
+import { languageApi } from '@/api/resources';
 import type { TextLineForm, PairingForm, NamespaceDetailResponse } from '@/types/common';
 
 interface RegistrationForm {
@@ -165,7 +213,10 @@ const emit = defineEmits<{ success: [] }>();
 const visible = ref(false);
 const saving = ref(false);
 const formRef = ref<FormInstance>();
+const pairingEditorRef = ref<InstanceType<typeof DesignationDefinitionPairingEditor>>();
 const activeTab = ref('designations');
+const designationEditorRef = ref<InstanceType<typeof MultilingualTextEditor>>();
+const definitionEditorRef = ref<InstanceType<typeof MultilingualTextEditor>>();
 
 const invalidFields = ref<Set<string>>(new Set());
 
@@ -209,8 +260,66 @@ const form = reactive<ItemForm>({
 
 const namespaces = ref<{ id: string; identifier?: string; name?: string }[]>([]);
 const registrationAuthorities = ref<{ id: string; identifier?: string; name?: string }[]>([]);
+const languages = ref<{ id: string; languageIdentifier?: string; languageCode?: string }[]>([]);
 const namespaceNamingConventions = ref<{ id: string; label?: string; scopeRule?: string }[]>([]);
 const namespaceMandatoryNC = ref(false);
+const designationConflicts = ref<{ type: 'PREFERRED' | 'ISOLATED'; message: string; index: number }[]>([]);
+const definitionConflicts = ref<{ type: 'PREFERRED' | 'ISOLATED'; message: string; index: number }[]>([]);
+const isolatedConfirmVisible = ref(false);
+
+const allConflicts = computed(() => {
+  const list = [
+    ...designationConflicts.value.map((c) => ({ ...c, label: '指称' })),
+    ...definitionConflicts.value.map((c) => ({ ...c, label: '定义' })),
+  ];
+  return list;
+});
+
+const pendingIsolatedRows = computed(() => {
+  const rows: { label: string; index: number; value: string }[] = [];
+  designationConflicts.value
+    .filter((c) => c.type === 'ISOLATED')
+    .forEach((c) => {
+      const row = form.designations[c.index];
+      if (row) rows.push({ label: '指称', index: c.index, value: row.value || row.id || '' });
+    });
+  definitionConflicts.value
+    .filter((c) => c.type === 'ISOLATED')
+    .forEach((c) => {
+      const row = form.definitions[c.index];
+      if (row) rows.push({ label: '定义', index: c.index, value: row.value || row.id || '' });
+    });
+  return rows;
+});
+
+let submitAfterConfirm: (() => void) | null = null;
+
+function markAllIsolatedExceptions() {
+  designationConflicts.value
+    .filter((c) => c.type === 'ISOLATED')
+    .forEach((c) => {
+      form.designations[c.index] = { ...form.designations[c.index], isolatedException: true };
+    });
+  definitionConflicts.value
+    .filter((c) => c.type === 'ISOLATED')
+    .forEach((c) => {
+      form.definitions[c.index] = { ...form.definitions[c.index], isolatedException: true };
+    });
+  isolatedConfirmVisible.value = false;
+  designationEditorRef.value?.updateConflicts?.();
+  definitionEditorRef.value?.updateConflicts?.();
+  if (submitAfterConfirm) submitAfterConfirm();
+}
+
+function confirmSubmitAnyway() {
+  isolatedConfirmVisible.value = false;
+  if (submitAfterConfirm) submitAfterConfirm();
+}
+
+function requestIsolatedConfirmation(onConfirm: () => void) {
+  submitAfterConfirm = onConfirm;
+  isolatedConfirmVisible.value = true;
+}
 
 const designationNamingConventionOptions = computed(() =>
   props.showRegistration ? namespaceNamingConventions.value : []
@@ -223,14 +332,30 @@ watch(() => form.registration.namespaceId, (namespaceId) => {
 const designationOptions = computed(() =>
   form.designations
     .filter((d) => d.id && d.value)
-    .map((d) => ({ id: d.id!, value: d.value })),
+    .map((d) => ({
+      id: d.id!,
+      value: d.value,
+      languageCode: languageCodeById(d.languageId),
+      contexts: (d.contexts || []).map((c) => ({ contextId: c.contextId, acceptability: c.acceptability })),
+    })),
 );
 
 const definitionOptions = computed(() =>
   form.definitions
     .filter((d) => d.id && d.value)
-    .map((d) => ({ id: d.id!, value: d.value })),
+    .map((d) => ({
+      id: d.id!,
+      value: d.value,
+      languageCode: languageCodeById(d.languageId),
+      contexts: (d.contexts || []).map((c) => ({ contextId: c.contextId, acceptability: c.acceptability })),
+    })),
 );
+
+function languageCodeById(languageId?: string): string | undefined {
+  if (!languageId) return undefined;
+  const lang = languages.value.find((l) => l.id === languageId);
+  return lang?.languageCode || lang?.languageIdentifier || languageId.slice(0, 4);
+}
 
 const rules: FormRules = {
   'registration.namespaceId': [{ required: true, message: '请选择命名空间', trigger: 'change' }],
@@ -301,12 +426,14 @@ async function loadNamespaceDetail(namespaceId: string | undefined) {
 async function loadOptions() {
   if (loaded.value) return;
   try {
-    const [nsRes, raRes] = await Promise.all([
+    const [nsRes, raRes, langRes] = await Promise.all([
       namespaceApi.list({ size: 100 }),
       registrationAuthorityApi.list({ size: 100 }),
+      languageApi.list({ size: 100 }),
     ]);
     namespaces.value = (nsRes.content || []) as any;
     registrationAuthorities.value = (raRes.content || []) as any;
+    languages.value = (langRes.content || []) as any;
     loaded.value = true;
   } catch {
     // ignore
@@ -400,6 +527,30 @@ function normalizeRegistration(
 
 async function handleSubmit() {
   if (!formRef.value) return;
+  const pairingsValid = pairingEditorRef.value?.validate() ?? true;
+  if (!pairingsValid) {
+    activeTab.value = 'pairings';
+    ElMessage.warning('配对信息不完整或存在重复，请检查');
+    return;
+  }
+  // Recompute conflicts from editors to ensure latest state
+    designationEditorRef.value?.updateConflicts?.();
+    definitionEditorRef.value?.updateConflicts?.();
+  const hasPreferredConflict = allConflicts.value.some((c) => c.type === 'PREFERRED');
+  if (hasPreferredConflict) {
+    ElMessage.warning('存在 PREFERRED 冲突，请先修正');
+    return;
+  }
+  const hasIsolated = pendingIsolatedRows.value.length > 0;
+  if (hasIsolated) {
+    requestIsolatedConfirmation(() => handleSubmitInternal());
+    return;
+  }
+  await handleSubmitInternal();
+}
+
+async function handleSubmitInternal() {
+  if (!formRef.value) return;
   await formRef.value.validate(async (valid, fields) => {
     if (!valid) {
       if (fields) {
@@ -433,6 +584,7 @@ async function handleSubmit() {
           value: d.value.trim(),
           sourceId: d.sourceId || null,
           namingConventionIds: d.namingConventionIds || [],
+          isolatedException: d.isolatedException || null,
           contexts: (d.contexts || []).map((c) => ({
             contextId: c.contextId,
             acceptability: c.acceptability,
@@ -445,6 +597,7 @@ async function handleSubmit() {
           value: d.value.trim(),
           sourceId: d.sourceId || null,
           namingConventionIds: d.namingConventionIds || [],
+          isolatedException: d.isolatedException || null,
           contexts: (d.contexts || []).map((c) => ({
             contextId: c.contextId,
             acceptability: c.acceptability,
@@ -459,6 +612,7 @@ async function handleSubmit() {
         };
       }
       const result = await props.submitFn(payload);
+      submitAfterConfirm = null;
 
       // Sync pairings if editing
       const itemId = form.id || (result as any)?.id;
@@ -514,5 +668,26 @@ defineExpose({ open });
 .tab-error-icon {
   color: var(--el-color-danger);
   font-size: 14px;
+}
+.conflict-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.conflict-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.isolated-list {
+  max-height: 200px;
+  overflow-y: auto;
+  padding-left: 20px;
+  margin: 8px 0;
+}
+.isolated-list li {
+  margin-bottom: 4px;
+  font-size: 13px;
 }
 </style>

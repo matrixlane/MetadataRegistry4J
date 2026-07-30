@@ -68,13 +68,14 @@ export interface TextLineForm {
   sourceId?: string;
   contexts?: TextLineContextForm[];
   namingConventionIds?: string[];
+  isolatedException?: boolean;
 }
 
 export interface PairingForm {
   id?: string;
   designationId: string;
   definitionId: string;
-  contextId?: string;
+  contextId: string;
   acceptability: 'PREFERRED' | 'ADMITTED' | 'DEPRECATED' | 'SUPERSEDED' | 'OBSOLETE';
 }
 
@@ -88,6 +89,32 @@ export interface ItemRelationshipResponse {
   definitions: TextLineResponse[];
   contexts: ItemRelationshipContextResponse[];
   pairings: PairingForm[];
+}
+
+export interface ContextUsageAssociation {
+  associationType: 'DESIGNATION' | 'DEFINITION' | 'PAIRING';
+  designationId?: string;
+  designationValue?: string;
+  definitionId?: string;
+  definitionValue?: string;
+  acceptability?: 'PREFERRED' | 'ADMITTED' | 'DEPRECATED' | 'SUPERSEDED' | 'OBSOLETE';
+}
+
+export interface ContextUsageItem {
+  itemId: string;
+  itemLabel?: string;
+  associations: ContextUsageAssociation[];
+}
+
+export interface ContextUsageGroup {
+  itemType: string;
+  itemTypeLabel: string;
+  items: ContextUsageItem[];
+}
+
+export interface ContextUsageResponse {
+  groups: ContextUsageGroup[];
+  truncated: boolean;
 }
 
 export interface UserRoleAssignmentDto {

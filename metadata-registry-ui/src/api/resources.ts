@@ -8,6 +8,7 @@ import type {
   NamingConventionRequest,
   NamingConventionResponse,
   ItemRelationshipResponse,
+  ContextUsageResponse,
 } from '@/types/common';
 
 function crud<T>(base: string) {
@@ -97,6 +98,7 @@ export const contextApi = {
   update: (id: string, data: Record<string, unknown>) => request.put<any>(`/contexts/${id}`, data),
   delete: (id: string) => request.delete(`/contexts/${id}`),
   options: (params?: { q?: string }) => request.get<{ id: string; label: string }[]>('/contexts/options', { params }),
+  usages: (id: string) => request.get<ContextUsageResponse>(`/contexts/${id}/usages`),
 };
 
 export const classificationSchemeApi = {
@@ -152,7 +154,7 @@ export const classificationSchemeApi = {
 
 /** Unified metadata search (WI-015a) */
 export const metadataSearchApi = {
-  search: (params?: PageQuery & { type?: string; status?: string }) =>
+  search: (params?: PageQuery & { type?: string; status?: string; contextId?: string; acceptability?: string[] }) =>
     request.get<PageResponse<any>>('/metadata/search', { params }),
 };
 

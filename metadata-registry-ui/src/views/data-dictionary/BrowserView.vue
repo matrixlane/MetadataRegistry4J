@@ -31,7 +31,7 @@
       </el-input>
     </div>
 
-    <!-- Filters: Tabs + Status -->
+    <!-- Filters: Tabs + Status + Context + Acceptability -->
     <div class="filter-section">
       <div class="type-tabs">
         <el-radio-group v-model="selectedType" size="default" @change="handleTypeChange as any">
@@ -45,7 +45,38 @@
           </el-radio-button>
         </el-radio-group>
       </div>
-      <div class="status-filter">
+      <div class="extra-filters">
+        <el-select
+          v-model="selectedContext"
+          placeholder="上下文"
+          clearable
+          style="width: 160px;"
+          @change="handleContextChange"
+        >
+          <el-option
+            v-for="c in contextOptions"
+            :key="c.id"
+            :label="c.label"
+            :value="c.id"
+          />
+        </el-select>
+        <el-select
+          v-model="selectedAcceptability"
+          placeholder="可接受性"
+          clearable
+          multiple
+          collapse-tags
+          collapse-tags-tooltip
+          style="width: 180px;"
+          @change="handleAcceptabilityChange"
+        >
+          <el-option
+            v-for="a in acceptabilityOptions"
+            :key="a.value"
+            :label="a.label"
+            :value="a.value"
+          />
+        </el-select>
         <el-select
           v-model="selectedStatus"
           placeholder="注册状态"
@@ -90,9 +121,9 @@
       <!-- Empty state -->
       <div v-else-if="!rows.length" class="empty-state">
         <el-empty
-          :description="query.q || selectedType || selectedStatus ? '未找到匹配的元数据项，请调整搜索条件' : '暂无元数据项'"
+          :description="hasAnyFilter ? '未找到匹配的元数据项，请调整搜索条件' : '暂无元数据项'"
         >
-          <el-button v-if="query.q || selectedType || selectedStatus" text type="primary" @click="clearAllFilters">
+          <el-button v-if="hasAnyFilter" text type="primary" @click="clearAllFilters">
             清除所有筛选条件
           </el-button>
         </el-empty>
@@ -112,6 +143,7 @@
           <template #default="{ row }">
             <div class="item-name-cell">
               <span class="item-name">{{ row.itemLabel || '-' }}</span>
+              <el-tag v-if="row.hasPreferred" size="small" type="success" class="preferred-badge">PREFERRED</el-tag>
               <el-tag size="small" class="type-badge" :type="typeBadgeType(row.itemType)">
                 {{ typeLabel(row.itemType) }}
               </el-tag>
@@ -153,9 +185,11 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
+const { t } = useI18n();
 import { useRouter } from 'vue-router';
 import { Search, Refresh } from '@element-plus/icons-vue';
-import { metadataSearchApi } from '@/api/resources';
+import { metadataSearchApi, contextApi } from '@/api/resources';
 
 const router = useRouter();
 
@@ -163,17 +197,22 @@ const router = useRouter();
 const rows = ref<any[]>([]);
 const total = ref(0);
 const loading = ref(false);
+const contextOptions = ref<{ id: string; label: string }[]>([]);
 
 const query = reactive({
   q: undefined as string | undefined,
   type: undefined as string | undefined,
   status: undefined as string | undefined,
+  contextId: undefined as string | undefined,
+  acceptability: undefined as string[] | undefined,
 });
 
 const currentPage = ref(1);
 const pageSize = ref(20);
 const selectedType = ref('');
 const selectedStatus = ref('');
+const selectedContext = ref('');
+const selectedAcceptability = ref<string[]>([]);
 
 // --- Entity types ---
 const entityTypes = [
@@ -202,6 +241,15 @@ const registrationStatuses = [
   { value: 'HISTORICAL', label: '历史' },
 ];
 
+// --- Acceptability options ---
+const acceptabilityOptions = [
+  { value: 'PREFERRED', label: '首选' },
+  { value: 'ADMITTED', label: '可接受' },
+  { value: 'DEPRECATED', label: '不推荐使用' },
+  { value: 'SUPERSEDED', label: '已取代' },
+  { value: 'OBSOLETE', label: '已废弃' },
+];
+
 // --- Active filters display ---
 const activeFilters = computed(() => {
   const filters: { key: string; label: string }[] = [];
@@ -214,7 +262,19 @@ const activeFilters = computed(() => {
     const s = registrationStatuses.find(st => st.value === query.status);
     filters.push({ key: 'status', label: `状态: ${s?.label || query.status}` });
   }
+  if (query.contextId) {
+    const c = contextOptions.value.find(opt => opt.id === query.contextId);
+    filters.push({ key: 'contextId', label: `上下文: ${c?.label || query.contextId}` });
+  }
+  if (query.acceptability && query.acceptability.length > 0) {
+    const labels = query.acceptability.map(v => acceptabilityOptions.find(a => a.value === v)?.label || v);
+    filters.push({ key: 'acceptability', label: `可接受性: ${labels.join(', ')}` });
+  }
   return filters;
+});
+
+const hasAnyFilter = computed(() => {
+  return !!query.q || !!query.type || !!query.status || !!query.contextId || !!(query.acceptability && query.acceptability.length > 0);
 });
 
 // --- Helper functions ---
@@ -270,6 +330,15 @@ function formatDate(dateStr?: string): string {
   }
 }
 
+async function loadContexts() {
+  try {
+    const res = await contextApi.options();
+    contextOptions.value = res || [];
+  } catch {
+    contextOptions.value = [];
+  }
+}
+
 // --- Data fetching ---
 async function fetchData() {
   loading.value = true;
@@ -278,6 +347,8 @@ async function fetchData() {
     if (query.q) params.q = query.q;
     if (query.type) params.type = query.type;
     if (query.status) params.status = query.status;
+    if (query.contextId) params.contextId = query.contextId;
+    if (query.acceptability && query.acceptability.length > 0) params.acceptability = query.acceptability;
 
     const res = await metadataSearchApi.search(params as any);
     rows.value = res.content || [];
@@ -304,6 +375,18 @@ function handleStatusChange(val: string) {
   fetchData();
 }
 
+function handleContextChange(val: string) {
+  query.contextId = val || undefined;
+  currentPage.value = 1;
+  fetchData();
+}
+
+function handleAcceptabilityChange(val: string[]) {
+  query.acceptability = val && val.length > 0 ? val : undefined;
+  currentPage.value = 1;
+  fetchData();
+}
+
 function handlePageChange() {
   fetchData();
 }
@@ -316,6 +399,8 @@ function removeFilter(key: string) {
   if (key === 'q') { query.q = undefined; }
   if (key === 'type') { query.type = undefined; selectedType.value = ''; }
   if (key === 'status') { query.status = undefined; selectedStatus.value = ''; }
+  if (key === 'contextId') { query.contextId = undefined; selectedContext.value = ''; }
+  if (key === 'acceptability') { query.acceptability = undefined; selectedAcceptability.value = []; }
   currentPage.value = 1;
   fetchData();
 }
@@ -324,8 +409,12 @@ function clearAllFilters() {
   query.q = undefined;
   query.type = undefined;
   query.status = undefined;
+  query.contextId = undefined;
+  query.acceptability = undefined;
   selectedType.value = '';
   selectedStatus.value = '';
+  selectedContext.value = '';
+  selectedAcceptability.value = [];
   currentPage.value = 1;
   fetchData();
 }
@@ -337,7 +426,10 @@ function handleRowClick(row: any) {
   });
 }
 
-onMounted(fetchData);
+onMounted(() => {
+  loadContexts();
+  fetchData();
+});
 </script>
 
 <style scoped lang="scss">
@@ -408,8 +500,11 @@ onMounted(fetchData);
     }
   }
 
-  .status-filter {
+  .extra-filters {
     flex-shrink: 0;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
   }
 }
 
@@ -471,6 +566,11 @@ onMounted(fetchData);
 
   .type-badge {
     flex-shrink: 0;
+  }
+
+  .preferred-badge {
+    flex-shrink: 0;
+    font-weight: 600;
   }
 }
 
