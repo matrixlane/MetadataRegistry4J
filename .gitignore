@@ -33,3 +33,6 @@ metadata-registry-ui/test-results/
 
 # Local scratch / temp files
 scratch/
+
+# Spring Boot extracted jar layout
+BOOT-INF/
