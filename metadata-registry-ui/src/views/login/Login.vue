@@ -16,6 +16,9 @@
         <el-form-item :label="$t('auth.username')" prop="username">
           <el-input
             v-model="form.username"
+            type="text"
+            name="username"
+            autocomplete="username"
             :placeholder="$t('auth.pleaseInputUsername')"
             size="large"
             clearable
@@ -26,6 +29,8 @@
           <el-input
             v-model="form.password"
             type="password"
+            name="password"
+            autocomplete="current-password"
             show-password
             :placeholder="$t('auth.pleaseInputPassword')"
             size="large"

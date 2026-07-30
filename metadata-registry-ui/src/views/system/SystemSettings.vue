@@ -230,6 +230,8 @@
           <el-input
             v-model="password"
             type="password"
+            name="password"
+            autocomplete="current-password"
             placeholder="请输入管理员密码"
             show-password
             :disabled="resetting"
