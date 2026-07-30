@@ -12,14 +12,14 @@
 - [x] 2.1 Update `TextLineForm` and `TextLineContextForm` types in `metadata-registry-ui` to include `namespaceIds`, `namingConventionIds`, and `acceptability`.
 - [x] 2.2 Update `PairingForm` type to make `contextId` non-optional.
 - [x] 2.3 Add utility functions to detect isolated lines and PREFERRED conflicts.
-- [ ] 2.4 Add i18n strings for new labels and warnings (optional; current labels are Chinese hard-coded).
+- [x] 2.4 Add i18n strings for new labels and warnings (done in `metadata-registry-ui/src/i18n/zh-CN.json`).
 
 ## 3. Pairing editor context mandatory
 
 - [x] 3.1 Remove `clearable` from context selector in `DesignationDefinitionPairingEditor.vue` and show inline error when empty.
 - [x] 3.2 Disable save/confirm button until every pairing row has a non-empty `contextId` (enforced by `ItemFormDialog` pre-validation).
-- [ ] 3.3 Add component test verifying that a pairing without context cannot be saved (requires Vitest setup).
-- [ ] 3.4 Add component test verifying that selecting a context enables save (requires Vitest setup).
+- [x] 3.3 Add component test verifying that a pairing without context cannot be saved (requires Vitest setup).
+- [x] 3.4 Add component test verifying that selecting a context enables save (requires Vitest setup).
 
 ## 4. Minimum context or pairing warning
 
@@ -61,7 +61,7 @@
 - [x] 8.1 Group `ContextUsageDialog.vue` usages by `itemId` using grouped tables.
 - [x] 8.2 Display association type badge and acceptability badge in each usage row.
 - [x] 8.3 Add navigation links to the owning item in each usage row and in the group header.
-- [ ] 8.4 Add component test for grouping and row rendering (requires Vitest setup).
+- [x] 8.4 Add component test for grouping and row rendering (requires Vitest setup).
 
 ## 9. TypeScript build cleanup
 

@@ -118,7 +118,7 @@
 | ✅ `Item` 不是抽象类 | `Item` 是 **abstract**（Page 48: "Item is an abstract superclass"） | `Item` 是具体实体类，可实例化 | 已标记为 `abstract`（WI-006） |
 | ✅ `Concept` 不是抽象类 | `Concept` 是 **abstract** | `Concept` 是具体实体类 | 已标记为 `abstract`（WI-006） |
 | `Constraint_Set` 缺失 | 标准 9.4.5 定义了 `Constraint_Set`，继承 `Item`，用于注册约束 | 已补充（`ConstraintSet` 实体、`registered_item_constraint_set` 关联、CRUD API、种子数据） | 完成 |
-| `Naming_Convention` 缺失 | 标准 8.4.4 定义了 `Naming_Convention`，继承 `Item`，用于命名规则 | 未实现 | 补充实现 |
+| ✅ `Naming_Convention` 已实现 | 标准 8.4.4 定义了 `Naming_Convention`，继承 `Item`，用于命名规则 | 已补充（`NamingConvention` 实体、标准属性 `scopeRule`/`authorityRule`/`semanticRule`/`syntacticRule`/`lexicalRule`、`rulesJson` 规则引擎、CRUD API、前端页面） | 完成 |
 | `Registry_Specification` 缺失 | 标准 9.4.10 定义了 `Registry_Specification`，描述注册环境 | 已补充（`RegistrySpecification` 实体、Table 28 属性、CRUD API、前端页面、种子数据） | 完成 |
 
 ---
@@ -141,9 +141,9 @@
 
 | 标准关联 | 项目实现 | 状态 |
 |----------|----------|------|
-| `Designation` ↔ `Naming_Convention`（`naming_convention_conformance`） | 无关联 | 缺失 |
-| `Namespace` ↔ `Naming_Convention`（`naming_convention_utilization`） | 无关联 | 缺失 |
-| `Namespace` 的约束属性（`one_name_per_item_indicator`, `one_item_per_name_indicator`, `mandatory_naming_convention_indicator`, `shorthand_prefix`, `scheme_reference`） | `Namespace` 仅包含 `scopedIdentifiers` 和 `namingAuthority`，缺少上述属性 | 缺失 |
+| ✅ `Designation` ↔ `Naming_Convention`（`naming_convention_conformance`） | `Designation.namingConventions` 多对多关联，支持每行指称选择多个命名规范 | 已补充 |
+| ✅ `Namespace` ↔ `Naming_Convention`（`naming_convention_utilization`） | `Namespace.namingConventions` 多对多关联，并保留历史单引用兼容 | 已补充 |
+| ✅ `Namespace` 的约束属性 | `oneNamePerItemIndicator`/`oneItemPerNameIndicator`/`mandatoryNamingConventionIndicator`/`shorthandPrefix`/`schemeReference` 已加入实体与 DTO，并由 `NamespaceConstraintValidator` 执行 | 已补充 |
 | `Scoped_Identifier` 的派生属性（`full_expansion`, `shorthand_expansion`） | `ScopedIdentifier` 仅有 `identifier` 和 `version` | 缺失 |
 | `RegisteredItem` ↔ `Constraint_Set`（`registered_item_constraint_set`） | `@ManyToOne` 关联（`RegisteredItem.constraintSet`） | 已补充 |
 
@@ -174,7 +174,7 @@
 
 4. **实现 Mapping 区域**：如果项目需要支持注册项之间的语义映射，需补充 `Item_Mapping`, `Subject_Mapping`, `Object_Mapping` 等类。
 
-5. **补充 `Namespace` 的缺失属性**：
+5. ✅ **补充 `Namespace` 的缺失属性**（已完成）：
    - `oneNamePerItemIndicator`
    - `oneItemPerNameIndicator`
    - `mandatoryNamingConventionIndicator`
@@ -183,8 +183,8 @@
 
 ### 低优先级
 
-6. **补充 `Constraint_Set`** 和 **`Naming_Convention`** 类。
-7. **补充 `Registry_Specification`** 类。
+6. ✅ **补充 `Constraint_Set`** 和 **`Naming_Convention`** 类（已完成）。
+7. ✅ **补充 `Registry_Specification`** 类（已完成）。
 8. **将部分 `String` 属性统一为 `Text` 类型**（如 `changeDescription`, `explanatoryComment` 等），以保持与标准的数据类型严格一致。
 
 
@@ -211,4 +211,28 @@
 - 前端路由 `/registry-specifications` 与菜单“注册规范”此前已存在，但仅指向占位组件；本次变更创建了实际可运行的 `RegistrySpecificationSettings.vue` 并对接后端 API。
 - 标准 Table 30 同时包含 `Candidate` 状态，但项目历史变更 WI-019 已明确将其映射为 `SUBMITTED`，本变更未恢复 `CANDIDATE` 枚举值。
 - `OpenSpec validate --changes --json` 验证通过。
+---
 
+## 六、已补充的实现（2026-07-30 变更 ISO/IEC 11179-3:2023 第8章 Figure 6 关系一致性）
+
+本次 OpenSpec 变更补齐了 ISO/IEC 11179-3:2023 第8章 Designation & Definition 包中缺失的元模型元素、关联与前端交互：
+
+| 标准元素 | 项目实现 | 状态 |
+|---|---|---|
+| `Naming_Convention` (8.4.4) | `NamingConvention` 实体类，继承 `Item`；新增标准属性 `scopeRule`、`authorityRule`、`semanticRule`、`syntacticRule`、`lexicalRule`；保留 `rulesJson` 规则引擎；提供 CRUD API、前端列表与表单 | 完成 |
+| `naming_convention_conformance` | `Designation.namingConventions` `@ManyToMany` 关联表；`MultilingualTextEditor` 每行指称支持多选命名规范 | 完成 |
+| `naming_convention_utilization` | `Namespace.namingConventions` `@ManyToMany` 关联表；保留原 `namingConvention` 单引用兼容 | 完成 |
+| Namespace 约束属性 | `Namespace` 实体与 DTO 增加 `oneNamePerItemIndicator`、`oneItemPerNameIndicator`、`mandatoryNamingConventionIndicator`、`shorthandPrefix`、`schemeReference`；`NamespaceConstraintValidator` 执行约束 | 完成 |
+| 直接可接受性 | `Designation` / `Definition` 实体增加 `Acceptability` 字段；`TextLineResponse` 返回可接受性 | 完成 |
+| 关系端点 | `/api/v1/items/{itemId}/designation-definition-relationships` 返回指称、定义、上下文、配对及命名规范 | 完成 |
+| 上下文反向浏览 | `ContextService.findUsages` + `/api/v1/contexts/{id}/usages`；`ContextUsageDialog.vue` 按条目分组展示引用 | 完成 |
+| 可接受性搜索 | `/metadata/search` 支持 `contextId` 与 `acceptability` 过滤；`BrowserView` 结果行展示 `PREFERRED` 徽章 | 完成 |
+| 配对编辑器增强 | `DesignationDefinitionPairingEditor.vue` 必填上下文、重复检测、语言+上下文标签 | 完成 |
+| 孤立行与 `PREFERRED` 冲突 | `MultilingualTextEditor` 检测孤立行并支持例外标记；`ItemFormDialog` 阻止保存冲突/未处理孤立行 | 完成 |
+| 元数据详情关系页 | `MetadataDetailView.vue` 新增指称、定义、上下文、配对懒加载标签页 | 完成 |
+
+### 说明
+
+- 前端新增 i18n key：`multilingual`、`pairing`、`contextUsage`、`context`、`relationship`、`browser`、`itemForm`。
+- 新增单测：`MultilingualTextEditor.spec.ts`、`DesignationDefinitionPairingEditor.spec.ts`、`ContextUsageDialog.spec.ts`。
+- `OpenSpec validate --all` 验证通过。
