@@ -95,6 +95,10 @@ class NamingConventionServiceTest {
         NamingConventionRequest request = new NamingConventionRequest(
                 "scope rule",
                 "authority rule",
+                null,
+                null,
+                null,
+                null,
                 List.of(new TextLine(langId, "命名规范", null, null)),
                 null,
                 null);
@@ -119,6 +123,10 @@ class NamingConventionServiceTest {
     void update_shouldModifyAndReturn() {
         NamingConventionRequest request = new NamingConventionRequest(
                 "updated scope",
+                null,
+                null,
+                null,
+                null,
                 null,
                 List.of(),
                 null,

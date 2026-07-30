@@ -7,6 +7,8 @@ import type {
   NamespaceDetailResponse,
   NamingConventionRequest,
   NamingConventionResponse,
+  ItemRelationshipResponse,
+  ContextUsageResponse,
 } from '@/types/common';
 
 function crud<T>(base: string) {
@@ -96,6 +98,7 @@ export const contextApi = {
   update: (id: string, data: Record<string, unknown>) => request.put<any>(`/contexts/${id}`, data),
   delete: (id: string) => request.delete(`/contexts/${id}`),
   options: (params?: { q?: string }) => request.get<{ id: string; label: string }[]>('/contexts/options', { params }),
+  usages: (id: string) => request.get<ContextUsageResponse>(`/contexts/${id}/usages`),
 };
 
 export const classificationSchemeApi = {
@@ -151,7 +154,7 @@ export const classificationSchemeApi = {
 
 /** Unified metadata search (WI-015a) */
 export const metadataSearchApi = {
-  search: (params?: PageQuery & { type?: string; status?: string }) =>
+  search: (params?: PageQuery & { type?: string; status?: string; contextId?: string; acceptability?: string[] }) =>
     request.get<PageResponse<any>>('/metadata/search', { params }),
 };
 
@@ -204,6 +207,11 @@ export const pairingApi = {
     request.put<any>(`/items/${itemId}/designation-definition-pairings/${id}`, data),
   delete: (itemId: string, id: string) =>
     request.delete(`/items/${itemId}/designation-definition-pairings/${id}`),
+};
+
+export const itemRelationshipApi = {
+  get: (itemId: string) =>
+    request.get<ItemRelationshipResponse>(`/items/${itemId}/designation-definition-relationships`),
 };
 
 /** Version history (WI-015b) */

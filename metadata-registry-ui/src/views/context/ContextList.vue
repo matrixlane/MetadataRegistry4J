@@ -28,6 +28,17 @@
           </template>
         </el-table-column>
       </template>
+      <template #actions="{ row }">
+        <el-button
+          size="small"
+          type="info"
+          text
+          :icon="Link"
+          @click="openUsages(row)"
+        >
+          查看引用
+        </el-button>
+      </template>
     </DataTablePage>
 
     <ItemFormDialog
@@ -40,17 +51,23 @@
         <!-- Context 没有额外字段，属性标签页保持为空 -->
       </template>
     </ItemFormDialog>
+
+    <ContextUsageDialog ref="usageDialog" :context-label="usageContextLabel" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref } from 'vue';
+import { Link } from '@element-plus/icons-vue';
 import { contextApi } from '@/api/resources';
 import DataTablePage from '@/components/DataTablePage.vue';
 import ItemFormDialog from '@/components/ItemFormDialog.vue';
+import ContextUsageDialog from '@/components/context/ContextUsageDialog.vue';
 
 const tableRef = ref<InstanceType<typeof DataTablePage>>();
 const dialog = ref<InstanceType<typeof ItemFormDialog>>();
+const usageDialog = ref<InstanceType<typeof ContextUsageDialog>>();
+const usageContextLabel = ref<string>('');
 
 function submitFn(data: Record<string, unknown>) {
   if (data.id) return contextApi.update(data.id as string, data);
@@ -71,5 +88,13 @@ function statusType(status?: string) {
     case 'RETIRED': return 'danger';
     default: return 'warning';
   }
+}
+
+function openUsages(row: any) {
+  usageContextLabel.value = row.designations?.find((d: any) => d.languageCode === 'zh-CN')?.value
+    || row.designations?.[0]?.value
+    || row.meta?.identifier
+    || row.id;
+  usageDialog.value?.open(row.id, usageContextLabel.value);
 }
 </script>

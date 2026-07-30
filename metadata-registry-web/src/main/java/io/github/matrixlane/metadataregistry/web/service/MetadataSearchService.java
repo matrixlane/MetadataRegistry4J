@@ -1,5 +1,6 @@
 package io.github.matrixlane.metadataregistry.web.service;
 
+import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.Acceptability;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationStatus;
 import io.github.matrixlane.metadataregistry.web.dto.administereditem.AdministeredItemResponse;
 import io.github.matrixlane.metadataregistry.web.service.database.DatabaseEnvironment;
@@ -64,14 +65,19 @@ public class MetadataSearchService {
     /**
      * Unified search across all metadata entities.
      *
-     * @param keyword  search keyword (matched against name, identifier, definition text)
-     * @param type     optional entity type to filter (e.g., "DataElement", "ObjectClass")
-     * @param status   optional registration status to filter
-     * @param pageable pagination parameters
+     * @param keyword         search keyword (matched against name, identifier, definition text)
+     * @param type            optional entity type to filter (e.g., "DataElement", "ObjectClass")
+     * @param status          optional registration status to filter
+     * @param contextId       optional context id filter on designation/definition associations
+     * @param acceptabilities optional acceptability values filter on designation/definition associations
+     * @param pageable        pagination parameters
      * @return paginated search results as AdministeredItemResponse
      */
     public Page<AdministeredItemResponse> search(String keyword, String type,
-                                                  RegistrationStatus status, Pageable pageable) {
+                                                  RegistrationStatus status,
+                                                  UUID contextId,
+                                                  List<Acceptability> acceptabilities,
+                                                  Pageable pageable) {
         String keywordPattern = (keyword != null && !keyword.isBlank())
                 ? "%" + keyword.trim().toLowerCase() + "%"
                 : null;
@@ -110,6 +116,44 @@ public class MetadataSearchService {
             selectParams.add(statusFilter);
         }
 
+        if (contextId != null) {
+            String contextFilter = " AND (EXISTS (SELECT 1 FROM " + t("designation") + " d_ctx " +
+                    "JOIN " + t("designation_context") + " dc ON dc.designation_id = d_ctx.id " +
+                    "WHERE d_ctx.item_id = i.id AND dc.context_id = ?)" +
+                    " OR EXISTS (SELECT 1 FROM " + t("definition") + " df_ctx " +
+                    "JOIN " + t("definition_context") + " dfc ON dfc.definition_id = df_ctx.id " +
+                    "WHERE df_ctx.item_id = i.id AND dfc.context_id = ?))";
+            where.append(contextFilter);
+            countParams.add(contextId);
+            countParams.add(contextId);
+            selectParams.add(contextId);
+            selectParams.add(contextId);
+        }
+
+        if (acceptabilities != null && !acceptabilities.isEmpty()) {
+            StringBuilder placeholders = new StringBuilder();
+            for (int i = 0; i < acceptabilities.size(); i++) {
+                if (i > 0) placeholders.append(",");
+                placeholders.append("?");
+            }
+            String acceptabilityFilter = " AND (EXISTS (SELECT 1 FROM " + t("designation") + " d_acc " +
+                    "JOIN " + t("designation_context") + " dc_acc ON dc_acc.designation_id = d_acc.id " +
+                    "WHERE d_acc.item_id = i.id AND dc_acc.acceptability IN (" + placeholders + "))" +
+                    " OR EXISTS (SELECT 1 FROM " + t("definition") + " df_acc " +
+                    "JOIN " + t("definition_context") + " dfc_acc ON dfc_acc.definition_id = df_acc.id " +
+                    "WHERE df_acc.item_id = i.id AND dfc_acc.acceptability IN (" + placeholders + ")))";
+            where.append(acceptabilityFilter);
+            for (Acceptability acc : acceptabilities) {
+                countParams.add(acc.name());
+                selectParams.add(acc.name());
+            }
+            // second IN clause needs the same values again
+            for (Acceptability acc : acceptabilities) {
+                countParams.add(acc.name());
+                selectParams.add(acc.name());
+            }
+        }
+
         // Count query
         String countSql = "SELECT COUNT(DISTINCT ai.id) FROM " + t("administered_item") + " ai " +
                 "JOIN " + t("identified_item") + " ii ON ai.id = ii.id " +
@@ -123,6 +167,13 @@ public class MetadataSearchService {
         if (total == 0) {
             return new PageImpl<>(List.of(), pageable, 0);
         }
+
+        String hasPreferred = "EXISTS (SELECT 1 FROM " + t("designation") + " d_pref " +
+                "JOIN " + t("designation_context") + " dc_pref ON dc_pref.designation_id = d_pref.id " +
+                "WHERE d_pref.item_id = i.id AND dc_pref.acceptability = 'PREFERRED')" +
+                " OR EXISTS (SELECT 1 FROM " + t("definition") + " df_pref " +
+                "JOIN " + t("definition_context") + " dfc_pref ON dfc_pref.definition_id = df_pref.id " +
+                "WHERE df_pref.item_id = i.id AND dfc_pref.acceptability = 'PREFERRED')";
 
         // Main query with pagination
         String selectSql = "SELECT DISTINCT " +
@@ -138,6 +189,7 @@ public class MetadataSearchService {
                 "rs.registration_status, " +
                 "rs.effective_date, " +
                 "rs.administrative_note, " +
+                "(" + hasPreferred + ") AS has_preferred, " +
                 "ai.creation_date_time, " +
                 "ai.last_change_date_time, " +
                 "ai.change_description " +
@@ -183,6 +235,7 @@ public class MetadataSearchService {
                 null,
                 null,
                 List.of(),
+                rs.getBoolean("has_preferred"),
                 ldt(rs, "creation_date_time"),
                 ldt(rs, "last_change_date_time"),
                 rs.getString("change_description")

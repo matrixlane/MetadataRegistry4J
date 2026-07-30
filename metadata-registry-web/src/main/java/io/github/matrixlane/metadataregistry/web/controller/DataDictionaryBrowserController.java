@@ -1,5 +1,6 @@
 package io.github.matrixlane.metadataregistry.web.controller;
 
+import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.Acceptability;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationStatus;
 import io.github.matrixlane.metadataregistry.web.common.ApiResponse;
 import io.github.matrixlane.metadataregistry.web.common.PageResponse;
@@ -16,6 +17,9 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
+import java.util.UUID;
 
 /**
  * REST controller for the Data Dictionary Browser.
@@ -40,10 +44,12 @@ public class DataDictionaryBrowserController {
             @RequestParam(required = false) String q,
             @RequestParam(required = false) String type,
             @RequestParam(required = false) RegistrationStatus status,
+            @RequestParam(required = false) UUID contextId,
+            @RequestParam(required = false) List<Acceptability> acceptability,
             @ParameterObject
             @PageableDefault(size = 20, sort = "creationDateTime", direction = Sort.Direction.DESC)
             Pageable pageable) {
         return ApiResponse.ok(
-                PageResponse.of(searchService.search(q, type, status, pageable)));
+                PageResponse.of(searchService.search(q, type, status, contextId, acceptability, pageable)));
     }
 }

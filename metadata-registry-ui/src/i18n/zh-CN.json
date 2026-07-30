@@ -228,5 +228,97 @@
     "scopeRulePlaceholder": "如 ^[a-z]+$ 或 全部以小写字母命名",
     "authorityRulePlaceholder": "如 由组织 X 命名 / 由管理员审核",
     "empty": "暂无命名规范，点击「新建命名规范」开始创建"
+  },
+  "multilingual": {
+    "languagePlaceholder": "语言",
+    "valuePlaceholder": "{label}内容",
+    "sourcePlaceholder": "来源文档",
+    "contextAssociation": "上下文关联",
+    "contextPlaceholder": "选择上下文",
+    "acceptabilityPlaceholder": "可接受性",
+    "namingConvention": "命名规范",
+    "namingConventionPlaceholder": "选择适用的命名规范",
+    "addContext": "添加上下文",
+    "addLabel": "添加{label}",
+    "isolatedExceptionTooltip": "已标记为例外",
+    "isolatedTooltip": "无上下文且未被配对引用，点击标记为例外",
+    "isolatedWarning": "该行无上下文且未被配对引用",
+    "preferredConflict": "同一语言+上下文下存在多个首选"
+  },
+  "acceptability": {
+    "PREFERRED": "首选",
+    "ADMITTED": "认可",
+    "DEPRECATED": "已弃用",
+    "SUPERSEDED": "已取代",
+    "OBSOLETE": "已过时"
+  },
+  "relationship": {
+    "designations": "指称",
+    "definitions": "定义",
+    "contexts": "上下文",
+    "pairings": "配对",
+    "columnLanguage": "语言",
+    "columnValue": "值",
+    "columnSource": "来源",
+    "columnContext": "上下文",
+    "columnAcceptability": "可接受性",
+    "columnDesignation": "指称",
+    "columnDefinition": "定义",
+    "notLoaded": "未加载关系数据",
+    "backToList": "返回列表"
+  },
+  "pairing": {
+    "emptyPrompt": "请先添加指称和定义，再创建配对",
+    "designationPlaceholder": "选择指称",
+    "definitionPlaceholder": "选择定义",
+    "contextPlaceholder": "选择上下文（必填）",
+    "acceptabilityPlaceholder": "可接受性",
+    "contextRequired": "请选择上下文",
+    "duplicate": "与第 {index} 行重复（相同指称、定义、上下文）",
+    "addPairing": "添加配对"
+  },
+  "contextUsage": {
+    "dialogTitle": "「{label}」的引用",
+    "noUsages": "暂无引用",
+    "truncated": "引用数量超过 {limit} 条，仅显示前 {limit} 条，请使用更精确的筛选条件。",
+    "close": "关闭",
+    "columnItem": "条目",
+    "columnAssociationType": "关联类型",
+    "columnDesignation": "指称",
+    "columnDefinition": "定义",
+    "columnAcceptability": "可接受性",
+    "loadFailed": "加载引用失败",
+    "typeDesignation": "指称",
+    "typeDefinition": "定义",
+    "typePairing": "配对"
+  },
+  "context": {
+    "title": "上下文",
+    "viewUsages": "查看引用"
+  },
+  "browser": {
+    "filterContextPlaceholder": "上下文",
+    "filterAcceptabilityPlaceholder": "可接受性",
+    "filterContextLabel": "上下文",
+    "filterAcceptabilityLabel": "可接受性"
+  },
+  "itemForm": {
+    "conflictTitle": "存在 {count} 项冲突/警告",
+    "preferredConflict": "PREFERRED 冲突",
+    "isolatedRow": "孤立行",
+    "rowDetail": "{label} 第 {index} 行：{message}",
+    "moreItems": "…等 {count} 项",
+    "isolatedConfirmTitle": "发现孤立行",
+    "isolatedConfirmMessage": "以下 {count} 行既没有上下文也未标记为例外，是否继续保存？",
+    "isolatedRowDetail": "{label} 第 {index} 行：{value}",
+    "markAllExceptions": "全部标记为例外并保存",
+    "submitAnyway": "仍然保存",
+    "pairingIncomplete": "配对信息不完整或存在重复，请检查",
+    "preferredConflictWarning": "存在 PREFERRED 冲突，请先修正",
+    "validationFailed": "表单验证失败，请检查所有标签页中的必填/非空项",
+    "namingConventionRequired": "该命名空间要求强制命名规范，请为每条指称至少选择一个命名规范",
+    "designationRequired": "至少添加一条指称",
+    "designationIncomplete": "至少有一条完整的指称（语言+内容）",
+    "pairingTab": "指称-定义配对"
   }
 }

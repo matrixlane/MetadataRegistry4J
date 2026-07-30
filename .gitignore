@@ -41,6 +41,7 @@ BOOT-INF/
 .agent/
 .claude/settings.local.json
 .claude/worktrees/
+.worktrees/
 
 # Emergency/temp code dump files
 emergency-code.txt

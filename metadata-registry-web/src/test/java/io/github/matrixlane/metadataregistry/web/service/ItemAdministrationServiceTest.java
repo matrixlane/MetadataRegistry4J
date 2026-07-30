@@ -98,7 +98,8 @@ class ItemAdministrationServiceTest {
                         "length", "名称不能为空")
         ));
 
-        TextLine line = new TextLine(languageId, "", null, null);
+        TextLine line = new TextLine(languageId, "", null,
+                List.of(new TextLineContextEntry(UUID.randomUUID(), Acceptability.ADMITTED)));
 
         assertThatThrownBy(() -> itemAdministrationService.applyDesignations(item, List.of(line)))
                 .isInstanceOf(BusinessException.class)
@@ -116,7 +117,7 @@ class ItemAdministrationServiceTest {
 
         assertThatThrownBy(() -> itemAdministrationService.applyDesignations(item, List.of(line1, line2)))
                 .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("只能有一个首选名称");
+                .hasMessageContaining("只能有一个首选指称");
     }
 
     @Test
@@ -131,7 +132,12 @@ class ItemAdministrationServiceTest {
         nc.setId(ncId);
         when(namingConventionRepository.findAllById(List.of(ncId))).thenReturn(List.of(nc));
 
-        TextLine line = new TextLine(languageId, "患者姓名", null, null, List.of(ncId));
+        Context ctx = new Context();
+        ctx.setId(contextId);
+        when(contextRepository.findById(contextId)).thenReturn(Optional.of(ctx));
+
+        TextLine line = new TextLine(languageId, "患者姓名", null,
+                List.of(new TextLineContextEntry(contextId, Acceptability.ADMITTED)), List.of(ncId));
 
         itemAdministrationService.applyDesignations(item, List.of(line), namespaceId);
 
@@ -146,7 +152,12 @@ class ItemAdministrationServiceTest {
     @Test
     void applyDesignations_withMandatoryNamespace_shouldRejectMissingNamingConvention() {
         UUID namespaceId = UUID.randomUUID();
-        TextLine line = new TextLine(languageId, "患者姓名", null, null, null);
+        Context ctx = new Context();
+        ctx.setId(contextId);
+        when(contextRepository.findById(contextId)).thenReturn(Optional.of(ctx));
+
+        TextLine line = new TextLine(languageId, "患者姓名", null,
+                List.of(new TextLineContextEntry(contextId, Acceptability.ADMITTED)), null);
         when(namingConventionEngine.validate(any())).thenReturn(List.of());
         when(languageRepository.findById(languageId)).thenReturn(Optional.of(lang));
 
@@ -158,8 +169,12 @@ class ItemAdministrationServiceTest {
     @Test
     void applyDefinitions_shouldSucceedAndLogAudit() {
         when(languageRepository.findById(languageId)).thenReturn(Optional.of(lang));
+        Context ctx = new Context();
+        ctx.setId(contextId);
+        when(contextRepository.findById(contextId)).thenReturn(Optional.of(ctx));
 
-        TextLine line = new TextLine(languageId, "患者的唯一标识", null, null);
+        TextLine line = new TextLine(languageId, "患者的唯一标识", null,
+                List.of(new TextLineContextEntry(contextId, Acceptability.ADMITTED)));
 
         itemAdministrationService.applyDefinitions(item, List.of(line));
 
@@ -183,8 +198,12 @@ class ItemAdministrationServiceTest {
         item.getDefinitions().add(existing);
 
         when(languageRepository.findById(languageId)).thenReturn(Optional.of(lang));
+        Context ctx = new Context();
+        ctx.setId(contextId);
+        when(contextRepository.findById(contextId)).thenReturn(Optional.of(ctx));
 
-        TextLine line = new TextLine(languageId, "新定义", null, null);
+        TextLine line = new TextLine(languageId, "新定义", null,
+                List.of(new TextLineContextEntry(contextId, Acceptability.ADMITTED)));
 
         itemAdministrationService.applyDefinitions(item, List.of(line));
 
@@ -194,6 +213,26 @@ class ItemAdministrationServiceTest {
         assertThat(log.getAction()).isEqualTo("UPDATE");
         assertThat(log.getOldValueSummary()).isEqualTo("旧定义");
         assertThat(log.getNewValueSummary()).isEqualTo("新定义");
+    }
+
+    @Test
+    void applyDesignations_shouldRejectIsolatedLineWithoutException() {
+        TextLine line = new TextLine(languageId, "孤立指称", null, null, null, false);
+
+        assertThatThrownBy(() -> itemAdministrationService.applyDesignations(item, List.of(line)))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("既没有上下文也未标记为例外");
+    }
+
+    @Test
+    void applyDesignations_shouldAllowIsolatedLineWithException() {
+        when(languageRepository.findById(languageId)).thenReturn(Optional.of(lang));
+
+        TextLine line = new TextLine(languageId, "例外指称", null, null, null, true);
+
+        itemAdministrationService.applyDesignations(item, List.of(line));
+
+        assertThat(item.getDesignations()).hasSize(1);
     }
 
     @Test

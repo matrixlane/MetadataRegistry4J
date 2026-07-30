@@ -6,6 +6,8 @@ import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.Entity;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.Item;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.Sign;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.EnumType;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace;
 import jakarta.persistence.Embedded;
 import jakarta.persistence.JoinColumn;
@@ -66,6 +68,10 @@ public class Designation extends Entity {
 
     @OneToMany(mappedBy = "designation")
     private List<DesignationDefinitionPairing> designationDefinitionPairings = new ArrayList<>();
+
+    @Enumerated(EnumType.STRING)
+    @jakarta.persistence.Column(name = "acceptability")
+    private Acceptability acceptability;
 
     /**
      * ISO/IEC 11179-3:2023, 8.6.5 — naming_convention_conformance association.

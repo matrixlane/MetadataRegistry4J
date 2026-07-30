@@ -113,8 +113,12 @@
       </div>
 
       <!-- Tabs -->
-      <el-tabs v-model="activeTab" class="detail-tabs">
+      <el-tabs v-model="activeTab" class="detail-tabs" @tab-change="onTabChange">
         <el-tab-pane label="概览" name="overview" />
+        <el-tab-pane label="指称" name="designations" />
+        <el-tab-pane label="定义" name="definitions" />
+        <el-tab-pane label="上下文" name="contexts" />
+        <el-tab-pane label="配对" name="pairings" />
         <el-tab-pane label="版本历史" name="versions" />
       </el-tabs>
 
@@ -185,6 +189,48 @@
         </div>
       </div>
 
+      <!-- Relationship tabs -->
+      <div v-show="isRelationshipTab(activeTab)" class="tab-content">
+        <el-skeleton v-if="relationshipsLoading" :rows="6" animated />
+        <el-empty v-else-if="!relationships" description="未加载关系数据" />
+        <template v-else>
+          <el-table v-if="activeTab === 'designations'" :data="relationships.designations" size="small">
+            <el-table-column prop="languageCode" label="语言" width="120" />
+            <el-table-column prop="value" label="值" />
+            <el-table-column prop="sourceTitle" label="来源" width="180" />
+            <el-table-column label="上下文">
+              <template #default="{ row }">
+                <el-tag v-for="ctx in row.contexts" :key="ctx.contextId" size="small" style="margin-right: 4px;">
+                  {{ ctx.contextLabel }} <span v-if="ctx.acceptability">({{ ctx.acceptability }})</span>
+                </el-tag>
+              </template>
+            </el-table-column>
+          </el-table>
+          <el-table v-if="activeTab === 'definitions'" :data="relationships.definitions" size="small">
+            <el-table-column prop="languageCode" label="语言" width="120" />
+            <el-table-column prop="value" label="值" />
+            <el-table-column prop="sourceTitle" label="来源" width="180" />
+            <el-table-column label="上下文">
+              <template #default="{ row }">
+                <el-tag v-for="ctx in row.contexts" :key="ctx.contextId" size="small" style="margin-right: 4px;">
+                  {{ ctx.contextLabel }} <span v-if="ctx.acceptability">({{ ctx.acceptability }})</span>
+                </el-tag>
+              </template>
+            </el-table-column>
+          </el-table>
+          <el-table v-if="activeTab === 'contexts'" :data="relationships.contexts" size="small">
+            <el-table-column prop="label" label="上下文" />
+          </el-table>
+          <el-table v-if="activeTab === 'pairings'" :data="relationships.pairings" size="small">
+            <el-table-column prop="designationLabel" label="指称" />
+            <el-table-column prop="definitionLabel" label="定义" />
+            <el-table-column prop="contextLabel" label="上下文" />
+            <el-table-column prop="acceptability" label="可接受性" width="120" />
+          </el-table>
+        </template>
+      </div>
+*** End of File
+
       <!-- Tab content: Version History -->
       <div v-show="activeTab === 'versions'" class="tab-content">
         <VersionHistoryTimeline :item-id="item.id" />
@@ -202,8 +248,9 @@
 import { ref, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { InfoFilled, Files } from '@element-plus/icons-vue';
-import { metadataSearchApi } from '@/api/resources';
+import { metadataSearchApi, itemRelationshipApi } from '@/api/resources';
 import { administeredItemApi } from '@/api/resources';
+import type { ItemRelationshipResponse } from '@/types/common';
 import VersionHistoryTimeline from '@/components/VersionHistoryTimeline.vue';
 
 const route = useRoute();
@@ -213,6 +260,8 @@ const item = ref<any>(null);
 const loading = ref(true);
 const error = ref('');
 const activeTab = ref('overview');
+const relationships = ref<ItemRelationshipResponse | null>(null);
+const relationshipsLoading = ref(false);
 
 const entityTypes = [
   { value: 'DataElement', label: '数据元' },
@@ -238,6 +287,28 @@ const registrationStatuses = [
   { value: 'RETIRED', label: '已退役' },
   { value: 'HISTORICAL', label: '历史' },
 ];
+
+async function onTabChange(tabName: any) {
+  if (isRelationshipTab(tabName) && !relationships.value) {
+    await loadRelationships();
+  }
+}
+
+function isRelationshipTab(tabName: any): boolean {
+  return ['designations', 'definitions', 'contexts', 'pairings'].includes(tabName);
+}
+
+async function loadRelationships() {
+  if (!item.value?.id) return;
+  relationshipsLoading.value = true;
+  try {
+    relationships.value = await itemRelationshipApi.get(item.value.id);
+  } catch {
+    relationships.value = null;
+  } finally {
+    relationshipsLoading.value = false;
+  }
+}
 
 function typeLabel(type: string): string {
   const t = entityTypes.find(e => e.value === type);

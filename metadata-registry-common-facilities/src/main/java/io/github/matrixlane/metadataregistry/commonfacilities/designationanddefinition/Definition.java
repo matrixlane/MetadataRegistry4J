@@ -6,6 +6,8 @@ import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.Entity;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.Item;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.Text;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.EnumType;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace;
 import jakarta.persistence.Embedded;
 import jakarta.persistence.JoinColumn;
@@ -63,6 +65,10 @@ public class Definition extends Entity {
 
     @OneToMany(mappedBy = "definition")
     private List<DefinitionContext> definitionContexts = new ArrayList<>();
+
+    @Enumerated(EnumType.STRING)
+    @jakarta.persistence.Column(name = "acceptability")
+    private Acceptability acceptability;
 
     @OneToMany(mappedBy = "definition")
     private List<DesignationDefinitionPairing> designationDefinitionPairings = new ArrayList<>();

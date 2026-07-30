@@ -81,8 +81,9 @@ public class ItemAdministrationService {
     public void applyDesignations(Item item, List<TextLine> designations, UUID namespaceId) {
         if (designations == null) return;
 
+        validateIsolatedLines(designations, "指称");
         validateNamingConventions(designations);
-        validatePreferredUniqueness(designations);
+        validatePreferredUniqueness(designations, "指称");
 
         item.getDesignations().clear();
         for (TextLine line : designations) {
@@ -92,6 +93,7 @@ public class ItemAdministrationService {
             d.setLanguage(loadLanguage(line.languageId()));
             d.setSource(loadSourceOrNull(line.sourceId()));
             applyNamingConventions(d, line.namingConventionIds());
+            d.setAcceptability(line.acceptability());
             if (line.contexts() != null) {
                 for (var ce : line.contexts()) {
                     DesignationContext dc = new DesignationContext();
@@ -136,26 +138,42 @@ public class ItemAdministrationService {
         }
     }
 
-    private void validatePreferredUniqueness(List<TextLine> designations) {
-        Map<UUID, Integer> preferredCountByLanguage = new HashMap<>();
-        for (TextLine line : designations) {
-            if (line.contexts() == null) continue;
-            boolean hasPreferred = line.contexts().stream()
-                    .anyMatch(c -> c.acceptability() == io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.Acceptability.PREFERRED);
-            if (hasPreferred) {
-                preferredCountByLanguage.merge(line.languageId(), 1, Integer::sum);
+    private void validateIsolatedLines(List<TextLine> lines, String label) {
+        for (int i = 0; i < lines.size(); i++) {
+            TextLine line = lines.get(i);
+            boolean hasContext = line.contexts() != null && !line.contexts().isEmpty();
+            boolean excepted = Boolean.TRUE.equals(line.isolatedException());
+            if (!hasContext && !excepted) {
+                throw new BusinessException(ApiCodes.VALIDATION_FAILED,
+                        "第 " + (i + 1) + " 条" + label + "既没有上下文也未标记为例外");
             }
         }
-        for (Map.Entry<UUID, Integer> entry : preferredCountByLanguage.entrySet()) {
+    }
+
+    private void validatePreferredUniqueness(List<TextLine> lines, String label) {
+        Map<String, Integer> preferredCountByLanguageContext = new HashMap<>();
+        for (TextLine line : lines) {
+            if (line.contexts() == null) continue;
+            for (var ce : line.contexts()) {
+                if (ce.acceptability() == io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.Acceptability.PREFERRED) {
+                    String key = line.languageId() + "|" + (ce.contextId() == null ? "null" : ce.contextId());
+                    preferredCountByLanguageContext.merge(key, 1, Integer::sum);
+                }
+            }
+        }
+        for (Map.Entry<String, Integer> entry : preferredCountByLanguageContext.entrySet()) {
             if (entry.getValue() > 1) {
                 throw new BusinessException(ApiCodes.CONFLICT,
-                        "同一语言下只能有一个首选名称 (PREFERRED)，languageId=" + entry.getKey());
+                        "同一语言+上下文下只能有一个首选" + label + " (PREFERRED): " + entry.getKey());
             }
         }
     }
 
     public void applyDefinitions(Item item, List<TextLine> definitions) {
         if (definitions == null) return;
+
+        validateIsolatedLines(definitions, "定义");
+        validatePreferredUniqueness(definitions, "定义");
 
         List<DefinitionSnapshot> oldSnapshots = snapshotDefinitions(item.getDefinitions());
 
@@ -166,6 +184,7 @@ public class ItemAdministrationService {
             d.setText(Text.of(line.value()));
             d.setLanguage(loadLanguage(line.languageId()));
             d.setSource(loadSourceOrNull(line.sourceId()));
+            d.setAcceptability(line.acceptability());
             if (line.contexts() != null) {
                 for (var ce : line.contexts()) {
                     DefinitionContext dc = new DefinitionContext();
@@ -363,7 +382,8 @@ public class ItemAdministrationService {
                     d.getSource() == null ? null : d.getSource().getId(),
                     d.getSource() == null || d.getSource().getTitle() == null
                             ? null : d.getSource().getTitle().getValue(),
-                    mapDesignationContexts(d)));
+                    mapDesignationContexts(d),
+                    d.getAcceptability()));
         }
         return out;
     }
@@ -382,7 +402,8 @@ public class ItemAdministrationService {
                     d.getSource() == null ? null : d.getSource().getId(),
                     d.getSource() == null || d.getSource().getTitle() == null
                             ? null : d.getSource().getTitle().getValue(),
-                    mapDefinitionContexts(d)));
+                    mapDefinitionContexts(d),
+                    d.getAcceptability()));
         }
         return out;
     }

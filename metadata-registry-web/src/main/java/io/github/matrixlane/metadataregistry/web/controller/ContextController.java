@@ -4,6 +4,7 @@ import io.github.matrixlane.metadataregistry.web.common.ApiResponse;
 import io.github.matrixlane.metadataregistry.web.common.PageResponse;
 import io.github.matrixlane.metadataregistry.web.dto.context.ContextRequest;
 import io.github.matrixlane.metadataregistry.web.dto.context.ContextResponse;
+import io.github.matrixlane.metadataregistry.web.dto.context.ContextUsageResponse;
 import io.github.matrixlane.metadataregistry.web.service.ContextService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -54,6 +55,13 @@ public class ContextController {
     @Operation(summary = "获取单个上下文")
     public ApiResponse<ContextResponse> get(@PathVariable UUID id) {
         return ApiResponse.ok(service.get(id));
+    }
+
+    @GetMapping("/{id}/usages")
+    @Operation(summary = "查看上下文引用（按 Item 分组，最多 100 条，truncated 表示截断）")
+    @Transactional(readOnly = true)
+    public ApiResponse<ContextUsageResponse> usages(@PathVariable UUID id) {
+        return ApiResponse.ok(service.findUsages(id));
     }
 
     @PostMapping

@@ -119,7 +119,7 @@ public class RegistrySpecificationService {
                 null,
                 null,
                 "UTC+8",
-                List.of(new io.github.matrixlane.metadataregistry.web.dto.common.TextLine(defaultLanguageId(defaultLanguage), registryName, null, null)),
+                List.of(new io.github.matrixlane.metadataregistry.web.dto.common.TextLine(defaultLanguageId(defaultLanguage), registryName, null, null, null, true)),
                 null,
                 null);
         return create(request);

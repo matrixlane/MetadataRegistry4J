@@ -6,8 +6,9 @@
     <div v-else class="pairing-list">
       <div
         v-for="(row, index) in modelValue"
-        :key="index"
+        :key="row.id || index"
         class="pairing-card"
+        :class="{ 'pairing-error': hasError(index) }"
       >
         <div class="pairing-row">
           <el-select
@@ -20,7 +21,7 @@
             <el-option
               v-for="d in designations"
               :key="d.id"
-              :label="d.value"
+              :label="lineLabel(d)"
               :value="d.id"
             />
           </el-select>
@@ -35,7 +36,7 @@
             <el-option
               v-for="d in definitions"
               :key="d.id"
-              :label="d.value"
+              :label="lineLabel(d)"
               :value="d.id"
             />
           </el-select>
@@ -43,10 +44,9 @@
         <div class="pairing-row" style="margin-top: 8px;">
           <el-select
             v-model="row.contextId"
-            placeholder="选择上下文（可选）"
+            placeholder="选择上下文（必填）"
             size="small"
             style="flex: 1;"
-            clearable
             filterable
             remote
             reserve-keyword
@@ -82,13 +82,20 @@
             <el-icon><Delete /></el-icon>
           </el-button>
         </div>
+        <div v-if="contextError(index)" class="pairing-error-text">
+          请选择上下文
+        </div>
+        <div v-if="duplicateError(index)" class="pairing-error-text">
+          与第 {{ duplicateIndex(index) + 1 }} 行重复（相同指称、定义、上下文）
+        </div>
       </div>
-      <el-button
-        type="primary"
-        size="small"
-        text
-        @click="addRow"
-      >
+     <el-button
+        class="add-pairing-button"
+       type="primary"
+       size="small"
+       text
+       @click="addRow"
+     >
         <el-icon><Plus /></el-icon>
         添加配对
       </el-button>
@@ -99,13 +106,21 @@
 <script setup lang="ts">
 import { Plus, Delete, Link } from '@element-plus/icons-vue';
 import { contextApi } from '@/api/resources';
-import type { PairingForm } from '@/types/common';
-import { ref, onMounted } from 'vue';
+import type { PairingForm, TextLineContextForm } from '@/types/common';
+import { ref, onMounted, computed } from 'vue';
+import { useI18n } from 'vue-i18n';
+const { t } = useI18n();
 
+interface LineOption {
+  id: string;
+  value: string;
+  languageCode?: string;
+  contexts?: { contextId: string; contextLabel?: string; acceptability?: string }[];
+}
 interface Props {
   modelValue: PairingForm[];
-  designations: { id: string; value: string }[];
-  definitions: { id: string; value: string }[];
+  designations: LineOption[];
+  definitions: LineOption[];
 }
 
 const props = defineProps<Props>();
@@ -115,6 +130,64 @@ const emit = defineEmits<{
 
 const contextOptions = ref<{ id: string; label: string }[]>([]);
 const searchingContexts = ref(false);
+
+const touched = ref<Set<number>>(new Set());
+
+const duplicateKeys = computed(() => {
+  const keyMap = new Map<string, number[]>();
+  props.modelValue.forEach((row, index) => {
+    if (!row.designationId || !row.definitionId || !row.contextId) return;
+    const key = `${row.designationId}|${row.definitionId}|${row.contextId}`;
+    const indices = keyMap.get(key) || [];
+    indices.push(index);
+    keyMap.set(key, indices);
+  });
+  return keyMap;
+});
+
+function isDuplicate(index: number): boolean {
+  const row = props.modelValue[index];
+  if (!row || !row.designationId || !row.definitionId || !row.contextId) return false;
+  const key = `${row.designationId}|${row.definitionId}|${row.contextId}`;
+  const indices = duplicateKeys.value.get(key) || [];
+  return indices.length > 1 && indices[0] !== index;
+}
+
+function duplicateIndex(index: number): number {
+  const row = props.modelValue[index];
+  if (!row || !row.designationId || !row.definitionId || !row.contextId) return -1;
+  const key = `${row.designationId}|${row.definitionId}|${row.contextId}`;
+  const indices = duplicateKeys.value.get(key) || [];
+  return indices[0] ?? -1;
+}
+
+function hasError(index: number): boolean {
+  return contextError(index) || duplicateError(index);
+}
+
+function contextError(index: number): boolean {
+  return touched.value.has(index) && !props.modelValue[index]?.contextId;
+}
+
+function duplicateError(index: number): boolean {
+  return touched.value.has(index) && isDuplicate(index);
+}
+
+function lineLabel(line: LineOption): string {
+  const lang = line.languageCode ? `[${line.languageCode}] ` : '';
+  return `${lang}${line.value || line.id}`;
+}
+
+function markTouched(index: number) {
+  touched.value.add(index);
+}
+
+function validate(): boolean {
+  touched.value = new Set(props.modelValue.map((_, i) => i));
+  return props.modelValue.every((row, index) =>
+    row.designationId && row.definitionId && row.contextId && !isDuplicate(index)
+  );
+}
 
 onMounted(async () => {
   await searchContexts('');
@@ -133,19 +206,28 @@ async function searchContexts(query: string) {
 }
 
 function addRow() {
-  const next: PairingForm[] = [...props.modelValue, {
+  const newRow: PairingForm = {
     designationId: '',
     definitionId: '',
-    contextId: undefined,
+    contextId: '',
     acceptability: 'ADMITTED',
-  }];
+  };
+  const next: PairingForm[] = [...props.modelValue, newRow];
+  touched.value.add(next.length - 1);
   emit('update:modelValue', next);
 }
 
 function removeRow(index: number) {
   const next = props.modelValue.filter((_, i) => i !== index);
+  const nextTouched = new Set<number>();
+  next.forEach((_, i) => {
+    if (touched.value.has(i < index ? i : i + 1)) nextTouched.add(i);
+  });
+  touched.value = nextTouched;
   emit('update:modelValue', next);
 }
+
+defineExpose({ validate, hasError, isDuplicate });
 </script>
 
 <style scoped>
@@ -171,5 +253,14 @@ function removeRow(index: number) {
 .pairing-link {
   color: #9ca3af;
   flex-shrink: 0;
+}
+.pairing-error {
+  border-color: var(--el-color-danger);
+  background: #fef2f2;
+}
+.pairing-error-text {
+  color: var(--el-color-danger);
+  font-size: 12px;
+  margin-top: 4px;
 }
 </style>

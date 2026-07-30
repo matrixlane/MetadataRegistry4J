@@ -68,6 +68,7 @@ class MetadataSearchServiceTest {
                 null,
                 null,
                 null,
+                null,
                 LocalDateTime.now(),
                 LocalDateTime.now(),
                 null);
@@ -87,7 +88,7 @@ class MetadataSearchServiceTest {
         stubCountAndRows(1L, List.of(sampleResponse));
 
         Page<AdministeredItemResponse> result = searchService.search(
-                "患者", null, null, PageRequest.of(0, 20));
+                "患者", null, null, null, null, PageRequest.of(0, 20));
 
         assertThat(result.getContent()).hasSize(1);
         AdministeredItemResponse res = result.getContent().get(0);
@@ -107,7 +108,7 @@ class MetadataSearchServiceTest {
         stubCountAndRows(1L, List.of(sampleResponse));
 
         Page<AdministeredItemResponse> result = searchService.search(
-                null, "DataElement", null, PageRequest.of(0, 20));
+                null, "DataElement", null, null, null, PageRequest.of(0, 20));
 
         assertThat(result.getContent()).hasSize(1);
         verify(jdbcTemplate).queryForObject(anyString(), eq(Long.class), any(Object[].class));
@@ -118,7 +119,7 @@ class MetadataSearchServiceTest {
         stubCountAndRows(1L, List.of(sampleResponse));
 
         Page<AdministeredItemResponse> result = searchService.search(
-                null, null, RegistrationStatus.STANDARD, PageRequest.of(0, 20));
+                null, null, RegistrationStatus.STANDARD, null, null, PageRequest.of(0, 20));
 
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().get(0).registrationStatus())
@@ -134,7 +135,7 @@ class MetadataSearchServiceTest {
         stubCountAndRows(1L, List.of(sampleResponse));
 
         Page<AdministeredItemResponse> result = searchService.search(
-                "patient", "DataElement", RegistrationStatus.STANDARD, PageRequest.of(0, 20));
+                "patient", "DataElement", RegistrationStatus.STANDARD, null, null, PageRequest.of(0, 20));
 
         assertThat(result.getContent()).hasSize(1);
 
@@ -148,7 +149,7 @@ class MetadataSearchServiceTest {
         stubCountAndRows(0L, List.of());
 
         Page<AdministeredItemResponse> result = searchService.search(
-                "ZZZ_NONEXISTENT", null, null, PageRequest.of(0, 20));
+                "ZZZ_NONEXISTENT", null, null, null, null, PageRequest.of(0, 20));
 
         assertThat(result.getContent()).isEmpty();
         assertThat(result.getTotalElements()).isZero();
@@ -161,7 +162,7 @@ class MetadataSearchServiceTest {
         stubCountAndRows(1L, List.of(sampleResponse));
 
         Page<AdministeredItemResponse> result = searchService.search(
-                null, null, null, PageRequest.of(0, 20));
+                null, null, null, null, null, PageRequest.of(0, 20));
 
         assertThat(result.getContent()).hasSize(1);
 
@@ -175,7 +176,7 @@ class MetadataSearchServiceTest {
         stubCountAndRows(1L, List.of(sampleResponse));
 
         Page<AdministeredItemResponse> result = searchService.search(
-                "   ", null, null, PageRequest.of(0, 20));
+                "   ", null, null, null, null, PageRequest.of(0, 20));
 
         assertThat(result.getContent()).hasSize(1);
 
@@ -189,7 +190,7 @@ class MetadataSearchServiceTest {
         stubCountAndRows(1L, List.of(sampleResponse));
 
         Page<AdministeredItemResponse> result = searchService.search(
-                "患者", null, null, PageRequest.of(0, 10));
+                "患者", null, null, null, null, PageRequest.of(0, 10));
 
         assertThat(result.getContent()).isNotEmpty();
 

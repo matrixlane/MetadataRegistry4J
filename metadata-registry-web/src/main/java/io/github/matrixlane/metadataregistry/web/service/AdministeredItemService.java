@@ -159,6 +159,7 @@ public class AdministeredItemService {
                 constraintSetId,
                 constraintSetLabel,
                 referenceDocumentIds,
+                null,
                 ai.getCreationDateTime(),
                 ai.getLastChangeDateTime(),
                 ai.getChangeDescription());

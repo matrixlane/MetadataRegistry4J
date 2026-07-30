@@ -1,4 +1,3 @@
-
 package io.github.matrixlane.metadataregistry.web.dto.namingconvention;
 
 import io.github.matrixlane.metadataregistry.web.dto.common.ItemRegistrationRequest;
@@ -13,6 +12,10 @@ public record NamingConventionRequest(
         @NotBlank(message = "scopeRule 不能为空")
         String scopeRule,
         String authorityRule,
+        String semanticRule,
+        String syntacticRule,
+        String lexicalRule,
+        String rulesJson,
         @NotEmpty(message = "designations 不能为空") @Valid
         List<TextLine> designations,
         @Valid

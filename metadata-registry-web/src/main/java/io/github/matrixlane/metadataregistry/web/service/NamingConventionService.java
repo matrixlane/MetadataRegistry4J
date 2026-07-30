@@ -1,4 +1,3 @@
-
 package io.github.matrixlane.metadataregistry.web.service;
 
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.Text;
@@ -58,16 +57,20 @@ public class NamingConventionService {
 
     private void applyRequest(NamingConvention entity, NamingConventionRequest request) {
         entity.setScopeRule(Text.of(request.scopeRule()));
-        if (StringUtils.hasText(request.authorityRule())) {
-            entity.setAuthorityRule(Text.of(request.authorityRule()));
-        } else {
-            entity.setAuthorityRule(null);
-        }
+        entity.setAuthorityRule(toTextOrNull(request.authorityRule()));
+        entity.setSemanticRule(toTextOrNull(request.semanticRule()));
+        entity.setSyntacticRule(toTextOrNull(request.syntacticRule()));
+        entity.setLexicalRule(toTextOrNull(request.lexicalRule()));
+        entity.setRulesJson(StringUtils.hasText(request.rulesJson()) ? request.rulesJson() : null);
         itemAdministrationService.applyDesignations(entity, request.designations());
         itemAdministrationService.applyDefinitions(entity, request.definitions());
         if (request.registration() != null) {
             itemAdministrationService.ensureAdministeredItem(entity, request.registration());
         }
+    }
+
+    private static Text toTextOrNull(String value) {
+        return StringUtils.hasText(value) ? Text.of(value) : null;
     }
 
     private NamingConvention loadOrThrow(UUID id) {
@@ -97,10 +100,18 @@ public class NamingConventionService {
         return new NamingConventionResponse(
                 entity.getId(),
                 ItemNamingHelper.preferredDesignation(entity),
-                entity.getScopeRule() == null ? null : entity.getScopeRule().getValue(),
-                entity.getAuthorityRule() == null ? null : entity.getAuthorityRule().getValue(),
+                textValue(entity.getScopeRule()),
+                textValue(entity.getAuthorityRule()),
+                textValue(entity.getSemanticRule()),
+                textValue(entity.getSyntacticRule()),
+                textValue(entity.getLexicalRule()),
+                entity.getRulesJson(),
                 itemAdministrationService.mapDesignations(entity),
                 itemAdministrationService.mapDefinitions(entity),
                 itemAdministrationService.buildItemMeta(entity));
+    }
+
+    private static String textValue(Text text) {
+        return text == null ? null : text.getValue();
     }
 }

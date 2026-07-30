@@ -76,6 +76,10 @@ class NamingConventionControllerTest {
         NamingConventionRequest req = new NamingConventionRequest(
                 "scope rule",
                 "authority rule",
+                null,
+                null,
+                null,
+                null,
                 List.of(new TextLine(LANG_ID, "命名规范", null, null)),
                 null,
                 null);
@@ -93,6 +97,10 @@ class NamingConventionControllerTest {
         NamingConventionRequest req = new NamingConventionRequest(
                 "",
                 null,
+                null,
+                null,
+                null,
+                null,
                 List.of(new TextLine(LANG_ID, "命名规范", null, null)),
                 null,
                 null);
@@ -107,6 +115,10 @@ class NamingConventionControllerTest {
     void update_shouldReturnOk() throws Exception {
         NamingConventionRequest req = new NamingConventionRequest(
                 "updated",
+                null,
+                null,
+                null,
+                null,
                 null,
                 List.of(new TextLine(LANG_ID, "命名规范", null, null)),
                 null,
@@ -132,6 +144,10 @@ class NamingConventionControllerTest {
                 "命名规范",
                 "scope rule",
                 "authority rule",
+                null,
+                null,
+                null,
+                null,
                 List.of(),
                 List.of(),
                 null);
