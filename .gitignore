@@ -31,9 +31,16 @@ metadata-registry-ui/test-results/
 .notification_backup_wi0104a/
 .notification_test_backup_wi0104a/
 
-# Local agent tooling / scratch
-.agent/
-.claude/
-.worktrees/
+# Local scratch / temp files
+scratch/
+
+# Spring Boot extracted jar layout
 BOOT-INF/
+
+# Local agent / assistant tooling
+.agent/
+.claude/settings.local.json
+.claude/worktrees/
+
+# Emergency/temp code dump files
 emergency-code.txt
