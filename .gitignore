@@ -36,3 +36,8 @@ scratch/
 
 # Spring Boot extracted jar layout
 BOOT-INF/
+
+# Local agent / assistant tooling
+.agent/
+.claude/settings.local.json
+.claude/worktrees/
