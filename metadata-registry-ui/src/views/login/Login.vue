@@ -11,7 +11,7 @@
         :model="form"
         :rules="rules"
         label-position="top"
-        @keyup.enter="handleSubmit"
+        @submit.prevent="handleSubmit"
       >
         <el-form-item :label="$t('auth.username')" prop="username">
           <el-input
@@ -49,10 +49,10 @@
         <el-form-item>
           <el-button
             type="primary"
+            native-type="submit"
             size="large"
             :loading="loading"
             style="width: 100%; margin-top: 8px;"
-            @click="handleSubmit"
           >
             {{ $t('auth.login') }}
           </el-button>
