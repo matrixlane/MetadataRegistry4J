@@ -156,12 +156,12 @@ public class ContextTestDataInitializer implements CommandLineRunner {
                                Namespace ns, RegistrationAuthority ra,
                                String zhLabel, String enLabel, String zhDef, String enDef) {
         List<TextLine> designations = List.of(
-                new TextLine(zh.getId(), zhLabel, null, null),
-                new TextLine(en.getId(), enLabel, null, null)
+                new TextLine(zh.getId(), zhLabel, null, null, null, true),
+                new TextLine(en.getId(), enLabel, null, null, null, true)
         );
         List<TextLine> definitions = List.of(
-                new TextLine(zh.getId(), zhDef, null, null),
-                new TextLine(en.getId(), enDef, null, null)
+                new TextLine(zh.getId(), zhDef, null, null, null, true),
+                new TextLine(en.getId(), enDef, null, null, null, true)
         );
 
         ItemRegistrationRequest registration = null;

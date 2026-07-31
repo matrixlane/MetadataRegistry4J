@@ -368,6 +368,8 @@
               <el-input
                 v-model="pwdForm.newPassword"
                 type="password"
+                name="newPassword"
+                autocomplete="new-password"
                 placeholder="6-20 个字符"
                 size="large"
                 show-password
@@ -378,6 +380,8 @@
               <el-input
                 v-model="pwdForm.confirmPassword"
                 type="password"
+                name="confirmPassword"
+                autocomplete="new-password"
                 placeholder="再次输入新密码"
                 size="large"
                 show-password
