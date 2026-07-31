@@ -220,6 +220,25 @@ async function handleSubmit() {
     loading.value = true;
     try {
       await auth.login(form);
+
+      // Explicitly store/update credentials in the browser password manager.
+      // This is the standard way for SPAs to make sure the username is saved
+      // together with the password (Chrome/Edge support PasswordCredential).
+      try {
+        const PasswordCredential = (window as any).PasswordCredential;
+        if (PasswordCredential && navigator.credentials) {
+          await navigator.credentials.store(
+            new PasswordCredential({
+              id: form.username,
+              password: form.password,
+              name: form.username,
+            })
+          );
+        }
+      } catch {
+        // Ignore credential storage errors; the login itself is already successful.
+      }
+
       // After login, check if the system has been initialized.
       // Factory-reset followed by a re-login must land on the wizard, not the app.
       const isInitialized = await auth.checkInitialized();
