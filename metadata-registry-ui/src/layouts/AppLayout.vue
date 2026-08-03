@@ -168,6 +168,18 @@
         :rules="pwdRules"
         label-position="top"
       >
+        <!-- Hidden username field so browser password managers associate the
+             new password with the account instead of treating the password as
+             the username. Must not be display:none or browsers ignore it. -->
+        <input
+          type="text"
+          name="username"
+          autocomplete="username"
+          :value="auth.user?.username || ''"
+          tabindex="-1"
+          aria-hidden="true"
+          style="position: absolute; opacity: 0; height: 0; width: 0; pointer-events: none;"
+        />
         <p style="margin: 0 0 16px; color: #e6a23c; font-size: 14px; line-height: 1.5;">
           {{ auth.user?.emergencyLogin ? '您当前使用的是应急码登录，为了系统安全，请立即设置新密码。新密码不能与原密码相同。' : '您当前使用的是临时密码或系统初始凭证登录，请设置新密码以继续使用系统。' }}
         </p>
@@ -179,6 +191,8 @@
           <el-input
             v-model="pwdForm.oldPassword"
             type="password"
+            name="password"
+            autocomplete="current-password"
             placeholder="请输入原密码或应急码"
             show-password
           />
@@ -187,7 +201,9 @@
           <el-input
             v-model="pwdForm.newPassword"
             type="password"
-            placeholder="请输入新密码"
+            name="newPassword"
+            autocomplete="new-password"
+            placeholder="8-64 个字符"
             show-password
           />
         </el-form-item>
@@ -195,8 +211,19 @@
           <el-input
             v-model="pwdForm.confirmPassword"
             type="password"
+            name="confirmPassword"
+            autocomplete="new-password"
             placeholder="请再次输入新密码"
             show-password
+          />
+        </el-form-item>
+        <el-form-item v-if="pwdError" style="margin-bottom: 0;">
+          <el-alert
+            :title="pwdError"
+            type="error"
+            :closable="false"
+            show-icon
+            effect="light"
           />
         </el-form-item>
       </el-form>
@@ -270,6 +297,7 @@ const requireOldPassword = computed(() => {
 
 const pwdFormRef = ref<FormInstance>();
 const submitLoading = ref(false);
+const pwdError = ref('');
 
 const pwdForm = reactive({
   oldPassword: '',
@@ -289,7 +317,7 @@ const pwdRules = computed(() => {
   const rules: any = {
     newPassword: [
       { required: true, message: '请输入新密码', trigger: 'blur' },
-      { min: 6, max: 20, message: '密码长度在 6 到 20 个字符', trigger: 'blur' }
+      { min: 8, max: 64, message: '密码长度需在 8-64 位之间', trigger: 'blur' }
     ],
     confirmPassword: [
       { required: true, message: '请再次输入新密码', trigger: 'blur' },
@@ -309,6 +337,7 @@ async function submitPasswordChange() {
   await pwdFormRef.value.validate(async (valid) => {
     if (valid) {
       submitLoading.value = true;
+      pwdError.value = '';
       try {
         const payload = {
           oldPassword: isFirstLoginAdmin.value ? '' : pwdForm.oldPassword,
@@ -317,12 +346,34 @@ async function submitPasswordChange() {
         await request.post('/auth/change-password', payload);
         const username = auth.user?.username || 'admin';
         await auth.login({ username, password: pwdForm.newPassword });
+        // Store/update credentials in the browser password manager so the
+        // username is saved together with the new password (same approach as
+        // the login page; Chrome/Edge support PasswordCredential).
+        try {
+          const PasswordCredential = (window as any).PasswordCredential;
+          if (PasswordCredential && navigator.credentials) {
+            await navigator.credentials.store(
+              new PasswordCredential({
+                id: username,
+                password: pwdForm.newPassword,
+                name: username,
+              })
+            );
+          }
+        } catch {
+          // Ignore credential storage errors; the password change itself succeeded.
+        }
         ElMessage.success('密码修改成功，已自动为您登录系统。');
         pwdForm.oldPassword = '';
         pwdForm.newPassword = '';
         pwdForm.confirmPassword = '';
-      } catch (err) {
-        // Handled by request interceptor
+      } catch (err: any) {
+        // Show the rejection reason inside the dialog itself; the global
+        // toast is easy to miss behind the modal mask.
+        pwdError.value =
+          err?.response?.data?.message ||
+          err?.message ||
+          '密码修改失败，请稍后重试';
       } finally {
         submitLoading.value = false;
       }

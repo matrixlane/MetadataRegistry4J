@@ -14,6 +14,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.boot.ApplicationArguments;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.util.Optional;
 
@@ -44,6 +45,12 @@ class SystemDefaultNamespaceInitializerTest {
 
     @Mock
     private OrganizationRepository organizationRepository;
+
+    @Mock
+    private JdbcTemplate jdbcTemplate;
+
+    @Mock
+    private io.github.matrixlane.metadataregistry.web.service.database.DatabaseEnvironment databaseEnvironment;
 
     @Mock
     private ApplicationArguments args;
@@ -77,7 +84,9 @@ class SystemDefaultNamespaceInitializerTest {
         when(languageRepository.findByLanguageIdentifier("en-US")).thenReturn(Optional.of(langEn));
         when(languageRepository.findByLanguageIdentifier("zh-CN")).thenReturn(Optional.empty());
         when(languageRepository.save(any(LanguageIdentification.class))).thenReturn(langEn);
-        when(organizationRepository.findById(any())).thenReturn(Optional.empty());
+        // 首次 findById 为空触发 orElseGet 插入路径，插入后再次查询返回新建组织。
+        Organization systemOrg = new Organization();
+        when(organizationRepository.findById(any())).thenReturn(Optional.empty(), Optional.of(systemOrg));
         when(organizationRepository.save(any(Organization.class))).thenAnswer(i -> i.getArgument(0));
 
         ArgumentCaptor<Namespace> nsCaptor = ArgumentCaptor.forClass(Namespace.class);

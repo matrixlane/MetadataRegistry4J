@@ -18,13 +18,18 @@ public record InitWizardSetupRequest(
     
     Boolean createNamespace,
 
+    String namespaceName,
+
+    String identifierStrategy,
+
+    String identifierPrefix,
+
+    String identifierTemplate,
+
+    String versionPolicy,
+
     Boolean createRegistrySpecification,
     String registryName,
-    String identifierPrefix,
-    Boolean autoGenerateIdentifier,
-    String identifierPattern,
-    String versioningPolicy,
-    Boolean mandatoryClassification,
     String defaultLanguage,
     String registryDescription
 ) {}

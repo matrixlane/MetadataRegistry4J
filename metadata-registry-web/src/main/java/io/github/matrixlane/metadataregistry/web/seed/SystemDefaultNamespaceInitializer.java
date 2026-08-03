@@ -13,6 +13,8 @@ import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.jdbc.core.JdbcTemplate;
+import io.github.matrixlane.metadataregistry.web.service.database.DatabaseEnvironment;
 
 import java.util.UUID;
 
@@ -45,9 +47,11 @@ public class SystemDefaultNamespaceInitializer implements ApplicationRunner {
     /** 内部技术 Namespace 的 URN 方案引用 */
     public static final String SYSTEM_DEFAULT_SCHEME = "urn:metadata-registry:system-default";
 
-    private final NamespaceRepository namespaceRepository;
-    private final LanguageIdentificationRepository languageRepository;
-    private final OrganizationRepository organizationRepository;
+   private final NamespaceRepository namespaceRepository;
+   private final LanguageIdentificationRepository languageRepository;
+   private final OrganizationRepository organizationRepository;
+    private final JdbcTemplate jdbcTemplate;
+    private final DatabaseEnvironment databaseEnvironment;
 
     @Override
     @Transactional
@@ -63,18 +67,21 @@ public class SystemDefaultNamespaceInitializer implements ApplicationRunner {
                 return;
             }
 
-            Namespace ns = new Namespace();
-            ns.setShorthandPrefix(SYSTEM_DEFAULT_PREFIX);
-            ns.setSchemeReference(SYSTEM_DEFAULT_SCHEME);
-            Organization systemOrg = organizationRepository
-                    .findById(UUID.fromString("00000000-0000-0000-0000-000000000001"))
+           Namespace ns = new Namespace();
+           ns.setShorthandPrefix(SYSTEM_DEFAULT_PREFIX);
+           ns.setSchemeReference(SYSTEM_DEFAULT_SCHEME);
+            UUID systemOrgId = UUID.fromString("00000000-0000-0000-0000-000000000001");
+            Organization systemOrg = organizationRepository.findById(systemOrgId)
                     .orElseGet(() -> {
-                        Organization org = new Organization();
-                        org.setId(UUID.fromString("00000000-0000-0000-0000-000000000001"));
+                        jdbcTemplate.update(
+                                "INSERT INTO " + databaseEnvironment.qualify("organization") + " (id) VALUES (?)",
+                                databaseEnvironment.toJdbcUuid(systemOrgId));
+                        Organization org = organizationRepository.findById(systemOrgId)
+                                .orElseThrow(() -> new IllegalStateException("system organization not found after insert"));
                         org.getName().add(Sign.of("system"));
                         return organizationRepository.save(org);
                     });
-            ns.setNamingAuthority(systemOrg);
+           ns.setNamingAuthority(systemOrg);
 
             // 获取语言标识（默认取 en-US）
             LanguageIdentification langEn = createLanguage("en-US", "Latn", "US");

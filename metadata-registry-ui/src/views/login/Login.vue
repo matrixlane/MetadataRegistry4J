@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <LoginLayout>
     <el-card class="login-card" shadow="always">
       <div class="login-header">
@@ -246,7 +246,12 @@ async function handleSubmit() {
     } catch (err: any) {
       // Show the error directly on the login form. The request interceptor is
       // intentionally skipped for /login 401s so the message appears here.
-      const msg = err?.response?.data?.message || err?.message || t('auth.invalidCredentials');
+      let msg = err?.response?.data?.message;
+      if (!msg) {
+        msg = err?.response?.status >= 500
+          ? '服务器内部错误，请稍后再试或联系管理员'
+          : (err?.message || t('auth.invalidCredentials'));
+      }
       errorMessage.value = msg;
       ElMessage.error(msg);
     } finally {

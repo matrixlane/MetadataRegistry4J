@@ -27,7 +27,7 @@ import java.util.UUID;
  * <p>返回指定 Namespace 的就绪状态清单，引导用户补齐缺失的前置条件。
  */
 @RestController
-@RequestMapping("/api/readiness")
+@RequestMapping("/api/v1/readiness")
 @RequiredArgsConstructor
 @Tag(name = "数据治理就绪检查", description = "WI-028-C: Namespace 就绪状态检查")
 public class ReadinessController {
@@ -77,6 +77,18 @@ public class ReadinessController {
             guidance.add("请通过 /api/v1/registry-specifications 接口创建注册规范");
         }
         return ApiResponse.ok(ReadinessChecklistResponse.from(null, checklist, "系统全局", guidance));
+    }
+
+    @GetMapping("/ra-namespace-exists")
+    @Operation(summary = "是否存在注册机构关联的命名空间",
+            description = "自有数据标准创建的准入门槛查询：false 时需先创建基于注册机构的命名空间")
+    public ApiResponse<RaNamespaceStatusResponse> raNamespaceExists() {
+        boolean exists = readinessService.hasRegistrationAuthorityNamespace();
+        String guidance = exists ? null : "创建自有数据标准前，请先创建基于注册机构的命名空间";
+        return ApiResponse.ok(new RaNamespaceStatusResponse(exists, guidance));
+    }
+
+    public record RaNamespaceStatusResponse(boolean exists, String guidance) {
     }
 
     private UUID extractUserId(Authentication authentication) {

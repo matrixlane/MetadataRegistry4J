@@ -129,6 +129,7 @@ class NamespaceControllerTest {
     private NamespaceResponse createResponse() {
         return new NamespaceResponse(
                 NS_ID, "Test Namespace", RA_ID, "Test RA",
+                RA_ID,
                 List.of(), List.of(),
                 null, null, null, EMPTY_NC, null, null);
     }

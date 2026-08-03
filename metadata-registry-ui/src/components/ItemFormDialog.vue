@@ -7,6 +7,20 @@
     destroy-on-close
     @closed="reset"
   >
+    <el-alert
+      v-if="!raNamespaceExists"
+      type="warning"
+      :closable="false"
+      style="margin-bottom: 12px;"
+    >
+      <template #title>系统中还没有基于注册机构的命名空间</template>
+      <div>
+        创建自己的数据标准前，请先创建基于注册机构的命名空间。仅导入或编目外部组织的数据标准（使用外部命名空间）不受影响。
+      </div>
+      <el-button type="warning" size="small" style="margin-top: 8px;" @click="goCreateNamespace">
+        去创建命名空间
+      </el-button>
+    </el-alert>
     <el-form
       ref="formRef"
       :model="form"
@@ -164,7 +178,7 @@
 
     <template #footer>
       <el-button @click="visible = false">取消</el-button>
-      <el-button type="primary" :loading="saving" @click="handleSubmit">保存</el-button>
+      <el-button type="primary" :loading="saving" :disabled="gateBlocksSave" @click="handleSubmit">保存</el-button>
     </template>
   </el-dialog>
 </template>
@@ -173,13 +187,14 @@
 import { reactive, ref, onMounted, computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 const { t } = useI18n();
+import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import { watch } from 'vue';
 import { Warning } from '@element-plus/icons-vue';
 import type { FormInstance, FormRules } from 'element-plus';
 import MultilingualTextEditor from './MultilingualTextEditor.vue';
 import DesignationDefinitionPairingEditor from './DesignationDefinitionPairingEditor.vue';
-import { namingConventionApi, namespaceApi, registrationAuthorityApi, pairingApi } from '@/api/resources';
+import { namingConventionApi, namespaceApi, registrationAuthorityApi, pairingApi, readinessApi } from '@/api/resources';
 import { languageApi } from '@/api/resources';
 import type { TextLineForm, PairingForm, NamespaceDetailResponse } from '@/types/common';
 
@@ -210,6 +225,7 @@ const props = withDefaults(defineProps<Props>(), {
 });
 const emit = defineEmits<{ success: [] }>();
 
+const router = useRouter();
 const visible = ref(false);
 const saving = ref(false);
 const formRef = ref<FormInstance>();
@@ -259,6 +275,9 @@ const form = reactive<ItemForm>({
 });
 
 const namespaces = ref<{ id: string; identifier?: string; name?: string }[]>([]);
+/** system-default 命名空间的 URN 方案引用（与后端 SystemDefaultNamespaceInitializer 一致） */
+const SYSTEM_DEFAULT_SCHEME = 'urn:metadata-registry:system-default';
+const raNamespaceExists = ref(true);
 const registrationAuthorities = ref<{ id: string; identifier?: string; name?: string }[]>([]);
 const languages = ref<{ id: string; languageIdentifier?: string; languageCode?: string }[]>([]);
 const namespaceNamingConventions = ref<{ id: string; label?: string; scopeRule?: string }[]>([]);
@@ -324,6 +343,21 @@ function requestIsolatedConfirmation(onConfirm: () => void) {
 const designationNamingConventionOptions = computed(() =>
   props.showRegistration ? namespaceNamingConventions.value : []
 );
+
+const selectedNamespace = computed(() =>
+  namespaces.value.find((ns: any) => ns.id === form.registration.namespaceId) as any
+);
+
+// 无注册机构关联命名空间时：仅当目标为 system-default 命名空间才禁用保存
+// （外部命名空间用于导入/编目外部数据标准，不受门槛限制）。
+const gateBlocksSave = computed(() =>
+  !raNamespaceExists.value && selectedNamespace.value?.schemeReference === SYSTEM_DEFAULT_SCHEME
+);
+
+function goCreateNamespace() {
+  visible.value = false;
+  router.push('/namespaces');
+}
 
 watch(() => form.registration.namespaceId, (namespaceId) => {
   loadNamespaceDetail(namespaceId);
@@ -437,6 +471,13 @@ async function loadOptions() {
     loaded.value = true;
   } catch {
     // ignore
+  }
+  // 命名空间前置门槛查询失败时默认放行（后端仍会强制校验），不阻塞对话框使用。
+  try {
+    const gate = await readinessApi.raNamespaceExists();
+    raNamespaceExists.value = gate.exists;
+  } catch {
+    raNamespaceExists.value = true;
   }
 }
 

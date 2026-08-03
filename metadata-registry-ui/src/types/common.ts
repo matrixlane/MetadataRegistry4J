@@ -171,6 +171,7 @@ export interface NamespaceResponse {
   label?: string;
   namingAuthorityId?: string;
   namingAuthorityName?: string;
+  registrationAuthorityId?: string;
   designations?: TextLineResponse[];
   definitions?: TextLineResponse[];
   shorthandPrefix?: string;

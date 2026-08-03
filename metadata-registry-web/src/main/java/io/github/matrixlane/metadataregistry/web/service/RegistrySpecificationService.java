@@ -94,16 +94,18 @@ public class RegistrySpecificationService {
         }
     }
 
+    /**
+     * 创建默认注册规范。标识生成策略与版本生成策略属于命名空间范畴
+     * （见 InitWizardService 的命名空间步骤），不由注册规范承载。
+     */
     public RegistrySpecificationResponse createDefault(String registryName,
-                                                     String identifierPrefix,
-                                                     Boolean autoGenerateIdentifier,
-                                                     String identifierPattern,
-                                                     String versioningPolicy,
-                                                     Boolean mandatoryClassification,
                                                      String defaultLanguage,
                                                      String description) {
+        // 名称缺省值需在名称字段与首选指称中保持一致，否则 designation 为 null
+        // 会触发命名规范校验失败。
+        String effectiveName = registryName != null ? registryName : "默认元数据注册表";
         RegistrySpecificationRequest request = new RegistrySpecificationRequest(
-                registryName != null ? registryName : "默认元数据注册表",
+                effectiveName,
                 description,
                 null,
                 null,
@@ -119,7 +121,7 @@ public class RegistrySpecificationService {
                 null,
                 null,
                 "UTC+8",
-                List.of(new io.github.matrixlane.metadataregistry.web.dto.common.TextLine(defaultLanguageId(defaultLanguage), registryName, null, null, null, true)),
+                List.of(new io.github.matrixlane.metadataregistry.web.dto.common.TextLine(defaultLanguageId(defaultLanguage), effectiveName, null, null, null, true)),
                 null,
                 null);
         return create(request);
@@ -203,6 +205,13 @@ public class RegistrySpecificationService {
                 altLangIds.add(lang.getId());
             }
         }
+        // Copy the lazy @ElementCollection into a plain list inside the active
+        // transaction; serializing the live PersistentCollection after the
+        // session closes raises LazyInitializationException (HTTP 500).
+        List<String> referenceDocumentIdentifierKinds =
+                entity.getReferenceDocumentIdentifierKinds() == null
+                        ? new ArrayList<>()
+                        : new ArrayList<>(entity.getReferenceDocumentIdentifierKinds());
         return new RegistrySpecificationResponse(
                 entity.getId(),
                 ItemNamingHelper.preferredDesignation(entity),
@@ -213,7 +222,7 @@ public class RegistrySpecificationService {
                 defaultLang == null ? null : defaultLang.getLanguageIdentifier(),
                 altLangIds,
                 entity.getCharacterRepertoire(),
-                entity.getReferenceDocumentIdentifierKinds(),
+                referenceDocumentIdentifierKinds,
                 entity.getRepresentationClassSchemeId(),
                 ctx == null ? null : ctx.getId(),
                 ctx == null ? null : ItemNamingHelper.preferredDesignation(ctx),

@@ -1,4 +1,4 @@
-import axios from 'axios';
+﻿import axios from 'axios';
 import type { AxiosInstance, AxiosError } from 'axios';
 import { ElMessage } from 'element-plus';
 import { useAuthStore } from '@/stores/auth';
@@ -7,7 +7,7 @@ const baseURL = import.meta.env.VITE_API_BASE;
 
 const request: AxiosInstance = axios.create({
   baseURL,
-  timeout: 15000,
+  timeout: 30000,
   headers: { 'Content-Type': 'application/json' },
 });
 
@@ -50,7 +50,12 @@ request.interceptors.response.use(
       ElMessage.error(msg);
       window.location.href = '/login';
     } else {
-      ElMessage.error(error.response?.data?.message || error.message || '网络错误');
+      const status = error.response?.status;
+      const serverMsg = error.response?.data?.message;
+      const fallback = status && status >= 500
+        ? '服务器内部错误，请稍后再试或联系管理员'
+        : (error.message || '网络错误');
+      ElMessage.error(serverMsg || fallback);
     }
     return Promise.reject(error);
   }

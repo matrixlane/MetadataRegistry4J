@@ -205,6 +205,7 @@ public class NamespaceService {
                 ItemNamingHelper.preferredDesignation(entity),
                 namingAuthority == null ? null : namingAuthority.getId(),
                 namingAuthorityName,
+                entity.getRegistrationAuthority() == null ? null : entity.getRegistrationAuthority().getId(),
                 itemAdministrationService.mapDesignations(entity),
                 itemAdministrationService.mapDefinitions(entity),
                 entity.getShorthandPrefix(),

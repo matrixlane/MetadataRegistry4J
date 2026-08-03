@@ -201,12 +201,6 @@
               </el-input>
             </el-form-item>
           </el-form>
-        </div>
-
-        <!-- Step 3: Admin Role Assignment & Namespace creation -->
-        <div v-if="currentStep === 3" class="step-pane fade-in">
-          <h3 class="step-title">角色与命名空间初始化</h3>
-          <p class="step-desc">设置超级管理员的角色分配与系统的基础命名空间</p>
 
           <div class="wizard-settings-box">
             <div class="setting-item">
@@ -216,31 +210,94 @@
               </div>
               <el-switch v-model="form.selfAsRegistrar" size="large" />
             </div>
+          </div>
+        </div>
 
-            <el-divider />
+        <!-- Step 4: Namespace creation -->
+        <div v-if="currentStep === 3" class="step-pane fade-in">
+          <h3 class="step-title">配置命名空间</h3>
+          <p class="step-desc">命名空间是创建自有数据标准的前提；标识与版本生成策略均在命名空间级别生效</p>
 
+          <div class="wizard-settings-box">
             <div class="setting-item">
               <div class="setting-label-section">
-                <h4>初始化默认命名空间</h4>
-                <p>勾选后，系统将自动在注册机构下创建一个标识为 "default"、名称为 "默认命名空间" 的基础命名空间，作为元数据项注册和组织工作的起步区域。</p>
+                <h4>创建基于注册机构的命名空间</h4>
+                <p>勾选后，系统将在注册机构下创建一个命名空间，作为注册自有元数据项和数据标准的起步区域。如果只打算导入和访问外部组织的数据标准，可以跳过；之后要开始创建自己的数据标准时，必须先创建基于注册机构的命名空间。</p>
               </div>
               <el-switch v-model="form.createNamespace" size="large" />
             </div>
           </div>
+
+          <el-form
+            v-if="form.createNamespace"
+            ref="formStep3Ref"
+            :model="form"
+            :rules="rulesStep3"
+            label-position="top"
+            class="wizard-form"
+          >
+            <el-form-item label="命名空间名称" prop="namespaceName">
+              <el-input
+                v-model="form.namespaceName"
+                placeholder="例如：默认命名空间"
+                size="large"
+                clearable
+              />
+            </el-form-item>
+
+            <el-form-item label="标识生成策略" prop="identifierStrategy">
+              <el-radio-group v-model="form.identifierStrategy">
+                <el-radio-button value="UUID">UUID</el-radio-button>
+                <el-radio-button value="SEQUENCE">顺序编号</el-radio-button>
+                <el-radio-button value="TEMPLATE">模板</el-radio-button>
+              </el-radio-group>
+            </el-form-item>
+
+            <el-row v-if="form.identifierStrategy !== 'UUID'" :gutter="20">
+              <el-col :span="12">
+                <el-form-item label="标识符前缀" prop="identifierPrefix">
+                  <el-input
+                    v-model="form.identifierPrefix"
+                    placeholder="例如：ITEM"
+                    size="large"
+                    clearable
+                  />
+                </el-form-item>
+              </el-col>
+              <el-col v-if="form.identifierStrategy === 'TEMPLATE'" :span="12">
+                <el-form-item label="标识符模板" prop="identifierTemplate">
+                  <el-input
+                    v-model="form.identifierTemplate"
+                    placeholder="例如：{prefix}-{seq:4}"
+                    size="large"
+                    clearable
+                  />
+                </el-form-item>
+              </el-col>
+            </el-row>
+
+            <el-form-item label="版本生成策略" prop="versionPolicy">
+              <el-select v-model="form.versionPolicy" size="large" placeholder="请选择版本生成策略" style="width: 100%;">
+                <el-option label="语义化版本 (X.Y.Z)" value="SEMVER" />
+                <el-option label="顺序整数 (1, 2, 3, ...)" value="SEQUENTIAL" />
+                <el-option label="日期版本 (YYYY-MM-DD)" value="DATE" />
+              </el-select>
+            </el-form-item>
+          </el-form>
         </div>
 
-        <!-- Step 4: Registry Specification Configuration -->
+        <!-- Step 5: Registry Specification Configuration -->
         <div v-if="currentStep === 4" class="step-pane fade-in">
           <h3 class="step-title">配置注册规范</h3>
-          <p class="step-desc">注册规范决定了元数据在注册表中的校验规则和标识符生成行为</p>
+          <p class="step-desc">注册规范决定了元数据在注册表中的管理与校验规则，是开展数据治理工作的先决条件</p>
 
           <div class="wizard-settings-box mb-4">
             <div class="setting-item">
               <div class="setting-label-section">
                 <h4>立即创建并启用注册规范</h4>
-                <p>建议立即创建。只有创建了注册规范后，本注册表才正式允许数据治理工作的开展和注册项目。</p>
+                <p>注册规范是开展数据治理工作的先决条件，初始化时必须创建。只有创建了注册规范后，本注册表才正式允许数据治理工作的开展和注册项目。</p>
               </div>
-              <el-switch v-model="form.createRegistrySpecification" size="large" />
+              <el-switch v-model="form.createRegistrySpecification" size="large" disabled />
             </div>
           </div>
 
@@ -261,63 +318,12 @@
               />
             </el-form-item>
 
-            <el-row :gutter="20">
-              <el-col :span="12">
-                <el-form-item label="标识符生成策略" prop="autoGenerateIdentifier">
-                  <el-radio-group v-model="form.autoGenerateIdentifier">
-                    <el-radio-button :value="true">自动生成</el-radio-button>
-                    <el-radio-button :value="false">手动输入</el-radio-button>
-                  </el-radio-group>
-                </el-form-item>
-              </el-col>
-              <el-col :span="12">
-                <el-form-item label="标识符前缀" prop="identifierPrefix">
-                  <el-input
-                    v-model="form.identifierPrefix"
-                    placeholder="例如：SYS"
-                    size="large"
-                    clearable
-                  />
-                </el-form-item>
-              </el-col>
-            </el-row>
-
-            <el-row :gutter="20">
-              <el-col :span="12">
-                <el-form-item label="版本化策略" prop="versioningPolicy">
-                  <el-select v-model="form.versioningPolicy" size="large" placeholder="请选择版本规则" style="width: 100%;">
-                    <el-option label="语义化版本 (X.Y.Z)" value="SEMVER" />
-                    <el-option label="单整数版本 (1, 2, 3)" value="INTEGRAL" />
-                  </el-select>
-                </el-form-item>
-              </el-col>
-              <el-col :span="12">
-                <el-form-item label="默认语言" prop="defaultLanguage">
-                  <el-select v-model="form.defaultLanguage" size="large" placeholder="请选择默认语言" style="width: 100%;">
-                    <el-option label="简体中文 (zh-CN)" value="zh-CN" />
-                    <el-option label="英文 (en-US)" value="en-US" />
-                  </el-select>
-                </el-form-item>
-              </el-col>
-            </el-row>
-
-            <el-row :gutter="20">
-              <el-col :span="12">
-                <el-form-item label="强制分类规范" prop="mandatoryClassification">
-                  <el-switch v-model="form.mandatoryClassification" size="large" />
-                </el-form-item>
-              </el-col>
-              <el-col :span="12">
-                <el-form-item label="手动标识校验正则" prop="identifierPattern">
-                  <el-input
-                    v-model="form.identifierPattern"
-                    placeholder="例如：^[A-Z0-9_-]+$"
-                    size="large"
-                    clearable
-                  />
-                </el-form-item>
-              </el-col>
-            </el-row>
+            <el-form-item label="默认语言" prop="defaultLanguage">
+              <el-select v-model="form.defaultLanguage" size="large" placeholder="请选择默认语言" style="width: 100%;">
+                <el-option label="简体中文 (zh-CN)" value="zh-CN" />
+                <el-option label="英文 (en-US)" value="en-US" />
+              </el-select>
+            </el-form-item>
 
             <el-form-item label="描述" prop="registryDescription">
               <el-input
@@ -473,6 +479,7 @@ const dbTestResult = ref<DbTestResult | null>(null);
 const restartRequired = ref(false);
 
 const formStep2Ref = ref<FormInstance>();
+const formStep3Ref = ref<FormInstance>();
 const formStep4Ref = ref<FormInstance>();
 const formStep5Ref = ref<FormInstance>();
 
@@ -484,13 +491,13 @@ const form = reactive({
   registrationAuthorityEmail: '',
   selfAsRegistrar: true,
   createNamespace: true,
+  namespaceName: '默认命名空间',
+  identifierStrategy: 'UUID',
+  identifierPrefix: '',
+  identifierTemplate: '',
+  versionPolicy: 'SEMVER',
   createRegistrySpecification: true,
   registryName: '',
-  identifierPrefix: '',
-  autoGenerateIdentifier: true,
-  identifierPattern: '^[A-Z0-9_-]+$',
-  versioningPolicy: 'SEMVER',
-  mandatoryClassification: false,
   defaultLanguage: 'zh-CN',
   registryDescription: '',
 });
@@ -520,9 +527,19 @@ const rulesStep4 = reactive<FormRules>({
   ],
   defaultLanguage: [
     { required: true, message: '请选择默认语言', trigger: 'change' }
+  ]
+});
+
+const rulesStep3 = reactive<FormRules>({
+  namespaceName: [
+    { required: true, message: '请输入命名空间名称', trigger: 'blur' },
+    { min: 2, max: 100, message: '长度在 2 到 100 个字符', trigger: 'blur' }
   ],
-  versioningPolicy: [
-    { required: true, message: '请选择版本规则', trigger: 'change' }
+  identifierStrategy: [
+    { required: true, message: '请选择标识生成策略', trigger: 'change' }
+  ],
+  versionPolicy: [
+    { required: true, message: '请选择版本生成策略', trigger: 'change' }
   ]
 });
 
@@ -550,30 +567,14 @@ const lastStepIndex = computed(() => {
   return 5; // Step 6 (admin password) is always last
 });
 
-// 步骤指示器按版本裁剪：个人版「版本选择 → 数据库 → 管理员密码」；
-// 团队版含完整治理步骤（注册规范步骤随 selfAsRegistrar 开关）。
+// 步骤指示器：两个版本均包含治理配置步骤（注册机构 → 命名空间 → 注册规范），
+// 这三者是开展数据治理工作的先决条件；个人版以预填默认值保持精简体验。
 const displaySteps = computed(() => {
-  if (form.edition === 'PERSONAL') {
-    return ['版本选择', '数据库', '管理员密码'];
-  }
-  const steps = ['版本选择', '数据库', '注册机构', '管理员与命名空间'];
-  if (form.selfAsRegistrar) {
-    steps.push('注册规范');
-  }
-  steps.push('管理员密码');
-  return steps;
+  return ['版本选择', '数据库', '注册机构', '命名空间', '注册规范', '管理员密码'];
 });
 
 const displayActive = computed(() => {
-  if (form.edition === 'PERSONAL') {
-    if (currentStep.value === 0) return 0;
-    if (currentStep.value === 1) return 1;
-    return 2;
-  }
-  if (currentStep.value <= 4) {
-    return currentStep.value;
-  }
-  return form.selfAsRegistrar ? 5 : 4;
+  return currentStep.value;
 });
 
 // Auto-fill registry name when RA name changes
@@ -583,12 +584,14 @@ watch(() => form.registrationAuthorityName, (newVal) => {
   }
 });
 
-// Skip step 4 (registry spec) if selfAsRegistrar is false
-watch(() => form.selfAsRegistrar, (val) => {
-  if (!val && currentStep.value === 4) {
-    currentStep.value = 5; // 注册规范步骤被跳过，直达管理员密码
+// 个人版预填治理字段默认值（可修改）；团队版要求显式填写。
+// 注意：必须注册在 registryName 联动 watcher 之后，immediate 回调对
+// registrationAuthorityName 的赋值才能触发联动预填。
+watch(() => form.edition, (val) => {
+  if (val === 'PERSONAL' && !form.registrationAuthorityName.trim()) {
+    form.registrationAuthorityName = '个人注册机构';
   }
-});
+}, { immediate: true });
 
 // ── Network helpers ────────────────────────────────────────────────
 async function callSetup(): Promise<void> {
@@ -624,11 +627,6 @@ async function callAbort(): Promise<void> {
 
 // ── Step navigation ────────────────────────────────────────────────
 function prevStep() {
-  // 个人版：从密码步骤直接回到数据库步骤（治理步骤对个人版不可见）
-  if (form.edition === 'PERSONAL' && currentStep.value === 5) {
-    currentStep.value = 1;
-    return;
-  }
   if (currentStep.value > 0) {
     currentStep.value--;
   }
@@ -651,16 +649,6 @@ async function nextStep() {
       ElMessage.error('团队版不支持 SQLite，请配置 SQL Server 或达梦数据库');
       return;
     }
-    if (form.edition === 'PERSONAL') {
-      // 个人版：治理配置使用后端默认值，直接提交 setup 并跳到管理员密码步骤。
-      try {
-        await callSetup();
-        currentStep.value = 5;
-      } catch (e) {
-        // Interceptor surfaces the error; stay on this step.
-      }
-      return;
-    }
     currentStep.value = 2;
     return;
   }
@@ -678,12 +666,17 @@ async function nextStep() {
   }
 
   if (currentStep.value === 3) {
-    // selfAsRegistrar toggle controls whether step 5 (registry spec) shows
-    if (form.selfAsRegistrar) {
-      currentStep.value = 4;
-    } else {
-      currentStep.value = 5; // skip registry spec step
+    if (form.createNamespace) {
+      if (!formStep3Ref.value) return;
+      let isValid = false;
+      try {
+        isValid = await formStep3Ref.value.validate();
+      } catch {
+        isValid = false;
+      }
+      if (!isValid) return;
     }
+    currentStep.value = 4;
     return;
   }
 
@@ -857,6 +850,7 @@ onBeforeUnmount(() => {
 <style scoped lang="scss">
 .wizard-card {
   width: 780px;
+  max-width: 100%;
   border-radius: 16px;
   border: 1px solid rgba(255, 255, 255, 0.5);
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);

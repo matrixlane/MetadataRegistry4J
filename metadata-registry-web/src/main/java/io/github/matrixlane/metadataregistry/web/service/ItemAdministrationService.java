@@ -34,6 +34,7 @@ import io.github.matrixlane.metadataregistry.web.repository.NamespaceRepository;
 import io.github.matrixlane.metadataregistry.web.repository.NamingConventionRepository;
 import io.github.matrixlane.metadataregistry.web.repository.ReferenceDocumentRepository;
 import io.github.matrixlane.metadataregistry.web.repository.RegistrationAuthorityRepository;
+import io.github.matrixlane.metadataregistry.web.seed.SystemDefaultNamespaceInitializer;
 import io.github.matrixlane.metadataregistry.web.service.namingconvention.NamingConventionEngine;
 import io.github.matrixlane.metadataregistry.web.service.namingconvention.NamingConventionRuleResult;
 import io.github.matrixlane.metadataregistry.web.service.namespace.NamespaceConstraintValidator;
@@ -270,6 +271,8 @@ public class ItemAdministrationService {
                 : namespaceRepository.findById(req.namespaceId())
                 .orElseThrow(() -> new ResourceNotFoundException("Namespace", req.namespaceId()));
 
+        enforceRaNamespacePrecondition(ns);
+
         if (ai.getScopedIdentifiers() == null || ai.getScopedIdentifiers().isEmpty()) {
             ScopedIdentifier si = new ScopedIdentifier();
             String identifier = req.identifier();
@@ -311,6 +314,27 @@ public class ItemAdministrationService {
 
         item.setIdentifiedItem(ai);
         return ai;
+    }
+
+    /**
+     * 自有数据标准的命名空间前置条件：系统中必须存在至少一个与注册机构关联的
+     * 命名空间，否则阻止创建自有数据标准并引导先补建命名空间。
+     *
+     * <p>外部命名空间（无关联注册机构，且非 system-default）用于导入/编目外部
+     * 组织的数据标准，不受此限制；system-default 仅供系统内部与试用，不计入该
+     * 前置条件。
+     */
+    private void enforceRaNamespacePrecondition(Namespace ns) {
+        boolean externalNamespace = ns != null
+                && ns.getRegistrationAuthority() == null
+                && !SystemDefaultNamespaceInitializer.SYSTEM_DEFAULT_SCHEME.equals(ns.getSchemeReference());
+        if (externalNamespace) {
+            return;
+        }
+        if (!namespaceRepository.existsByRegistrationAuthorityIsNotNull()) {
+            throw new BusinessException(ApiCodes.VALIDATION_FAILED,
+                    "创建自有数据标准前，请先创建基于注册机构的命名空间");
+        }
     }
 
     public ItemMetaResponse buildItemMeta(Item item) {

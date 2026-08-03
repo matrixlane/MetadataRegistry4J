@@ -1,11 +1,15 @@
 spring:
   datasource:
-    url: jdbc:sqlserver://localhost:1433;databaseName=metadata_registry;encrypt=true;trustServerCertificate=true;integratedSecurity=true;loginTimeout=5
-    driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver
+    url: jdbc:sqlite:./metadata_registry.db
+    driver-class-name: org.sqlite.JDBC
     hikari:
       connection-timeout: 5000
+      auto-commit: false
 
   jpa:
+    properties:
+      hibernate:
+        dialect: org.hibernate.community.dialect.SQLiteDialect
     hibernate:
       ddl-auto: update
     show-sql: true
@@ -17,7 +21,6 @@ logging:
   level:
     com.zaxxer.hikari: DEBUG
     org.springframework.jdbc: DEBUG
-    org.hibernate.SQL: DEBUG
 
 app:
   jwt:

@@ -25,6 +25,12 @@ function crud<T>(base: string) {
 
 export const registrationAuthorityApi = crud('/registration-authorities');
 export const registrarApi = crud('/registrars');
+
+export const readinessApi = {
+  raNamespaceExists: () =>
+    request.get<{ exists: boolean; guidance: string | null }>('/readiness/ra-namespace-exists'),
+};
+
 export const namespaceApi = {
   list: (params?: PageQuery) =>
     request.get<PageResponse<NamespaceResponse>>('/namespaces', { params }),

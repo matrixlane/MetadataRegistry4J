@@ -40,6 +40,13 @@ public class Namespace extends Item {
     private String schemeReference;
 
     /**
+     * 版本生成策略（如 SEMVER / SEQUENTIAL / DATE）。
+     * 命名空间级设置，供该命名空间下条目版本自动递增生效。
+     */
+    @jakarta.persistence.Column(name = "versioning_policy", length = 32)
+    private String versioningPolicy = "SEMVER";
+
+    /**
      * When TRUE, all Items in this namespace must pass NamingConvention validation
      * before being saved.
      */

@@ -10,6 +10,7 @@ public record NamespaceResponse(
         String label,
         UUID namingAuthorityId,
         String namingAuthorityName,
+        UUID registrationAuthorityId,
         List<TextLineResponse> designations,
         List<TextLineResponse> definitions,
         String shorthandPrefix,

@@ -71,7 +71,9 @@ class InitWizardControllerTest {
     void setup_shouldCallServiceSetup() throws Exception {
         InitWizardSetupRequest request = new InitWizardSetupRequest(
                 "TEAM", null, "Test Authority", "Test Authority English", "test@test.com", true, true,
-                false, null, null, null, null, null, null, null, null
+                null, null, null, null, null,
+                true,
+                null, null, null
         );
 
         AuthenticatedUser principal = new AuthenticatedUser(

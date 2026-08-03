@@ -8,6 +8,7 @@ import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefi
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifierStrategyConfigService;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.AdministeredItem;
+import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationAuthority;
 import io.github.matrixlane.metadataregistry.web.common.BusinessException;
 import io.github.matrixlane.metadataregistry.web.dto.common.ItemRegistrationRequest;
 import io.github.matrixlane.metadataregistry.web.dto.common.TextLine;
@@ -20,6 +21,7 @@ import io.github.matrixlane.metadataregistry.web.repository.ReferenceDocumentRep
 import io.github.matrixlane.metadataregistry.web.repository.NamingConventionRepository;
 import io.github.matrixlane.metadataregistry.web.service.namingconvention.NamingConventionEngine;
 import io.github.matrixlane.metadataregistry.web.service.namespace.NamespaceConstraintValidator;
+import io.github.matrixlane.metadataregistry.web.seed.SystemDefaultNamespaceInitializer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -273,6 +275,84 @@ class ItemAdministrationServiceTest {
         assertThat(ai.getScopedIdentifiers()).hasSize(1);
         assertThat(ai.getScopedIdentifiers().get(0).getIdentifier()).isEqualTo("AUTO-999");
         verify(identifierStrategyConfigService).generateIdentifier(eq(ns), any());
+    }
+
+    @Test
+    void ensureAdministeredItem_noRaNamespace_blocked() {
+        // 目标为注册机构关联命名空间，但系统中尚无任何注册机构关联命名空间
+        // （初始化时跳过了命名空间设置）→ 阻止创建自有数据标准。
+        UUID namespaceId = UUID.randomUUID();
+        Namespace ns = new Namespace();
+        ns.setId(namespaceId);
+        ns.setRegistrationAuthority(new RegistrationAuthority());
+        when(namespaceRepository.findById(namespaceId)).thenReturn(Optional.of(ns));
+        when(namespaceRepository.existsByRegistrationAuthorityIsNotNull()).thenReturn(false);
+
+        ItemRegistrationRequest req = new ItemRegistrationRequest(
+                namespaceId, "MANUAL-123", "1.0.0", null, List.of(), List.of()
+        );
+
+        assertThatThrownBy(() -> itemAdministrationService.ensureAdministeredItem(item, req))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("命名空间");
+    }
+
+    @Test
+    void ensureAdministeredItem_systemDefaultNamespace_blockedWhenNoRaNamespace() {
+        // system-default 命名空间不计入前置条件：向其中创建自有数据标准同样被阻止。
+        UUID namespaceId = UUID.randomUUID();
+        Namespace ns = new Namespace();
+        ns.setId(namespaceId);
+        ns.setSchemeReference(SystemDefaultNamespaceInitializer.SYSTEM_DEFAULT_SCHEME);
+        when(namespaceRepository.findById(namespaceId)).thenReturn(Optional.of(ns));
+        when(namespaceRepository.existsByRegistrationAuthorityIsNotNull()).thenReturn(false);
+
+        ItemRegistrationRequest req = new ItemRegistrationRequest(
+                namespaceId, "MANUAL-123", "1.0.0", null, List.of(), List.of()
+        );
+
+        assertThatThrownBy(() -> itemAdministrationService.ensureAdministeredItem(item, req))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("命名空间");
+    }
+
+    @Test
+    void ensureAdministeredItem_externalNamespace_allowedWhenNoRaNamespace() {
+        // 外部命名空间（无关联注册机构）用于导入/编目外部数据标准，不受门槛限制。
+        UUID namespaceId = UUID.randomUUID();
+        Namespace ns = new Namespace();
+        ns.setId(namespaceId);
+        ns.setSchemeReference("urn:example:external-standard");
+        when(namespaceRepository.findById(namespaceId)).thenReturn(Optional.of(ns));
+
+        ItemRegistrationRequest req = new ItemRegistrationRequest(
+                namespaceId, "EXT-001", "1.0.0", null, List.of(), List.of()
+        );
+
+        AdministeredItem ai = itemAdministrationService.ensureAdministeredItem(item, req);
+
+        assertThat(ai).isNotNull();
+        assertThat(ai.getScopedIdentifiers()).hasSize(1);
+    }
+
+    @Test
+    void ensureAdministeredItem_raNamespaceExists_passes() {
+        // 前置条件满足（存在注册机构关联命名空间）→ 正常创建。
+        UUID namespaceId = UUID.randomUUID();
+        Namespace ns = new Namespace();
+        ns.setId(namespaceId);
+        ns.setRegistrationAuthority(new RegistrationAuthority());
+        when(namespaceRepository.findById(namespaceId)).thenReturn(Optional.of(ns));
+        when(namespaceRepository.existsByRegistrationAuthorityIsNotNull()).thenReturn(true);
+
+        ItemRegistrationRequest req = new ItemRegistrationRequest(
+                namespaceId, "MANUAL-123", "1.0.0", null, List.of(), List.of()
+        );
+
+        AdministeredItem ai = itemAdministrationService.ensureAdministeredItem(item, req);
+
+        assertThat(ai).isNotNull();
+        assertThat(ai.getScopedIdentifiers()).hasSize(1);
     }
 
     @jakarta.persistence.Entity

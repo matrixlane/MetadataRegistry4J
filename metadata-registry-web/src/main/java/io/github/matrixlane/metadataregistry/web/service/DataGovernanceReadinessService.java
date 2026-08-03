@@ -144,6 +144,14 @@ public class DataGovernanceReadinessService {
         return registrationAuthorityRepository.count() > 0;
     }
 
+    /**
+     * 自有数据标准的命名空间前置条件：系统中是否存在至少一个与注册机构关联的
+     * 命名空间。不做缓存——该标志是创建准入门槛，必须实时。
+     */
+    public boolean hasRegistrationAuthorityNamespace() {
+        return namespaceRepository.existsByRegistrationAuthorityIsNotNull();
+    }
+
     private boolean isNamespaceActive(Namespace ns) {
         // A namespace is active if it has a naming authority (ISO 11179-3 naming_authority)
         // or, for backwards compatibility during migration, a registration authority.

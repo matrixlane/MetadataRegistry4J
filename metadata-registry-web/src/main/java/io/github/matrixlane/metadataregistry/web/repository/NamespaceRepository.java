@@ -16,6 +16,8 @@ public interface NamespaceRepository
 
     Optional<Namespace> findByShorthandPrefix(String shorthandPrefix);
 
+    boolean existsByRegistrationAuthorityIsNotNull();
+
     @Query("SELECT ns FROM Namespace ns WHERE ns.schemeReference = :schemeReference")
     Optional<Namespace> findBySchemeReference(@Param("schemeReference") String schemeReference);
 }

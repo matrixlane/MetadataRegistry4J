@@ -3,6 +3,7 @@ package io.github.matrixlane.metadataregistry.web.service;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.Sign;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.EmailAddress;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace;
+import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifierStrategyConfig;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationAuthority;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrySpecification;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Account;
@@ -11,10 +12,12 @@ import io.github.matrixlane.metadataregistry.web.common.ApiCodes;
 import io.github.matrixlane.metadataregistry.web.common.BusinessException;
 import io.github.matrixlane.metadataregistry.web.common.ResourceNotFoundException;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.RegistrationAuthorityIdentifier;
+import io.github.matrixlane.metadataregistry.web.config.IdentifierStrategyLoader;
 import io.github.matrixlane.metadataregistry.web.dto.initwizard.InitWizardCommitRequest;
 import io.github.matrixlane.metadataregistry.web.dto.initwizard.InitWizardSetupRequest;
 import io.github.matrixlane.metadataregistry.web.dto.initwizard.InitWizardStatusResponse;
 import io.github.matrixlane.metadataregistry.web.edition.DeploymentEdition;
+import io.github.matrixlane.metadataregistry.web.repository.IdentifierStrategyConfigRepository;
 import io.github.matrixlane.metadataregistry.web.repository.NamespaceRepository;
 import io.github.matrixlane.metadataregistry.web.repository.RegistrationAuthorityRepository;
 import io.github.matrixlane.metadataregistry.web.seed.LanguageInitializer;
@@ -53,6 +56,8 @@ public class InitWizardService {
     private final AccountRepository accountRepository;
     private final RegistrationAuthorityRepository registrationAuthorityRepository;
     private final NamespaceRepository namespaceRepository;
+    private final IdentifierStrategyConfigRepository identifierStrategyConfigRepository;
+    private final IdentifierStrategyLoader identifierStrategyLoader;
     private final RegistrySpecificationService registrySpecificationService;
     private final LanguageInitializer languageInitializer;
     private final Optional<SystemDefaultNamespaceInitializer> systemDefaultNamespaceInitializer;
@@ -127,7 +132,9 @@ public class InitWizardService {
         Account account = accountRepository.findById(appUserId)
                 .orElseThrow(() -> new ResourceNotFoundException("Account", appUserId));
 
-        // 版本驱动的有效配置：PERSONAL 精简为默认值；TEAM 使用表单值并校验必填。
+        // 版本驱动的有效配置：PERSONAL 名称类字段缺省时取默认值，治理布尔开关
+        // 缺省（null）按 true 处理以保持向后兼容；显式 false 时尊重用户选择
+        // （命名空间可跳过，注册规范为必选）。TEAM 使用表单值并校验必填。
         String raName = request.registrationAuthorityName();
         boolean selfAsRegistrar = Boolean.TRUE.equals(request.selfAsRegistrar());
         boolean createNamespace = Boolean.TRUE.equals(request.createNamespace());
@@ -138,13 +145,17 @@ public class InitWizardService {
                 raName = "个人注册机构";
             }
             selfAsRegistrar = true;
-            createNamespace = true;
+            createNamespace = !Boolean.FALSE.equals(request.createNamespace());
             createSpec = true;
             if (registryName == null || registryName.isBlank()) {
                 registryName = "个人元数据注册表规范";
             }
         } else if (raName == null || raName.isBlank()) {
             throw new BusinessException(ApiCodes.VALIDATION_FAILED, "注册机构名称不能为空");
+        }
+        // 注册规范为数据治理先决条件，两个版本均为必选。
+        if (Boolean.FALSE.equals(request.createRegistrySpecification())) {
+            throw new BusinessException(ApiCodes.VALIDATION_FAILED, "注册规范为必选项，不能跳过创建");
         }
 
         // 1. Create RegistrationAuthority
@@ -184,15 +195,21 @@ public class InitWizardService {
         if (createNamespace) {
             Namespace ns = new Namespace();
 
+            String namespaceName = request.namespaceName() != null && !request.namespaceName().isBlank()
+                    ? request.namespaceName() : "默认命名空间";
             io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.Designation d = new io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.Designation();
             d.setItem(ns);
-            d.setSign(Sign.of("默认命名空间"));
+            d.setSign(Sign.of(namespaceName));
             ns.getDesignations().add(d);
 
             ns.setRegistrationAuthority(ra);
             ns.setNamingAuthority(ra);
+            ns.setVersioningPolicy(request.versionPolicy() != null && !request.versionPolicy().isBlank()
+                    ? request.versionPolicy() : "SEMVER");
 
             Namespace nsSaved = namespaceRepository.save(ns);
+
+            createNamespaceStrategyConfig(nsSaved, request);
 
             ra.setNamespace(nsSaved);
             registrationAuthorityRepository.save(ra);
@@ -202,11 +219,6 @@ public class InitWizardService {
         if (createSpec) {
             registrySpecificationService.createDefault(
                     registryName,
-                    request.identifierPrefix(),
-                    request.autoGenerateIdentifier(),
-                    request.identifierPattern(),
-                    request.versioningPolicy(),
-                    request.mandatoryClassification(),
                     request.defaultLanguage() != null ? request.defaultLanguage() : "zh-CN",
                     request.registryDescription());
         }
@@ -216,6 +228,39 @@ public class InitWizardService {
 
         // NOTE: system.initialized stays FALSE; admin password is NOT reset
         // here. Those happen in commit().
+    }
+
+    /**
+     * 为初始化创建的默认命名空间生成命名空间级标识生成策略配置
+     * （PUBLISHED、version=1、即生效），并刷新策略注册表使其立即可用。
+     */
+    private void createNamespaceStrategyConfig(Namespace ns, InitWizardSetupRequest request) {
+        String strategy = request.identifierStrategy() == null || request.identifierStrategy().isBlank()
+                ? "UUID" : request.identifierStrategy().trim().toUpperCase();
+        if (!java.util.Set.of("UUID", "SEQUENCE", "TEMPLATE").contains(strategy)) {
+            throw new BusinessException(ApiCodes.VALIDATION_FAILED, "不支持的标识生成策略: " + strategy);
+        }
+        String prefix = request.identifierPrefix() == null || request.identifierPrefix().isBlank()
+                ? "ITEM" : request.identifierPrefix().trim();
+        String configJson = switch (strategy) {
+            case "SEQUENCE" -> "{\"prefix\":\"" + prefix + "\",\"start\":1,\"pad\":6}";
+            case "TEMPLATE" -> {
+                String template = request.identifierTemplate() == null || request.identifierTemplate().isBlank()
+                        ? "{prefix}-{seq:4}" : request.identifierTemplate().trim();
+                yield "{\"template\":\"" + template + "\",\"prefix\":\"" + prefix + "\"}";
+            }
+            default -> "{}";
+        };
+        IdentifierStrategyConfig config = new IdentifierStrategyConfig(strategy);
+        config.setNamespace(ns);
+        config.setConfigJson(configJson);
+        config.setVersion(1);
+        config.setIsGlobalDefault(false);
+        config.setCreatedAt(java.time.LocalDateTime.now());
+        config.setCreatedBy("init-wizard");
+        config.publish();
+        identifierStrategyConfigRepository.save(config);
+        identifierStrategyLoader.refreshRegistry();
     }
 
     /**
