@@ -43,20 +43,56 @@
               placeholder="选择命名空间"
               style="width: 100%;"
               clearable
+              @change="handleNamespaceChange"
             >
               <el-option
                 v-for="ns in namespaces"
                 :key="ns.id"
-                :label="ns.identifier || ns.name || ns.id"
+                :label="ns.label || ns.identifier || ns.name || ns.id"
                 :value="ns.id"
               />
             </el-select>
           </el-form-item>
+          <el-form-item v-if="showIdentifierChoice && !isExternalNamespace" label="标识符生成方式">
+            <el-radio-group v-model="identifierChoice">
+              <el-radio-button value="auto">自动生成</el-radio-button>
+              <el-radio-button value="manual">手动输入</el-radio-button>
+            </el-radio-group>
+          </el-form-item>
           <el-form-item label="标识符" prop="registration.identifier">
-            <el-input v-model="form.registration.identifier" placeholder="唯一标识符" />
+            <el-input
+              v-model="form.registration.identifier"
+              :disabled="identifierDisabled"
+              :placeholder="identifierPlaceholder"
+            />
+          </el-form-item>
+          <!-- 段模板变量段：按已发布模板动态渲染 -->
+          <template v-if="identifierAutoInEffect && templateVariables.length > 0">
+            <el-form-item
+              v-for="v in templateVariables"
+              :key="v.name"
+              :label="v.label || v.name"
+              :required="v.required"
+            >
+              <el-input
+                v-model="variableValues[v.name]"
+                :placeholder="v.pattern ? `格式：${v.pattern}` : ''"
+                clearable
+              />
+            </el-form-item>
+          </template>
+          <el-form-item v-if="showVersionChoice" label="版本生成方式">
+            <el-radio-group v-model="versionChoice">
+              <el-radio-button value="auto">自动生成</el-radio-button>
+              <el-radio-button value="manual">手动输入</el-radio-button>
+            </el-radio-group>
           </el-form-item>
           <el-form-item label="版本" prop="registration.version">
-            <el-input v-model="form.registration.version" placeholder="如 1.0" />
+            <el-input
+              v-model="form.registration.version"
+              :disabled="versionDisabled"
+              :placeholder="versionPlaceholder"
+            />
           </el-form-item>
           <el-form-item label="注册机构">
             <el-tag v-if="ownershipLabel" type="primary" effect="plain">{{ ownershipLabel }}</el-tag>
@@ -186,6 +222,7 @@ import MultilingualTextEditor from './MultilingualTextEditor.vue';
 import DesignationDefinitionPairingEditor from './DesignationDefinitionPairingEditor.vue';
 import { namingConventionApi, namespaceApi, activeRegistrarApi, pairingApi, readinessApi } from '@/api/resources';
 import { languageApi } from '@/api/resources';
+import { identifierStrategyApi } from '@/api/identifierStrategy';
 import type { TextLineForm, PairingForm, NamespaceDetailResponse } from '@/types/common';
 
 interface RegistrationForm {
@@ -263,7 +300,16 @@ const form = reactive<ItemForm>({
   registration: {},
 });
 
-const namespaces = ref<{ id: string; identifier?: string; name?: string }[]>([]);
+const namespaces = ref<{
+  id: string;
+  identifier?: string;
+  name?: string;
+  label?: string;
+  identifierInputMode?: string;
+  versionInputMode?: string;
+  versioningPolicy?: string;
+  manualIdentifierPattern?: string;
+}[]>([]);
 /** system-default 命名空间的 URN 方案引用（与后端 SystemDefaultNamespaceInitializer 一致） */
 const SYSTEM_DEFAULT_SCHEME = 'urn:metadata-registry:system-default';
 const raNamespaceExists = ref(true);
@@ -341,6 +387,122 @@ const selectedNamespace = computed(() =>
   namespaces.value.find((ns: any) => ns.id === form.registration.namespaceId) as any
 );
 
+// ── 命名空间标识/版本输入模式 ────────────────────────────────────────
+const identifierChoice = ref<'auto' | 'manual'>('auto');
+const versionChoice = ref<'auto' | 'manual'>('auto');
+
+// ── 段模板变量段 ─────────────────────────────────────────────────────
+interface TemplateVariable {
+  name: string;
+  label?: string;
+  pattern?: string;
+  pad?: number;
+  default?: string;
+  required?: boolean;
+}
+const templateVariables = ref<TemplateVariable[]>([]);
+const variableValues = reactive<Record<string, string>>({});
+
+async function loadTemplateVariables(namespaceId: string) {
+  templateVariables.value = [];
+  Object.keys(variableValues).forEach((k) => delete variableValues[k]);
+  try {
+    const view = await identifierStrategyApi.view(namespaceId);
+    const published = view?.published;
+    if (!published || published.strategyType !== 'SEGMENT_TEMPLATE' || !published.configJson) {
+      return;
+    }
+    const parsed = JSON.parse(published.configJson);
+    const vars: TemplateVariable[] = (parsed.segments || [])
+      .filter((s: any) => s.type === 'VARIABLE' && s.name)
+      .map((s: any) => ({
+        name: s.name,
+        label: s.params?.label,
+        pattern: s.params?.pattern,
+        pad: s.params?.pad,
+        default: s.params?.default,
+        required: s.params?.required !== false,
+      }));
+    templateVariables.value = vars;
+    // 预填默认值（附加码 "00" 等）
+    for (const v of vars) {
+      if (v.default) {
+        variableValues[v.name] = v.default;
+      }
+    }
+  } catch {
+    templateVariables.value = [];
+  }
+}
+
+/** 提交前校验变量段：必填非空 + 段级 pattern。返回 null 表示通过。 */
+function validateTemplateVariables(): string | null {
+  for (const v of templateVariables.value) {
+    const value = (variableValues[v.name] || '').trim();
+    if (!value) {
+      if (v.required) {
+        return `请填写${v.label || v.name}`;
+      }
+      continue;
+    }
+    if (v.pattern) {
+      try {
+        if (!new RegExp(`^(?:${v.pattern})$`).test(value)) {
+          return `${v.label || v.name} 不符合格式要求：${v.pattern}`;
+        }
+      } catch {
+        // 段正则非法交给后端处理
+      }
+    }
+  }
+  return null;
+}
+
+const isEditing = computed(() => !!form.id);
+
+const identifierMode = computed(() => selectedNamespace.value?.identifierInputMode || 'AUTO_WITH_OVERRIDE');
+const versionMode = computed(() => selectedNamespace.value?.versionInputMode || 'AUTO_WITH_OVERRIDE');
+
+const showIdentifierChoice = computed(() => !isEditing.value && identifierMode.value === 'AUTO_WITH_OVERRIDE');
+const showVersionChoice = computed(() => !isEditing.value && versionMode.value === 'AUTO_WITH_OVERRIDE');
+
+// 外部命名空间：标识由外部签发，强制手动录入，无自动生成入口
+const isExternalNamespace = computed(() => selectedNamespace.value?.namespaceKind === 'EXTERNAL');
+
+const identifierAutoInEffect = computed(
+  () => !isEditing.value && !isExternalNamespace.value
+    && (identifierMode.value === 'AUTO_ONLY' || (identifierMode.value === 'AUTO_WITH_OVERRIDE' && identifierChoice.value === 'auto')),
+);
+const versionAutoInEffect = computed(
+  () => !isEditing.value && (versionMode.value === 'AUTO_ONLY' || (versionMode.value === 'AUTO_WITH_OVERRIDE' && versionChoice.value === 'auto')),
+);
+
+const identifierDisabled = computed(() => isEditing.value || identifierAutoInEffect.value);
+const versionDisabled = computed(() => isEditing.value || versionAutoInEffect.value);
+
+const identifierPlaceholder = computed(() => {
+  if (isEditing.value) return '';
+  return identifierAutoInEffect.value ? '保存后自动生成' : '唯一标识符';
+});
+
+const versionPlaceholder = computed(() => {
+  if (isEditing.value) return '';
+  if (versionAutoInEffect.value) return '保存后自动生成';
+  switch (selectedNamespace.value?.versioningPolicy) {
+    case 'SEQUENTIAL': return '如 1';
+    case 'DATE': return '如 2026-01-31';
+    default: return '如 1.0.0';
+  }
+});
+
+function handleNamespaceChange() {
+  identifierChoice.value = 'auto';
+  versionChoice.value = 'auto';
+  form.registration.identifier = undefined;
+  form.registration.version = undefined;
+  formRef.value?.clearValidate(['registration.identifier', 'registration.version']);
+}
+
 // 无注册机构关联命名空间时：仅当目标为 system-default 命名空间才禁用保存
 // （外部命名空间用于导入/编目外部数据标准，不受门槛限制）。
 const gateBlocksSave = computed(() =>
@@ -384,9 +546,51 @@ function languageCodeById(languageId?: string): string | undefined {
   return lang?.languageCode || lang?.languageIdentifier || languageId.slice(0, 4);
 }
 
-const rules: FormRules = {
+const rules = computed<FormRules>(() => ({
   'registration.namespaceId': [{ required: true, message: '请选择命名空间', trigger: 'change' }],
-  'registration.identifier': [{ required: true, message: '请输入标识符', trigger: 'blur' }],
+  'registration.identifier': [
+    {
+      validator: (_rule: any, value: string, callback: any) => {
+        if (isEditing.value || identifierAutoInEffect.value) {
+          callback();
+          return;
+        }
+        if (!value || !value.trim()) {
+          callback(new Error('请输入标识符'));
+          return;
+        }
+        const pattern = selectedNamespace.value?.manualIdentifierPattern;
+        if (pattern) {
+          try {
+            if (!new RegExp(pattern).test(value.trim())) {
+              callback(new Error(`标识符不符合校验规则: ${pattern}`));
+              return;
+            }
+          } catch {
+            // 命名空间配置的正则非法时交给后端处理
+          }
+        }
+        callback();
+      },
+      trigger: 'blur',
+    },
+  ],
+  'registration.version': [
+    {
+      validator: (_rule: any, value: string, callback: any) => {
+        if (isEditing.value || versionAutoInEffect.value) {
+          callback();
+          return;
+        }
+        if (versionMode.value === 'MANUAL_ONLY' && (!value || !value.trim())) {
+          callback(new Error('该命名空间已禁用自动生成，版本号必填'));
+          return;
+        }
+        callback();
+      },
+      trigger: 'blur',
+    },
+  ],
   designations: [
     {
       validator: (_rule: any, value: TextLineForm[], callback: any) => {
@@ -413,7 +617,7 @@ const rules: FormRules = {
       trigger: 'change',
     },
   ],
-};
+}));
 
 const loaded = ref(false);
 
@@ -421,6 +625,7 @@ async function loadNamespaceDetail(namespaceId: string | undefined) {
   if (!namespaceId) {
     namespaceNamingConventions.value = [];
     namespaceMandatoryNC.value = false;
+    templateVariables.value = [];
     return;
   }
   try {
@@ -448,6 +653,7 @@ async function loadNamespaceDetail(namespaceId: string | undefined) {
     namespaceNamingConventions.value = [];
     namespaceMandatoryNC.value = false;
   }
+  await loadTemplateVariables(namespaceId);
 }
 
 async function loadOptions() {
@@ -515,6 +721,8 @@ function reset() {
   form.definitions = [];
   form.pairings = [];
   form.registration = {};
+  identifierChoice.value = 'auto';
+  versionChoice.value = 'auto';
   invalidFields.value.clear();
   formRef.value?.resetFields();
 }
@@ -643,10 +851,20 @@ async function handleSubmitInternal() {
           })),
         }));
       if (props.showRegistration) {
+        if (identifierAutoInEffect.value && templateVariables.value.length > 0) {
+          const varError = validateTemplateVariables();
+          if (varError) {
+            ElMessage.error(varError);
+            throw new Error(varError);
+          }
+        }
         payload.registration = {
           namespaceId: form.registration.namespaceId || null,
-          identifier: form.registration.identifier || '',
-          version: form.registration.version || '',
+          identifier: identifierAutoInEffect.value ? null : form.registration.identifier || '',
+          version: versionAutoInEffect.value ? null : form.registration.version || '',
+          variables: identifierAutoInEffect.value && templateVariables.value.length > 0
+            ? { ...variableValues }
+            : undefined,
         };
       }
       const result = await props.submitFn(payload);

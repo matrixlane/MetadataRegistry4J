@@ -5,6 +5,7 @@ import io.github.matrixlane.metadataregistry.commonfacilities.identification.Ide
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.ScopedIdentifier;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.VersionStatus;
+import io.github.matrixlane.metadataregistry.web.common.ApiCodes;
 import io.github.matrixlane.metadataregistry.web.common.BusinessException;
 import io.github.matrixlane.metadataregistry.web.common.ResourceNotFoundException;
 import io.github.matrixlane.metadataregistry.web.dto.scopedidentifier.ScopedIdentifierCreateRequest;
@@ -14,6 +15,7 @@ import io.github.matrixlane.metadataregistry.web.repository.IdentifierVersionHis
 import io.github.matrixlane.metadataregistry.web.repository.IdentifiedItemRepository;
 import io.github.matrixlane.metadataregistry.web.repository.NamespaceRepository;
 import io.github.matrixlane.metadataregistry.web.repository.ScopedIdentifierRepository;
+import io.github.matrixlane.metadataregistry.web.service.identifier.IdentifierInputPolicyService;
 import io.github.matrixlane.metadataregistry.web.service.namespace.NamespaceConstraintValidator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -48,7 +50,7 @@ class ScopedIdentifierServiceTest {
     @Mock
     private IdentifiedItemRepository identifiedItemRepository;
     @Mock
-    private IdentifierGenerationService generationService;
+    private IdentifierInputPolicyService identifierInputPolicyService;
 
     @Mock
     private NamespaceConstraintValidator namespaceConstraintValidator;
@@ -109,7 +111,9 @@ class ScopedIdentifierServiceTest {
     void create_shouldGenerateIdentifierWhenBlank() {
         when(namespaceRepository.findById(namespaceId)).thenReturn(Optional.of(namespace));
         when(identifiedItemRepository.findById(identifiedItemId)).thenReturn(Optional.of(identifiedItem));
-        when(generationService.generate(namespace)).thenReturn("gen-id-123");
+        when(identifierInputPolicyService.resolveIdentifier(eq(namespace), isNull(), anyString(), any()))
+                .thenReturn("gen-id-123");
+        when(identifierInputPolicyService.resolveVersion(eq(namespace), isNull())).thenReturn("1.0.0");
         when(scopedIdentifierRepository.existsByNamespaceIdAndIdentifier(namespaceId, "gen-id-123")).thenReturn(false);
         when(scopedIdentifierRepository.save(any(ScopedIdentifier.class))).thenAnswer(i -> {
             ScopedIdentifier si = i.getArgument(0);
@@ -132,6 +136,9 @@ class ScopedIdentifierServiceTest {
     void create_shouldUseProvidedIdentifier() {
         when(namespaceRepository.findById(namespaceId)).thenReturn(Optional.of(namespace));
         when(identifiedItemRepository.findById(identifiedItemId)).thenReturn(Optional.of(identifiedItem));
+        when(identifierInputPolicyService.resolveIdentifier(eq(namespace), eq("custom-id"), anyString(), any()))
+                .thenReturn("custom-id");
+        when(identifierInputPolicyService.resolveVersion(namespace, "2.0.0")).thenReturn("2.0.0");
         when(scopedIdentifierRepository.existsByNamespaceIdAndIdentifier(namespaceId, "custom-id")).thenReturn(false);
         when(scopedIdentifierRepository.save(any(ScopedIdentifier.class))).thenAnswer(i -> {
             ScopedIdentifier si = i.getArgument(0);
@@ -153,6 +160,8 @@ class ScopedIdentifierServiceTest {
     void create_shouldThrowWhenDuplicateIdentifier() {
         when(namespaceRepository.findById(namespaceId)).thenReturn(Optional.of(namespace));
         when(identifiedItemRepository.findById(identifiedItemId)).thenReturn(Optional.of(identifiedItem));
+        when(identifierInputPolicyService.resolveIdentifier(eq(namespace), eq("dup-id"), anyString(), any()))
+                .thenReturn("dup-id");
         when(scopedIdentifierRepository.existsByNamespaceIdAndIdentifier(namespaceId, "dup-id")).thenReturn(true);
 
         ScopedIdentifierCreateRequest request = new ScopedIdentifierCreateRequest(
@@ -205,12 +214,16 @@ class ScopedIdentifierServiceTest {
     void create_shouldThrowForInvalidVersion() {
         when(namespaceRepository.findById(namespaceId)).thenReturn(Optional.of(namespace));
         when(identifiedItemRepository.findById(identifiedItemId)).thenReturn(Optional.of(identifiedItem));
+        when(identifierInputPolicyService.resolveIdentifier(eq(namespace), eq("id"), anyString(), any()))
+                .thenReturn("id");
+        when(identifierInputPolicyService.resolveVersion(namespace, "invalid"))
+                .thenThrow(new BusinessException(ApiCodes.VALIDATION_FAILED, "invalid version"));
 
         ScopedIdentifierCreateRequest request = new ScopedIdentifierCreateRequest(
                 namespaceId, "id", "invalid", identifiedItemId, null);
 
         assertThatThrownBy(() -> service.create(request))
-                .isInstanceOf(IllegalArgumentException.class);
+                .isInstanceOf(BusinessException.class);
     }
 
     @Test

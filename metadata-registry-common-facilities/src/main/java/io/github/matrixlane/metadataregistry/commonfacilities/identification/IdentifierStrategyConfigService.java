@@ -1,5 +1,12 @@
 package io.github.matrixlane.metadataregistry.commonfacilities.identification;
 
+import io.github.matrixlane.metadataregistry.commonfacilities.identification.segment.SegmentContext;
+import io.github.matrixlane.metadataregistry.commonfacilities.identification.segment.SegmentTemplate;
+import io.github.matrixlane.metadataregistry.commonfacilities.identification.segment.SegmentTemplateEngine;
+
+import java.util.Collections;
+import java.util.Map;
+
 /**
  * Service layer for identifier generation and strategy management.
  *
@@ -21,6 +28,7 @@ package io.github.matrixlane.metadataregistry.commonfacilities.identification;
 public class IdentifierStrategyConfigService {
 
     private final IdentifierGenerationStrategyRegistry registry;
+    private final SegmentTemplateEngine segmentEngine = new SegmentTemplateEngine();
     private SequenceProvider sequenceProvider = new SequenceProvider() {
         private long sequenceCounter = 0;
 
@@ -58,6 +66,14 @@ public class IdentifierStrategyConfigService {
      * @return the generated identifier string
      */
     public String generateIdentifier(Namespace namespace, GenerationContext context) {
+        // Segment templates are engine-driven, not IdentifierGenerationStrategy
+        // instances: resolve the config type directly so the legacy registry
+        // fallback to UUID cannot swallow SEGMENT_TEMPLATE.
+        IdentifierStrategyConfig resolvedConfig = resolveStrategyConfig(namespace);
+        if (resolvedConfig != null && "SEGMENT_TEMPLATE".equalsIgnoreCase(resolvedConfig.getStrategyType())) {
+            return generateSegmentTemplateIdentifier(namespace, context);
+        }
+
         IdentifierGenerationStrategy strategy = registry.resolve(namespace);
         String strategyType = strategy.getType();
 
@@ -73,6 +89,9 @@ public class IdentifierStrategyConfigService {
 
             case "TEMPLATE":
                 return generateTemplateIdentifier(namespace, context);
+
+            case "SEGMENT_TEMPLATE":
+                return generateSegmentTemplateIdentifier(namespace, context);
 
             default:
                 System.out.println("[IdentifierStrategyConfigService] Unknown strategy type '"
@@ -104,7 +123,8 @@ public class IdentifierStrategyConfigService {
         long start = seqConfig != null ? seqConfig.getStart() : 1;
         int increment = seqConfig != null ? seqConfig.getIncrementBy() : 1;
         int pad = seqConfig != null ? seqConfig.getPad() : 6;
-        String prefix = seqConfig != null ? seqConfig.resolvePrefix() : "";
+        String prefix = resolvePrefixTokens(
+                seqConfig != null ? seqConfig.resolvePrefix() : "", namespace, context);
 
         long nextSeq = sequenceProvider.getNextValue(namespace, start, increment, pad, prefix);
 
@@ -127,12 +147,81 @@ public class IdentifierStrategyConfigService {
             return registry.getStrategyInstance("UUID").generate(namespace);
         }
 
-        long seq = context != null ? context.getSequenceNumber() : 0;
+        long seq;
+        if (context != null && context.getSequenceNumber() > 0) {
+            seq = context.getSequenceNumber();
+        } else if (tmplConfig.getTemplate().contains("{seq")) {
+            // Allocate from the namespace sequence registry (pessimistic lock)
+            seq = sequenceProvider.getNextValue(namespace, 1, 1, tmplConfig.getPad(), "");
+        } else {
+            seq = 0;
+        }
 
         TemplateGenerationStrategy.TemplateContext tmplCtx =
                 new TemplateGenerationStrategy.TemplateContext(seq, tmplConfig.getPrefix());
+        tmplCtx.setNamespacePrefix(namespace != null && namespace.getShorthandPrefix() != null
+                ? namespace.getShorthandPrefix() : "");
+        tmplCtx.setItemType(itemTypeAbbreviation(context != null ? context.getItemType() : null));
 
         return TemplateGenerationStrategy.generateFromTemplate(tmplConfig.getTemplate(), tmplCtx);
+    }
+
+    /**
+     * Generates an identifier from a segment template strategy. The template
+     * JSON is the persisted form of {@link SegmentTemplate}; caller-supplied
+     * {@code variables} feed VARIABLE segments and the item type drives
+     * OBJECT_ABBREVIATION segments. SEQUENCE segments allocate through the
+     * configured {@link SequenceProvider} with scope-key support.
+     */
+    private String generateSegmentTemplateIdentifier(Namespace namespace,
+                                                     GenerationContext context) {
+        IdentifierStrategyConfig config = resolveStrategyConfig(namespace);
+        if (config == null || config.getConfigJson() == null) {
+            System.out.println("[IdentifierStrategyConfigService] No segment template config found, falling back to UUID");
+            return registry.getStrategyInstance("UUID").generate(namespace);
+        }
+
+        SegmentTemplate template = SegmentTemplate.fromJson(config.getConfigJson());
+        Map<String, String> variables = context != null ? context.getVariables() : Collections.emptyMap();
+        String itemType = context != null ? context.getItemType() : null;
+
+        SegmentContext segmentContext = SegmentContext.of(itemType, variables,
+                (scopeKey, start, increment, pad) ->
+                        sequenceProvider.getNextValue(namespace, scopeKey, start, increment, pad));
+        return segmentEngine.generate(template, segmentContext);
+    }
+
+    /**
+     * Substitutes {ns} (namespace shorthand prefix) and {type} (item type
+     * abbreviation) tokens in a configured prefix string.
+     */
+    private String resolvePrefixTokens(String prefix, Namespace namespace, GenerationContext context) {
+        if (prefix == null || prefix.isEmpty()) {
+            return "";
+        }
+        String resolved = prefix.replace("{ns}",
+                namespace != null && namespace.getShorthandPrefix() != null
+                        ? namespace.getShorthandPrefix() : "");
+        return resolved.replace("{type}",
+                itemTypeAbbreviation(context != null ? context.getItemType() : null));
+    }
+
+    /**
+     * Derives an item type abbreviation from a class simple name by taking its
+     * uppercase letters: DataElement → DE, DataElementConcept → DEC,
+     * ValueDomain → VD. Returns empty string for null/blank input.
+     */
+    static String itemTypeAbbreviation(String classSimpleName) {
+        if (classSimpleName == null || classSimpleName.isBlank()) {
+            return "";
+        }
+        StringBuilder sb = new StringBuilder();
+        for (char c : classSimpleName.toCharArray()) {
+            if (Character.isUpperCase(c)) {
+                sb.append(c);
+            }
+        }
+        return sb.toString();
     }
 
     /**
@@ -152,11 +241,19 @@ public class IdentifierStrategyConfigService {
     public static class GenerationContext {
         private long sequenceNumber;
         private String prefix;
+        private String itemType;
+        private Map<String, String> variables = Collections.emptyMap();
 
         public long getSequenceNumber() { return sequenceNumber; }
         public void setSequenceNumber(long sequenceNumber) { this.sequenceNumber = sequenceNumber; }
         public String getPrefix() { return prefix; }
         public void setPrefix(String prefix) { this.prefix = prefix; }
+        public String getItemType() { return itemType; }
+        public void setItemType(String itemType) { this.itemType = itemType; }
+        public Map<String, String> getVariables() { return variables; }
+        public void setVariables(Map<String, String> variables) {
+            this.variables = variables != null ? variables : Collections.emptyMap();
+        }
 
         public static GenerationContext ofSeq(long seq) {
             GenerationContext ctx = new GenerationContext();
@@ -167,6 +264,19 @@ public class IdentifierStrategyConfigService {
         public static GenerationContext ofPrefix(String prefix) {
             GenerationContext ctx = new GenerationContext();
             ctx.prefix = prefix;
+            return ctx;
+        }
+
+        public static GenerationContext ofItemType(String itemType) {
+            GenerationContext ctx = new GenerationContext();
+            ctx.itemType = itemType;
+            return ctx;
+        }
+
+        public static GenerationContext of(String itemType, Map<String, String> variables) {
+            GenerationContext ctx = new GenerationContext();
+            ctx.itemType = itemType;
+            ctx.setVariables(variables);
             return ctx;
         }
     }

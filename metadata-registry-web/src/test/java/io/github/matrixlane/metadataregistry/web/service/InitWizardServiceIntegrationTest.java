@@ -96,8 +96,12 @@ class InitWizardServiceIntegrationTest {
                 true,  // createNamespace
                 null,        // namespaceName（缺省 "默认命名空间"）
                 "SEQUENCE",  // identifierStrategy
-                null,        // identifierPrefix（缺省 "ITEM"）
+                null,        // identifierPrefix（缺省为空）
                 null,        // identifierTemplate
+                null,        // strategySeqStart
+                null,        // strategySeqPad
+                null,        // identifierInputMode
+                null,        // versionInputMode
                 "SEQUENTIAL",// versionPolicy
                 true,        // createRegistrySpecification
                 null, null, null
@@ -143,7 +147,10 @@ class InitWizardServiceIntegrationTest {
         IdentifierStrategyConfig nsConfig = nsConfigs.get(0);
         assertThat(nsConfig.getStrategyType()).isEqualTo("SEQUENCE");
         assertThat(nsConfig.getStatus().name()).isEqualTo("PUBLISHED");
-        assertThat(nsConfig.getConfigJson()).contains("\"prefix\":\"ITEM\"");
+        assertThat(nsConfig.getConfigJson()).contains("\"prefix\":\"\"");
+        // 标识/版本输入模式缺省为 AUTO_WITH_OVERRIDE
+        assertThat(createdNs.getIdentifierInputMode()).isEqualTo("AUTO_WITH_OVERRIDE");
+        assertThat(createdNs.getVersionInputMode()).isEqualTo("AUTO_WITH_OVERRIDE");
 
         // 4. Verify Super Admin User is assigned Registrar contact
         List<Registrar> registrars = registrarRepository.findAll();
@@ -182,16 +189,11 @@ class InitWizardServiceIntegrationTest {
                 null,
                 null,
                 false, // selfAsRegistrar
-                false, // createNamespace
-                null, null, null, null, null, null, null, null, null
+                true,  // createNamespace（命名空间为必选，不能再跳过）
+                null, null, null, null, null, null, null, null, null, null, null, null, null
         );
 
         initWizardService.setup(request, appUserId);
-
-        // 跳过命名空间时不得生成任何命名空间级标识策略配置
-        assertThat(identifierStrategyConfigRepository.findAll().stream()
-                .filter(c -> "init-wizard".equals(c.getCreatedBy()))
-                .toList()).isEmpty();
 
         Account reloaded = accountRepository.findById(appUserId).orElseThrow();
         assertThat(reloaded.getPasswordHash()).isEqualTo("NO_PASSWORD");
@@ -208,7 +210,7 @@ class InitWizardServiceIntegrationTest {
                 "PERSONAL",
                 null, null, null, null,
                 null, null, null, null, null,
-                null, null, null, null, null, null
+                null, null, null, null, null, null, null, null, null, null
         );
 
         initWizardService.setup(request, appUserId);
@@ -235,33 +237,33 @@ class InitWizardServiceIntegrationTest {
     }
 
     @Test
-    void setup_personalEdition_explicitSkipNamespace() {
-        // PERSONAL 版显式 createNamespace=false：注册机构与注册规范仍创建，
-        // 不创建与注册机构关联的命名空间（适用于仅导入外部数据标准的场景）。
-        InitWizardSetupRequest request = new InitWizardSetupRequest(
+    void setup_explicitNamespaceFalse_rejected() {
+        // 命名空间必选（设计 D7）：两个版本显式 createNamespace=false 均被拒绝，
+        // 且不写入任何业务数据。
+        InitWizardSetupRequest personalRequest = new InitWizardSetupRequest(
                 "PERSONAL",
                 null, null, null, null,
                 null,
                 false, // createNamespace
                 null, null, null, null, null,
-                null, null, null, null
+                null, null, null, null, null, null, null, null
         );
+        assertThatThrownBy(() -> initWizardService.setup(personalRequest, appUserId))
+                .hasMessageContaining("命名空间");
+        assertThat(registrationAuthorityRepository.count()).isZero();
 
-        initWizardService.setup(request, appUserId);
-
-        // 注册机构已创建
-        List<RegistrationAuthority> authorities = registrationAuthorityRepository.findAll();
-        RegistrationAuthority ra = authorities.stream()
-                .filter(a -> !a.getName().isEmpty() && "个人注册机构".equals(a.getName().get(0).getValue()))
-                .findFirst()
-                .orElse(null);
-        assertThat(ra).isNotNull();
-
-        // 注册规范已创建（必选）
-        assertThat(registrySpecificationService.exists()).isTrue();
-
-        // 不存在与注册机构关联的命名空间
-        assertThat(namespaceRepository.existsByRegistrationAuthorityIsNotNull()).isFalse();
+        InitWizardSetupRequest teamRequest = new InitWizardSetupRequest(
+                "TEAM",
+                null,
+                "Team RA",
+                null, null, null,
+                false, // createNamespace
+                null, null, null, null, null,
+                null, null, null, null, null, null, null, null
+        );
+        assertThatThrownBy(() -> initWizardService.setup(teamRequest, appUserId))
+                .hasMessageContaining("命名空间");
+        assertThat(registrationAuthorityRepository.count()).isZero();
     }
 
     @Test
@@ -272,7 +274,7 @@ class InitWizardServiceIntegrationTest {
                 "PERSONAL",
                 null, null, null, null,
                 null, null,
-                null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null,
                 false, // createRegistrySpecification
                 null, null, null
         );
@@ -284,7 +286,7 @@ class InitWizardServiceIntegrationTest {
                 "TEAM",
                 null, "Team RA", null, null,
                 true, true,
-                null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null,
                 false, // createRegistrySpecification
                 null, null, null
         );
@@ -299,7 +301,7 @@ class InitWizardServiceIntegrationTest {
                 "CLOUD",
                 null, "Some RA", null, null,
                 true, true,
-                null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null,
                 null,
                 null, null, null
         );

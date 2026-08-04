@@ -11,4 +11,6 @@ public interface RegistrarRepository
         extends JpaRepository<Registrar, UUID>, JpaSpecificationExecutor<Registrar> {
 
     List<Registrar> findByAccount_Id(UUID accountId);
+
+    List<Registrar> findByAccount_Username(String username);
 }

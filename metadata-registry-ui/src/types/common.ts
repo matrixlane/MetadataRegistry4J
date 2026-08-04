@@ -194,6 +194,15 @@ export interface NamespaceResponse {
   namingConventionIds?: string[];
   oneNamePerItemIndicator?: boolean;
   oneItemPerNameIndicator?: boolean;
+  identifierInputMode?: string;
+  versionInputMode?: string;
+  versioningPolicy?: string;
+  manualIdentifierPattern?: string;
+  identifierStrategy?: string;
+  strategyPrefix?: string;
+  strategyTemplate?: string;
+  strategySeqStart?: number;
+  strategySeqPad?: number;
 }
 
 export interface NamespaceDetailResponse extends NamespaceResponse {
@@ -209,6 +218,15 @@ export interface NamespaceRequest {
   namingConventionIds?: string[];
   oneNamePerItemIndicator?: boolean;
   oneItemPerNameIndicator?: boolean;
+  identifierInputMode?: string;
+  versionInputMode?: string;
+  versioningPolicy?: string;
+  manualIdentifierPattern?: string;
+  identifierStrategy?: string;
+  strategyPrefix?: string;
+  strategyTemplate?: string;
+  strategySeqStart?: number;
+  strategySeqPad?: number;
 }
 
 // ── NamingConvention DTOs ──────────────────────────────────────────────

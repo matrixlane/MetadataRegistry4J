@@ -13,7 +13,6 @@ import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefi
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifiedItem;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.ScopedIdentifier;
-import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifierStrategyConfigService;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.Versions;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.AdministeredItem;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationAuthority;
@@ -39,6 +38,7 @@ import io.github.matrixlane.metadataregistry.web.federation.GlobalNamespaceServi
 import io.github.matrixlane.metadataregistry.web.seed.SystemDefaultNamespaceInitializer;
 import io.github.matrixlane.metadataregistry.web.service.namingconvention.NamingConventionEngine;
 import io.github.matrixlane.metadataregistry.web.service.namingconvention.NamingConventionRuleResult;
+import io.github.matrixlane.metadataregistry.web.service.identifier.IdentifierInputPolicyService;
 import io.github.matrixlane.metadataregistry.web.service.namespace.NamespaceConstraintValidator;
 import io.github.matrixlane.metadataregistry.web.util.ItemNamingHelper;
 import lombok.RequiredArgsConstructor;
@@ -69,7 +69,7 @@ public class ItemAdministrationService {
     private final DefinitionAuditLogService definitionAuditLogService;
     private final ScopedIdentifierRepository scopedIdentifierRepository;
     private final AdministeredItemRepository administeredItemRepository;
-    private final IdentifierStrategyConfigService identifierStrategyConfigService;
+    private final IdentifierInputPolicyService identifierInputPolicyService;
     private final NamingConventionRepository namingConventionRepository;
     private final NamespaceConstraintValidator namespaceConstraintValidator;
     private final ActiveRegistrarService activeRegistrarService;
@@ -287,12 +287,15 @@ public class ItemAdministrationService {
 
         if (ai.getScopedIdentifiers() == null || ai.getScopedIdentifiers().isEmpty()) {
             ScopedIdentifier si = new ScopedIdentifier();
-            String identifier = req.identifier();
-            if (identifier == null || identifier.isBlank()) {
-                identifier = identifierStrategyConfigService.generateIdentifier(ns, null);
+            String identifier;
+            try {
+                identifier = identifierInputPolicyService.resolveIdentifier(ns, req.identifier(),
+                        org.hibernate.Hibernate.getClass(item).getSimpleName(), req.variables());
+            } catch (io.github.matrixlane.metadataregistry.commonfacilities.identification.segment.SegmentTemplateException e) {
+                throw new BusinessException("标识生成失败：" + e.getMessage());
             }
             si.setIdentifier(identifier);
-            si.setVersion(req.version());
+            si.setVersion(identifierInputPolicyService.resolveVersion(ns, req.version()));
             si.setNamespace(ns);
             si.setIdentifiedItem(ai);
             ai.getScopedIdentifiers().add(si);
@@ -304,11 +307,13 @@ public class ItemAdministrationService {
             }
             // 版本（registry-merge-strategy D4/D5）：本地编辑使目的方命名空间标识
             // 版本递增，合并冲突检测依赖该机制。请求显式携带不同版本时尊重用户
-            // 指定；未携带或与现行版本相同（前端回显）时按命名空间版本策略递增。
+            // 指定（经命名空间输入模式与版本策略校验，namespace-identifier-strategy）；
+            // 未携带或与现行版本相同（前端回显）时按命名空间版本策略递增。
             // 联邦合并路径不经由此处，版本由合并执行器显式维护。
             String requestedVersion = req.version();
             if (requestedVersion != null && !requestedVersion.isBlank()
                     && !requestedVersion.equals(si.getVersion())) {
+                identifierInputPolicyService.validateManualVersion(ns, requestedVersion);
                 si.setVersion(requestedVersion);
             } else {
                 si.setVersion(Versions.bump(si.getVersion(), ns != null ? ns.getVersioningPolicy() : null));

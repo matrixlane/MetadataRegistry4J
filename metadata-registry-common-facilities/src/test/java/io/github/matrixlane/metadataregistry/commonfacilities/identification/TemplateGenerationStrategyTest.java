@@ -147,4 +147,40 @@ class TemplateGenerationStrategyTest {
 
         assertThat(result).matches("^\\d{2}:\\d{2}:\\d{2}$");
     }
+
+    @Test
+    void shouldValidateNsAndTypePlaceholders() {
+        assertThat(TemplateGenerationStrategy.isValidTemplate("{ns}.{type}.{seq:4}")).isTrue();
+        assertThat(TemplateGenerationStrategy.isValidTemplate("{ns}-{type}")).isTrue();
+    }
+
+    @Test
+    void shouldResolveNsAndTypePlaceholders() {
+        String template = "{ns}.{type}.{seq:4}";
+        TemplateGenerationStrategy.TemplateContext ctx = new TemplateGenerationStrategy.TemplateContext(1, "");
+        ctx.setNamespacePrefix("org:");
+        ctx.setItemType("DE");
+
+        String result = TemplateGenerationStrategy.generateFromTemplate(template, ctx);
+
+        assertThat(result).isEqualTo("org:.DE.0001");
+    }
+
+    @Test
+    void shouldRenderBlankForMissingNsAndType() {
+        String template = "{ns}-{type}-{seq:4}";
+        TemplateGenerationStrategy.TemplateContext ctx = new TemplateGenerationStrategy.TemplateContext(1, "");
+
+        String result = TemplateGenerationStrategy.generateFromTemplate(template, ctx);
+
+        assertThat(result).isEqualTo("--0001");
+    }
+
+    @Test
+    void shouldStripNsAndTypeWithoutContext() {
+        String template = "{ns}.{type}.{seq:4}";
+        String result = TemplateGenerationStrategy.generateFromTemplate(template, null);
+
+        assertThat(result).isEqualTo("..0000");
+    }
 }

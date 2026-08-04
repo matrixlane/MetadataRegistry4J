@@ -11,7 +11,7 @@
       ref="formRef"
       :model="form"
       :rules="rules"
-      label-width="100px"
+      label-width="auto"
     >
       <slot name="fields" :form="form" />
     </el-form>

@@ -20,6 +20,10 @@ import java.util.UUID;
  * @param namingConventionIds Bound naming conventions (if any)
  * @param oneNamePerItemIndicator One name per Item flag
  * @param oneItemPerNameIndicator One Item per name flag
+ * @param identifierInputMode Identifier input mode (AUTO_ONLY / AUTO_WITH_OVERRIDE / MANUAL_ONLY)
+ * @param versionInputMode Version input mode (AUTO_ONLY / AUTO_WITH_OVERRIDE / MANUAL_ONLY)
+ * @param versioningPolicy Version numbering policy (SEMVER / SEQUENTIAL / DATE)
+ * @param manualIdentifierPattern Regex applied to manual identifiers (may be null)
  */
 public record NamespaceDetailResponse(
         UUID id,
@@ -33,5 +37,16 @@ public record NamespaceDetailResponse(
         Boolean mandatoryNamingConventionIndicator,
         List<UUID> namingConventionIds,
         Boolean oneNamePerItemIndicator,
-        Boolean oneItemPerNameIndicator) {
+        Boolean oneItemPerNameIndicator,
+        String identifierInputMode,
+        String versionInputMode,
+        String versioningPolicy,
+        String manualIdentifierPattern,
+        String identifierStrategy,
+        String strategyPrefix,
+        String strategyTemplate,
+        Long strategySeqStart,
+        Integer strategySeqPad,
+        /** Namespace kind relative to the caller: OWN (自有) or EXTERNAL (外部). */
+        String namespaceKind) {
 }

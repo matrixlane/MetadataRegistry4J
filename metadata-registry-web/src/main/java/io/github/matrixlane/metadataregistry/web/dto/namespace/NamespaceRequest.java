@@ -19,5 +19,14 @@ public record NamespaceRequest(
         Boolean mandatoryNamingConventionIndicator,
         List<UUID> namingConventionIds,
         Boolean oneNamePerItemIndicator,
-        Boolean oneItemPerNameIndicator) {
+        Boolean oneItemPerNameIndicator,
+        String identifierInputMode,
+        String versionInputMode,
+        String versioningPolicy,
+        String manualIdentifierPattern,
+        String identifierStrategy,
+        String strategyPrefix,
+        String strategyTemplate,
+        Long strategySeqStart,
+        Integer strategySeqPad) {
 }

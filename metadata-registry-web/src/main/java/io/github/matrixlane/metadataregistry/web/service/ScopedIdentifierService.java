@@ -4,8 +4,9 @@ import io.github.matrixlane.metadataregistry.commonfacilities.identification.Ide
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifiedItem;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.ScopedIdentifier;
-import io.github.matrixlane.metadataregistry.commonfacilities.identification.SemVerValidator;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.VersionStatus;
+import io.github.matrixlane.metadataregistry.commonfacilities.identification.segment.SegmentTemplateException;
+import io.github.matrixlane.metadataregistry.commonfacilities.identification.segment.SequenceOverflowException;
 import io.github.matrixlane.metadataregistry.web.common.BusinessException;
 import io.github.matrixlane.metadataregistry.web.common.ResourceNotFoundException;
 import io.github.matrixlane.metadataregistry.web.dto.scopedidentifier.IdentifierVersionHistoryResponse;
@@ -16,6 +17,7 @@ import io.github.matrixlane.metadataregistry.web.repository.IdentifierVersionHis
 import io.github.matrixlane.metadataregistry.web.repository.IdentifiedItemRepository;
 import io.github.matrixlane.metadataregistry.web.repository.NamespaceRepository;
 import io.github.matrixlane.metadataregistry.web.repository.ScopedIdentifierRepository;
+import io.github.matrixlane.metadataregistry.web.service.identifier.IdentifierInputPolicyService;
 import io.github.matrixlane.metadataregistry.web.util.ItemNamingHelper;
 import io.github.matrixlane.metadataregistry.web.service.namespace.NamespaceConstraintValidator;
 import lombok.RequiredArgsConstructor;
@@ -39,7 +41,7 @@ public class ScopedIdentifierService {
     private final IdentifierVersionHistoryRepository historyRepository;
     private final NamespaceRepository namespaceRepository;
     private final IdentifiedItemRepository identifiedItemRepository;
-    private final IdentifierGenerationService generationService;
+    private final IdentifierInputPolicyService identifierInputPolicyService;
     private final NamespaceConstraintValidator namespaceConstraintValidator;
 
     @Transactional(readOnly = true)
@@ -59,16 +61,21 @@ public class ScopedIdentifierService {
         IdentifiedItem identifiedItem = identifiedItemRepository.findById(request.identifiedItemId())
                 .orElseThrow(() -> new ResourceNotFoundException("IdentifiedItem", request.identifiedItemId()));
 
-        String identifier = request.identifier();
-        if (identifier == null || identifier.isBlank()) {
-            identifier = generationService.generate(namespace);
+        // Hibernate.getClass 不初始化代理：避免触发 Item 联合子类全表 join
+        // （SQLite 200 FROM 项上限），仅取持久化类名供 {type} 占位符使用
+        String itemType = identifiedItem.getItem() != null
+                ? Hibernate.getClass(identifiedItem.getItem()).getSimpleName()
+                : Hibernate.getClass(identifiedItem).getSimpleName();
+        String identifier;
+        try {
+            identifier = identifierInputPolicyService.resolveIdentifier(
+                    namespace, request.identifier(), itemType, request.variables());
+        } catch (SequenceOverflowException e) {
+            throw new BusinessException("序号溢出：" + e.getMessage());
+        } catch (SegmentTemplateException e) {
+            throw new BusinessException("标识生成失败：" + e.getMessage());
         }
-
-        String version = request.version();
-        if (version == null || version.isBlank()) {
-            version = "1.0.0";
-        }
-        SemVerValidator.validate(version);
+        String version = identifierInputPolicyService.resolveVersion(namespace, request.version());
 
         if (scopedIdentifierRepository.existsByNamespaceIdAndIdentifier(namespace.getId(), identifier)) {
             throw new BusinessException("Identifier already exists in namespace: " + identifier);
@@ -99,7 +106,7 @@ public class ScopedIdentifierService {
         // identifier is immutable
         if (request.version() != null && !request.version().isBlank()
                 && !request.version().equals(entity.getVersion())) {
-            SemVerValidator.validate(request.version());
+            identifierInputPolicyService.validateManualVersion(entity.getNamespace(), request.version());
             entity.setVersion(request.version());
         }
 
