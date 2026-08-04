@@ -81,19 +81,19 @@
 - **WHEN** 条目归属注册机构 A，当前用户不持有机构 A 的任何 Registrar 身份并提交修改
 - **THEN** 系统 SHALL 拒绝该请求并返回权限错误
 
-### Requirement: 联邦并入条目所有权保持
+### Requirement: 本地路径归属冻结
 
-通过联邦合并并入的管理项 SHALL 保留其来源注册机构的归属；本地任何创建、更新或合并流程 MUST NOT 将并入条目的归属改写为本地注册机构。对已建立 `item_link` 链接的本地既有条目，合并负载 MUST NOT 覆盖其 `registrationAuthority`。
+本地创建、更新或删除流程 MUST NOT 修改既有条目的 `registrationAuthority`。条目的归属变更 SHALL 仅通过注册表合并发生：来源方与目的方注册机构的 RAI 一致时，迁移条目重新关联到目的方注册机构，其命名空间与标识的迁移语义由注册表合并策略（`registry-merge-strategy`）规约。
 
-#### Scenario: 并入条目保留来源归属
+#### Scenario: 本地更新不改归属
 
-- **WHEN** 目标节点并入来自源节点的合并包，其中条目归属源注册机构 X
-- **THEN** 目标端 SHALL 保持该条目归属 X 在本地的表示，而非目标节点的本地注册机构
+- **WHEN** 用户以对应机构活动 Registrar 身份修改某条目的内容
+- **THEN** 系统 SHALL 保持该条目的归属注册机构不变
 
-#### Scenario: 已链接条目归属不被覆盖
+#### Scenario: 归属变更仅经由合并
 
-- **WHEN** 后续合并请求到达，其负载中的条目已通过 `item_link` 链接到归属本地注册机构 A 的既有条目
-- **THEN** 系统 SHALL NOT 用负载内容改写该条目的归属注册机构
+- **WHEN** 某条目的归属注册机构发生变化
+- **THEN** 该变化 SHALL 仅由 RAI 一致的注册表合并流程按合并策略引发，而非本地编辑或 API 调用
 
 ### Requirement: 前端归属展示与身份切换
 

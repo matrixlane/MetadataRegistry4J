@@ -10,9 +10,9 @@
 - [ ] 2.2 `ItemAdministrationService` 创建路径：非 Registrar 一律拒绝（含团队版未自指派 Registrar 的 Admin，提示先取得身份）；注册机构自有命名空间 → 归属设为活动身份所在机构，命名空间所属机构与活动身份机构不一致时拒绝；外部命名空间（含导入与手工编目）→ 同样要求活动 Registrar 身份，条目归属活动身份所在机构（Namespace 不关联注册机构，`namingAuthority` 记录外部来源机构，实体字段已具备，仅核对赋值链路）
 - [ ] 2.3 `ItemAdministrationService` 更新/删除路径：有归属条目要求当前用户以归属机构的 Registrar 身份为活动身份（未激活须先切换）；无归属条目（仅历史遗留）维持既有校验；超级管理员不豁免
 
-## 3. 联邦合并防护
+## 3. 本地路径归属冻结
 
-- [ ] 3.1 核对 `MergeExecutor`/`GenericItemCreator`：并入条目保留来源注册机构表示；对已建 `item_link` 的本地既有条目，禁止用合并负载覆盖 `registrationAuthority`，不满足时补齐防护
+- [ ] 3.1 本地创建/更新/删除路径不得修改既有条目的 `registrationAuthority`（`MergeExecutor.applyUpdate` 现状已符合；`GenericItemCreator` 的 `findFirst()` 取本地机构问题由 `2026-08-02-registry-merge-strategy` 按 RAI 匹配语义重写，本变更不单独修补）
 
 ## 4. 前端
 
@@ -21,5 +21,5 @@
 
 ## 5. 测试与收尾
 
-- [ ] 5.1 后端单测/集成测试：非 Registrar 拒绝（自有与外部命名空间）、归属自动推导、外部命名空间条目归属本机构且 namingAuthority 保持外部来源、跨机构写入拒绝、未激活身份修改拒绝、失效回退、联邦归属保持
+- [ ] 5.1 后端单测/集成测试：非 Registrar 拒绝（自有与外部命名空间）、归属自动推导、外部命名空间条目归属本机构且 namingAuthority 保持外部来源、跨机构写入拒绝、未激活身份修改拒绝、失效回退、本地路径归属冻结
 - [ ] 5.2 `openspec validate active-registrar-ownership --strict` 通过；`gitnexus_detect_changes()` 核对受影响符号与执行流符合预期

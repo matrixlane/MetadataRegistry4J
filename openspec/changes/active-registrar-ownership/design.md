@@ -57,9 +57,9 @@
 
 在账号实体新增可空 `active_registrar_id`（UUID/VARCHAR(36)）：Hibernate `ddl-auto` 自动建列，无需 Flyway 结构迁移；遵守可移植性规则（无方言专有 SQL、不绑定 schema）。未设置时按 D1 回退规则解析。
 
-### D5：联邦并入条目归属冻结
+### D5：本地路径归属冻结，合并重关联由合并策略规约
 
-`MergeExecutor`/`GenericItemCreator` 并入条目时：新建条目保留合并包中的来源注册机构表示；对已通过 `item_link` 链接的本地既有条目，禁止用合并负载覆盖其 `registrationAuthority`。本地更新路径（D3）对来源机构在本地无 Registrar 身份的条目自然形成只读效果。
+本地创建/更新/删除路径一律不修改既有条目的 `registrationAuthority`。归属变更仅通过注册表合并发生：RAI 一致时迁移条目重新关联到目的方注册机构，双命名空间双标识、版本化重迁移与冲突裁决等语义由 `2026-08-02-registry-merge-strategy` 规约。现状代码已核对：`MergeExecutor.applyUpdate` 对已链接本地条目仅更新内容、不触碰归属（符合）；`GenericItemCreator` 用 `findFirst()` 随意取本地机构作为并入条目归属（不符合，但将在合并策略实现时按"RAI 匹配的目的方机构"语义重写，本变更不单独修补）。
 
 ### D6：版本语义对齐
 
@@ -75,4 +75,4 @@
 
 ## Open Questions
 
-- Q1：`MergeExecutor` 当前是否已在外部机构表示与归属赋值上满足 D5，还是需要新增防护？启动实现时以代码为准核对。
+（无。原联邦归属核对项已核对完毕并并入 D5 结论；合并侧重关联语义见 `2026-08-02-registry-merge-strategy`。）
