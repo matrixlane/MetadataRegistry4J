@@ -13,7 +13,6 @@ import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefi
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifiedItem;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.ScopedIdentifier;
-import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifierStrategyConfigService;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.AdministeredItem;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationAuthority;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationState;
@@ -37,6 +36,7 @@ import io.github.matrixlane.metadataregistry.web.repository.RegistrationAuthorit
 import io.github.matrixlane.metadataregistry.web.seed.SystemDefaultNamespaceInitializer;
 import io.github.matrixlane.metadataregistry.web.service.namingconvention.NamingConventionEngine;
 import io.github.matrixlane.metadataregistry.web.service.namingconvention.NamingConventionRuleResult;
+import io.github.matrixlane.metadataregistry.web.service.identifier.IdentifierInputPolicyService;
 import io.github.matrixlane.metadataregistry.web.service.namespace.NamespaceConstraintValidator;
 import io.github.matrixlane.metadataregistry.web.util.ItemNamingHelper;
 import lombok.RequiredArgsConstructor;
@@ -67,7 +67,7 @@ public class ItemAdministrationService {
     private final DefinitionAuditLogService definitionAuditLogService;
     private final ScopedIdentifierRepository scopedIdentifierRepository;
     private final AdministeredItemRepository administeredItemRepository;
-    private final IdentifierStrategyConfigService identifierStrategyConfigService;
+    private final IdentifierInputPolicyService identifierInputPolicyService;
     private final NamingConventionRepository namingConventionRepository;
     private final NamespaceConstraintValidator namespaceConstraintValidator;
 
@@ -275,12 +275,10 @@ public class ItemAdministrationService {
 
         if (ai.getScopedIdentifiers() == null || ai.getScopedIdentifiers().isEmpty()) {
             ScopedIdentifier si = new ScopedIdentifier();
-            String identifier = req.identifier();
-            if (identifier == null || identifier.isBlank()) {
-                identifier = identifierStrategyConfigService.generateIdentifier(ns, null);
-            }
+            String identifier = identifierInputPolicyService.resolveIdentifier(ns, req.identifier(),
+                    org.hibernate.Hibernate.getClass(item).getSimpleName());
             si.setIdentifier(identifier);
-            si.setVersion(req.version());
+            si.setVersion(identifierInputPolicyService.resolveVersion(ns, req.version()));
             si.setNamespace(ns);
             si.setIdentifiedItem(ai);
             ai.getScopedIdentifiers().add(si);
@@ -290,7 +288,10 @@ public class ItemAdministrationService {
             if (identifier != null && !identifier.isBlank()) {
                 si.setIdentifier(identifier);
             }
-            si.setVersion(req.version());
+            if (req.version() != null && !req.version().isBlank()) {
+                identifierInputPolicyService.validateManualVersion(ns, req.version());
+                si.setVersion(req.version());
+            }
             si.setNamespace(ns);
         }
 

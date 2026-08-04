@@ -245,39 +245,89 @@
               />
             </el-form-item>
 
-            <el-form-item label="标识生成策略" prop="identifierStrategy">
-              <el-radio-group v-model="form.identifierStrategy">
+            <el-divider content-position="left">标识生成策略</el-divider>
+            <el-form-item label="输入模式" prop="identifierInputMode">
+              <el-radio-group v-model="form.identifierInputMode">
+                <el-radio-button value="AUTO_ONLY">自动生成</el-radio-button>
+                <el-radio-button value="AUTO_WITH_OVERRIDE">自动生成（允许手动编辑）</el-radio-button>
+                <el-radio-button value="MANUAL_ONLY">手动输入</el-radio-button>
+              </el-radio-group>
+            </el-form-item>
+            <el-alert
+              v-if="form.identifierInputMode === 'MANUAL_ONLY'"
+              title="手动模式适用于外部标准命名空间：创建时必须显式填写标识符，系统不做自动生成。"
+              type="info"
+              :closable="false"
+              show-icon
+              style="margin-bottom: 12px;"
+            />
+            <el-form-item label="策略类型" prop="identifierStrategy">
+              <el-radio-group v-model="form.identifierStrategy" :disabled="form.identifierInputMode === 'MANUAL_ONLY'">
                 <el-radio-button value="UUID">UUID</el-radio-button>
                 <el-radio-button value="SEQUENCE">顺序编号</el-radio-button>
                 <el-radio-button value="TEMPLATE">模板</el-radio-button>
               </el-radio-group>
             </el-form-item>
 
-            <el-row v-if="form.identifierStrategy !== 'UUID'" :gutter="20">
-              <el-col :span="12">
+            <el-row v-if="form.identifierStrategy === 'SEQUENCE'" :gutter="20">
+              <el-col :span="8">
                 <el-form-item label="标识符前缀" prop="identifierPrefix">
                   <el-input
                     v-model="form.identifierPrefix"
-                    placeholder="例如：ITEM"
+                    placeholder="DE- 或 {ns}. 或 {type}-"
                     size="large"
                     clearable
                   />
                 </el-form-item>
               </el-col>
-              <el-col v-if="form.identifierStrategy === 'TEMPLATE'" :span="12">
-                <el-form-item label="标识符模板" prop="identifierTemplate">
-                  <el-input
-                    v-model="form.identifierTemplate"
-                    placeholder="例如：{prefix}-{seq:4}"
-                    size="large"
-                    clearable
-                  />
+              <el-col :span="8">
+                <el-form-item label="序列起始值" prop="strategySeqStart">
+                  <el-input-number v-model="form.strategySeqStart" :min="0" size="large" style="width: 100%;" />
+                </el-form-item>
+              </el-col>
+              <el-col :span="8">
+                <el-form-item label="序列补零位数" prop="strategySeqPad">
+                  <el-input-number v-model="form.strategySeqPad" :min="1" :max="18" size="large" style="width: 100%;" />
                 </el-form-item>
               </el-col>
             </el-row>
 
+            <el-row v-if="form.identifierStrategy === 'TEMPLATE'" :gutter="20">
+              <el-col :span="16">
+                <el-form-item label="标识符模板" prop="identifierTemplate">
+                  <el-input
+                    v-model="form.identifierTemplate"
+                    placeholder="例如：{ns}.{type}.{seq:4}"
+                    size="large"
+                    clearable
+                  />
+                </el-form-item>
+              </el-col>
+              <el-col :span="8">
+                <el-form-item label="序列补零位数" prop="strategySeqPad">
+                  <el-input-number v-model="form.strategySeqPad" :min="1" :max="18" size="large" style="width: 100%;" />
+                </el-form-item>
+              </el-col>
+            </el-row>
+
+            <el-divider content-position="left">版本生成策略</el-divider>
+            <el-form-item label="输入模式" prop="versionInputMode">
+              <el-radio-group v-model="form.versionInputMode">
+                <el-radio-button value="AUTO_ONLY">自动生成</el-radio-button>
+                <el-radio-button value="AUTO_WITH_OVERRIDE">自动生成（允许手动编辑）</el-radio-button>
+                <el-radio-button value="MANUAL_ONLY">手动输入</el-radio-button>
+              </el-radio-group>
+            </el-form-item>
+            <el-alert
+              v-if="form.versionInputMode === 'MANUAL_ONLY'"
+              title="纯手动模式：创建时必须显式填写版本号，系统不做自动生成。"
+              type="info"
+              :closable="false"
+              show-icon
+              style="margin-bottom: 12px;"
+            />
             <el-form-item label="版本生成策略" prop="versionPolicy">
-              <el-select v-model="form.versionPolicy" size="large" placeholder="请选择版本生成策略" style="width: 100%;">
+              <el-select v-model="form.versionPolicy" size="large" placeholder="请选择版本生成策略" style="width: 100%;" :disabled="form.versionInputMode === 'MANUAL_ONLY'">
                 <el-option label="语义化版本 (X.Y.Z)" value="SEMVER" />
                 <el-option label="顺序整数 (1, 2, 3, ...)" value="SEQUENTIAL" />
                 <el-option label="日期版本 (YYYY-MM-DD)" value="DATE" />
@@ -492,9 +542,13 @@ const form = reactive({
   selfAsRegistrar: true,
   createNamespace: true,
   namespaceName: '默认命名空间',
+  identifierInputMode: 'AUTO_WITH_OVERRIDE',
+  versionInputMode: 'AUTO_WITH_OVERRIDE',
   identifierStrategy: 'UUID',
   identifierPrefix: '',
   identifierTemplate: '',
+  strategySeqStart: 1,
+  strategySeqPad: 4,
   versionPolicy: 'SEMVER',
   createRegistrySpecification: true,
   registryName: '',

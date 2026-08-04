@@ -96,8 +96,12 @@ class InitWizardServiceIntegrationTest {
                 true,  // createNamespace
                 null,        // namespaceName（缺省 "默认命名空间"）
                 "SEQUENCE",  // identifierStrategy
-                null,        // identifierPrefix（缺省 "ITEM"）
+                null,        // identifierPrefix（缺省为空）
                 null,        // identifierTemplate
+                null,        // strategySeqStart
+                null,        // strategySeqPad
+                null,        // identifierInputMode
+                null,        // versionInputMode
                 "SEQUENTIAL",// versionPolicy
                 true,        // createRegistrySpecification
                 null, null, null
@@ -143,7 +147,10 @@ class InitWizardServiceIntegrationTest {
         IdentifierStrategyConfig nsConfig = nsConfigs.get(0);
         assertThat(nsConfig.getStrategyType()).isEqualTo("SEQUENCE");
         assertThat(nsConfig.getStatus().name()).isEqualTo("PUBLISHED");
-        assertThat(nsConfig.getConfigJson()).contains("\"prefix\":\"ITEM\"");
+        assertThat(nsConfig.getConfigJson()).contains("\"prefix\":\"\"");
+        // 标识/版本输入模式缺省为 AUTO_WITH_OVERRIDE
+        assertThat(createdNs.getIdentifierInputMode()).isEqualTo("AUTO_WITH_OVERRIDE");
+        assertThat(createdNs.getVersionInputMode()).isEqualTo("AUTO_WITH_OVERRIDE");
 
         // 4. Verify Super Admin User is assigned Registrar contact
         List<Registrar> registrars = registrarRepository.findAll();
@@ -183,7 +190,7 @@ class InitWizardServiceIntegrationTest {
                 null,
                 false, // selfAsRegistrar
                 false, // createNamespace
-                null, null, null, null, null, null, null, null, null
+                null, null, null, null, null, null, null, null, null, null, null, null, null
         );
 
         initWizardService.setup(request, appUserId);
@@ -208,7 +215,7 @@ class InitWizardServiceIntegrationTest {
                 "PERSONAL",
                 null, null, null, null,
                 null, null, null, null, null,
-                null, null, null, null, null, null
+                null, null, null, null, null, null, null, null, null, null
         );
 
         initWizardService.setup(request, appUserId);
@@ -244,7 +251,7 @@ class InitWizardServiceIntegrationTest {
                 null,
                 false, // createNamespace
                 null, null, null, null, null,
-                null, null, null, null
+                null, null, null, null, null, null, null, null
         );
 
         initWizardService.setup(request, appUserId);
@@ -272,7 +279,7 @@ class InitWizardServiceIntegrationTest {
                 "PERSONAL",
                 null, null, null, null,
                 null, null,
-                null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null,
                 false, // createRegistrySpecification
                 null, null, null
         );
@@ -284,7 +291,7 @@ class InitWizardServiceIntegrationTest {
                 "TEAM",
                 null, "Team RA", null, null,
                 true, true,
-                null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null,
                 false, // createRegistrySpecification
                 null, null, null
         );
@@ -299,7 +306,7 @@ class InitWizardServiceIntegrationTest {
                 "CLOUD",
                 null, "Some RA", null, null,
                 true, true,
-                null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null,
                 null,
                 null, null, null
         );

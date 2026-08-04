@@ -26,6 +26,14 @@ public record InitWizardSetupRequest(
 
     String identifierTemplate,
 
+    Long strategySeqStart,
+
+    Integer strategySeqPad,
+
+    String identifierInputMode,
+
+    String versionInputMode,
+
     String versionPolicy,
 
     Boolean createRegistrySpecification,

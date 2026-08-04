@@ -47,6 +47,26 @@ public class Namespace extends Item {
     private String versioningPolicy = "SEMVER";
 
     /**
+     * 标识符输入模式（AUTO_ONLY / AUTO_WITH_OVERRIDE / MANUAL_ONLY）。
+     * 控制该命名空间下标识符允许自动生成、手动覆盖还是纯手动。
+     */
+    @jakarta.persistence.Column(name = "identifier_input_mode", length = 32)
+    private String identifierInputMode = "AUTO_WITH_OVERRIDE";
+
+    /**
+     * 版本号输入模式（AUTO_ONLY / AUTO_WITH_OVERRIDE / MANUAL_ONLY），独立于标识符。
+     * AUTO 模式下版本号留空时按 versioningPolicy 生成初始版本。
+     */
+    @jakarta.persistence.Column(name = "version_input_mode", length = 32)
+    private String versionInputMode = "AUTO_WITH_OVERRIDE";
+
+    /**
+     * 手动标识校验正则（可空）。配置后，手动填写的标识符必须匹配该正则。
+     */
+    @jakarta.persistence.Column(name = "manual_identifier_pattern", length = 255)
+    private String manualIdentifierPattern;
+
+    /**
      * When TRUE, all Items in this namespace must pass NamingConvention validation
      * before being saved.
      */

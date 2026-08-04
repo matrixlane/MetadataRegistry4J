@@ -10,9 +10,13 @@ import io.github.matrixlane.metadataregistry.web.common.ResourceNotFoundExceptio
 import io.github.matrixlane.metadataregistry.web.dto.common.TextLineResponse;
 import io.github.matrixlane.metadataregistry.web.dto.namespace.NamespaceRequest;
 import io.github.matrixlane.metadataregistry.web.dto.namespace.NamespaceResponse;
+import io.github.matrixlane.metadataregistry.web.config.IdentifierStrategyLoader;
+import io.github.matrixlane.metadataregistry.web.repository.IdentifierStrategyConfigRepository;
 import io.github.matrixlane.metadataregistry.web.repository.NamespaceRepository;
 import io.github.matrixlane.metadataregistry.web.repository.OrganizationRepository;
 import io.github.matrixlane.metadataregistry.web.repository.NamingConventionRepository;
+import io.github.matrixlane.metadataregistry.web.service.identifier.NamespaceIdentifierPolicy;
+import io.github.matrixlane.metadataregistry.web.service.identifier.NamespaceIdentifierPolicyResolver;
 import io.github.matrixlane.metadataregistry.web.service.namespace.NamespaceConstraintValidator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -54,6 +58,15 @@ class NamespaceServiceTest {
     @Mock
     private ItemAdministrationService itemAdministrationService;
 
+    @Mock
+    private NamespaceIdentifierPolicyResolver policyResolver;
+
+    @Mock
+    private IdentifierStrategyConfigRepository strategyConfigRepository;
+
+    @Mock
+    private IdentifierStrategyLoader strategyLoader;
+
     @InjectMocks
     private NamespaceService service;
 
@@ -76,6 +89,8 @@ class NamespaceServiceTest {
         namespace = new Namespace();
         namespace.setId(namespaceId);
         namespace.setNamingAuthority(registrationAuthority);
+
+        lenient().when(policyResolver.resolve(any())).thenReturn(NamespaceIdentifierPolicy.DEFAULT);
     }
 
     @Test
@@ -128,7 +143,7 @@ class NamespaceServiceTest {
     @Test
     void create_shouldSaveAndReturnNamespace() {
         NamespaceRequest request = new NamespaceRequest(raId, List.of(), List.of(), null,
-                null, null, List.of(), null, null);
+                null, null, List.of(), null, null, null, null, null, null, null, null, null, null, null);
 
         when(organizationRepository.findById(raId)).thenReturn(Optional.of(registrationAuthority));
         when(repository.save(any(Namespace.class))).thenAnswer(i -> {
@@ -150,7 +165,7 @@ class NamespaceServiceTest {
     @Test
     void create_shouldThrowWhenRegistrationAuthorityNotFound() {
         NamespaceRequest request = new NamespaceRequest(raId, List.of(), List.of(), null,
-                null, null, List.of(), null, null);
+                null, null, List.of(), null, null, null, null, null, null, null, null, null, null, null);
         when(organizationRepository.findById(raId)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.create(request))
@@ -161,7 +176,7 @@ class NamespaceServiceTest {
     @Test
     void update_shouldModifyAndReturnNamespace() {
         NamespaceRequest request = new NamespaceRequest(raId, List.of(), List.of(), null,
-                null, null, List.of(), null, null);
+                null, null, List.of(), null, null, null, null, null, null, null, null, null, null, null);
 
         when(repository.findById(namespaceId)).thenReturn(Optional.of(namespace));
         when(organizationRepository.findById(raId)).thenReturn(Optional.of(registrationAuthority));
@@ -179,7 +194,7 @@ class NamespaceServiceTest {
     @Test
     void update_shouldThrowWhenNamespaceNotFound() {
         NamespaceRequest request = new NamespaceRequest(null, List.of(), List.of(), null,
-                null, null, List.of(), null, null);
+                null, null, List.of(), null, null, null, null, null, null, null, null, null, null, null);
         when(repository.findById(namespaceId)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.update(namespaceId, request))
@@ -208,7 +223,7 @@ class NamespaceServiceTest {
     @Test
     void create_shouldAllowNullNamingAuthority() {
         NamespaceRequest request = new NamespaceRequest(null, List.of(), List.of(), null,
-                null, null, List.of(), null, null);
+                null, null, List.of(), null, null, null, null, null, null, null, null, null, null, null);
 
         when(repository.save(any(Namespace.class))).thenAnswer(i -> {
             Namespace ns = i.getArgument(0);
@@ -228,7 +243,7 @@ class NamespaceServiceTest {
     void create_shouldPassWithMandatoryNamingConventionAndConventions() {
         UUID ncId = UUID.fromString("cccccccc-cccc-cccc-cccc-cccccccccccc");
         NamespaceRequest request = new NamespaceRequest(null, List.of(), List.of(), null,
-                null, true, List.of(ncId), null, null);
+                null, true, List.of(ncId), null, null, null, null, null, null, null, null, null, null, null);
 
         NamingConvention nc = new NamingConvention();
         nc.setId(ncId);

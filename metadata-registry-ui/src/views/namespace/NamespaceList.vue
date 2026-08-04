@@ -167,6 +167,138 @@
               </el-select>
             </el-form-item>
           </el-tab-pane>
+
+          <!-- 标识生成策略 -->
+          <el-tab-pane :label="$t('namespace.sectionIdentifierPolicy')" name="identifierPolicy">
+            <el-form-item>
+              <template #label>
+                <span>{{ $t('namespace.inputMode') }}</span>
+                <el-tooltip :content="$t('namespace.identifierInputModeTip')" placement="top">
+                  <el-icon style="margin-left: 4px;"><QuestionFilled /></el-icon>
+                </el-tooltip>
+              </template>
+              <el-radio-group v-model="form.identifierInputMode">
+                <el-radio-button value="AUTO_ONLY">{{ $t('namespace.modeAutoOnly') }}</el-radio-button>
+                <el-radio-button value="AUTO_WITH_OVERRIDE">{{ $t('namespace.modeAutoWithOverride') }}</el-radio-button>
+                <el-radio-button value="MANUAL_ONLY">{{ $t('namespace.modeManualOnly') }}</el-radio-button>
+              </el-radio-group>
+            </el-form-item>
+            <el-alert
+              v-if="form.identifierInputMode === 'MANUAL_ONLY'"
+              :title="$t('namespace.modeManualOnlyHint')"
+              type="info"
+              :closable="false"
+              show-icon
+              style="margin-bottom: 12px;"
+            />
+            <el-form-item>
+              <template #label>
+                <span>{{ $t('namespace.manualIdentifierPattern') }}</span>
+                <el-tooltip :content="$t('namespace.manualIdentifierPatternTip')" placement="top">
+                  <el-icon style="margin-left: 4px;"><QuestionFilled /></el-icon>
+                </el-tooltip>
+              </template>
+              <el-input
+                v-model="form.manualIdentifierPattern"
+                placeholder="^[A-Z0-9_-]+$"
+                :disabled="form.identifierInputMode === 'AUTO_ONLY'"
+                clearable
+              />
+            </el-form-item>
+
+            <el-divider content-position="left">{{ $t('namespace.groupStrategy') }}</el-divider>
+            <el-form-item>
+              <template #label>
+                <span>{{ $t('namespace.identifierStrategy') }}</span>
+                <el-tooltip :content="$t('namespace.identifierStrategyTip')" placement="top">
+                  <el-icon style="margin-left: 4px;"><QuestionFilled /></el-icon>
+                </el-tooltip>
+              </template>
+              <el-radio-group
+                v-model="form.identifierStrategy"
+                :disabled="form.identifierInputMode === 'MANUAL_ONLY'"
+              >
+                <el-radio-button value="UUID">{{ $t('namespace.strategyUuid') }}</el-radio-button>
+                <el-radio-button value="SEQUENCE">{{ $t('namespace.strategySequence') }}</el-radio-button>
+                <el-radio-button value="TEMPLATE">{{ $t('namespace.strategyTemplateType') }}</el-radio-button>
+              </el-radio-group>
+            </el-form-item>
+            <template v-if="form.identifierStrategy === 'SEQUENCE'">
+              <el-form-item :label="$t('namespace.strategyPrefix')">
+                <el-input
+                  v-model="form.strategyPrefix"
+                  placeholder="DE- 或 {ns}. 或 {type}-"
+                  clearable
+                />
+              </el-form-item>
+              <el-form-item :label="$t('namespace.strategySeqStart')">
+                <el-input-number v-model="form.strategySeqStart" :min="0" style="width: 180px;" />
+              </el-form-item>
+              <el-form-item :label="$t('namespace.strategySeqPad')">
+                <el-input-number v-model="form.strategySeqPad" :min="1" :max="18" style="width: 180px;" />
+              </el-form-item>
+            </template>
+            <template v-if="form.identifierStrategy === 'TEMPLATE'">
+              <el-form-item>
+                <template #label>
+                  <span>{{ $t('namespace.strategyTemplate') }}</span>
+                  <el-tooltip :content="$t('namespace.strategyTemplateTip')" placement="top">
+                    <el-icon style="margin-left: 4px;"><QuestionFilled /></el-icon>
+                  </el-tooltip>
+                </template>
+                <el-input
+                  v-model="form.strategyTemplate"
+                  placeholder="{ns}.{type}.{seq:4}"
+                  clearable
+                />
+              </el-form-item>
+              <el-form-item :label="$t('namespace.strategySeqPad')">
+                <el-input-number v-model="form.strategySeqPad" :min="1" :max="18" style="width: 180px;" />
+              </el-form-item>
+            </template>
+          </el-tab-pane>
+
+          <!-- 版本生成策略 -->
+          <el-tab-pane :label="$t('namespace.sectionVersionPolicy')" name="versionPolicy">
+            <el-form-item>
+              <template #label>
+                <span>{{ $t('namespace.inputMode') }}</span>
+                <el-tooltip :content="$t('namespace.versionInputModeTip')" placement="top">
+                  <el-icon style="margin-left: 4px;"><QuestionFilled /></el-icon>
+                </el-tooltip>
+              </template>
+              <el-radio-group v-model="form.versionInputMode">
+                <el-radio-button value="AUTO_ONLY">{{ $t('namespace.modeAutoOnly') }}</el-radio-button>
+                <el-radio-button value="AUTO_WITH_OVERRIDE">{{ $t('namespace.modeAutoWithOverride') }}</el-radio-button>
+                <el-radio-button value="MANUAL_ONLY">{{ $t('namespace.modeManualOnly') }}</el-radio-button>
+              </el-radio-group>
+            </el-form-item>
+            <el-alert
+              v-if="form.versionInputMode === 'MANUAL_ONLY'"
+              :title="$t('namespace.versionManualOnlyHint')"
+              type="info"
+              :closable="false"
+              show-icon
+              style="margin-bottom: 12px;"
+            />
+            <el-form-item>
+              <template #label>
+                <span>{{ $t('namespace.versioningPolicy') }}</span>
+                <el-tooltip :content="$t('namespace.versioningPolicyTip')" placement="top">
+                  <el-icon style="margin-left: 4px;"><QuestionFilled /></el-icon>
+                </el-tooltip>
+              </template>
+              <el-select
+                v-model="form.versioningPolicy"
+                style="width: 100%;"
+                :disabled="form.versionInputMode === 'MANUAL_ONLY'"
+              >
+                <el-option label="语义化版本 (X.Y.Z)" value="SEMVER" />
+                <el-option label="顺序整数 (1, 2, 3, ...)" value="SEQUENTIAL" />
+                <el-option label="日期版本 (YYYY-MM-DD)" value="DATE" />
+              </el-select>
+            </el-form-item>
+          </el-tab-pane>
         </el-tabs>
       </template>
     </ResourceFormDialog>
@@ -238,7 +370,17 @@ function onMandatoryNCChange(val: boolean | string | number) {
 function handleCreate() {
   editingId.value = null;
   activeTab.value = 'basic';
-  dialog.value?.open({});
+  dialog.value?.open({
+    identifierInputMode: 'AUTO_WITH_OVERRIDE',
+    versionInputMode: 'AUTO_WITH_OVERRIDE',
+    versioningPolicy: 'SEMVER',
+    manualIdentifierPattern: '',
+    identifierStrategy: 'UUID',
+    strategyPrefix: '',
+    strategyTemplate: '',
+    strategySeqStart: 1,
+    strategySeqPad: 4,
+  });
 }
 
 async function handleEdit(row: NamespaceResponse) {
@@ -271,6 +413,15 @@ function buildFormFromDetail(detail: NamespaceDetailResponse): Record<string, un
     namingConventionIds: detail.namingConventionIds || [],
     oneNamePerItemIndicator: !!detail.oneNamePerItemIndicator,
     oneItemPerNameIndicator: !!detail.oneItemPerNameIndicator,
+    identifierInputMode: detail.identifierInputMode || 'AUTO_WITH_OVERRIDE',
+    versionInputMode: detail.versionInputMode || 'AUTO_WITH_OVERRIDE',
+    versioningPolicy: detail.versioningPolicy || 'SEMVER',
+    manualIdentifierPattern: detail.manualIdentifierPattern || '',
+    identifierStrategy: detail.identifierStrategy || 'UUID',
+    strategyPrefix: detail.strategyPrefix || '',
+    strategyTemplate: detail.strategyTemplate || '',
+    strategySeqStart: detail.strategySeqStart ?? 1,
+    strategySeqPad: detail.strategySeqPad ?? 4,
   };
 }
 
@@ -305,6 +456,15 @@ function buildPayload(data: Record<string, unknown>): NamespaceRequest {
     namingConventionIds: (data.namingConventionIds as string[]) || [],
     oneNamePerItemIndicator: !!data.oneNamePerItemIndicator,
     oneItemPerNameIndicator: !!data.oneItemPerNameIndicator,
+    identifierInputMode: (data.identifierInputMode as string) || undefined,
+    versionInputMode: (data.versionInputMode as string) || undefined,
+    versioningPolicy: (data.versioningPolicy as string) || undefined,
+    manualIdentifierPattern: (data.manualIdentifierPattern as string) || undefined,
+    identifierStrategy: (data.identifierStrategy as string) || undefined,
+    strategyPrefix: (data.strategyPrefix as string) || undefined,
+    strategyTemplate: (data.strategyTemplate as string) || undefined,
+    strategySeqStart: (data.strategySeqStart as number) ?? undefined,
+    strategySeqPad: (data.strategySeqPad as number) ?? undefined,
   };
 }
 

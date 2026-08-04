@@ -5,7 +5,6 @@ import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.
 import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.Acceptability;
 import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.Designation;
 import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.Definition;
-import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifierStrategyConfigService;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.AdministeredItem;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationAuthority;
@@ -19,6 +18,7 @@ import io.github.matrixlane.metadataregistry.web.repository.ContextRepository;
 import io.github.matrixlane.metadataregistry.web.repository.LanguageIdentificationRepository;
 import io.github.matrixlane.metadataregistry.web.repository.ReferenceDocumentRepository;
 import io.github.matrixlane.metadataregistry.web.repository.NamingConventionRepository;
+import io.github.matrixlane.metadataregistry.web.service.identifier.IdentifierInputPolicyService;
 import io.github.matrixlane.metadataregistry.web.service.namingconvention.NamingConventionEngine;
 import io.github.matrixlane.metadataregistry.web.service.namespace.NamespaceConstraintValidator;
 import io.github.matrixlane.metadataregistry.web.seed.SystemDefaultNamespaceInitializer;
@@ -49,7 +49,7 @@ class ItemAdministrationServiceTest {
     @Mock private ContextRepository contextRepository;
     @Mock private NamingConventionEngine namingConventionEngine;
     @Mock private DefinitionAuditLogService definitionAuditLogService;
-    @Mock private IdentifierStrategyConfigService identifierStrategyConfigService;
+    @Mock private IdentifierInputPolicyService identifierInputPolicyService;
     @Mock private NamingConventionRepository namingConventionRepository;
     @Mock private NamespaceConstraintValidator namespaceConstraintValidator;
 
@@ -74,6 +74,15 @@ class ItemAdministrationServiceTest {
 
         item = new TestItem();
         item.setId(itemId);
+
+        // 缺省按"透传手动值"裁决，个别用例可覆盖
+        lenient().when(identifierInputPolicyService.resolveIdentifier(any(), any(), any()))
+                .thenAnswer(i -> i.getArgument(1));
+        lenient().when(identifierInputPolicyService.resolveVersion(any(), any()))
+                .thenAnswer(i -> {
+                    String v = i.getArgument(1);
+                    return v == null || v.isBlank() ? "1.0.0" : v;
+                });
     }
 
     @Test
@@ -253,7 +262,6 @@ class ItemAdministrationServiceTest {
         assertThat(ai).isNotNull();
         assertThat(ai.getScopedIdentifiers()).hasSize(1);
         assertThat(ai.getScopedIdentifiers().get(0).getIdentifier()).isEqualTo("MANUAL-123");
-        verifyNoInteractions(identifierStrategyConfigService);
     }
 
     @Test
@@ -262,7 +270,7 @@ class ItemAdministrationServiceTest {
         Namespace ns = new Namespace();
         ns.setId(namespaceId);
         when(namespaceRepository.findById(namespaceId)).thenReturn(Optional.of(ns));
-        when(identifierStrategyConfigService.generateIdentifier(eq(ns), any()))
+        when(identifierInputPolicyService.resolveIdentifier(eq(ns), eq(""), any()))
                 .thenReturn("AUTO-999");
 
         ItemRegistrationRequest req = new ItemRegistrationRequest(
@@ -274,7 +282,7 @@ class ItemAdministrationServiceTest {
         assertThat(ai).isNotNull();
         assertThat(ai.getScopedIdentifiers()).hasSize(1);
         assertThat(ai.getScopedIdentifiers().get(0).getIdentifier()).isEqualTo("AUTO-999");
-        verify(identifierStrategyConfigService).generateIdentifier(eq(ns), any());
+        verify(identifierInputPolicyService).resolveIdentifier(eq(ns), eq(""), any());
     }
 
     @Test
