@@ -1,10 +1,4 @@
-# 活动 Registrar 与自有命名空间判定 (Active Registrar and Namespace Ownership)
-
-## Purpose
-
-定义"活动 Registrar"会话状态及其硬约束：一名用户可作为多个注册机构的 Registrar，但同一时间必须激活一个且仅一个 Registrar 身份才能进行注册工作。命名空间"自有/外部"的判定基于当前激活的 Registrar，该判定是标识生成闸门与命名空间设置分支的输入。受委托签发通过"授权组织外用户成为本注册机构下的 Registrar"表达，无需第三态。
-
-## Requirements
+## ADDED Requirements
 
 ### Requirement: 活动 Registrar 硬约束
 
