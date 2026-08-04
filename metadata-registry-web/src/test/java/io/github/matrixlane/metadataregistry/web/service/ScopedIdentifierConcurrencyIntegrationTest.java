@@ -13,6 +13,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.dao.CannotAcquireLockException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
@@ -50,8 +51,10 @@ class ScopedIdentifierConcurrencyIntegrationTest {
     private UUID identifiedItemId;
     private static final String CONCURRENT_IDENTIFIER = "concurrent-test-id";
 
+    // 不加 @Transactional：Spring 测试管理的事务会把 setUp 的写操作挂起在整个
+    // 测试期间，主连接持有 SQLite 写锁，工作线程的读→写升级会立即 SQLITE_BUSY
+    // （busy_timeout 对锁升级路径不生效）。让 setUp 各自提交释放锁。
     @BeforeEach
-    @Transactional
     void setUp() {
         Namespace namespace = new Namespace();
         namespace = namespaceRepository.save(namespace);
@@ -93,7 +96,7 @@ class ScopedIdentifierConcurrencyIntegrationTest {
                 try {
                     ScopedIdentifierCreateRequest request = new ScopedIdentifierCreateRequest(
                             namespaceId, CONCURRENT_IDENTIFIER, "1.0.0", identifiedItemId, "Concurrent test");
-                    scopedIdentifierService.create(request);
+                    createWithLockRetry(request);
                     return true;
                 } catch (BusinessException e) {
                     return false;
@@ -146,7 +149,7 @@ class ScopedIdentifierConcurrencyIntegrationTest {
                 try {
                     ScopedIdentifierCreateRequest request = new ScopedIdentifierCreateRequest(
                             namespaceId, "concurrent-unique-" + idx, "1.0.0", identifiedItemId, "Concurrent test");
-                    scopedIdentifierService.create(request);
+                    createWithLockRetry(request);
                     return true;
                 } catch (Exception e) {
                     return false;
@@ -174,5 +177,31 @@ class ScopedIdentifierConcurrencyIntegrationTest {
                 .count();
 
         assertThat(successCount).isEqualTo(threadCount);
+    }
+
+    /**
+     * SQLite 文件库是单写者模型：读→写事务的锁升级遇到他人持写锁时立即
+     * 报 SQLITE_BUSY（busy_timeout 对升级路径不生效）。这里对锁冲突做有限
+     * 重试；重复标识等业务异常不在重试之列。SQL Server 下锁等待由引擎处理，
+     * 该重试通常一次都不用。
+     */
+    private void createWithLockRetry(ScopedIdentifierCreateRequest request) {
+        final int maxAttempts = 20;
+        for (int attempt = 1; ; attempt++) {
+            try {
+                scopedIdentifierService.create(request);
+                return;
+            } catch (CannotAcquireLockException | org.springframework.jdbc.UncategorizedSQLException e) {
+                if (attempt >= maxAttempts) {
+                    throw e;
+                }
+                try {
+                    Thread.sleep(50L * attempt);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw e;
+                }
+            }
+        }
     }
 }
