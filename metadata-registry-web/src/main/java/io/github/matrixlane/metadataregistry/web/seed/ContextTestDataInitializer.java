@@ -6,6 +6,7 @@ import io.github.matrixlane.metadataregistry.commonfacilities.identification.Nam
 import io.github.matrixlane.metadataregistry.web.dto.common.ItemRegistrationRequest;
 import io.github.matrixlane.metadataregistry.web.dto.common.TextLine;
 import io.github.matrixlane.metadataregistry.web.dto.context.ContextRequest;
+import io.github.matrixlane.metadataregistry.web.repository.AdministeredItemRepository;
 import io.github.matrixlane.metadataregistry.web.repository.ContextRepository;
 import io.github.matrixlane.metadataregistry.web.repository.LanguageIdentificationRepository;
 import io.github.matrixlane.metadataregistry.web.repository.NamespaceRepository;
@@ -37,6 +38,7 @@ public class ContextTestDataInitializer implements CommandLineRunner {
     private final NamespaceRepository namespaceRepository;
     private final RegistrationAuthorityRepository registrationAuthorityRepository;
     private final ContextService contextService;
+    private final AdministeredItemRepository administeredItemRepository;
     private final JdbcTemplate jdbcTemplate;
     private final DatabaseEnvironment databaseEnvironment;
 
@@ -168,11 +170,18 @@ public class ContextTestDataInitializer implements CommandLineRunner {
         if (ns != null && ra != null) {
             String identifier = enLabel.toUpperCase().replace(" ", "-");
             registration = new ItemRegistrationRequest(
-                    ns.getId(), identifier, "1.0", ra.getId(),
+                    ns.getId(), identifier, "1.0",
                     designations, definitions);
         }
 
         ContextRequest request = new ContextRequest(designations, definitions, registration);
-        contextService.create(request);
+        var created = contextService.create(request);
+        // 种子路径无登录用户，无法由活动 Registrar 身份推导归属；创建后显式指定
+        if (ra != null) {
+            administeredItemRepository.findByItem_Id(created.id()).ifPresent(ai -> {
+                ai.setRegistrationAuthority(ra);
+                administeredItemRepository.save(ai);
+            });
+        }
     }
 }

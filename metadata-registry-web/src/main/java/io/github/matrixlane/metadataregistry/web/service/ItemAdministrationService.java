@@ -70,6 +70,7 @@ public class ItemAdministrationService {
     private final IdentifierStrategyConfigService identifierStrategyConfigService;
     private final NamingConventionRepository namingConventionRepository;
     private final NamespaceConstraintValidator namespaceConstraintValidator;
+    private final ActiveRegistrarService activeRegistrarService;
 
     public void applyDesignations(Item item, List<TextLine> designations) {
         applyDesignations(item, designations, null);
@@ -260,12 +261,21 @@ public class ItemAdministrationService {
     }
 
     public AdministeredItem ensureAdministeredItem(Item item, ItemRegistrationRequest req) {
+        return ensureAdministeredItem(item, req, null);
+    }
+
+    /**
+     * @param explicitAuthority 系统/联邦路径显式指定归属注册机构（如合并时 RAI
+     *                          匹配的目的方机构、种子数据）；为 null 时按活动
+     *                          Registrar 身份推导。API 请求体不再接受归属字段。
+     */
+    public AdministeredItem ensureAdministeredItem(Item item, ItemRegistrationRequest req,
+                                                   RegistrationAuthority explicitAuthority) {
         if (req == null) {
             return null;
         }
-        AdministeredItem ai = (item.getIdentifiedItem() instanceof AdministeredItem existing)
-                ? existing
-                : new AdministeredItem(item);
+        AdministeredItem existing = (item.getIdentifiedItem() instanceof AdministeredItem ai0) ? ai0 : null;
+        AdministeredItem ai = existing != null ? existing : new AdministeredItem(item);
 
         Namespace ns = req.namespaceId() == null ? null
                 : namespaceRepository.findById(req.namespaceId())
@@ -294,11 +304,20 @@ public class ItemAdministrationService {
             si.setNamespace(ns);
         }
 
-        if (req.registrationAuthorityId() != null) {
-            RegistrationAuthority ra = registrationAuthorityRepository.findById(req.registrationAuthorityId())
-                    .orElseThrow(() -> new ResourceNotFoundException(
-                            "RegistrationAuthority", req.registrationAuthorityId()));
-            ai.setRegistrationAuthority(ra);
+        // 所有权（active-registrar-ownership）：
+        // - 新建：归属由活动 Registrar 身份推导（或系统/联邦路径显式指定），
+        //   所注册条目一定关联活动身份所在的注册机构；
+        // - 既有：归属冻结，绝不改写；且当前用户必须以归属机构的 Registrar
+        //   身份为活动身份方可修改。
+        if (existing == null) {
+            RegistrationAuthority owner = explicitAuthority != null
+                    ? explicitAuthority
+                    : resolveOwnershipForCreate(ns);
+            if (owner != null) {
+                ai.setRegistrationAuthority(owner);
+            }
+        } else if (explicitAuthority == null) {
+            activeRegistrarService.assertCanModify(ai);
         }
 
         if (ai.getRegistrationState() == null) {
@@ -314,6 +333,28 @@ public class ItemAdministrationService {
 
         item.setIdentifiedItem(ai);
         return ai;
+    }
+
+    /**
+     * 新建条目的归属推导：当前账号必须持有活动 Registrar 身份（非 Registrar
+     * 没有权限注册 Administered_Item）；注册机构自有命名空间所属机构必须与
+     * 活动身份所在机构一致（防止跨机构写入）。无认证（种子/系统路径）时返回
+     * null，维持既有行为。
+     */
+    private RegistrationAuthority resolveOwnershipForCreate(Namespace ns) {
+        if (activeRegistrarService.currentAccountIdOrNull() == null) {
+            return null;
+        }
+        var active = activeRegistrarService.resolveForCurrentUser()
+                .orElseThrow(() -> new BusinessException(ApiCodes.VALIDATION_FAILED,
+                        "当前账号没有 Registrar 身份，无法注册 Administered_Item；请先被指派为 Registrar"));
+        RegistrationAuthority activeRa = active.getRegistrationAuthority();
+        if (ns != null && ns.getRegistrationAuthority() != null
+                && !ns.getRegistrationAuthority().getId().equals(activeRa.getId())) {
+            throw new BusinessException(ApiCodes.VALIDATION_FAILED,
+                    "目标命名空间属于其他注册机构，请先将活动 Registrar 身份切换为该机构的身份");
+        }
+        return activeRa;
     }
 
     /**
@@ -344,6 +385,8 @@ public class ItemAdministrationService {
 
         UUID administeredItemId = null;
         RegistrationStatus registrationStatus = null;
+        UUID registrationAuthorityId = null;
+        String registrationAuthorityName = null;
         UUID nsId = null;
         String nsLabel = null;
         String identifier = null;
@@ -356,6 +399,13 @@ public class ItemAdministrationService {
             Object[] metaRow = metaList.get(0);
             administeredItemId = (UUID) metaRow[0];
             registrationStatus = (RegistrationStatus) metaRow[1];
+        }
+        var administeredItem = administeredItemRepository.findByItem_Id(item.getId()).orElse(null);
+        if (administeredItem != null && administeredItem.getRegistrationAuthority() != null) {
+            registrationAuthorityId = administeredItem.getRegistrationAuthority().getId();
+            var raNameList = administeredItem.getRegistrationAuthority().getName();
+            registrationAuthorityName = raNameList == null ? null
+                    : raNameList.stream().findFirst().map(n -> n.getValue()).orElse(null);
         }
 
         // Try to query ScopedIdentifier by itemId
@@ -389,7 +439,9 @@ public class ItemAdministrationService {
                 identifier,
                 version,
                 registrationStatus,
-                administeredItemId);
+                administeredItemId,
+                registrationAuthorityId,
+                registrationAuthorityName);
     }
 
     public List<TextLineResponse> mapDesignations(Item item) {

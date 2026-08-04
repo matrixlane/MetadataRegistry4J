@@ -9,6 +9,7 @@ import type {
   NamingConventionResponse,
   ItemRelationshipResponse,
   ContextUsageResponse,
+  ActiveRegistrarResponse,
 } from '@/types/common';
 
 function crud<T>(base: string) {
@@ -29,6 +30,12 @@ export const registrarApi = crud('/registrars');
 export const readinessApi = {
   raNamespaceExists: () =>
     request.get<{ exists: boolean; guidance: string | null }>('/readiness/ra-namespace-exists'),
+};
+
+export const activeRegistrarApi = {
+  current: () => request.get<ActiveRegistrarResponse>('/active-registrar'),
+  select: (registrarId: string) =>
+    request.put<ActiveRegistrarResponse>('/active-registrar', { registrarId }),
 };
 
 export const namespaceApi = {

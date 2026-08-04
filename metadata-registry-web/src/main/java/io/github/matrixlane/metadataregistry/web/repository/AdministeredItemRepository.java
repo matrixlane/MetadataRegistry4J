@@ -15,6 +15,8 @@ public interface AdministeredItemRepository
 
     Optional<AdministeredItem> findByItem(Item item);
 
+    Optional<AdministeredItem> findByItem_Id(UUID itemId);
+
     @org.springframework.data.jpa.repository.Query("""
             SELECT ai.id, rs.registrationStatus
             FROM AdministeredItem ai

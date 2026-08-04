@@ -10,7 +10,6 @@ public record ItemRegistrationRequest(
         UUID namespaceId,
         String identifier,
         String version,
-        UUID registrationAuthorityId,
         @NotEmpty(message = "designations 不能为空") @Valid
         List<TextLine> designations,
         @Valid

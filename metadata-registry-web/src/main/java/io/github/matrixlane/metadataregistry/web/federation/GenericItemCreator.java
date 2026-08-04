@@ -70,7 +70,8 @@ public class GenericItemCreator {
         itemAdministrationService.applyDefinitions(item, toTextLines(snapshot.definitions()));
         AdministeredItem ai = itemAdministrationService.ensureAdministeredItem(item,
                 new ItemRegistrationRequest(targetNamespaceId, snapshot.identifier(), snapshot.version(),
-                        ra.getId(), null, null));
+                        null, null),
+                ra);
         itemRepository.save(item);
         return ai;
     }

@@ -8,6 +8,7 @@ import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefi
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifierStrategyConfigService;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.AdministeredItem;
+import io.github.matrixlane.metadataregistry.commonfacilities.registration.Registrar;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationAuthority;
 import io.github.matrixlane.metadataregistry.web.common.BusinessException;
 import io.github.matrixlane.metadataregistry.web.dto.common.ItemRegistrationRequest;
@@ -52,6 +53,9 @@ class ItemAdministrationServiceTest {
     @Mock private IdentifierStrategyConfigService identifierStrategyConfigService;
     @Mock private NamingConventionRepository namingConventionRepository;
     @Mock private NamespaceConstraintValidator namespaceConstraintValidator;
+    @Mock private io.github.matrixlane.metadataregistry.web.repository.ScopedIdentifierRepository scopedIdentifierRepository;
+    @Mock private io.github.matrixlane.metadataregistry.web.repository.AdministeredItemRepository administeredItemRepository;
+    @Mock private ActiveRegistrarService activeRegistrarService;
 
     @InjectMocks
     private ItemAdministrationService itemAdministrationService;
@@ -245,7 +249,7 @@ class ItemAdministrationServiceTest {
         when(namespaceRepository.findById(namespaceId)).thenReturn(Optional.of(ns));
 
         ItemRegistrationRequest req = new ItemRegistrationRequest(
-                namespaceId, "MANUAL-123", "1.0.0", null, List.of(), List.of()
+                namespaceId, "MANUAL-123", "1.0.0", List.of(), List.of()
         );
 
         AdministeredItem ai = itemAdministrationService.ensureAdministeredItem(item, req);
@@ -266,7 +270,7 @@ class ItemAdministrationServiceTest {
                 .thenReturn("AUTO-999");
 
         ItemRegistrationRequest req = new ItemRegistrationRequest(
-                namespaceId, "", "1.0.0", null, List.of(), List.of()
+                namespaceId, "", "1.0.0", List.of(), List.of()
         );
 
         AdministeredItem ai = itemAdministrationService.ensureAdministeredItem(item, req);
@@ -289,7 +293,7 @@ class ItemAdministrationServiceTest {
         when(namespaceRepository.existsByRegistrationAuthorityIsNotNull()).thenReturn(false);
 
         ItemRegistrationRequest req = new ItemRegistrationRequest(
-                namespaceId, "MANUAL-123", "1.0.0", null, List.of(), List.of()
+                namespaceId, "MANUAL-123", "1.0.0", List.of(), List.of()
         );
 
         assertThatThrownBy(() -> itemAdministrationService.ensureAdministeredItem(item, req))
@@ -308,7 +312,7 @@ class ItemAdministrationServiceTest {
         when(namespaceRepository.existsByRegistrationAuthorityIsNotNull()).thenReturn(false);
 
         ItemRegistrationRequest req = new ItemRegistrationRequest(
-                namespaceId, "MANUAL-123", "1.0.0", null, List.of(), List.of()
+                namespaceId, "MANUAL-123", "1.0.0", List.of(), List.of()
         );
 
         assertThatThrownBy(() -> itemAdministrationService.ensureAdministeredItem(item, req))
@@ -326,7 +330,7 @@ class ItemAdministrationServiceTest {
         when(namespaceRepository.findById(namespaceId)).thenReturn(Optional.of(ns));
 
         ItemRegistrationRequest req = new ItemRegistrationRequest(
-                namespaceId, "EXT-001", "1.0.0", null, List.of(), List.of()
+                namespaceId, "EXT-001", "1.0.0", List.of(), List.of()
         );
 
         AdministeredItem ai = itemAdministrationService.ensureAdministeredItem(item, req);
@@ -346,7 +350,7 @@ class ItemAdministrationServiceTest {
         when(namespaceRepository.existsByRegistrationAuthorityIsNotNull()).thenReturn(true);
 
         ItemRegistrationRequest req = new ItemRegistrationRequest(
-                namespaceId, "MANUAL-123", "1.0.0", null, List.of(), List.of()
+                namespaceId, "MANUAL-123", "1.0.0", List.of(), List.of()
         );
 
         AdministeredItem ai = itemAdministrationService.ensureAdministeredItem(item, req);
@@ -357,4 +361,150 @@ class ItemAdministrationServiceTest {
 
     @jakarta.persistence.Entity
     static class TestItem extends Item {}
+
+    // ===== active-registrar-ownership：注册权限与所有权归属 =====
+
+    private RegistrationAuthority newRa() {
+        RegistrationAuthority ra = new RegistrationAuthority();
+        ra.setId(UUID.randomUUID());
+        return ra;
+    }
+
+    private Namespace raNamespace(RegistrationAuthority ra) {
+        Namespace ns = new Namespace();
+        ns.setId(UUID.randomUUID());
+        ns.setRegistrationAuthority(ra);
+        return ns;
+    }
+
+    @Test
+    void ensureAdministeredItem_create_assignsActiveRegistrarOwnership() {
+        RegistrationAuthority ra = newRa();
+        Namespace ns = raNamespace(ra);
+        when(namespaceRepository.findById(ns.getId())).thenReturn(Optional.of(ns));
+        when(namespaceRepository.existsByRegistrationAuthorityIsNotNull()).thenReturn(true);
+        UUID accountId = UUID.randomUUID();
+        when(activeRegistrarService.currentAccountIdOrNull()).thenReturn(accountId);
+        when(activeRegistrarService.resolveForCurrentUser())
+                .thenReturn(Optional.of(new Registrar(ra)));
+
+        ItemRegistrationRequest req = new ItemRegistrationRequest(
+                ns.getId(), "OWN-1", "1.0.0", List.of(), List.of());
+
+        AdministeredItem ai = itemAdministrationService.ensureAdministeredItem(item, req);
+
+        assertThat(ai.getRegistrationAuthority()).isSameAs(ra);
+    }
+
+    @Test
+    void ensureAdministeredItem_create_externalNamespaceAlsoOwnedByActiveRa() {
+        // 外部命名空间（无关联注册机构、非 system-default）：条目仍归属活动身份所在机构
+        RegistrationAuthority ra = newRa();
+        Namespace ns = new Namespace();
+        ns.setId(UUID.randomUUID());
+        ns.setSchemeReference("urn:example:external-standard");
+        when(namespaceRepository.findById(ns.getId())).thenReturn(Optional.of(ns));
+        UUID accountId = UUID.randomUUID();
+        when(activeRegistrarService.currentAccountIdOrNull()).thenReturn(accountId);
+        when(activeRegistrarService.resolveForCurrentUser())
+                .thenReturn(Optional.of(new Registrar(ra)));
+
+        ItemRegistrationRequest req = new ItemRegistrationRequest(
+                ns.getId(), "EXT-1", "1.0.0", List.of(), List.of());
+
+        AdministeredItem ai = itemAdministrationService.ensureAdministeredItem(item, req);
+
+        assertThat(ai.getRegistrationAuthority()).isSameAs(ra);
+    }
+
+    @Test
+    void ensureAdministeredItem_create_rejectsNonRegistrar() {
+        Namespace ns = new Namespace();
+        ns.setId(UUID.randomUUID());
+        ns.setSchemeReference("urn:example:external-standard");
+        when(namespaceRepository.findById(ns.getId())).thenReturn(Optional.of(ns));
+        UUID accountId = UUID.randomUUID();
+        when(activeRegistrarService.currentAccountIdOrNull()).thenReturn(accountId);
+        when(activeRegistrarService.resolveForCurrentUser()).thenReturn(Optional.empty());
+
+        ItemRegistrationRequest req = new ItemRegistrationRequest(
+                ns.getId(), "X-1", "1.0.0", List.of(), List.of());
+
+        assertThatThrownBy(() -> itemAdministrationService.ensureAdministeredItem(item, req))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("Registrar");
+    }
+
+    @Test
+    void ensureAdministeredItem_create_rejectsCrossAuthorityNamespace() {
+        RegistrationAuthority activeRa = newRa();
+        RegistrationAuthority otherRa = newRa();
+        Namespace ns = raNamespace(otherRa);
+        when(namespaceRepository.findById(ns.getId())).thenReturn(Optional.of(ns));
+        when(namespaceRepository.existsByRegistrationAuthorityIsNotNull()).thenReturn(true);
+        UUID accountId = UUID.randomUUID();
+        when(activeRegistrarService.currentAccountIdOrNull()).thenReturn(accountId);
+        when(activeRegistrarService.resolveForCurrentUser())
+                .thenReturn(Optional.of(new Registrar(activeRa)));
+
+        ItemRegistrationRequest req = new ItemRegistrationRequest(
+                ns.getId(), "X-1", "1.0.0", List.of(), List.of());
+
+        assertThatThrownBy(() -> itemAdministrationService.ensureAdministeredItem(item, req))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("命名空间属于其他注册机构");
+    }
+
+    @Test
+    void ensureAdministeredItem_create_unauthenticatedKeepsLegacyBehavior() {
+        // 种子/系统路径（无登录用户）：不推导归属，维持既有行为
+        RegistrationAuthority ra = newRa();
+        Namespace ns = raNamespace(ra);
+        when(namespaceRepository.findById(ns.getId())).thenReturn(Optional.of(ns));
+        when(namespaceRepository.existsByRegistrationAuthorityIsNotNull()).thenReturn(true);
+
+        ItemRegistrationRequest req = new ItemRegistrationRequest(
+                ns.getId(), "X-1", "1.0.0", List.of(), List.of());
+
+        AdministeredItem ai = itemAdministrationService.ensureAdministeredItem(item, req);
+
+        assertThat(ai.getRegistrationAuthority()).isNull();
+    }
+
+    @Test
+    void ensureAdministeredItem_update_freezesOwnershipAndAssertsActiveIdentity() {
+        RegistrationAuthority ra = newRa();
+        Namespace ns = raNamespace(ra);
+        when(namespaceRepository.findById(ns.getId())).thenReturn(Optional.of(ns));
+        when(namespaceRepository.existsByRegistrationAuthorityIsNotNull()).thenReturn(true);
+        AdministeredItem existing = new AdministeredItem(item);
+        existing.setRegistrationAuthority(ra);
+        item.setIdentifiedItem(existing);
+
+        ItemRegistrationRequest req = new ItemRegistrationRequest(
+                ns.getId(), null, "2.0.0", List.of(), List.of());
+
+        AdministeredItem ai = itemAdministrationService.ensureAdministeredItem(item, req);
+
+        assertThat(ai.getRegistrationAuthority()).isSameAs(ra); // 归属冻结
+        verify(activeRegistrarService).assertCanModify(existing);
+    }
+
+    @Test
+    void ensureAdministeredItem_explicitAuthority_skipsActiveIdentityAssertion() {
+        // 联邦/系统路径显式指定归属（合并时 RAI 匹配的目的方机构）
+        RegistrationAuthority targetRa = newRa();
+        Namespace ns = new Namespace();
+        ns.setId(UUID.randomUUID());
+        ns.setSchemeReference("urn:example:external-standard");
+        when(namespaceRepository.findById(ns.getId())).thenReturn(Optional.of(ns));
+
+        ItemRegistrationRequest req = new ItemRegistrationRequest(
+                ns.getId(), "FED-1", "1.0.0", List.of(), List.of());
+
+        AdministeredItem ai = itemAdministrationService.ensureAdministeredItem(item, req, targetRa);
+
+        assertThat(ai.getRegistrationAuthority()).isSameAs(targetRa);
+        verify(activeRegistrarService, never()).assertCanModify(any());
+    }
 }

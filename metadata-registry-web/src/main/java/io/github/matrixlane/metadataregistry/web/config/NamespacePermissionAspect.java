@@ -9,6 +9,7 @@ import io.github.matrixlane.metadataregistry.web.dto.namespace.NamespaceWizardRe
 import io.github.matrixlane.metadataregistry.web.entity.NamespacePermission;
 import io.github.matrixlane.metadataregistry.web.repository.NamespacePermissionRepository;
 import io.github.matrixlane.metadataregistry.web.repository.ScopedIdentifierRepository;
+import io.github.matrixlane.metadataregistry.web.service.ActiveRegistrarService;
 import io.github.matrixlane.metadataregistry.web.service.NamespacePermissionEvaluator;
 import lombok.RequiredArgsConstructor;
 import org.aspectj.lang.JoinPoint;
@@ -30,6 +31,7 @@ public class NamespacePermissionAspect {
     private final NamespacePermissionEvaluator permissionEvaluator;
     private final ScopedIdentifierRepository scopedIdentifierRepository;
     private final NamespacePermissionRepository namespacePermissionRepository;
+    private final ActiveRegistrarService activeRegistrarService;
 
     private UUID getCurrentUserId() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -189,6 +191,23 @@ public class NamespacePermissionAspect {
                 }
             }
         }
+
+        // 归属机构的活动 Registrar 方可删除（active-registrar-ownership）
+        activeRegistrarService.assertCanModifyItem(id);
+    }
+
+    /**
+     * 条目内容更新（registration 块为 null、不经过 ensureAdministeredItem 的
+     * 路径）同样受活动 Registrar 约束：仅条目归属机构的活动身份可修改。
+     */
+    @Before("execution(* io.github.matrixlane.metadataregistry.web.service.*Service.update(java.util.UUID, ..)) && args(id, ..)")
+    public void checkItemUpdateRegistrar(JoinPoint joinPoint, UUID id) {
+        if (shouldBypass()) return;
+        String serviceName = joinPoint.getTarget().getClass().getSimpleName();
+        if ("NamespaceService".equals(serviceName) || "NamespacePermissionService".equals(serviceName)) {
+            return;
+        }
+        activeRegistrarService.assertCanModifyItem(id);
     }
 
     private UUID getNamespaceIdFromItem(Item item) {
