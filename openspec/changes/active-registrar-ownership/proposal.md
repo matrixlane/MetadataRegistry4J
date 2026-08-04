@@ -1,29 +1,30 @@
 ## Why
 
-当前系统允许调用方在创建管理项时自由传入 `registrationAuthorityId`，甚至留空：条目对注册机构的归属（所有权）由客户端任意指定或缺失，而非由当前登录用户的注册员（Registrar）身份决定。这导致所有权语义形同虚设——任何已认证用户都可以把条目挂到任意注册机构名下，或创建无归属的"自有"条目；注册员与账号的绑定关系（`registration_authority_registrar` 关联）在条目创建/变更链路中完全没有发挥作用。随着注册表级合并（`2026-08-02-registry-merge-strategy`）临近，权属来源不清会成为合并裁决与跨实例身份治理的隐患。
+当前系统允许调用方在创建管理项时自由传入 `registrationAuthorityId`，甚至留空：条目对注册机构的归属（所有权）由客户端任意指定或缺失，而非由当前登录用户的 Registrar 身份决定。这导致所有权语义形同虚设——任何已认证用户都可以把条目挂到任意注册机构名下，或创建无归属的"自有"条目；注册员与账号的绑定关系（`registration_authority_registrar` 关联）在条目创建/变更链路中完全没有发挥作用。随着注册表级合并（`2026-08-02-registry-merge-strategy`）临近，权属来源不清会成为合并裁决与跨实例身份治理的隐患。
 
 ## What Changes
 
-- 引入"活动注册员"解析：服务端依据当前登录账号解析其 Registrar 绑定，得到活动注册机构；当账号同时是多个注册机构的注册员时，提供活动注册机构的选择与切换（默认唯一/首个绑定）。
-- **BREAKING** 创建/更新管理项时，注册机构归属由服务端依据活动注册员自动推导，移除请求体中的 `registrationAuthorityId` 字段；客户端不再能指定或清空条目归属。
-- 变更权限约束：仅条目所属注册机构的注册员（以其活动注册员身份）可修改该条目；无注册机构归属的外部编目条目维持既有规则；无注册员身份的用户不得在注册机构自有命名空间下创建条目。
-- 联邦合并引入的条目 MUST 保留其来源注册机构所有权，本地活动注册员不得将其归属变更为本地注册机构。
-- 前端条目表单移除注册机构选择控件，改为只读展示由服务端推导的归属注册机构。
+- 引入"活动 Registrar 身份"：Registrar 才是注册工作的执行身份。用户可同时持有多个 Registrar 身份（云部署多租户场景下，一个租户可授权另一租户的用户成为本租户注册机构的 Registrar——CLOUD 留待未来实现，机制先行兼容）；登录后同时只能激活一个 Registrar 身份，所有注册工作均以该活动身份进行。
+- **BREAKING** 注册（创建/更新）Administered_Item 时，归属由服务端依据活动 Registrar 身份自动推导，移除请求体中的 `registrationAuthorityId` 字段；客户端不再能指定或清空条目归属。所注册的 Administered_Item 一定关联活动 Registrar 所在的 Registration_Authority。
+- 注册权限：非 Registrar 没有权限注册 Administered_Item；Registrar 有权限注册。个人版 Admin 自动成为所创建注册机构的 Registrar（既有行为）；团队版 Admin 是否成为 Registrar 是可选的（既有行为），未自指派时不具备注册权限，须先被指派为 Registrar。
+- 变更权限约束：修改/删除已归属注册机构的条目时，当前用户 MUST 以该机构的 Registrar 身份为活动身份；无归属的外部编目条目维持既有规则。
+- 联邦合并引入的条目 MUST 保留其来源注册机构所有权，本地活动 Registrar 不得将其归属变更为本地注册机构。
+- 前端条目表单移除注册机构选择控件，改为只读展示由服务端推导的归属注册机构；持有多个 Registrar 身份的用户在登录后选择并在使用中切换活动身份。
 
 ## Capabilities
 
 ### New Capabilities
 
-- `active-registrar-ownership`：活动注册员解析、条目所有权自动归属、变更权限约束与联邦条目所有权保持。
+- `active-registrar-ownership`：活动 Registrar 身份解析与切换、注册权限与条目所有权自动归属、变更权限约束与联邦条目所有权保持。
 
 ### Modified Capabilities
 
-（无。既有 spec 未在需求层面规约 `registrationAuthorityId` 的客户端传入行为；相关合并语义在 `registry-merge-strategy` 启动时再衔接。）
+（无。既有 spec 未在需求层面规约 `registrationAuthorityId` 的客户端传入行为；个人版/团队版 Admin 的 Registrar 指派语义已在 `deployment-edition` 与 `initialization-wizard` 中规约，本变更仅引用不修改；相关合并语义在 `registry-merge-strategy` 启动时再衔接。）
 
 ## Impact
 
-- 后端：`ItemAdministrationService`（创建/更新时所有权推导与权限校验）、`ItemAdministrationRequest` DTO（移除 `registrationAuthorityId`）、新增活动注册员解析服务（复用 `ContactRepository.findByAccount` 与 `NamespacePermissionEvaluator` 的既有解析模式）、`MergeExecutor`（禁止改写合并条目归属）。
-- API：管理项创建/更新接口请求体移除 `registrationAuthorityId`（**BREAKING**，前端同步调整）；响应继续返回归属注册机构信息。
-- 前端：条目创建/编辑表单移除注册机构下拉，改为只读归属展示；多注册机构注册员的顶部栏活动注册机构切换入口（若适用）。
-- 数据库：如需持久化"活动注册机构选择"，在账号表新增可空列（UUID/VARCHAR(36)，不绑定 schema，遵守数据库可移植性规则）。
+- 后端：`ItemAdministrationService`（注册路径的权限校验与所有权推导）、`ItemAdministrationRequest` DTO（移除 `registrationAuthorityId`）、新增活动 Registrar 身份解析服务（复用 `ContactRepository.findByAccount` 与 `NamespacePermissionEvaluator` 的既有解析模式）、`MergeExecutor`（禁止改写合并条目归属）。
+- API：管理项创建/更新接口请求体移除 `registrationAuthorityId`（**BREAKING**，前端同步调整）；新增活动 Registrar 身份查询/切换接口；响应继续返回归属注册机构信息。
+- 前端：条目创建/编辑表单移除注册机构下拉，改为只读归属展示；多 Registrar 身份用户的活动身份选择与切换入口。
+- 数据库：账号表新增可空列持久化活动 Registrar 身份选择（UUID/VARCHAR(36)，不绑定 schema，遵守数据库可移植性规则）。
 - 测试：`ItemAdministrationServiceTest`、权限集成测试、联邦合并回归测试。
