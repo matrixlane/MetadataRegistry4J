@@ -2,6 +2,12 @@ package io.github.matrixlane.metadataregistry.web.federation;
 
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.Context;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.Item;
+import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Organization;
+import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifierStrategyConfigService;
+import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifierVersionHistory;
+import io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace;
+import io.github.matrixlane.metadataregistry.commonfacilities.identification.ScopedIdentifier;
+import io.github.matrixlane.metadataregistry.commonfacilities.identification.Versions;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.AdministeredItem;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationAuthority;
 import io.github.matrixlane.metadataregistry.dataspecification.ConceptualDomain;
@@ -11,16 +17,22 @@ import io.github.matrixlane.metadataregistry.dataspecification.DataType;
 import io.github.matrixlane.metadataregistry.dataspecification.ObjectClass;
 import io.github.matrixlane.metadataregistry.dataspecification.Property;
 import io.github.matrixlane.metadataregistry.dataspecification.ValueDomain;
+import io.github.matrixlane.metadataregistry.web.common.ApiCodes;
 import io.github.matrixlane.metadataregistry.web.common.BusinessException;
+import io.github.matrixlane.metadataregistry.web.common.ResourceNotFoundException;
 import io.github.matrixlane.metadataregistry.web.dto.common.ItemRegistrationRequest;
 import io.github.matrixlane.metadataregistry.web.dto.common.TextLine;
+import io.github.matrixlane.metadataregistry.web.repository.IdentifierVersionHistoryRepository;
 import io.github.matrixlane.metadataregistry.web.repository.ItemRepository;
 import io.github.matrixlane.metadataregistry.web.repository.LanguageIdentificationRepository;
+import io.github.matrixlane.metadataregistry.web.repository.NamespaceRepository;
 import io.github.matrixlane.metadataregistry.web.repository.RegistrationAuthorityRepository;
+import io.github.matrixlane.metadataregistry.web.repository.ScopedIdentifierRepository;
 import io.github.matrixlane.metadataregistry.web.service.ItemAdministrationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -52,6 +64,11 @@ public class GenericItemCreator {
     private final ItemRepository itemRepository;
     private final RegistrationAuthorityRepository registrationAuthorityRepository;
     private final LanguageIdentificationRepository languageRepository;
+    private final NamespaceRepository namespaceRepository;
+    private final ScopedIdentifierRepository scopedIdentifierRepository;
+    private final IdentifierVersionHistoryRepository identifierVersionHistoryRepository;
+    private final IdentifierStrategyConfigService identifierStrategyConfigService;
+    private final GlobalNamespaceService globalNamespaceService;
 
     public AdministeredItem create(BundleItemSnapshot snapshot, UUID targetNamespaceId, RegistryNode node) {
         String itemType = snapshot.export() == null ? null : snapshot.export().itemType();
@@ -62,17 +79,47 @@ public class GenericItemCreator {
         }
         Item item = constructor.get();
 
-        RegistrationAuthority ra = registrationAuthorityRepository.findAll().stream()
-                .findFirst()
-                .orElseThrow(() -> new BusinessException("目标实例缺少注册机构，无法并入"));
+        // 归属重关联（registry-merge-strategy D2）：按 RAI 匹配目的方注册机构，
+        // 替代随意取本地第一个机构的旧行为
+        RegistrationAuthority ra = registrationAuthorityRepository.findByRai(node.getRai())
+                .orElseThrow(() -> new BusinessException(ApiCodes.VALIDATION_FAILED,
+                        "目标实例缺少 RAI 匹配的注册机构: " + node.getRai()));
+        Namespace targetNs = namespaceRepository.findById(targetNamespaceId)
+                .orElseThrow(() -> new ResourceNotFoundException("Namespace", targetNamespaceId));
+
+        // 来源命名空间原样迁移为副本（不关联注册机构，naming_authority 记录真实
+        // 来源机构），经全局命名空间共享 UUID 与来源方命名空间建立映射
+        Organization namingAuthority = globalNamespaceService.resolveNamingAuthority(
+                snapshot.sourceNamespaceNamingAuthorityName(), ra);
+        Namespace sourceCopy = globalNamespaceService.ensureNamespaceCopy(
+                snapshot.sourceNamespaceGlobalId(), snapshot.sourceNamespaceName(), namingAuthority);
+
+        if (snapshot.identifier() != null && scopedIdentifierRepository
+                .existsByNamespaceIdAndIdentifier(sourceCopy.getId(), snapshot.identifier())) {
+            throw new BusinessException(ApiCodes.CONFLICT,
+                    "来源命名空间副本中已存在相同标识符（疑似重复并入）: " + snapshot.identifier());
+        }
 
         itemAdministrationService.applyDesignations(item, toTextLines(snapshot.designations()));
         itemAdministrationService.applyDefinitions(item, toTextLines(snapshot.definitions()));
+        // 来源标识（identifier + version）在来源命名空间副本下原样写入
         AdministeredItem ai = itemAdministrationService.ensureAdministeredItem(item,
-                new ItemRegistrationRequest(targetNamespaceId, snapshot.identifier(), snapshot.version(),
+                new ItemRegistrationRequest(sourceCopy.getId(), snapshot.identifier(), snapshot.version(),
                         null, null),
                 ra);
+
+        // 目的方命名空间按标识生成策略生成新标识：迁移后条目持有双命名空间双标识
+        ScopedIdentifier targetSi = new ScopedIdentifier(
+                identifierStrategyConfigService.generateIdentifier(targetNs, null), targetNs, ai);
+        targetSi.setVersion(Versions.initial(targetNs.getVersioningPolicy()));
+        targetSi.setCreatedAt(LocalDateTime.now());
+        ai.getScopedIdentifiers().add(targetSi);
         itemRepository.save(item);
+
+        // MERGE 标记：记录本次迁移后目的方标识版本，供后续本地编辑检测
+        identifierVersionHistoryRepository.save(new IdentifierVersionHistory(
+                targetSi, targetSi.getVersion(), targetSi.getVersionStatus(),
+                "system", MergeVersionSupport.MERGE_MARKER + " 迁移创建"));
         return ai;
     }
 

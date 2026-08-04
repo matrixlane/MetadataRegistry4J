@@ -35,6 +35,12 @@ export interface MergeRequestItemView {
   resolution: string;
   linkedLocalItemId: string | null;
   itemLabel: string | null;
+  /** 冲突条目：来源版本 */
+  sourceVersion: string | null;
+  /** 冲突条目：合并基（上次迁移的来源版本） */
+  baseVersion: string | null;
+  /** 冲突条目：目的方本地版本 */
+  localVersion: string | null;
 }
 
 export const federationApi = {

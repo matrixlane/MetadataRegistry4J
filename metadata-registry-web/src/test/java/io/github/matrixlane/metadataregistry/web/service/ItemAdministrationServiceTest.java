@@ -7,6 +7,7 @@ import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefi
 import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.Definition;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifierStrategyConfigService;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace;
+import io.github.matrixlane.metadataregistry.commonfacilities.identification.ScopedIdentifier;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.AdministeredItem;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.Registrar;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationAuthority;
@@ -506,5 +507,145 @@ class ItemAdministrationServiceTest {
 
         assertThat(ai.getRegistrationAuthority()).isSameAs(targetRa);
         verify(activeRegistrarService, never()).assertCanModify(any());
+    }
+
+    // ===== registry-merge-strategy：本地编辑版本递增（D4/D5）=====
+
+    private AdministeredItem attachExistingIdentifier(Namespace ns, String identifier, String version) {
+        AdministeredItem ai = new AdministeredItem(item);
+        ScopedIdentifier si = new ScopedIdentifier(identifier, ns, ai);
+        si.setVersion(version);
+        ai.getScopedIdentifiers().add(si);
+        item.setIdentifiedItem(ai);
+        return ai;
+    }
+
+    @Test
+    void ensureAdministeredItem_update_sameVersionEcho_bumpsVersion() {
+        // 请求版本与现行版本相同（前端回显）→ 按命名空间版本策略递增
+        Namespace ns = new Namespace();
+        ns.setId(UUID.randomUUID());
+        ns.setVersioningPolicy("SEQUENTIAL");
+        when(namespaceRepository.findById(ns.getId())).thenReturn(Optional.of(ns));
+        AdministeredItem existing = attachExistingIdentifier(ns, "X-1", "1");
+
+        ItemRegistrationRequest req = new ItemRegistrationRequest(
+                ns.getId(), null, "1", List.of(), List.of());
+
+        itemAdministrationService.ensureAdministeredItem(item, req);
+
+        assertThat(existing.getScopedIdentifiers().get(0).getVersion()).isEqualTo("2");
+    }
+
+    @Test
+    void ensureAdministeredItem_update_nullVersion_bumpsVersion() {
+        // 请求未携带版本 → 同样视为本地编辑，版本递增
+        Namespace ns = new Namespace();
+        ns.setId(UUID.randomUUID());
+        ns.setVersioningPolicy("SEQUENTIAL");
+        when(namespaceRepository.findById(ns.getId())).thenReturn(Optional.of(ns));
+        AdministeredItem existing = attachExistingIdentifier(ns, "X-1", "3");
+
+        ItemRegistrationRequest req = new ItemRegistrationRequest(
+                ns.getId(), null, null, List.of(), List.of());
+
+        itemAdministrationService.ensureAdministeredItem(item, req);
+
+        assertThat(existing.getScopedIdentifiers().get(0).getVersion()).isEqualTo("4");
+    }
+
+    @Test
+    void ensureAdministeredItem_update_semverPolicy_bumpsPatch() {
+        Namespace ns = new Namespace();
+        ns.setId(UUID.randomUUID());
+        ns.setVersioningPolicy("SEMVER");
+        when(namespaceRepository.findById(ns.getId())).thenReturn(Optional.of(ns));
+        AdministeredItem existing = attachExistingIdentifier(ns, "X-1", "1.0.0");
+
+        ItemRegistrationRequest req = new ItemRegistrationRequest(
+                ns.getId(), null, null, List.of(), List.of());
+
+        itemAdministrationService.ensureAdministeredItem(item, req);
+
+        assertThat(existing.getScopedIdentifiers().get(0).getVersion()).isEqualTo("1.0.1");
+    }
+
+    @Test
+    void ensureAdministeredItem_update_explicitDifferentVersion_honored() {
+        // 请求显式携带不同版本 → 尊重用户指定，不再递增
+        Namespace ns = new Namespace();
+        ns.setId(UUID.randomUUID());
+        ns.setVersioningPolicy("SEQUENTIAL");
+        when(namespaceRepository.findById(ns.getId())).thenReturn(Optional.of(ns));
+        AdministeredItem existing = attachExistingIdentifier(ns, "X-1", "1");
+
+        ItemRegistrationRequest req = new ItemRegistrationRequest(
+                ns.getId(), null, "5.0.0", List.of(), List.of());
+
+        itemAdministrationService.ensureAdministeredItem(item, req);
+
+        assertThat(existing.getScopedIdentifiers().get(0).getVersion()).isEqualTo("5.0.0");
+    }
+
+    @Test
+    void ensureAdministeredItem_update_dualIdentifiers_onlyNamespaceMatchedIdentifierBumped() {
+        // 联邦迁移后的双标识条目：本地编辑仅递增目的方命名空间下的标识，
+        // 来源命名空间下的标识（合并基）保持不变
+        Namespace targetNs = new Namespace();
+        targetNs.setId(UUID.randomUUID());
+        targetNs.setVersioningPolicy("SEQUENTIAL");
+        Namespace sourceCopy = new Namespace();
+        sourceCopy.setId(UUID.randomUUID());
+        sourceCopy.setSchemeReference("urn:metadata-registry:imported:uuid-1");
+        when(namespaceRepository.findById(targetNs.getId())).thenReturn(Optional.of(targetNs));
+
+        AdministeredItem ai = new AdministeredItem(item);
+        ScopedIdentifier targetSi = new ScopedIdentifier("T-1", targetNs, ai);
+        targetSi.setVersion("1");
+        ScopedIdentifier sourceSi = new ScopedIdentifier("X-1", sourceCopy, ai);
+        sourceSi.setVersion("10");
+        ai.getScopedIdentifiers().add(sourceSi);
+        ai.getScopedIdentifiers().add(targetSi);
+        item.setIdentifiedItem(ai);
+
+        ItemRegistrationRequest req = new ItemRegistrationRequest(
+                targetNs.getId(), null, "1", List.of(), List.of());
+
+        itemAdministrationService.ensureAdministeredItem(item, req);
+
+        assertThat(targetSi.getVersion()).isEqualTo("2");
+        assertThat(sourceSi.getVersion()).isEqualTo("10");
+        assertThat(sourceSi.getNamespace()).isSameAs(sourceCopy);
+    }
+
+    @Test
+    void ensureAdministeredItem_update_dualIdentifiers_prefersRaOwnIdentifierWhenNamespaceUnmatched() {
+        // 请求未定位命名空间时，多标识条目的编辑落在注册机构自有命名空间标识上，
+        // 避免触碰来源命名空间标识（合并基）
+        RegistrationAuthority ra = newRa();
+        Namespace raNs = raNamespace(ra);
+        raNs.setVersioningPolicy("SEQUENTIAL");
+        Namespace sourceCopy = new Namespace();
+        sourceCopy.setId(UUID.randomUUID());
+        sourceCopy.setSchemeReference("urn:metadata-registry:imported:uuid-1");
+        when(namespaceRepository.existsByRegistrationAuthorityIsNotNull()).thenReturn(true);
+
+        AdministeredItem ai = new AdministeredItem(item);
+        ScopedIdentifier raSi = new ScopedIdentifier("T-1", raNs, ai);
+        raSi.setVersion("1");
+        ScopedIdentifier sourceSi = new ScopedIdentifier("X-1", sourceCopy, ai);
+        sourceSi.setVersion("10");
+        ai.getScopedIdentifiers().add(sourceSi);
+        ai.getScopedIdentifiers().add(raSi);
+        item.setIdentifiedItem(ai);
+
+        ItemRegistrationRequest req = new ItemRegistrationRequest(
+                null, null, null, List.of(), List.of());
+
+        itemAdministrationService.ensureAdministeredItem(item, req);
+
+        assertThat(raSi.getVersion()).isEqualTo("2");
+        assertThat(raSi.getNamespace()).isSameAs(raNs);
+        assertThat(sourceSi.getVersion()).isEqualTo("10");
     }
 }

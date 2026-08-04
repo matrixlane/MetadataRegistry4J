@@ -3,10 +3,12 @@ package io.github.matrixlane.metadataregistry.web.federation;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.ScopedIdentifier;
+import io.github.matrixlane.metadataregistry.commonfacilities.identification.Versions;
 import io.github.matrixlane.metadataregistry.web.common.ApiCodes;
 import io.github.matrixlane.metadataregistry.web.common.BusinessException;
 import io.github.matrixlane.metadataregistry.web.common.ResourceNotFoundException;
 import io.github.matrixlane.metadataregistry.web.repository.ItemRepository;
+import io.github.matrixlane.metadataregistry.web.repository.RegistrationAuthorityRepository;
 import io.github.matrixlane.metadataregistry.web.repository.ScopedIdentifierRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -39,6 +41,9 @@ public class MergeRequestService {
     private final ScopedIdentifierRepository scopedIdentifierRepository;
     private final SyncWatermarkRepository watermarkRepository;
     private final ObjectMapper objectMapper;
+    private final RegistrationAuthorityRepository registrationAuthorityRepository;
+    private final MergeVersionSupport mergeVersionSupport;
+    private final MergeRegistrarGate mergeRegistrarGate;
 
     @Transactional(readOnly = true)
     public List<MergeRequestView> list(MergeRequestStatus status) {
@@ -62,8 +67,42 @@ public class MergeRequestService {
 
     @Transactional(readOnly = true)
     public List<MergeRequestItemView> getItems(UUID mrId) {
+        MergeRequest mr = get(mrId);
         return mergeRequestItemRepository.findByMergeRequestId(mrId).stream()
-                .map(MergeRequestItemView::of).toList();
+                .map(item -> toItemView(item, mr))
+                .toList();
+    }
+
+    /**
+     * 评审视图：冲突条目补充版本三方信息（来源版本 / 合并基 / 目的方本地版本），
+     * 供目的方 Registrar 裁决。
+     */
+    private MergeRequestItemView toItemView(MergeRequestItem item, MergeRequest mr) {
+        MergeRequestItemView view = MergeRequestItemView.of(item);
+        if (item.getChangeType() != MergeItemChangeType.CONFLICT || mr.getSourceNode() == null) {
+            return view;
+        }
+        String sourceVersion = null;
+        String sourceNamespaceGlobalId = null;
+        String sourceIdentifier = null;
+        try {
+            JsonNode payload = objectMapper.readTree(item.getPayloadJson());
+            sourceVersion = payload.path("version").asText(null);
+            sourceNamespaceGlobalId = payload.path("sourceNamespaceGlobalId").asText(null);
+            sourceIdentifier = payload.path("identifier").asText(null);
+        } catch (Exception ignored) {
+        }
+        UUID localItemId = itemLinkRepository
+                .findByNodeAndRemoteKey(mr.getSourceNode().getId(), item.getRemoteItemKey())
+                .map(ItemLink::getLocalItemId)
+                .orElse(null);
+        if (localItemId == null) {
+            return view.withVersions(sourceVersion, null, null);
+        }
+        String baseVersion = mergeVersionSupport.mergeBaseVersion(localItemId,
+                sourceNamespaceGlobalId, sourceIdentifier, mr.getTargetNamespaceId());
+        String localVersion = mergeVersionSupport.targetVersion(localItemId, mr.getTargetNamespaceId());
+        return view.withVersions(sourceVersion, baseVersion, localVersion);
     }
 
     @Transactional
@@ -108,6 +147,10 @@ public class MergeRequestService {
         if (!item.getMergeRequest().getId().equals(mrId)) {
             throw new BusinessException(ApiCodes.VALIDATION_FAILED, "条目不属于该合并请求");
         }
+        // 迁移冲突必须由目的方注册机构的活动 Registrar 裁决（D5）
+        if (item.getChangeType() == MergeItemChangeType.CONFLICT) {
+            mergeRegistrarGate.assertTargetRegistrar(mr);
+        }
         item.setResolution(resolution);
         if (linkedLocalItemId != null) {
             item.setLinkedLocalItemId(linkedLocalItemId);
@@ -123,6 +166,12 @@ public class MergeRequestService {
         JsonNode manifest = readManifest(bundlePath);
         String sourceRai = manifest.path("sourceRai").asText(null);
         UUID targetNamespaceId = UUID.fromString(manifest.path("targetNamespaceId").asText());
+        // RAI 一致性前置（registry-merge-strategy D1，接收侧）：来源 RAI 必须能
+        // 在本实例匹配到注册机构，否则视为不同注册机构，拒绝注册表合并。
+        registrationAuthorityRepository.findByRai(sourceRai)
+                .orElseThrow(() -> new BusinessException(ApiCodes.VALIDATION_FAILED,
+                        "RAI 不一致：来源 RAI=" + sourceRai + " 与本实例注册机构不匹配，"
+                                + "拒绝注册表合并（RAI 不同的协作请使用条目级合并请求）"));
         RegistryNode sourceNode = registryNodeRepository.findAll().stream()
                 .filter(n -> n.getRai().equals(sourceRai))
                 .findFirst()
@@ -141,7 +190,7 @@ public class MergeRequestService {
         SyncWatermark watermark = watermarkRepository.findByNodeId(sourceNode.getId()).orElse(null);
         int[] counts = {0, 0, 0, 0};
         for (JsonNode itemNode : manifest.path("items")) {
-            MergeItemChangeType changeType = classify(sourceNode, itemNode, watermark);
+            MergeItemChangeType changeType = classify(sourceNode, itemNode, watermark, targetNamespaceId);
             counts[changeType.ordinal()]++;
 
             MergeRequestItem item = new MergeRequestItem();
@@ -163,10 +212,11 @@ public class MergeRequestService {
     }
 
     /**
-     * 条目分类：已链接 → UPDATE（本地自上次合并后有变更则 CONFLICT）；
-     * 标识符匹配 → MATCH_CANDIDATE；否则 ADD。
+     * 条目分类：已链接 → 版本比对（来源未变更 UPDATE 执行期跳过；来源单侧更新
+     * UPDATE；双侧更新 CONFLICT）；标识符匹配 → MATCH_CANDIDATE；否则 ADD。
      */
-    private MergeItemChangeType classify(RegistryNode sourceNode, JsonNode itemNode, SyncWatermark watermark) {
+    private MergeItemChangeType classify(RegistryNode sourceNode, JsonNode itemNode,
+                                         SyncWatermark watermark, UUID targetNamespaceId) {
         String remoteKey = itemNode.path("remoteItemKey").asText();
         Optional<ItemLink> link = itemLinkRepository.findByNodeAndRemoteKey(sourceNode.getId(), remoteKey);
         if (link.isPresent()) {
@@ -176,11 +226,20 @@ public class MergeRequestService {
                 itemLinkRepository.delete(link.get());
                 return MergeItemChangeType.MATCH_CANDIDATE;
             }
-            // 三方比对近似：本地在上次合并后是否有变更
-            if (watermark != null && watermark.getLastMergedAt() != null) {
-                // 简化判定：本地最后变更时间晚于水位线即视为双侧变更
+            UUID localItemId = link.get().getLocalItemId();
+            String sourceVersion = itemNode.path("version").asText(null);
+            String base = mergeVersionSupport.mergeBaseVersion(localItemId,
+                    itemNode.path("sourceNamespaceGlobalId").asText(null),
+                    itemNode.path("identifier").asText(null),
+                    targetNamespaceId);
+            if (base != null && sourceVersion != null && Versions.compare(sourceVersion, base) <= 0) {
+                // 来源版本未较合并基递增 → 未变更（执行期幂等跳过）
+                return MergeItemChangeType.UPDATE;
             }
-            return MergeItemChangeType.UPDATE;
+            // 来源已更新（或旧数据缺合并基）：目的方本地也更新过则构成冲突（D5）
+            return mergeVersionSupport.locallyEdited(localItemId, targetNamespaceId)
+                    ? MergeItemChangeType.CONFLICT
+                    : MergeItemChangeType.UPDATE;
         }
         String identifier = itemNode.path("identifier").asText(null);
         if (identifier != null && !scopedIdentifierRepository.findByIdentifier(identifier).isEmpty()) {

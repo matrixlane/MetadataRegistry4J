@@ -22,6 +22,16 @@
           <el-tag :type="changeTypeColor(row.changeType)" size="small">{{ changeTypeLabel(row.changeType) }}</el-tag>
         </template>
       </el-table-column>
+      <el-table-column label="版本（来源/合并基/本地）" min-width="170">
+        <template #default="{ row }">
+          <template v-if="row.changeType === 'CONFLICT'">
+            <span class="version-triplet">
+              {{ row.sourceVersion ?? '-' }} / {{ row.baseVersion ?? '-' }} / {{ row.localVersion ?? '-' }}
+            </span>
+          </template>
+          <span v-else style="color: var(--el-text-color-secondary);">-</span>
+        </template>
+      </el-table-column>
       <el-table-column label="裁决" width="130">
         <template #default="{ row }">
           <el-tag v-if="row.resolution !== 'PENDING'" size="small">{{ resolutionLabel(row.resolution) }}</el-tag>
@@ -31,8 +41,14 @@
       <el-table-column label="操作" width="230" fixed="right">
         <template #default="{ row }">
           <template v-if="mr?.status === 'UNDER_REVIEW'">
-            <el-button link type="success" size="small" @click="decide(row, 'ACCEPT')">接受</el-button>
-            <el-button link type="danger" size="small" @click="decide(row, 'REJECT')">拒绝</el-button>
+            <template v-if="row.changeType === 'CONFLICT'">
+              <el-button link type="success" size="small" @click="decide(row, 'ACCEPT')">采用传入</el-button>
+              <el-button link type="danger" size="small" @click="decide(row, 'REJECT')">保留现有</el-button>
+            </template>
+            <template v-else>
+              <el-button link type="success" size="small" @click="decide(row, 'ACCEPT')">接受</el-button>
+              <el-button link type="danger" size="small" @click="decide(row, 'REJECT')">拒绝</el-button>
+            </template>
             <el-button v-if="row.changeType === 'MATCH_CANDIDATE'" link type="primary" size="small"
                      @click="decide(row, 'LINK_EXISTING')">确认匹配</el-button>
           </template>
@@ -120,5 +136,9 @@ onMounted(load);
 .mr-meta {
   font-size: 13px;
   color: var(--el-text-color-regular);
+}
+.version-triplet {
+  font-family: var(--el-font-family-monospace, monospace);
+  font-size: 12px;
 }
 </style>

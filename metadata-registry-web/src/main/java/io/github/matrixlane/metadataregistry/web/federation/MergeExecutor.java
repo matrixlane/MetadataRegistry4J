@@ -2,16 +2,20 @@ package io.github.matrixlane.metadataregistry.web.federation;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.LanguageIdentification;
+import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Organization;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.Item;
+import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifierStrategyConfigService;
+import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifierVersionHistory;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace;
+import io.github.matrixlane.metadataregistry.commonfacilities.identification.ScopedIdentifier;
+import io.github.matrixlane.metadataregistry.commonfacilities.identification.Versions;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.AdministeredItem;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationAuthority;
 import io.github.matrixlane.metadataregistry.web.common.ApiCodes;
 import io.github.matrixlane.metadataregistry.web.common.BusinessException;
 import io.github.matrixlane.metadataregistry.web.common.ResourceNotFoundException;
-import io.github.matrixlane.metadataregistry.web.dto.common.ItemRegistrationRequest;
 import io.github.matrixlane.metadataregistry.web.dto.common.TextLine;
-import io.github.matrixlane.metadataregistry.web.entity.VersionHistory;
+import io.github.matrixlane.metadataregistry.web.repository.IdentifierVersionHistoryRepository;
 import io.github.matrixlane.metadataregistry.web.repository.ItemRepository;
 import io.github.matrixlane.metadataregistry.web.repository.LanguageIdentificationRepository;
 import io.github.matrixlane.metadataregistry.web.repository.NamespaceRepository;
@@ -59,6 +63,18 @@ public class MergeExecutor {
     private final VersionHistoryService versionHistoryService;
     private final GenericItemCreator itemCreator;
     private final ObjectMapper objectMapper;
+    private final MergeVersionSupport mergeVersionSupport;
+    private final MergeRegistrarGate mergeRegistrarGate;
+    private final GlobalNamespaceService globalNamespaceService;
+    private final IdentifierVersionHistoryRepository identifierVersionHistoryRepository;
+    private final IdentifierStrategyConfigService identifierStrategyConfigService;
+
+    /** 回执输出目录（测试可重定向到临时目录）。 */
+    private Path receiptDir = Paths.get("data", "federation");
+
+    void setReceiptDir(Path receiptDir) {
+        this.receiptDir = receiptDir;
+    }
 
     @Transactional
     public Map<String, Object> execute(UUID mrId, String actor) {
@@ -68,6 +84,8 @@ public class MergeExecutor {
             throw new BusinessException(ApiCodes.VALIDATION_FAILED,
                     "合并请求状态不允许并入: " + mr.getStatus());
         }
+        // 注册表合并的批准必须由目的方注册机构的活动 Registrar 执行（D5）
+        mergeRegistrarGate.assertTargetRegistrar(mr);
         List<MergeRequestItem> items = mergeRequestItemRepository.findByMergeRequestId(mrId);
         RegistryNode node = mr.getSourceNode();
 
@@ -95,6 +113,12 @@ public class MergeExecutor {
                 local = itemCreator.create(snapshot, mr.getTargetNamespaceId(), node);
             } else {
                 local = applyUpdate(item, snapshot, node);
+                if (local == null) {
+                    // 幂等跳过：来源版本与合并基一致，条目不产生任何变更
+                    skipped++;
+                    mergeRequestItemRepository.save(item);
+                    continue;
+                }
             }
 
             upsertLink(node, local.getId(), snapshot.remoteItemKey(), snapshot.remoteItemUuid(), mrId);
@@ -126,6 +150,9 @@ public class MergeExecutor {
         return result;
     }
 
+    /**
+     * 应用传入更新；来源版本与合并基一致时返回 null（幂等跳过）。
+     */
     private AdministeredItem applyUpdate(MergeRequestItem item, BundleItemSnapshot snapshot, RegistryNode node) {
         ItemLink link = null;
         if (item.getLinkedLocalItemId() != null) {
@@ -160,8 +187,6 @@ public class MergeExecutor {
         final ItemLink resolvedLink = link;
         Item localItem = itemRepository.findById(resolvedLink.getLocalItemId())
                 .orElseThrow(() -> new ResourceNotFoundException("Item", resolvedLink.getLocalItemId()));
-        itemAdministrationService.applyDesignations(localItem, toTextLines(snapshot.designations()));
-        itemAdministrationService.applyDefinitions(localItem, toTextLines(snapshot.definitions()));
 
         AdministeredItem ai = localItem.getIdentifiedItem() instanceof AdministeredItem existing
                 ? existing
@@ -170,9 +195,68 @@ public class MergeExecutor {
             throw new BusinessException(ApiCodes.VALIDATION_FAILED,
                     "本地条目缺少 AdministeredItem 结构: " + snapshot.remoteItemKey());
         }
+
+        // 合并基判定（D4）：来源版本与目的方上来源命名空间标识版本一致 → 未变更，跳过
+        if (item.getChangeType() == MergeItemChangeType.UPDATE && snapshot.version() != null) {
+            String base = mergeVersionSupport.mergeBaseVersion(localItem.getId(),
+                    snapshot.sourceNamespaceGlobalId(), snapshot.identifier(),
+                    item.getMergeRequest().getTargetNamespaceId());
+            if (base != null && Versions.compare(snapshot.version(), base) == 0) {
+                return null;
+            }
+        }
+
+        itemAdministrationService.applyDesignations(localItem, toTextLines(snapshot.designations()));
+        itemAdministrationService.applyDefinitions(localItem, toTextLines(snapshot.definitions()));
+
+        advanceVersions(ai, snapshot, node, item.getMergeRequest());
         ai.setLastChangeDateTime(LocalDateTime.now());
         itemRepository.save(localItem);
         return ai;
+    }
+
+    /**
+     * 干净更新/冲突裁决接受后的版本推进（D2/D4）：
+     * 来源命名空间标识版本更新为来源版本（推进合并基，自愈补建副本与标识）；
+     * 目的方命名空间标识版本按策略递增，并写入 MERGE 标记历史供本地编辑检测。
+     */
+    private void advanceVersions(AdministeredItem ai, BundleItemSnapshot snapshot,
+                                 RegistryNode node, MergeRequest mr) {
+        RegistrationAuthority ra = registrationAuthorityRepository.findByRai(node.getRai()).orElse(null);
+        Organization namingAuthority = globalNamespaceService.resolveNamingAuthority(
+                snapshot.sourceNamespaceNamingAuthorityName(), ra);
+        Namespace sourceCopy = globalNamespaceService.ensureNamespaceCopy(
+                snapshot.sourceNamespaceGlobalId(), snapshot.sourceNamespaceName(), namingAuthority);
+
+        ScopedIdentifier sourceSi = ai.getScopedIdentifiers().stream()
+                .filter(si -> si.getNamespace() != null && sourceCopy.getId().equals(si.getNamespace().getId()))
+                .findFirst()
+                .orElseGet(() -> {
+                    ScopedIdentifier created = new ScopedIdentifier(snapshot.identifier(), sourceCopy, ai);
+                    created.setCreatedAt(LocalDateTime.now());
+                    ai.getScopedIdentifiers().add(created);
+                    return created;
+                });
+        sourceSi.setVersion(snapshot.version());
+
+        Namespace targetNs = namespaceRepository.findById(mr.getTargetNamespaceId())
+                .orElseThrow(() -> new ResourceNotFoundException("Namespace", mr.getTargetNamespaceId()));
+        ScopedIdentifier targetSi = ai.getScopedIdentifiers().stream()
+                .filter(si -> si.getNamespace() != null && targetNs.getId().equals(si.getNamespace().getId()))
+                .findFirst()
+                .orElseGet(() -> {
+                    // 自愈：旧数据缺目的方标识时补建（"0" 经递增后即为初始版本 "1"）
+                    ScopedIdentifier created = new ScopedIdentifier(
+                            identifierStrategyConfigService.generateIdentifier(targetNs, null), targetNs, ai);
+                    created.setVersion("0");
+                    created.setCreatedAt(LocalDateTime.now());
+                    ai.getScopedIdentifiers().add(created);
+                    return created;
+                });
+        targetSi.setVersion(Versions.bump(targetSi.getVersion(), targetNs.getVersioningPolicy()));
+        identifierVersionHistoryRepository.save(new IdentifierVersionHistory(
+                targetSi, targetSi.getVersion(), targetSi.getVersionStatus(),
+                "system", MergeVersionSupport.MERGE_MARKER + " mr=" + mr.getId()));
     }
 
     private void upsertLink(RegistryNode node, UUID localItemId, String remoteKey, UUID remoteUuid, UUID mrId) {
@@ -199,9 +283,8 @@ public class MergeExecutor {
 
     private Path writeReceipt(MergeRequest mr, List<Map<String, Object>> receiptItems) {
         try {
-            Path dir = Paths.get("data", "federation");
-            Files.createDirectories(dir);
-            Path out = dir.resolve("receipt-" + mr.getId() + ".json");
+            Files.createDirectories(receiptDir);
+            Path out = receiptDir.resolve("receipt-" + mr.getId() + ".json");
             Map<String, Object> receipt = new LinkedHashMap<>();
             receipt.put("format", "mdr-federation-receipt-v1");
             receipt.put("mergeRequestId", mr.getId().toString());

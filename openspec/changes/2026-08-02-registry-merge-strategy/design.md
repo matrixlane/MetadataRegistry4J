@@ -75,4 +75,4 @@ RAI 匹配的注册机构在目的方只保留一份。命名空间的跨实例�
 
 ## Open Questions
 
-- 注册规范（Registry_Specification）的归并键：注册机构按 RAI 匹配（D1）、命名空间按全局命名空间共享 UUID 匹配（D3）均已确定；Registry_Specification 继承自 Item、不在 Administered_Item 标识体系内，跨实例身份暂无机制承载。候选：(a) 按注册表单例语义归并——Registry_Specification 描述注册表自身运行环境（ISO/IEC 11179-3:2023, 9.4.10），实践中每个注册表一份，RAI 一致即同一注册表，目的方保留一份即可；(b) 与命名空间一致，以 Administered_Item 包装后在全局命名空间下挂 UUID 标识。倾向 (a)，实现期确认。
+- 注册规范（Registry_Specification）的归并键：注册机构按 RAI 匹配（D1）、命名空间按全局命名空间共享 UUID 匹配（D3）均已确定；Registry_Specification 继承自 Item、不在 Administered_Item 标识体系内，跨实例身份暂无机制承载。候选：(a) 按注册表单例语义归并——Registry_Specification 描述注册表自身运行环境（ISO/IEC 11179-3:2023, 9.4.10），实践中每个注册表一份，RAI 一致即同一注册表，目的方保留一份即可；(b) 与命名空间一致，以 Administered_Item 包装后在全局命名空间下挂 UUID 标识。倾向 (a)，实现期确认。**【实现期确认：采用 (a)】** 合并包候选条目收集时排除 Registry_Specification（与命名空间包装物同等处理），注册规范不参与迁移，目的方保留自身唯一一份。

@@ -17,6 +17,12 @@ import java.util.UUID;
  * @param export         条目完整导出快照
  * @param designations   全部命名（语言标识 + 文本）
  * @param definitions    全部定义（语言标识 + 文本）
+ * @param sourceNamespaceGlobalId            来源命名空间的全局标识（全局命名空间下
+ *                                           共享 UUID 的 Scoped_Identifier.identifier，
+ *                                           跨实例命名空间映射键）
+ * @param sourceNamespaceName                来源命名空间名称（目的方建副本用）
+ * @param sourceNamespaceNamingAuthorityName 来源命名空间的 naming_authority 名称
+ *                                           （目的方副本记录真实来源机构用）
  */
 public record BundleItemSnapshot(
         String remoteItemKey,
@@ -27,5 +33,8 @@ public record BundleItemSnapshot(
         Integer versionNumber,
         AdministeredItemExport export,
         List<LangValue> designations,
-        List<LangValue> definitions
+        List<LangValue> definitions,
+        String sourceNamespaceGlobalId,
+        String sourceNamespaceName,
+        String sourceNamespaceNamingAuthorityName
 ) {}

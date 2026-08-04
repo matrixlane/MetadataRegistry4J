@@ -5,16 +5,20 @@ import com.fasterxml.jackson.databind.ser.impl.SimpleBeanPropertyFilter;
 import com.fasterxml.jackson.databind.ser.impl.SimpleFilterProvider;
 import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.Definition;
 import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.Designation;
+import io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.ScopedIdentifier;
 import io.github.matrixlane.metadataregistry.web.common.ApiCodes;
 import io.github.matrixlane.metadataregistry.web.common.BusinessException;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.AdministeredItem;
+import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrySpecification;
 import io.github.matrixlane.metadataregistry.web.entity.VersionHistory;
 import io.github.matrixlane.metadataregistry.web.repository.AdministeredItemRepository;
 import io.github.matrixlane.metadataregistry.web.repository.DefinitionRepository;
 import io.github.matrixlane.metadataregistry.web.repository.DesignationRepository;
+import io.github.matrixlane.metadataregistry.web.repository.RegistrationAuthorityRepository;
 import io.github.matrixlane.metadataregistry.web.repository.VersionHistoryRepository;
 import io.github.matrixlane.metadataregistry.web.service.MetadataExportService;
+import io.github.matrixlane.metadataregistry.web.util.ItemNamingHelper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -54,6 +58,8 @@ public class FederationBundleService {
     private final DefinitionRepository definitionRepository;
     private final MetadataExportService exportService;
     private final ObjectMapper objectMapper;
+    private final RegistrationAuthorityRepository registrationAuthorityRepository;
+    private final GlobalNamespaceService globalNamespaceService;
 
     /**
      * 计算增量并生成合并包文件，同时登记 DRAFT 状态的合并请求。
@@ -61,6 +67,12 @@ public class FederationBundleService {
     @Transactional
     public MergeRequestView createBundle(UUID nodeId, UUID targetNamespaceId) {
         RegistryNode node = registryNodeService.getEnabled(nodeId);
+        // RAI 一致性前置（registry-merge-strategy D1，发起侧）：目的节点的 RAI
+        // 必须能在本实例匹配到注册机构，否则视为不同注册机构，拒绝注册表合并。
+        registrationAuthorityRepository.findByRai(node.getRai())
+                .orElseThrow(() -> new BusinessException(ApiCodes.VALIDATION_FAILED,
+                        "RAI 不一致：本实例注册机构与目的节点 RAI=" + node.getRai()
+                                + " 不匹配，拒绝发起注册表合并（RAI 不同的协作请使用条目级合并请求）"));
         SyncWatermark watermark = watermarkRepository.findByNodeId(nodeId).orElse(null);
         LocalDateTime since = watermark == null ? null : watermark.getLastMergedAt();
 
@@ -91,22 +103,42 @@ public class FederationBundleService {
         return MergeRequestView.of(mr);
     }
 
-    private List<AdministeredItem> collectItems(LocalDateTime since) {
+    /**
+     * 收集候选条目。命名空间包装物（全局命名空间映射用的 Administered_Item，
+     * 其 item 为 Namespace）不是可注册内容，一律排除。注册规范
+     * （Registry_Specification）描述注册表自身运行环境，RAI 一致即同一注册表，
+     * 目的方保留一份即可，不参与迁移（design Open Questions 结论 (a)）。
+     */
+    List<AdministeredItem> collectItems(LocalDateTime since) {
+        List<AdministeredItem> all;
         if (since == null) {
-            return administeredItemRepository.findAll();
+            all = administeredItemRepository.findAll();
+        } else {
+            // 增量以 AdministeredItem.lastChangeDateTime 为准（不依赖 version_history 的覆盖度）
+            all = administeredItemRepository.findChangedAfter(since);
         }
-        // 增量以 AdministeredItem.lastChangeDateTime 为准（不依赖 version_history 的覆盖度）
-        return administeredItemRepository.findChangedAfter(since);
+        return all.stream()
+                .filter(ai -> !(ai.getItem() instanceof Namespace))
+                .filter(ai -> !(ai.getItem() instanceof RegistrySpecification))
+                .toList();
     }
 
-    private BundleItemSnapshot toSnapshot(AdministeredItem ai, RegistryNode node, Map<UUID, Integer> versions) {
-        if (ai.getScopedIdentifiers() == null || ai.getScopedIdentifiers().isEmpty()) {
-            // 无来源标识符的条目无法表达全局逻辑身份，跳过
+    BundleItemSnapshot toSnapshot(AdministeredItem ai, RegistryNode node, Map<UUID, Integer> versions) {
+        ScopedIdentifier si = pickSourceIdentifier(ai);
+        if (si == null) {
+            // 无可用来源标识符的条目无法表达全局逻辑身份，跳过
             return null;
         }
-        ScopedIdentifier si = ai.getScopedIdentifiers().get(0);
         String remoteItemKey = node.getRai() + ":" + si.getIdentifier();
         UUID itemUuid = ai.getItem() != null ? ai.getItem().getId() : null;
+        Namespace sourceNs = si.getNamespace();
+
+        // 命名空间跨实例映射（任务 2A.2）：为待迁移命名空间确保全局 UUID 标识
+        String sourceNamespaceGlobalId = sourceNs == null ? null
+                : globalNamespaceService.ensureNamespaceGlobalIdentifier(sourceNs);
+        String sourceNamespaceName = sourceNs == null ? null : ItemNamingHelper.preferredDesignation(sourceNs);
+        String namingAuthorityName = sourceNs == null || sourceNs.getNamingAuthority() == null
+                ? null : sourceNs.getNamingAuthority().toString();
 
         List<LangValue> designations = new ArrayList<>();
         List<LangValue> definitions = new ArrayList<>();
@@ -132,8 +164,34 @@ public class FederationBundleService {
                 versions.getOrDefault(ai.getId(), 0),
                 exportService.exportItem(ai),
                 designations,
-                definitions
+                definitions,
+                sourceNamespaceGlobalId,
+                sourceNamespaceName,
+                namingAuthorityName
         );
+    }
+
+    /**
+     * 选择作为来源身份的标识：优先注册机构自有命名空间下的标识；其次非全局、
+     * 非迁入副本命名空间下的标识（如外部编目命名空间）。全局命名空间与迁入
+     * 副本命名空间下的标识不作为来源身份。
+     */
+    private ScopedIdentifier pickSourceIdentifier(AdministeredItem ai) {
+        if (ai.getScopedIdentifiers() == null || ai.getScopedIdentifiers().isEmpty()) {
+            return null;
+        }
+        var raOwn = ai.getScopedIdentifiers().stream()
+                .filter(si -> si.getNamespace() != null && si.getNamespace().getRegistrationAuthority() != null)
+                .findFirst();
+        if (raOwn.isPresent()) {
+            return raOwn.get();
+        }
+        return ai.getScopedIdentifiers().stream()
+                .filter(si -> si.getNamespace() != null
+                        && !GlobalNamespaceService.isGlobalNamespace(si.getNamespace())
+                        && !GlobalNamespaceService.isImportedNamespace(si.getNamespace()))
+                .findFirst()
+                .orElse(null);
     }
 
     private Path writeBundle(RegistryNode node, UUID namespaceId,
