@@ -1,46 +1,44 @@
 # Tasks
 
-## 1. 领域模型与策略解析
+## 1. 段模型引擎（common-facilities）
 
-- [x] 1.1 新增 `IdentifierInputMode` 枚举（AUTO_ONLY / AUTO_WITH_OVERRIDE / MANUAL_ONLY）与 `VersioningPolicy` 枚举（SEMVER / SEQUENTIAL / DATE）
-- [x] 1.2 `Namespace` 实体新增 `identifierInputMode` / `versionInputMode` / `manualIdentifierPattern` 三列（JPA 注解、方言中立、默认值兼容）
-- [x] 1.3 新增 `NamespaceIdentifierPolicy`（强类型策略视图）与 `NamespaceIdentifierPolicyResolver`（脏数据回退默认、空白正则归一 null）
+- [ ] 1.1 段模型 POJO 与 JSON 序列化（LITERAL/OBJECT_ABBREVIATION/SEQUENCE/UUID/SEPARATOR/TIMESTAMP/CHECKSUM/VARIABLE，RANDOM 可选）
+- [ ] 1.2 段类型注册表：每类型提供参数 schema、生成器、正则片段、解析片段、UI 配置面板（可扩展）
+- [ ] 1.3 对象缩写映射表（对象类型→缩写，可配置；默认 数据元→DE、值域→VD/CV）与生成上下文的条目类型传递
+- [ ] 1.4 生成器：按段有序拼装，接受变量值上下文
+- [ ] 1.5 格式校验正则派生器与反向解析器（含生成→解析往返一致）
+- [ ] 1.6 序号回填：按解析结果对齐各 scope 计数器
 
-## 2. 统一策略执行入口（后端）
+## 2. 顺序号作用域
 
-- [x] 2.1 新增 `IdentifierInputPolicyService`：`resolveIdentifier`（模式裁决 + 正则校验）、`resolveVersion`（初始版本生成 + 格式校验）、`validateManualVersion`（版本变更复用校验）
-- [x] 2.2 `ItemAdministrationService` 注册入口改走策略服务，携带注册项类型供 `{type}` 占位符
-- [x] 2.3 `ScopedIdentifierService` 创建/版本变更改走策略服务，移除硬编码 `1.0.0` 与 SemVer 单一校验
-- [x] 2.4 删除 `IdentifierGenerationService` 及其测试
+- [ ] 2.1 `SequenceRegistry` 增加 `scope_key` 列，唯一约束改为 (`namespace_id`, `scope_key`)（实体注解优先；如需迁移脚本按三方言目录提供）
+- [ ] 2.2 `SequenceProvider`/`SequenceRegistryService` 支持按 scope_key 原子分配（沿用悲观锁）
+- [ ] 2.3 序号溢出检测与溢出策略处理
 
-## 3. 生成策略占位符扩展
+## 3. 策略整合（web）
 
-- [x] 3.1 `TemplateGenerationStrategy` 新增 `{ns}` / `{type}` 占位符，白名单放行 `.` 分隔符
-- [x] 3.2 `IdentifierStrategyConfigService`：prefix 令牌替换（`resolvePrefixTokens`）、项类型大写缩写（`itemTypeAbbreviation`）、模板含 `{seq}` 且上下文无序列号时悲观锁自分配
-- [x] 3.3 `GenerationContext` 增加 `itemType` 载波
+- [ ] 3.1 `IdentifierStrategyConfig` 新增段模板策略类型；registry/loader 接入解析
+- [ ] 3.2 `ScopedIdentifierService`：生成入口接受 variables 与条目类型（供 OBJECT_ABBREVIATION 推导）；外部命名空间拒绝无标识创建；全局默认回退短路
+- [ ] 3.3 策略配置 REST：查询/草稿/发布/停用/预览试生成/格式校验
+- [ ] 3.4 独立策略选项收敛为段模板：UUID/URN/SEQUENCE 不再作为独立策略（UUID 保留为段组件）
 
-## 4. 命名空间设置页策略自管理（后端）
+## 4. 初始化
 
-- [x] 4.1 `NamespaceRequest` / `NamespaceResponse` / `NamespaceDetailResponse` 扩展策略字段（输入模式、版本化策略、正则、策略类型与参数）
-- [x] 4.2 `NamespaceService.create/update`：策略字段省略不动既有设置；携带 `identifierStrategy` 时版本化 upsert（禁用旧 PUBLISHED、新版本 PUBLISHED、UUID 仅禁用不新增）并 `refreshRegistry()`
-- [x] 4.3 响应映射回读当前生效策略配置（容忍脏 JSON 只暴露类型）
-- [x] 4.4 `IdentifierStrategyConfigRepository` 新增 `findByNamespaceIdOrderByVersionDesc`
+- [ ] 4.1 `InitWizardService.setup`：`createNamespace` 改强制 true，显式 false 返回业务校验错误
+- [ ] 4.2 初始化向导 UI：命名空间步骤取消跳过，策略配置默认段模板（可载预设）
 
-## 5. 初始化向导（后端）
+## 5. 前端设计器与表单
 
-- [x] 5.1 `InitWizardSetupRequest` 新增 `identifierInputMode` / `versionInputMode` / `strategySeqStart` / `strategySeqPad`
-- [x] 5.2 `InitWizardService`：输入模式归一化（非法值回退 AUTO_WITH_OVERRIDE）并写入命名空间；MANUAL_ONLY 跳过策略配置创建；前缀缺省为空；SEQUENCE/TEMPLATE 配置携带 start/pad 参数
+- [ ] 5.1 段规则设计器组件（段块条/组件调色板/参数面板/实时预览/校验提示）
+- [ ] 5.2 预设库：WS/T 363 数据元标识符预设（JSON 资源）
+- [ ] 5.3 命名空间设置页按性质分支（自有=设计器+版本策略；外部=手动说明+格式校验）
+- [ ] 5.4 注册表单按模板动态渲染变量段输入并校验
+- [ ] 5.5 外部命名空间设置：手动策略说明 + 可选正则校验规则配置（含样例即时测试）
 
-## 6. 前端
+## 6. 测试
 
-- [x] 6.1 `NamespaceList.vue`：新增"标识生成策略"与"版本生成策略"页签（输入模式单选、正则、策略类型与参数联动、MANUAL_ONLY 禁用策略控件并提示）
-- [x] 6.2 `InitWizard.vue`：命名空间步骤扩展输入模式控件与序列参数，MANUAL_ONLY 禁用策略类型
-- [x] 6.3 `ItemFormDialog.vue`：按命名空间输入模式联动生成方式单选、禁用态、占位提示与预校验；编辑态标识符恒禁用；自动生效时提交空标识/版本
-- [x] 6.4 `common.ts` 类型扩展与 `zh-CN.json` 文案
-
-## 7. 验证
-
-- [x] 7.1 后端编译通过（`mvn compile`，common-facilities 与 web 模块）
-- [x] 7.2 前端构建通过（`npm run build`）
-- [x] 7.3 后端定向测试：策略裁决（`IdentifierInputPolicyServiceTest`：AUTO_ONLY 拒绝手动、MANUAL_ONLY 拒绝空、初始版本与版本格式校验、非法正则跳过）、模板 `{ns}`/`{type}` 渲染与前缀令牌（`TemplateGenerationStrategyTest`、`IdentifierStrategyConfigServiceTest`）、既有套件回归（`ScopedIdentifierServiceTest` 等按新协作者更新）
-- [x] 7.4 前端测试：`ItemFormDialog.spec.ts` 按输入模式联动（AUTO_WITH_OVERRIDE 显示单选、AUTO_ONLY/MANUAL_ONLY 禁用/启用输入框、占位提示）
+- [ ] 6.1 段引擎单测：各段类型、作用域组合、溢出、往返一致
+- [ ] 6.2 scope 并发分配集成测试
+- [ ] 6.3 WS/T 363 金样本：`DE01.00.001.00` 生成、解析、回填
+- [ ] 6.4 外部命名空间：拒绝生成、全局回退短路、导入格式校验
+- [ ] 6.5 初始化：命名空间必选、策略同步发布

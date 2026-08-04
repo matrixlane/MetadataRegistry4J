@@ -1,29 +1,36 @@
 ## Why
 
-当前命名空间的标识符治理只有"生成策略"（UUID/SEQUENCE/TEMPLATE）一维配置，且只能在初始化向导一次性设定：创建后无法在命名空间设置页修改，也没有"是否允许手动填写标识符/版本号"的治理语义。治理上需要区分三类命名空间——自有标准（强制自动编号）、混合（自动为主、允许人工覆盖）、外部标准导入（纯手动，禁用自动生成）——同时版本号也应有独立于标识符的输入模式与格式校验（SEMVER/SEQUENTIAL/DATE）。此外，模板与序列策略缺乏"命名空间简写"与"注册项类型"维度的占位符，无法表达 `{ns}.{type}.{seq:4}` 这类常见的分段标识模式。
+`Scoped_Identifier` 是业务标识，注册机构需要的是具有直观意义、由多个部分组成的有结构标识符（典型如 WS/T 363 附录 A：前缀 DE + 大类 2 位 + 小类 2 位 + 序号 3 位 + 附加码 2 位，实例 `DE01.00.001.00`），而非 UUID 这类无意义标识符。现有 TEMPLATE 策略是扁平占位符字符串，无法表达"段"的取值规则与序号作用域，也不能反向解析校验。
+
+同时，随注册机构创建的自有命名空间与镜像外部标准的外部命名空间，在标识/版本策略上性质截然不同：前者需要按预定义规则自动生成，后者的标识与版本来自外部、只能手动录入。当前设置方案未区分这两种性质。此外，初始化时创建自有命名空间此前是可选的，现决定改为必选。
 
 ## What Changes
 
-- **命名空间级标识/版本输入治理策略**：`Namespace` 新增 `identifierInputMode`、`versionInputMode`（AUTO_ONLY / AUTO_WITH_OVERRIDE / MANUAL_ONLY，默认 AUTO_WITH_OVERRIDE）与 `manualIdentifierPattern`（手动标识校验正则，可空）三列；配合既有 `versioningPolicy`（SEMVER / SEQUENTIAL / DATE）构成完整的命名空间标识策略。
-- **统一的服务端入口策略执行**：新增 `IdentifierInputPolicyService`，在受管项注册（`ItemAdministrationService`）与作用域标识符创建/变更（`ScopedIdentifierService`）两条入口统一执行输入模式裁决、手动标识正则校验、初始版本生成与版本格式校验；**BREAKING**：删除旧的 `IdentifierGenerationService`（直接生成、不做模式裁决），入口语义从"留空即生成"升级为"按命名空间策略裁决"。
-- **命名空间设置页策略自管理**：命名空间创建/编辑接口携带策略字段，保存时对 `IdentifierStrategyConfig` 做版本化 upsert（新版本行 PUBLISHED、旧版本 disable）并刷新内存策略注册表；前端设置页新增"标识生成策略"与"版本生成策略"两个页签。
-- **模板/序列策略占位符扩展**：模板策略新增 `{ns}`（命名空间简写前缀）与 `{type}`（注册项类型大写缩写，如 DataElement → DE）占位符；SEQUENCE 前缀与模板 prefix 字段支持 `{ns}`/`{type}` 令牌替换；模板含 `{seq}` 但调用方未分配序列号时，由策略服务从命名空间序列注册表（悲观锁）自分配；模板白名单允许 `.` 分隔符。
-- **初始化向导同步扩展**：命名空间步骤新增标识/版本输入模式控件与序列起始值、补零位数参数；MANUAL_ONLY 时不创建策略配置；前缀缺省为空（不再默认 `ITEM`）。
-- **前端表单随策略联动**：项创建表单根据所选命名空间的输入模式动态呈现"自动生成/手动输入"切换、禁用态与占位提示；编辑态标识符恒不可改；手动模式前端预校验命名空间正则与版本必填规则。
+- **命名空间性质二分**：初始化时随注册机构创建的命名空间为**自有命名空间**；此后创建的命名空间为**外部命名空间**。性质在创建时确定，MUST NOT 变更。
+- **初始化必须创建自有命名空间**（**BREAKING**，取消 `2026-08-02-governance-init-all-editions` 引入的"命名空间步骤可跳过"语义）：创建注册机构的同时必须为其创建关联的自有命名空间（1:1，两边 0..1，遵循 ISO/IEC 11179-3 原文档）。
+- **业务标识策略收敛为"模板"一种**：UUID/URN/SEQUENCE 不再作为独立策略；顺序号与 UUID 归为模板的段组件（UUID 可作为组合标识中的一个段使用）。
+- **新增段模板模型与规则设计器**：模板 = 段的有序列表；预定义组件含：固定字符串（前缀等）、元数据对象缩写（如数据元→DE、值域→VD/CV，映射可配置）、顺序号、UUID、分隔符（多种字符可选）、时间戳、校验位、输入变量；组件目录可扩展。顺序号段的作用域由引用其他段的值组成 scope key，统一表达全局计数、按"大类.小类"计数、按日期周期重置；`SequenceRegistry` 增加 `scope_key` 列。
+- **一份段定义派生三种能力**：生成器、格式校验正则、反向解析器（支持导入既有标识后的序号回填）。
+- **自有命名空间**：段规则设计器配置标识自动生成策略；版本生成使用自动化策略（`Namespace.versioningPolicy`）。
+- **外部命名空间**：标识与版本均手动编辑；可增加可选的格式校验规则（直接配置正则表达式，仅校验，不生成）；MUST NOT 自动生成标识，全局默认策略 MUST NOT 回退为其生成。
+- **预设库**：内置以 WS/T 363 数据元标识符为首的编排预设，可一键载入并微调；预设为 JSON 资源，可持续扩展。
 
 ## Capabilities
 
 ### New Capabilities
 
-- `namespace-identifier-policy`：命名空间级标识符/版本号输入治理策略——输入模式（AUTO_ONLY / AUTO_WITH_OVERRIDE / MANUAL_ONLY）的裁决语义、手动标识正则校验、版本化策略（SEMVER / SEQUENTIAL / DATE）的初始版本生成与格式校验、命名空间设置页的策略配置与策略版本化管理。
+- `identifier-template-designer`：段模板模型（段类型目录与参数、顺序号作用域）、三向派生（生成/校验/反向解析与序号回填）、段规则设计器 UI、预设库与策略配置 REST。
 
 ### Modified Capabilities
 
-- `identifier-auto-generation`：模板策略新增 `{ns}`/`{type}` 占位符与前缀令牌替换、模板自分配序列号、`.` 分隔符放行；前端"自动生成/手动输入"切换由固定双选改为按命名空间输入模式条件呈现。
+- `identifier-auto-generation`：生成行为按命名空间性质分支；段模板取代扁平 TEMPLATE；UUID 收敛为内部兜底；注册请求需携带变量段值。
+- `system-initialization`：初始化必须创建注册机构关联的自有命名空间（取消跳过语义）。
+- `namespace-ui-form`：命名空间表单/设置按性质分支（性质标识；自有=段规则设计器入口与版本策略，外部=手动策略说明与可选格式校验）。
 
 ## Impact
 
-- **后端**：`Namespace` 实体新增三列（Hibernate ddl-auto 管理，方言中立）；新增 `web/service/identifier/` 包（`IdentifierInputPolicyService`、`NamespaceIdentifierPolicy`、`NamespaceIdentifierPolicyResolver`）；`ItemAdministrationService`、`ScopedIdentifierService`、`NamespaceService`、`InitWizardService` 接入策略执行；`IdentifierStrategyConfigService` / `TemplateGenerationStrategy` 占位符扩展；`IdentifierStrategyConfigRepository` 新增按命名空间查询；DTO（`NamespaceRequest`/`NamespaceResponse`/`NamespaceDetailResponse`/`InitWizardSetupRequest`）扩展策略字段。
-- **前端**：`NamespaceList.vue`（两个新页签）、`InitWizard.vue`（命名空间步骤扩展）、`ItemFormDialog.vue`（按模式联动的标识/版本控件）、`common.ts` 类型与 `zh-CN.json` 文案。
-- **删除**：`IdentifierGenerationService` 及其测试（由 `IdentifierInputPolicyService` 取代）。
-- **不影响**：注册机构/注册规范门槛、外部命名空间导入路径、federation/merge 流程、数据库方言可移植性（新列均为 JPA 注解管理）。
+- **后端**：`common-facilities/identification` 新增段模型引擎（生成/校验/解析）；`SequenceRegistry` 增加 `scope_key`；`IdentifierStrategyConfig` 新增段模板策略类型；`ScopedIdentifierService` 生成入口接受变量段值并对外部命名空间拒绝生成；`InitWizardService` 命名空间创建改必选；新增策略配置 REST。
+- **前端**：命名空间设置页按性质分支并嵌入段规则设计器；注册表单按模板动态渲染变量段输入；初始化向导命名空间步骤取消跳过。
+- **数据库**：`identifier_sequence_registry` 增加 `scope_key` 列（优先实体注解表达；如需迁移脚本，按 `db/migration/{sqlserver,sqlite,dm}/` 三方言目录提供，遵循 db-portability 规则）。
+- **关联变更**：`active-registrar-ownership` 提供"自有/外部"的会话判定依据，本变更的设置分支与生成闸门以其判定结果为输入。
+- **范围外（二期）**：段间联动约束（如选了大类后小类可选值联动）；从分类体系自动带出段值（本期明确不做）。
