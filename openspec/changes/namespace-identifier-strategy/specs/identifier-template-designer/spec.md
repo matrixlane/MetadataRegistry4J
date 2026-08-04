@@ -1,24 +1,37 @@
-# 标识模板设计器 (Identifier Template Designer)
-
-## Purpose
-
-定义基于"段"的标识生成规则模型及其可视化设计器：模板为段的有序列表，每段具有类型与参数；同一份段定义派生生成器、格式校验正则与反向解析器；内置以卫生行业为首的编排预设，供注册机构按自定义规则生成具有直观意义的业务标识符。
-
-## Requirements
+## ADDED Requirements
 
 ### Requirement: 段模板模型
 
-标识生成模板 SHALL 为段（Segment）的有序列表，以 JSON 持久化于 `IdentifierStrategyConfig.configJson`。每段 MUST 具有类型与类型化参数。段类型 MUST 支持：固定文本（LITERAL）、输入变量（VARIABLE）、顺序号（SEQUENCE）、日期（DATE）、校验位（CHECKSUM）；随机（RANDOM）为可选。分隔符 SHALL 以普通固定文本段表达，不作为独立概念。
+标识生成模板 SHALL 为段（Segment）的有序列表，以 JSON 持久化于 `IdentifierStrategyConfig.configJson`。每段 MUST 具有类型与类型化参数。段类型 MUST 支持：固定字符串（LITERAL，如自定义前缀）、元数据对象缩写（OBJECT_ABBREVIATION）、顺序号（SEQUENCE）、UUID 段（UUID）、分隔符（SEPARATOR，多种字符可选）、时间戳（TIMESTAMP）、校验位（CHECKSUM）、输入变量（VARIABLE）；随机（RANDOM）为可选。SEPARATOR 段的取值 MUST 受限于预定义分隔字符集（如 `.` `-` `_` `/` `:`）。
 
 #### Scenario: WS/T 363 编排的段表达
 
 - **WHEN** 管理员按 WS/T 363 附录 A 设计数据元标识模板
-- **THEN** 模板可表达为：LITERAL("DE") + VARIABLE(大类, pattern=\d{2}) + LITERAL(".") + VARIABLE(小类, pattern=\d{2}) + LITERAL(".") + SEQUENCE(pad=3, scopeRefs=[大类, 小类]) + LITERAL(".") + VARIABLE(附加码, default="00", pattern=\d{2})
+- **THEN** 模板可表达为：OBJECT_ABBREVIATION(数据元→DE) + VARIABLE(大类, pattern=\d{2}) + SEPARATOR(".") + VARIABLE(小类, pattern=\d{2}) + SEPARATOR(".") + SEQUENCE(pad=3, scopeRefs=[大类, 小类]) + SEPARATOR(".") + VARIABLE(附加码, default="00", pattern=\d{2})
+
+#### Scenario: 元数据对象缩写随条目类型取值
+
+- **WHEN** 同一套模板下，先注册一个数据元、再注册一个值域（映射配置为 数据元→DE、值域→CV）
+- **THEN** 数据元标识以 DE 开头（如 `DE02.01.001.00`），值域标识以 CV 开头（如 `CV02.01.001.00`）
+
+#### Scenario: 分隔符多种字符可选且取值受限
+
+- **WHEN** 管理员为 SEPARATOR 段选择字符
+- **THEN** 候选为预定义分隔字符集（`.` `-` `_` `/` `:` 等）；输入字符集以外的字符 SHALL 被拒绝
 
 #### Scenario: 混合分隔符与无分隔定长编排
 
 - **WHEN** 管理员设计含混合分隔符（如 `DE02.01-001`）或完全无分隔的定长模板
-- **THEN** 模板以固定文本段表达分隔符或省略分隔符，无需引入额外概念
+- **THEN** 模板通过组合 SEPARATOR 段（或省略之）表达，无需引入额外概念
+
+### Requirement: 段类型目录可扩展
+
+段类型目录 SHALL 以类型注册表实现，每种段类型 MUST 提供五要素：参数 schema、生成器、格式正则片段、解析片段、设计器 UI 配置面板。新增段类型 MUST NOT 改动段引擎核心，仅需新增注册项。
+
+#### Scenario: 新增组件类型
+
+- **WHEN** 后续版本需要新增一种段类型（如"机构代码"）
+- **THEN** 通过新增注册项（五要素）接入，既有段类型与模板定义不受影响
 
 ### Requirement: 顺序号段与作用域
 
@@ -55,7 +68,7 @@
 
 ### Requirement: 段规则设计器 UI
 
-命名空间设置中的段规则设计器 SHALL 提供：段块条（增删段、拖拽排序、点击编辑）、段类型调色板、类型化参数面板、实时预览（以样例值即时渲染完整标识示例）、合法性校验提示。设计器 MUST 内置 WS/T 363 数据元标识符预设，可一键载入后继续修改；预设 SHALL 为可扩展的 JSON 资源。
+命名空间设置中的段规则设计器 SHALL 提供：段块条（增删段、拖拽排序、点击编辑）、段类型调色板（固定字符串、元数据对象缩写、顺序号、UUID、分隔符、时间戳、校验位、输入变量）、类型化参数面板、实时预览（以样例值即时渲染完整标识示例）、合法性校验提示。设计器 MUST 内置 WS/T 363 数据元标识符预设，可一键载入后继续修改；预设 SHALL 为可扩展的 JSON 资源。
 
 #### Scenario: 载入 WS/T 363 预设并微调
 
