@@ -137,6 +137,8 @@ export interface ItemMetaResponse {
   version?: string;
   registrationStatus?: string;
   administeredItemId?: string;
+  registrationAuthorityId?: string;
+  registrationAuthorityName?: string;
 }
 
 export interface TextLineContextResponse {
@@ -159,9 +161,21 @@ export interface ItemRegistrationRequest {
   namespaceId?: string;
   identifier?: string;
   version?: string;
-  registrationAuthorityId?: string;
   designations?: TextLineForm[];
   definitions?: TextLineForm[];
+}
+
+// ── Active Registrar（active-registrar-ownership）───────────────────────
+
+export interface RegistrarIdentity {
+  registrarId: string;
+  registrationAuthorityId: string;
+  registrationAuthorityName?: string;
+}
+
+export interface ActiveRegistrarResponse {
+  active?: RegistrarIdentity | null;
+  identities: RegistrarIdentity[];
 }
 
 // ── Namespace DTOs ──────────────────────────────────────────────────────

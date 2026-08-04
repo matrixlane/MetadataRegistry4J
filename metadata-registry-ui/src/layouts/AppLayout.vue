@@ -6,6 +6,38 @@
         <span class="header-title">{{ $t('app.name') }}</span>
       </div>
       <div class="header-right" data-testid="header-right">
+        <el-dropdown
+          v-if="activeRegistrar.identities.length > 1"
+          trigger="click"
+          @command="switchActiveRegistrar"
+        >
+          <el-tag type="success" size="small" effect="light" round style="cursor: pointer;" data-testid="header-active-registrar">
+            {{ activeRegistrar.active?.registrationAuthorityName || '选择 Registrar 身份' }}
+            <el-icon style="margin-left: 4px;"><ArrowDown /></el-icon>
+          </el-tag>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item
+                v-for="identity in activeRegistrar.identities"
+                :key="identity.registrarId"
+                :command="identity.registrarId"
+              >
+                <el-icon v-if="identity.registrarId === activeRegistrar.active?.registrarId" style="margin-right: 4px;"><Check /></el-icon>
+                {{ identity.registrationAuthorityName || identity.registrarId }}
+              </el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
+        <el-tag
+          v-else-if="activeRegistrar.active"
+          type="success"
+          size="small"
+          effect="light"
+          round
+          data-testid="header-active-registrar"
+        >
+          {{ activeRegistrar.active.registrationAuthorityName }}
+        </el-tag>
         <el-tag v-if="auth.user" type="primary" size="small" effect="light" round style="cursor: pointer;" @click="goToProfile" data-testid="header-user-tag">
           <el-icon><UserFilled /></el-icon>
           {{ auth.user.displayName || auth.user.username }}
@@ -153,6 +185,33 @@
         <router-view />
       </main>
 
+    <!-- 活动 Registrar 身份选择（多身份用户登录后必选） -->
+    <el-dialog
+      v-model="showIdentityDialog"
+      title="选择活动 Registrar 身份"
+      :show-close="true"
+      :close-on-click-modal="false"
+      width="420px"
+    >
+      <p style="margin: 0 0 12px; font-size: 14px; line-height: 1.6;">
+        您持有多个注册机构的 Registrar 身份。注册工作将以所选活动身份进行，所注册条目将归属该身份所在的注册机构。
+      </p>
+      <el-radio-group v-model="identitySelection" style="display: flex; flex-direction: column; gap: 8px;">
+        <el-radio
+          v-for="identity in activeRegistrar.identities"
+          :key="identity.registrarId"
+          :value="identity.registrarId"
+        >
+          {{ identity.registrationAuthorityName || identity.registrarId }}
+        </el-radio>
+      </el-radio-group>
+      <template #footer>
+        <el-button type="primary" :disabled="!identitySelection" @click="confirmIdentitySelection">
+          确认
+        </el-button>
+      </template>
+    </el-dialog>
+
     <!-- 安全改密弹窗 -->
     <el-dialog
       :model-value="showChangePasswordDialog"
@@ -243,19 +302,60 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, reactive } from 'vue';
+import { ref, computed, reactive, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
-import { Reading } from '@element-plus/icons-vue';
+import { Reading, ArrowDown, Check } from '@element-plus/icons-vue';
 import type { FormInstance } from 'element-plus';
 import { ElMessage } from 'element-plus';
 import request from '@/utils/request';
+import { activeRegistrarApi } from '@/api/resources';
+import type { ActiveRegistrarResponse } from '@/types/common';
 
 const route = useRoute();
 const router = useRouter();
 const auth = useAuthStore();
 
 const collapsed = ref(false);
+
+// ── Active Registrar 身份（active-registrar-ownership）──────────────────
+const activeRegistrar = ref<ActiveRegistrarResponse>({ active: null, identities: [] });
+const showIdentityDialog = ref(false);
+const identitySelection = ref<string>('');
+
+async function loadActiveRegistrar() {
+  if (!auth.user) return;
+  try {
+    const res = await activeRegistrarApi.current();
+    activeRegistrar.value = res;
+    identitySelection.value = res.active?.registrarId || '';
+    // 多身份用户登录后需选择一个活动身份方可进行注册工作
+    if (res.identities.length > 1) {
+      showIdentityDialog.value = true;
+    }
+  } catch {
+    activeRegistrar.value = { active: null, identities: [] };
+  }
+}
+
+async function switchActiveRegistrar(registrarId: string) {
+  try {
+    const res = await activeRegistrarApi.select(registrarId);
+    activeRegistrar.value = res;
+    identitySelection.value = res.active?.registrarId || '';
+    ElMessage.success('已切换活动 Registrar 身份');
+  } catch (err: any) {
+    ElMessage.error(err?.response?.data?.message || '切换失败');
+  }
+}
+
+async function confirmIdentitySelection() {
+  if (!identitySelection.value) return;
+  await switchActiveRegistrar(identitySelection.value);
+  showIdentityDialog.value = false;
+}
+
+onMounted(loadActiveRegistrar);
 
 const activeMenu = computed(() => {
   if (route.query.group) {

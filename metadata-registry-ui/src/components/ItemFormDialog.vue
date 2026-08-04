@@ -94,20 +94,10 @@
               :placeholder="versionPlaceholder"
             />
           </el-form-item>
-          <el-form-item label="注册机构" prop="registration.registrationAuthorityId">
-            <el-select
-              v-model="form.registration.registrationAuthorityId"
-              placeholder="选择注册机构"
-              style="width: 100%;"
-              clearable
-            >
-              <el-option
-                v-for="ra in registrationAuthorities"
-                :key="ra.id"
-                :label="ra.name || ra.identifier || ra.id"
-                :value="ra.id"
-              />
-            </el-select>
+          <el-form-item label="注册机构">
+            <el-tag v-if="ownershipLabel" type="primary" effect="plain">{{ ownershipLabel }}</el-tag>
+            <el-text v-else type="warning">当前账号无活动 Registrar 身份，无法注册条目</el-text>
+            <el-text size="small" type="info" style="margin-left: 8px;">由活动 Registrar 身份决定</el-text>
           </el-form-item>
         </el-tab-pane>
 
@@ -230,7 +220,7 @@ import { Warning } from '@element-plus/icons-vue';
 import type { FormInstance, FormRules } from 'element-plus';
 import MultilingualTextEditor from './MultilingualTextEditor.vue';
 import DesignationDefinitionPairingEditor from './DesignationDefinitionPairingEditor.vue';
-import { namingConventionApi, namespaceApi, registrationAuthorityApi, pairingApi, readinessApi } from '@/api/resources';
+import { namingConventionApi, namespaceApi, activeRegistrarApi, pairingApi, readinessApi } from '@/api/resources';
 import { languageApi } from '@/api/resources';
 import { identifierStrategyApi } from '@/api/identifierStrategy';
 import type { TextLineForm, PairingForm, NamespaceDetailResponse } from '@/types/common';
@@ -239,7 +229,6 @@ interface RegistrationForm {
   namespaceId?: string;
   identifier?: string;
   version?: string;
-  registrationAuthorityId?: string;
 }
 
 interface ItemForm {
@@ -324,7 +313,11 @@ const namespaces = ref<{
 /** system-default 命名空间的 URN 方案引用（与后端 SystemDefaultNamespaceInitializer 一致） */
 const SYSTEM_DEFAULT_SCHEME = 'urn:metadata-registry:system-default';
 const raNamespaceExists = ref(true);
-const registrationAuthorities = ref<{ id: string; identifier?: string; name?: string }[]>([]);
+/** 活动 Registrar 身份所在注册机构名（创建时归属） */
+const activeRaName = ref<string | null>(null);
+/** 编辑既有条目时其后端归属注册机构名 */
+const editingRaName = ref<string | null>(null);
+const ownershipLabel = computed(() => editingRaName.value || activeRaName.value);
 const languages = ref<{ id: string; languageIdentifier?: string; languageCode?: string }[]>([]);
 const namespaceNamingConventions = ref<{ id: string; label?: string; scopeRule?: string }[]>([]);
 const namespaceMandatoryNC = ref(false);
@@ -666,17 +659,22 @@ async function loadNamespaceDetail(namespaceId: string | undefined) {
 async function loadOptions() {
   if (loaded.value) return;
   try {
-    const [nsRes, raRes, langRes] = await Promise.all([
+    const [nsRes, langRes] = await Promise.all([
       namespaceApi.list({ size: 100 }),
-      registrationAuthorityApi.list({ size: 100 }),
       languageApi.list({ size: 100 }),
     ]);
     namespaces.value = (nsRes.content || []) as any;
-    registrationAuthorities.value = (raRes.content || []) as any;
     languages.value = (langRes.content || []) as any;
     loaded.value = true;
   } catch {
     // ignore
+  }
+  // 活动 Registrar 身份决定条目归属（active-registrar-ownership）
+  try {
+    const ar = await activeRegistrarApi.current();
+    activeRaName.value = ar.active?.registrationAuthorityName || null;
+  } catch {
+    activeRaName.value = null;
   }
   // 命名空间前置门槛查询失败时默认放行（后端仍会强制校验），不阻塞对话框使用。
   try {
@@ -690,6 +688,7 @@ async function loadOptions() {
 async function open(initial?: Record<string, unknown>) {
   reset();
   await loadOptions();
+  editingRaName.value = (initial?.meta as any)?.registrationAuthorityName || null;
   if (initial) {
     Object.assign(form, {
       ...initial,
@@ -770,7 +769,6 @@ function normalizeRegistration(
     namespaceId: reg.namespaceId || (meta?.namespaceId as string) || undefined,
     identifier: reg.identifier || (meta?.identifier as string) || undefined,
     version: reg.version || (meta?.version as string) || undefined,
-    registrationAuthorityId: reg.registrationAuthorityId || undefined,
   };
 }
 
@@ -864,7 +862,6 @@ async function handleSubmitInternal() {
           namespaceId: form.registration.namespaceId || null,
           identifier: identifierAutoInEffect.value ? null : form.registration.identifier || '',
           version: versionAutoInEffect.value ? null : form.registration.version || '',
-          registrationAuthorityId: form.registration.registrationAuthorityId || null,
           variables: identifierAutoInEffect.value && templateVariables.value.length > 0
             ? { ...variableValues }
             : undefined,

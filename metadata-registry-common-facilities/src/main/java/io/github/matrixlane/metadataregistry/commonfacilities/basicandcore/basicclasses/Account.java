@@ -61,6 +61,13 @@ public class Account {
     @Column(name = "temp_password_used", nullable = false)
     private boolean tempPasswordUsed = false;
 
+    /**
+     * 当前激活的 Registrar 身份（active-registrar-ownership）。
+     * 为空时按 ActiveRegistrarService 的回退规则解析（首个有效绑定）。
+     */
+    @Column(name = "active_registrar_id", length = 36)
+    private UUID activeRegistrarId;
+
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();

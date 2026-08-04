@@ -13,6 +13,7 @@ import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefi
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifiedItem;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.ScopedIdentifier;
+import io.github.matrixlane.metadataregistry.commonfacilities.identification.Versions;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.AdministeredItem;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationAuthority;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationState;
@@ -33,6 +34,7 @@ import io.github.matrixlane.metadataregistry.web.repository.NamespaceRepository;
 import io.github.matrixlane.metadataregistry.web.repository.NamingConventionRepository;
 import io.github.matrixlane.metadataregistry.web.repository.ReferenceDocumentRepository;
 import io.github.matrixlane.metadataregistry.web.repository.RegistrationAuthorityRepository;
+import io.github.matrixlane.metadataregistry.web.federation.GlobalNamespaceService;
 import io.github.matrixlane.metadataregistry.web.seed.SystemDefaultNamespaceInitializer;
 import io.github.matrixlane.metadataregistry.web.service.namingconvention.NamingConventionEngine;
 import io.github.matrixlane.metadataregistry.web.service.namingconvention.NamingConventionRuleResult;
@@ -70,6 +72,7 @@ public class ItemAdministrationService {
     private final IdentifierInputPolicyService identifierInputPolicyService;
     private final NamingConventionRepository namingConventionRepository;
     private final NamespaceConstraintValidator namespaceConstraintValidator;
+    private final ActiveRegistrarService activeRegistrarService;
 
     public void applyDesignations(Item item, List<TextLine> designations) {
         applyDesignations(item, designations, null);
@@ -260,12 +263,21 @@ public class ItemAdministrationService {
     }
 
     public AdministeredItem ensureAdministeredItem(Item item, ItemRegistrationRequest req) {
+        return ensureAdministeredItem(item, req, null);
+    }
+
+    /**
+     * @param explicitAuthority 系统/联邦路径显式指定归属注册机构（如合并时 RAI
+     *                          匹配的目的方机构、种子数据）；为 null 时按活动
+     *                          Registrar 身份推导。API 请求体不再接受归属字段。
+     */
+    public AdministeredItem ensureAdministeredItem(Item item, ItemRegistrationRequest req,
+                                                   RegistrationAuthority explicitAuthority) {
         if (req == null) {
             return null;
         }
-        AdministeredItem ai = (item.getIdentifiedItem() instanceof AdministeredItem existing)
-                ? existing
-                : new AdministeredItem(item);
+        AdministeredItem existing = (item.getIdentifiedItem() instanceof AdministeredItem ai0) ? ai0 : null;
+        AdministeredItem ai = existing != null ? existing : new AdministeredItem(item);
 
         Namespace ns = req.namespaceId() == null ? null
                 : namespaceRepository.findById(req.namespaceId())
@@ -288,23 +300,45 @@ public class ItemAdministrationService {
             si.setIdentifiedItem(ai);
             ai.getScopedIdentifiers().add(si);
         } else {
-            ScopedIdentifier si = ai.getScopedIdentifiers().get(0);
+            ScopedIdentifier si = selectEditableIdentifier(ai, ns);
             String identifier = req.identifier();
-            if (identifier != null && !identifier.isBlank()) {
+            if (identifier != null && !identifier.isBlank() && ai.getScopedIdentifiers().size() == 1) {
                 si.setIdentifier(identifier);
             }
-            if (req.version() != null && !req.version().isBlank()) {
-                identifierInputPolicyService.validateManualVersion(ns, req.version());
-                si.setVersion(req.version());
+            // 版本（registry-merge-strategy D4/D5）：本地编辑使目的方命名空间标识
+            // 版本递增，合并冲突检测依赖该机制。请求显式携带不同版本时尊重用户
+            // 指定（经命名空间输入模式与版本策略校验，namespace-identifier-strategy）；
+            // 未携带或与现行版本相同（前端回显）时按命名空间版本策略递增。
+            // 联邦合并路径不经由此处，版本由合并执行器显式维护。
+            String requestedVersion = req.version();
+            if (requestedVersion != null && !requestedVersion.isBlank()
+                    && !requestedVersion.equals(si.getVersion())) {
+                identifierInputPolicyService.validateManualVersion(ns, requestedVersion);
+                si.setVersion(requestedVersion);
+            } else {
+                si.setVersion(Versions.bump(si.getVersion(), ns != null ? ns.getVersioningPolicy() : null));
             }
-            si.setNamespace(ns);
+            if (ai.getScopedIdentifiers().size() == 1 && ns != null) {
+                // 单标识条目维持既有行为；多标识（联邦迁移双标识）条目不重挂命名空间，
+                // 避免改写来源命名空间下的标识（合并基）
+                si.setNamespace(ns);
+            }
         }
 
-        if (req.registrationAuthorityId() != null) {
-            RegistrationAuthority ra = registrationAuthorityRepository.findById(req.registrationAuthorityId())
-                    .orElseThrow(() -> new ResourceNotFoundException(
-                            "RegistrationAuthority", req.registrationAuthorityId()));
-            ai.setRegistrationAuthority(ra);
+        // 所有权（active-registrar-ownership）：
+        // - 新建：归属由活动 Registrar 身份推导（或系统/联邦路径显式指定），
+        //   所注册条目一定关联活动身份所在的注册机构；
+        // - 既有：归属冻结，绝不改写；且当前用户必须以归属机构的 Registrar
+        //   身份为活动身份方可修改。
+        if (existing == null) {
+            RegistrationAuthority owner = explicitAuthority != null
+                    ? explicitAuthority
+                    : resolveOwnershipForCreate(ns);
+            if (owner != null) {
+                ai.setRegistrationAuthority(owner);
+            }
+        } else if (explicitAuthority == null) {
+            activeRegistrarService.assertCanModify(ai);
         }
 
         if (ai.getRegistrationState() == null) {
@@ -320,6 +354,52 @@ public class ItemAdministrationService {
 
         item.setIdentifiedItem(ai);
         return ai;
+    }
+
+    /**
+     * 更新路径定位可编辑的标识：优先请求命名空间下的标识；多标识条目其次取
+     * 注册机构自有命名空间下的标识，避免触碰来源命名空间标识（合并基）。
+     */
+    private ScopedIdentifier selectEditableIdentifier(AdministeredItem ai, Namespace ns) {
+        if (ns != null && ns.getId() != null) {
+            var match = ai.getScopedIdentifiers().stream()
+                    .filter(s -> s.getNamespace() != null && ns.getId().equals(s.getNamespace().getId()))
+                    .findFirst();
+            if (match.isPresent()) {
+                return match.get();
+            }
+        }
+        if (ai.getScopedIdentifiers().size() > 1) {
+            var raOwn = ai.getScopedIdentifiers().stream()
+                    .filter(s -> s.getNamespace() != null && s.getNamespace().getRegistrationAuthority() != null)
+                    .findFirst();
+            if (raOwn.isPresent()) {
+                return raOwn.get();
+            }
+        }
+        return ai.getScopedIdentifiers().get(0);
+    }
+
+    /**
+     * 新建条目的归属推导：当前账号必须持有活动 Registrar 身份（非 Registrar
+     * 没有权限注册 Administered_Item）；注册机构自有命名空间所属机构必须与
+     * 活动身份所在机构一致（防止跨机构写入）。无认证（种子/系统路径）时返回
+     * null，维持既有行为。
+     */
+    private RegistrationAuthority resolveOwnershipForCreate(Namespace ns) {
+        if (activeRegistrarService.currentAccountIdOrNull() == null) {
+            return null;
+        }
+        var active = activeRegistrarService.resolveForCurrentUser()
+                .orElseThrow(() -> new BusinessException(ApiCodes.VALIDATION_FAILED,
+                        "当前账号没有 Registrar 身份，无法注册 Administered_Item；请先被指派为 Registrar"));
+        RegistrationAuthority activeRa = active.getRegistrationAuthority();
+        if (ns != null && ns.getRegistrationAuthority() != null
+                && !ns.getRegistrationAuthority().getId().equals(activeRa.getId())) {
+            throw new BusinessException(ApiCodes.VALIDATION_FAILED,
+                    "目标命名空间属于其他注册机构，请先将活动 Registrar 身份切换为该机构的身份");
+        }
+        return activeRa;
     }
 
     /**
@@ -350,6 +430,8 @@ public class ItemAdministrationService {
 
         UUID administeredItemId = null;
         RegistrationStatus registrationStatus = null;
+        UUID registrationAuthorityId = null;
+        String registrationAuthorityName = null;
         UUID nsId = null;
         String nsLabel = null;
         String identifier = null;
@@ -363,11 +445,18 @@ public class ItemAdministrationService {
             administeredItemId = (UUID) metaRow[0];
             registrationStatus = (RegistrationStatus) metaRow[1];
         }
+        var administeredItem = administeredItemRepository.findByItem_Id(item.getId()).orElse(null);
+        if (administeredItem != null && administeredItem.getRegistrationAuthority() != null) {
+            registrationAuthorityId = administeredItem.getRegistrationAuthority().getId();
+            var raNameList = administeredItem.getRegistrationAuthority().getName();
+            registrationAuthorityName = raNameList == null ? null
+                    : raNameList.stream().findFirst().map(n -> n.getValue()).orElse(null);
+        }
 
         // Try to query ScopedIdentifier by itemId
         List<ScopedIdentifier> siList = scopedIdentifierRepository.findByItemId(item.getId());
         if (siList != null && !siList.isEmpty()) {
-            ScopedIdentifier si = siList.get(0);
+            ScopedIdentifier si = preferPrimaryIdentifier(siList);
             identifier = si.getIdentifier();
             version = si.getVersion();
             if (si.getNamespace() != null) {
@@ -395,7 +484,26 @@ public class ItemAdministrationService {
                 identifier,
                 version,
                 registrationStatus,
-                administeredItemId);
+                administeredItemId,
+                registrationAuthorityId,
+                registrationAuthorityName);
+    }
+
+    /**
+     * 条目主标识偏好：优先注册机构自有命名空间下的标识（本地编辑与展示的
+     * 主标识）；其次非全局、非迁入副本命名空间下的标识。联邦迁移后的双标识
+     * 条目据此展示目的方标识而非来源标识。
+     */
+    private ScopedIdentifier preferPrimaryIdentifier(List<ScopedIdentifier> siList) {
+        return siList.stream()
+                .filter(s -> s.getNamespace() != null && s.getNamespace().getRegistrationAuthority() != null)
+                .findFirst()
+                .orElseGet(() -> siList.stream()
+                        .filter(s -> s.getNamespace() != null
+                                && !GlobalNamespaceService.isGlobalNamespace(s.getNamespace())
+                                && !GlobalNamespaceService.isImportedNamespace(s.getNamespace()))
+                        .findFirst()
+                        .orElse(siList.get(0)));
     }
 
     public List<TextLineResponse> mapDesignations(Item item) {

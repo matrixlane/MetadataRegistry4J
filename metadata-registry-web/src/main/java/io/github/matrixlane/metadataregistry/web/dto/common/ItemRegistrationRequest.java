@@ -11,7 +11,6 @@ public record ItemRegistrationRequest(
         UUID namespaceId,
         String identifier,
         String version,
-        UUID registrationAuthorityId,
         @NotEmpty(message = "designations 不能为空") @Valid
         List<TextLine> designations,
         @Valid
@@ -19,10 +18,11 @@ public record ItemRegistrationRequest(
         /** Segment-template VARIABLE values supplied by the registration form. */
         Map<String, String> variables) {
 
-    /** Backward-compatible constructor without segment variables. */
+    /** Backward-compatible constructor without segment variables. 
+     *  归属注册机构不在 API 请求体中携带（active-registrar-ownership）：
+     *  归属由活动 Registrar 身份推导，或系统/联邦路径显式指定。 */
     public ItemRegistrationRequest(UUID namespaceId, String identifier, String version,
-                                   UUID registrationAuthorityId,
                                    List<TextLine> designations, List<TextLine> definitions) {
-        this(namespaceId, identifier, version, registrationAuthorityId, designations, definitions, null);
+        this(namespaceId, identifier, version, designations, definitions, null);
     }
 }

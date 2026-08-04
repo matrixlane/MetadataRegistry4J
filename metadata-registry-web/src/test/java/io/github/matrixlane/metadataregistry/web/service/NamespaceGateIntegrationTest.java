@@ -125,7 +125,7 @@ class NamespaceGateIntegrationTest {
                 null,
                 List.of(new TextLine(languageId, "患者姓名", null, null, null, true)),
                 null,
-                new ItemRegistrationRequest(namespaceId, "DE-GATE-001", "1.0.0", null, List.of(), List.of())
+                new ItemRegistrationRequest(namespaceId, "DE-GATE-001", "1.0.0", List.of(), List.of())
         );
     }
 }

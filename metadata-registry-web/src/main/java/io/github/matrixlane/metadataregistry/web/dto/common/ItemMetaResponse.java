@@ -14,5 +14,7 @@ public record ItemMetaResponse(
         String identifier,
         String version,
         RegistrationStatus registrationStatus,
-        UUID administeredItemId) {
+        UUID administeredItemId,
+        UUID registrationAuthorityId,
+        String registrationAuthorityName) {
 }
