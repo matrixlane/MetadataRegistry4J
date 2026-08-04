@@ -1,7 +1,7 @@
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **MetadataRegistry4j** (19397 symbols, 45907 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **MetadataRegistry4j** (18895 symbols, 45170 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 
@@ -84,4 +84,29 @@ This project is indexed by GitNexus as **MetadataRegistry4j** (19397 symbols, 45
 
  - **首选来源仍是 Milvus 向量检索**；仅当 Milvus 不可用，或经过 Milvus 查询后确认无法满足当前需求时，才回退到该目录下的 PDF 文件。
  - 如需向 Milvus 重新导入、补全缺失部分或校验向量来源，也优先使用该目录下的 PDF 文件。
- <!-- iso11179-mdr-requirements:end -->
+<!-- iso11179-mdr-requirements:end -->
+
+<!-- openspec:start -->
+# OpenSpec 流程强制启用规则
+
+本项目默认采用 spec-first 方式推进功能开发。当任务涉及以下内容时，**必须**先使用 `openspec-feature-workflow` 完成 OpenSpec 提案、设计、规范与任务拆分，再进入实现：
+
+1. 新增业务功能或新 API / 新模块
+2. 数据模型、元模型、注册项结构变更
+3. 与 ISO/IEC 11179 标准对应关系有关的需求澄清或改动
+4. 跨模块/跨版本的 federation、merge request、导入导出机制变更
+5. 涉及 SQLite / SQL Server / 达梦 多种方言的 schema 或迁移脚本变更
+
+## 豁免场景（无需 OpenSpec）
+
+- 纯 bug 修复、测试补充、日志/注释/文案调整
+- 不影响业务行为的代码重构（如方法重命名、提取工具类）
+- 配置项默认值、环境变量、依赖版本号的微调
+- 用户明确说“先直接实现，不用走 OpenSpec”
+
+## 执行要求
+
+- 若任务命中强制范围，先读取 `r1/superpowers-openspec-team-skills/team-skills/openspec-feature-workflow/SKILL.md`
+- 在启动实现前，向用户确认 OpenSpec 产出（proposal / design / specs / tasks）已完成
+- 如用户对范围有异议，以用户当次明确指令为准
+<!-- openspec:end -->

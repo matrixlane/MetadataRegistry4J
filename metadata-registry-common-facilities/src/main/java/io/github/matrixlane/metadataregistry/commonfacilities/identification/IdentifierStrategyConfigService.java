@@ -104,7 +104,8 @@ public class IdentifierStrategyConfigService {
         long start = seqConfig != null ? seqConfig.getStart() : 1;
         int increment = seqConfig != null ? seqConfig.getIncrementBy() : 1;
         int pad = seqConfig != null ? seqConfig.getPad() : 6;
-        String prefix = seqConfig != null ? seqConfig.resolvePrefix() : "";
+        String prefix = resolvePrefixTokens(
+                seqConfig != null ? seqConfig.resolvePrefix() : "", namespace, context);
 
         long nextSeq = sequenceProvider.getNextValue(namespace, start, increment, pad, prefix);
 
@@ -127,12 +128,56 @@ public class IdentifierStrategyConfigService {
             return registry.getStrategyInstance("UUID").generate(namespace);
         }
 
-        long seq = context != null ? context.getSequenceNumber() : 0;
+        long seq;
+        if (context != null && context.getSequenceNumber() > 0) {
+            seq = context.getSequenceNumber();
+        } else if (tmplConfig.getTemplate().contains("{seq")) {
+            // Allocate from the namespace sequence registry (pessimistic lock)
+            seq = sequenceProvider.getNextValue(namespace, 1, 1, tmplConfig.getPad(), "");
+        } else {
+            seq = 0;
+        }
 
         TemplateGenerationStrategy.TemplateContext tmplCtx =
                 new TemplateGenerationStrategy.TemplateContext(seq, tmplConfig.getPrefix());
+        tmplCtx.setNamespacePrefix(namespace != null && namespace.getShorthandPrefix() != null
+                ? namespace.getShorthandPrefix() : "");
+        tmplCtx.setItemType(itemTypeAbbreviation(context != null ? context.getItemType() : null));
 
         return TemplateGenerationStrategy.generateFromTemplate(tmplConfig.getTemplate(), tmplCtx);
+    }
+
+    /**
+     * Substitutes {ns} (namespace shorthand prefix) and {type} (item type
+     * abbreviation) tokens in a configured prefix string.
+     */
+    private String resolvePrefixTokens(String prefix, Namespace namespace, GenerationContext context) {
+        if (prefix == null || prefix.isEmpty()) {
+            return "";
+        }
+        String resolved = prefix.replace("{ns}",
+                namespace != null && namespace.getShorthandPrefix() != null
+                        ? namespace.getShorthandPrefix() : "");
+        return resolved.replace("{type}",
+                itemTypeAbbreviation(context != null ? context.getItemType() : null));
+    }
+
+    /**
+     * Derives an item type abbreviation from a class simple name by taking its
+     * uppercase letters: DataElement → DE, DataElementConcept → DEC,
+     * ValueDomain → VD. Returns empty string for null/blank input.
+     */
+    static String itemTypeAbbreviation(String classSimpleName) {
+        if (classSimpleName == null || classSimpleName.isBlank()) {
+            return "";
+        }
+        StringBuilder sb = new StringBuilder();
+        for (char c : classSimpleName.toCharArray()) {
+            if (Character.isUpperCase(c)) {
+                sb.append(c);
+            }
+        }
+        return sb.toString();
     }
 
     /**
@@ -152,11 +197,14 @@ public class IdentifierStrategyConfigService {
     public static class GenerationContext {
         private long sequenceNumber;
         private String prefix;
+        private String itemType;
 
         public long getSequenceNumber() { return sequenceNumber; }
         public void setSequenceNumber(long sequenceNumber) { this.sequenceNumber = sequenceNumber; }
         public String getPrefix() { return prefix; }
         public void setPrefix(String prefix) { this.prefix = prefix; }
+        public String getItemType() { return itemType; }
+        public void setItemType(String itemType) { this.itemType = itemType; }
 
         public static GenerationContext ofSeq(long seq) {
             GenerationContext ctx = new GenerationContext();
@@ -167,6 +215,12 @@ public class IdentifierStrategyConfigService {
         public static GenerationContext ofPrefix(String prefix) {
             GenerationContext ctx = new GenerationContext();
             ctx.prefix = prefix;
+            return ctx;
+        }
+
+        public static GenerationContext ofItemType(String itemType) {
+            GenerationContext ctx = new GenerationContext();
+            ctx.itemType = itemType;
             return ctx;
         }
     }

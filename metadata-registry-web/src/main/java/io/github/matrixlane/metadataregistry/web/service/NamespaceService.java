@@ -4,16 +4,21 @@ import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basic
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.Sign;
 import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.NamingConvention;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace;
+import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifierStrategyConfig;
 import io.github.matrixlane.metadataregistry.web.common.ApiCodes;
 import io.github.matrixlane.metadataregistry.web.common.BusinessException;
 import io.github.matrixlane.metadataregistry.web.common.ResourceNotFoundException;
+import io.github.matrixlane.metadataregistry.web.config.IdentifierStrategyLoader;
 import io.github.matrixlane.metadataregistry.web.dto.namespace.NamespaceDetailResponse;
 import io.github.matrixlane.metadataregistry.web.dto.namespace.NamespaceRequest;
 import io.github.matrixlane.metadataregistry.web.dto.namespace.NamespaceResponse;
 import io.github.matrixlane.metadataregistry.web.dto.namespace.NamespaceWizardRequest;
+import io.github.matrixlane.metadataregistry.web.repository.IdentifierStrategyConfigRepository;
 import io.github.matrixlane.metadataregistry.web.repository.NamingConventionRepository;
 import io.github.matrixlane.metadataregistry.web.repository.NamespaceRepository;
 import io.github.matrixlane.metadataregistry.web.repository.OrganizationRepository;
+import io.github.matrixlane.metadataregistry.web.service.identifier.NamespaceIdentifierPolicy;
+import io.github.matrixlane.metadataregistry.web.service.identifier.NamespaceIdentifierPolicyResolver;
 import io.github.matrixlane.metadataregistry.web.service.namespace.NamespaceConstraintValidator;
 import io.github.matrixlane.metadataregistry.web.util.ItemNamingHelper;
 import io.github.matrixlane.metadataregistry.web.dto.namespace.DeletionCheckResponse;
@@ -40,6 +45,12 @@ public class NamespaceService {
     private final NamingConventionRepository namingConventionRepository;
     private final ItemAdministrationService itemAdministrationService;
     private final NamespaceConstraintValidator namespaceConstraintValidator;
+    private final NamespaceIdentifierPolicyResolver policyResolver;
+    private final IdentifierStrategyConfigRepository strategyConfigRepository;
+    private final IdentifierStrategyLoader strategyLoader;
+
+    private static final com.fasterxml.jackson.databind.ObjectMapper JSON =
+            new com.fasterxml.jackson.databind.ObjectMapper();
 
     /**
      * Create namespace using wizard request with full ISO 11179-3 attributes.
@@ -90,14 +101,18 @@ public class NamespaceService {
         Namespace entity = new Namespace();
         applyRequest(entity, request);
         namespaceConstraintValidator.validateNamespace(entity);
-        return toResponse(repository.save(entity));
+        Namespace saved = repository.save(entity);
+        applyStrategyConfig(saved, request);
+        return toResponse(saved);
     }
 
     public NamespaceResponse update(UUID id, NamespaceRequest request) {
         Namespace entity = loadOrThrow(id);
         applyRequest(entity, request);
         namespaceConstraintValidator.validateNamespace(entity);
-        return toResponse(repository.save(entity));
+        Namespace saved = repository.save(entity);
+        applyStrategyConfig(saved, request);
+        return toResponse(saved);
     }
 
     public void delete(UUID id) {
@@ -137,6 +152,20 @@ public class NamespaceService {
         }
         if (request.oneItemPerNameIndicator() != null) {
             entity.setOneItemPerNameIndicator(request.oneItemPerNameIndicator());
+        }
+        // Only touch policy fields when the caller supplies them; requests
+        // omitting them leave existing settings untouched.
+        if (request.identifierInputMode() != null) {
+            entity.setIdentifierInputMode(request.identifierInputMode());
+        }
+        if (request.versionInputMode() != null) {
+            entity.setVersionInputMode(request.versionInputMode());
+        }
+        if (request.versioningPolicy() != null) {
+            entity.setVersioningPolicy(request.versioningPolicy());
+        }
+        if (request.manualIdentifierPattern() != null) {
+            entity.setManualIdentifierPattern(request.manualIdentifierPattern());
         }
 
         itemAdministrationService.applyDesignations(entity, request.designations());
@@ -193,6 +222,103 @@ public class NamespaceService {
         entity.getNamingConventions().addAll(conventions);
     }
 
+    /**
+     * Upserts the namespace's identifier generation strategy config
+     * (UUID / SEQUENCE / TEMPLATE). Only invoked when the request carries the
+     * {@code identifierStrategy} field; omitted requests leave existing
+     * configs untouched. Publishes a new version row, disables previous
+     * PUBLISHED versions, and refreshes the in-memory strategy registry.
+     */
+    private void applyStrategyConfig(Namespace entity, NamespaceRequest request) {
+        String type = request.identifierStrategy();
+        if (type == null) {
+            return;
+        }
+        List<IdentifierStrategyConfig> existing =
+                strategyConfigRepository.findByNamespaceIdOrderByVersionDesc(entity.getId());
+        for (IdentifierStrategyConfig c : existing) {
+            if (c.getStatus() == IdentifierStrategyConfig.StrategyStatus.PUBLISHED) {
+                c.disable();
+                strategyConfigRepository.save(c);
+            }
+        }
+        if (!type.isBlank() && !"UUID".equalsIgnoreCase(type)) {
+            int nextVersion = existing.isEmpty() ? 1 : existing.get(0).getVersion() + 1;
+            IdentifierStrategyConfig config = new IdentifierStrategyConfig(type.toUpperCase());
+            config.setNamespace(entity);
+            config.setVersion(nextVersion);
+            config.setConfigJson(buildConfigJson(type.toUpperCase(), request));
+            config.setCreatedAt(java.time.LocalDateTime.now());
+            config.setCreatedBy("namespace-settings");
+            config.setIsGlobalDefault(false);
+            config.publish();
+            strategyConfigRepository.save(config);
+        }
+        strategyLoader.refreshRegistry();
+    }
+
+    private String buildConfigJson(String type, NamespaceRequest request) {
+        try {
+            if ("SEQUENCE".equals(type)) {
+                return JSON.writeValueAsString(java.util.Map.of(
+                        "prefix", request.strategyPrefix() != null ? request.strategyPrefix() : "",
+                        "start", request.strategySeqStart() != null ? request.strategySeqStart() : 1L,
+                        "incrementBy", 1,
+                        "pad", request.strategySeqPad() != null ? request.strategySeqPad() : 6));
+            }
+            if ("TEMPLATE".equals(type)) {
+                return JSON.writeValueAsString(java.util.Map.of(
+                        "template", request.strategyTemplate() != null ? request.strategyTemplate() : "{prefix}-{seq:4}",
+                        "prefix", request.strategyPrefix() != null ? request.strategyPrefix() : "",
+                        "pad", request.strategySeqPad() != null ? request.strategySeqPad() : 4));
+            }
+        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+            throw new BusinessException(ApiCodes.VALIDATION_FAILED, "策略配置序列化失败: " + e.getMessage());
+        }
+        return "{}";
+    }
+
+    /**
+     * Reads the namespace's currently effective strategy config for response
+     * mapping. Returns strategy type UUID with null params when none exists
+     * (built-in UUID fallback).
+     */
+    private StrategyConfigView strategyView(Namespace entity) {
+        List<IdentifierStrategyConfig> configs =
+                strategyConfigRepository.findByNamespaceIdOrderByVersionDesc(entity.getId());
+        IdentifierStrategyConfig active = configs.stream()
+                .filter(IdentifierStrategyConfig::isEffective)
+                .findFirst()
+                .orElse(null);
+        if (active == null) {
+            return new StrategyConfigView("UUID", null, null, null, null);
+        }
+        String prefix = null;
+        String template = null;
+        Long start = null;
+        Integer pad = null;
+        try {
+            if (active.getConfigJson() != null && !active.getConfigJson().isBlank()) {
+                var map = JSON.readValue(active.getConfigJson(), java.util.Map.class);
+                prefix = (String) map.get("prefix");
+                template = (String) map.get("template");
+                if (map.get("start") instanceof Number n) {
+                    start = n.longValue();
+                }
+                if (map.get("pad") instanceof Number n) {
+                    pad = n.intValue();
+                }
+            }
+        } catch (Exception e) {
+            // Tolerate dirty config JSON: expose type only
+        }
+        return new StrategyConfigView(active.getStrategyType(), prefix, template, start, pad);
+    }
+
+    private record StrategyConfigView(String type, String prefix, String template,
+                                      Long start, Integer pad) {
+    }
+
     private NamespaceResponse toResponse(Namespace entity) {
         Organization namingAuthority = entity.getNamingAuthority();
         String namingAuthorityName = namingAuthority == null || namingAuthority.getName().isEmpty()
@@ -200,6 +326,8 @@ public class NamespaceService {
         List<UUID> namingConventionIds = entity.getNamingConventions().stream()
                 .map(NamingConvention::getId)
                 .toList();
+        NamespaceIdentifierPolicy policy = policyResolver.resolve(entity);
+        StrategyConfigView strategy = strategyView(entity);
         return new NamespaceResponse(
                 entity.getId(),
                 ItemNamingHelper.preferredDesignation(entity),
@@ -213,7 +341,16 @@ public class NamespaceService {
                 entity.getMandatoryNamingConventionIndicator(),
                 namingConventionIds,
                 entity.getOneNamePerItemIndicator(),
-                entity.getOneItemPerNameIndicator());
+                entity.getOneItemPerNameIndicator(),
+                policy.inputMode().name(),
+                policy.versionInputMode().name(),
+                policy.versioningPolicy().name(),
+                policy.manualIdentifierPattern(),
+                strategy.type(),
+                strategy.prefix(),
+                strategy.template(),
+                strategy.start(),
+                strategy.pad());
     }
 
     private NamespaceDetailResponse toDetailResponse(Namespace entity) {
@@ -223,6 +360,8 @@ public class NamespaceService {
         List<UUID> namingConventionIds = entity.getNamingConventions().stream()
                 .map(NamingConvention::getId)
                 .toList();
+        NamespaceIdentifierPolicy policy = policyResolver.resolve(entity);
+        StrategyConfigView strategy = strategyView(entity);
 
         return new NamespaceDetailResponse(
                 entity.getId(),
@@ -236,7 +375,16 @@ public class NamespaceService {
                 entity.getMandatoryNamingConventionIndicator(),
                 namingConventionIds,
                 entity.getOneNamePerItemIndicator(),
-                entity.getOneItemPerNameIndicator());
+                entity.getOneItemPerNameIndicator(),
+                policy.inputMode().name(),
+                policy.versionInputMode().name(),
+                policy.versioningPolicy().name(),
+                policy.manualIdentifierPattern(),
+                strategy.type(),
+                strategy.prefix(),
+                strategy.template(),
+                strategy.start(),
+                strategy.pad());
     }
 
     private void validateNamingAuthorityRequired(UUID namingAuthorityId) {

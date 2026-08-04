@@ -22,6 +22,8 @@ import java.util.regex.Pattern;
  *   <li>{@code {ss}} - current second</li>
  *   <li>{@code {uuid}} - random UUID (short form, 8 hex chars)</li>
  *   <li>{@code {prefix}} - literal prefix field value</li>
+ *   <li>{@code {ns}} - namespace shorthand prefix (shorthand_prefix)</li>
+ *   <li>{@code {type}} - registered item type abbreviation (e.g. DataElement → DE)</li>
  * </ul>
  *
  * <p>Configuration JSON:
@@ -34,23 +36,24 @@ import java.util.regex.Pattern;
  * </pre>
  *
  * <p>Security: Template is validated against a whitelist pattern to prevent injection.
- * Allowed characters: alphanumeric, {@code { } : - _} only.
+ * Allowed characters: alphanumeric, separators {@code - _ .} and placeholder
+ * characters {@code { } :}.
  */
 public class TemplateGenerationStrategy implements IdentifierGenerationStrategy {
 
     /**
      * Whitelist pattern for template security.
-     * Only allows: letters, digits, spaces, and template placeholder characters { } : - _
+     * Only allows: letters, digits, spaces, separators - _ . and placeholder characters { } :
      */
     private static final Pattern TEMPLATE_WHITELIST = Pattern.compile(
-            "^[a-zA-Z0-9\\s\\{\\}\\:\\-\\_]+$"
+            "^[a-zA-Z0-9\\s\\{\\}\\:\\-\\_\\.]+$"
     );
 
     /**
      * Placeholder pattern: {placeholder} or {placeholder:args}
      */
     private static final Pattern PLACEHOLDER_PATTERN = Pattern.compile(
-            "\\{(yyyyMM|yyyy|MM|dd|HH|mm|ss|uuid|seq(?:\\:\\d+)?|prefix)\\}"
+            "\\{(yyyyMM|yyyy|MM|dd|HH|mm|ss|uuid|seq(?:\\:\\d+)?|prefix|ns|type)\\}"
     );
 
     @Override
@@ -124,11 +127,19 @@ public class TemplateGenerationStrategy implements IdentifierGenerationStrategy 
             if (context.getPrefix() != null) {
                 result = result.replace("{prefix}", context.getPrefix());
             }
+
+            // Handle {ns} (namespace shorthand prefix) and {type} (item type abbreviation)
+            result = result.replace("{ns}",
+                    context.getNamespacePrefix() != null ? context.getNamespacePrefix() : "");
+            result = result.replace("{type}",
+                    context.getItemType() != null ? context.getItemType() : "");
         } else {
             // Remove unresolvable placeholders if no context
             result = result.replace("{seq}", "0000");
             result = result.replaceAll("\\{seq\\:\\d+\\}", "0000");
             result = result.replace("{prefix}", "");
+            result = result.replace("{ns}", "");
+            result = result.replace("{type}", "");
         }
 
         return result;
@@ -140,6 +151,8 @@ public class TemplateGenerationStrategy implements IdentifierGenerationStrategy 
     public static class TemplateContext {
         private long sequenceNumber;
         private String prefix;
+        private String namespacePrefix;
+        private String itemType;
         private int defaultPad = 4;
 
         public TemplateContext() {}
@@ -153,6 +166,10 @@ public class TemplateGenerationStrategy implements IdentifierGenerationStrategy 
         public void setSequenceNumber(long sequenceNumber) { this.sequenceNumber = sequenceNumber; }
         public String getPrefix() { return prefix; }
         public void setPrefix(String prefix) { this.prefix = prefix; }
+        public String getNamespacePrefix() { return namespacePrefix; }
+        public void setNamespacePrefix(String namespacePrefix) { this.namespacePrefix = namespacePrefix; }
+        public String getItemType() { return itemType; }
+        public void setItemType(String itemType) { this.itemType = itemType; }
         public int getDefaultPad() { return defaultPad; }
         public void setDefaultPad(int defaultPad) { this.defaultPad = defaultPad; }
     }

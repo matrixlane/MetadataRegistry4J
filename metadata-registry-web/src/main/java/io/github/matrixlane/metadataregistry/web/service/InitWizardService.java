@@ -206,10 +206,17 @@ public class InitWizardService {
             ns.setNamingAuthority(ra);
             ns.setVersioningPolicy(request.versionPolicy() != null && !request.versionPolicy().isBlank()
                     ? request.versionPolicy() : "SEMVER");
+            String identifierInputMode = normalizeInputMode(request.identifierInputMode());
+            String versionInputMode = normalizeInputMode(request.versionInputMode());
+            ns.setIdentifierInputMode(identifierInputMode);
+            ns.setVersionInputMode(versionInputMode);
 
             Namespace nsSaved = namespaceRepository.save(ns);
 
-            createNamespaceStrategyConfig(nsSaved, request);
+            // MANUAL_ONLY 命名空间禁用自动生成，不创建策略配置
+            if (!"MANUAL_ONLY".equals(identifierInputMode)) {
+                createNamespaceStrategyConfig(nsSaved, request);
+            }
 
             ra.setNamespace(nsSaved);
             registrationAuthorityRepository.save(ra);
@@ -231,7 +238,7 @@ public class InitWizardService {
     }
 
     /**
-     * 为初始化创建的默认命名空间生成命名空间级标识生成策略配置
+    * 为初始化创建的默认命名空间生成命名空间级标识生成策略配置
      * （PUBLISHED、version=1、即生效），并刷新策略注册表使其立即可用。
      */
     private void createNamespaceStrategyConfig(Namespace ns, InitWizardSetupRequest request) {
@@ -240,14 +247,21 @@ public class InitWizardService {
         if (!java.util.Set.of("UUID", "SEQUENCE", "TEMPLATE").contains(strategy)) {
             throw new BusinessException(ApiCodes.VALIDATION_FAILED, "不支持的标识生成策略: " + strategy);
         }
+        // 与命名空间设置页一致：前缀缺省为空（可由 {ns}/{type} 令牌组合）
         String prefix = request.identifierPrefix() == null || request.identifierPrefix().isBlank()
-                ? "ITEM" : request.identifierPrefix().trim();
+                ? "" : request.identifierPrefix().trim();
         String configJson = switch (strategy) {
-            case "SEQUENCE" -> "{\"prefix\":\"" + prefix + "\",\"start\":1,\"pad\":6}";
+            case "SEQUENCE" -> {
+                long start = request.strategySeqStart() != null ? request.strategySeqStart() : 1L;
+                int pad = request.strategySeqPad() != null ? request.strategySeqPad() : 6;
+                yield "{\"prefix\":\"" + prefix + "\",\"start\":" + start
+                        + ",\"incrementBy\":1,\"pad\":" + pad + "}";
+            }
             case "TEMPLATE" -> {
                 String template = request.identifierTemplate() == null || request.identifierTemplate().isBlank()
                         ? "{prefix}-{seq:4}" : request.identifierTemplate().trim();
-                yield "{\"template\":\"" + template + "\",\"prefix\":\"" + prefix + "\"}";
+                int pad = request.strategySeqPad() != null ? request.strategySeqPad() : 4;
+                yield "{\"template\":\"" + template + "\",\"prefix\":\"" + prefix + "\",\"pad\":" + pad + "}";
             }
             default -> "{}";
         };
@@ -261,6 +275,18 @@ public class InitWizardService {
         config.publish();
         identifierStrategyConfigRepository.save(config);
         identifierStrategyLoader.refreshRegistry();
+    }
+
+    /**
+     * 归一化输入模式值：空白或非法值回退 AUTO_WITH_OVERRIDE（兼容缺省调用方）。
+     */
+    private static String normalizeInputMode(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return "AUTO_WITH_OVERRIDE";
+        }
+        String normalized = raw.trim().toUpperCase();
+        return java.util.Set.of("AUTO_ONLY", "AUTO_WITH_OVERRIDE", "MANUAL_ONLY").contains(normalized)
+                ? normalized : "AUTO_WITH_OVERRIDE";
     }
 
     /**
