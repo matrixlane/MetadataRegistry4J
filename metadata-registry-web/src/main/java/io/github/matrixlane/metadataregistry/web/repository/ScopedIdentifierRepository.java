@@ -17,6 +17,8 @@ public interface ScopedIdentifierRepository extends JpaRepository<ScopedIdentifi
 
     Optional<ScopedIdentifier> findByNamespaceIdAndIdentifier(UUID namespaceId, String identifier);
 
+    List<ScopedIdentifier> findByNamespaceId(UUID namespaceId);
+
     boolean existsByNamespaceIdAndIdentifier(UUID namespaceId, String identifier);
 
     @Query("""

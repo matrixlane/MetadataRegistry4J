@@ -20,6 +20,7 @@ import io.github.matrixlane.metadataregistry.web.repository.OrganizationReposito
 import io.github.matrixlane.metadataregistry.web.service.identifier.NamespaceIdentifierPolicy;
 import io.github.matrixlane.metadataregistry.web.service.identifier.NamespaceIdentifierPolicyResolver;
 import io.github.matrixlane.metadataregistry.web.service.namespace.NamespaceConstraintValidator;
+import io.github.matrixlane.metadataregistry.web.service.namespace.NamespaceOwnershipService;
 import io.github.matrixlane.metadataregistry.web.util.ItemNamingHelper;
 import io.github.matrixlane.metadataregistry.web.dto.namespace.DeletionCheckResponse;
 import io.github.matrixlane.metadataregistry.web.dto.namespace.ExternalNamespaceRequest;
@@ -48,6 +49,7 @@ public class NamespaceService {
     private final NamespaceIdentifierPolicyResolver policyResolver;
     private final IdentifierStrategyConfigRepository strategyConfigRepository;
     private final IdentifierStrategyLoader strategyLoader;
+    private final NamespaceOwnershipService namespaceOwnershipService;
 
     private static final com.fasterxml.jackson.databind.ObjectMapper JSON =
             new com.fasterxml.jackson.databind.ObjectMapper();
@@ -350,7 +352,8 @@ public class NamespaceService {
                 strategy.prefix(),
                 strategy.template(),
                 strategy.start(),
-                strategy.pad());
+                strategy.pad(),
+                namespaceKind(entity));
     }
 
     private NamespaceDetailResponse toDetailResponse(Namespace entity) {
@@ -384,7 +387,13 @@ public class NamespaceService {
                 strategy.prefix(),
                 strategy.template(),
                 strategy.start(),
-                strategy.pad());
+                strategy.pad(),
+                namespaceKind(entity));
+    }
+
+    /** 自有/外部判定（D8 临时判定；active-registrar-ownership 就绪后切换）。 */
+    private String namespaceKind(Namespace entity) {
+        return namespaceOwnershipService.isOwn(entity) ? "OWN" : "EXTERNAL";
     }
 
     private void validateNamingAuthorityRequired(UUID namingAuthorityId) {

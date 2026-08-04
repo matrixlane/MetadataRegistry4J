@@ -5,6 +5,7 @@ import io.github.matrixlane.metadataregistry.commonfacilities.identification.Ide
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.VersioningPolicy;
 import io.github.matrixlane.metadataregistry.web.common.BusinessException;
+import io.github.matrixlane.metadataregistry.web.service.namespace.NamespaceOwnershipService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -18,6 +19,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -31,6 +33,9 @@ class IdentifierInputPolicyServiceTest {
     @Mock
     private IdentifierStrategyConfigService identifierStrategyConfigService;
 
+    @Mock
+    private NamespaceOwnershipService namespaceOwnershipService;
+
     @InjectMocks
     private IdentifierInputPolicyService service;
 
@@ -39,6 +44,8 @@ class IdentifierInputPolicyServiceTest {
     @BeforeEach
     void setUp() {
         namespace = new Namespace();
+        // 默认按自有命名空间裁决；外部命名空间用例单独打桩
+        lenient().when(namespaceOwnershipService.isExternal(any())).thenReturn(false);
     }
 
     private void stubPolicy(IdentifierInputMode mode, IdentifierInputMode versionMode,
@@ -215,5 +222,55 @@ class IdentifierInputPolicyServiceTest {
         assertThatThrownBy(() -> service.resolveVersion(namespace, "2026-13-45"))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("日期版本");
+    }
+
+    // ── 外部命名空间闸门（设计 D6）─────────────────────────────────────
+
+    @Test
+    void external_rejectsBlankIdentifier() {
+        stubPolicy(IdentifierInputMode.AUTO_WITH_OVERRIDE, IdentifierInputMode.AUTO_WITH_OVERRIDE,
+                VersioningPolicy.SEMVER, null);
+        when(namespaceOwnershipService.isExternal(namespace)).thenReturn(true);
+
+        assertThatThrownBy(() -> service.resolveIdentifier(namespace, null, "DataElement"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("外部命名空间");
+    }
+
+    @Test
+    void external_globalDefaultNeverFallsBack() {
+        // 即使存在全局默认策略，外部命名空间也 MUST NOT 进入策略解析与生成
+        stubPolicy(IdentifierInputMode.AUTO_ONLY, IdentifierInputMode.AUTO_WITH_OVERRIDE,
+                VersioningPolicy.SEMVER, null);
+        when(namespaceOwnershipService.isExternal(namespace)).thenReturn(true);
+
+        assertThatThrownBy(() -> service.resolveIdentifier(namespace, "  ", "DataElement"))
+                .isInstanceOf(BusinessException.class);
+        verify(identifierStrategyConfigService, never()).generateIdentifier(any(), any());
+    }
+
+    @Test
+    void external_acceptsManualIdentifier() {
+        stubPolicy(IdentifierInputMode.AUTO_WITH_OVERRIDE, IdentifierInputMode.AUTO_WITH_OVERRIDE,
+                VersioningPolicy.SEMVER, null);
+        when(namespaceOwnershipService.isExternal(namespace)).thenReturn(true);
+
+        assertThat(service.resolveIdentifier(namespace, "DE01.00.001.00", "DataElement"))
+                .isEqualTo("DE01.00.001.00");
+        verify(identifierStrategyConfigService, never()).generateIdentifier(any(), any());
+    }
+
+    @Test
+    void external_manualIdentifierValidatesPattern() {
+        // 导入/手动录入格式校验：配置正则后不符合格式的标识被拒绝
+        stubPolicy(IdentifierInputMode.AUTO_WITH_OVERRIDE, IdentifierInputMode.AUTO_WITH_OVERRIDE,
+                VersioningPolicy.SEMVER, "DE\\d{2}\\.\\d{2}\\.\\d{3}\\.\\d{2}");
+        when(namespaceOwnershipService.isExternal(namespace)).thenReturn(true);
+
+        assertThat(service.resolveIdentifier(namespace, "DE01.00.001.00", "DataElement"))
+                .isEqualTo("DE01.00.001.00");
+        assertThatThrownBy(() -> service.resolveIdentifier(namespace, "DE01.0.001", "DataElement"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("手动标识校验规则");
     }
 }

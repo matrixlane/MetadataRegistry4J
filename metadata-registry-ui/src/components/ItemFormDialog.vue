@@ -53,7 +53,7 @@
               />
             </el-select>
           </el-form-item>
-          <el-form-item v-if="showIdentifierChoice" label="标识符生成方式">
+          <el-form-item v-if="showIdentifierChoice && !isExternalNamespace" label="标识符生成方式">
             <el-radio-group v-model="identifierChoice">
               <el-radio-button value="auto">自动生成</el-radio-button>
               <el-radio-button value="manual">手动输入</el-radio-button>
@@ -66,6 +66,21 @@
               :placeholder="identifierPlaceholder"
             />
           </el-form-item>
+          <!-- 段模板变量段：按已发布模板动态渲染 -->
+          <template v-if="identifierAutoInEffect && templateVariables.length > 0">
+            <el-form-item
+              v-for="v in templateVariables"
+              :key="v.name"
+              :label="v.label || v.name"
+              :required="v.required"
+            >
+              <el-input
+                v-model="variableValues[v.name]"
+                :placeholder="v.pattern ? `格式：${v.pattern}` : ''"
+                clearable
+              />
+            </el-form-item>
+          </template>
           <el-form-item v-if="showVersionChoice" label="版本生成方式">
             <el-radio-group v-model="versionChoice">
               <el-radio-button value="auto">自动生成</el-radio-button>
@@ -217,6 +232,7 @@ import MultilingualTextEditor from './MultilingualTextEditor.vue';
 import DesignationDefinitionPairingEditor from './DesignationDefinitionPairingEditor.vue';
 import { namingConventionApi, namespaceApi, registrationAuthorityApi, pairingApi, readinessApi } from '@/api/resources';
 import { languageApi } from '@/api/resources';
+import { identifierStrategyApi } from '@/api/identifierStrategy';
 import type { TextLineForm, PairingForm, NamespaceDetailResponse } from '@/types/common';
 
 interface RegistrationForm {
@@ -382,6 +398,73 @@ const selectedNamespace = computed(() =>
 const identifierChoice = ref<'auto' | 'manual'>('auto');
 const versionChoice = ref<'auto' | 'manual'>('auto');
 
+// ── 段模板变量段 ─────────────────────────────────────────────────────
+interface TemplateVariable {
+  name: string;
+  label?: string;
+  pattern?: string;
+  pad?: number;
+  default?: string;
+  required?: boolean;
+}
+const templateVariables = ref<TemplateVariable[]>([]);
+const variableValues = reactive<Record<string, string>>({});
+
+async function loadTemplateVariables(namespaceId: string) {
+  templateVariables.value = [];
+  Object.keys(variableValues).forEach((k) => delete variableValues[k]);
+  try {
+    const view = await identifierStrategyApi.view(namespaceId);
+    const published = view?.published;
+    if (!published || published.strategyType !== 'SEGMENT_TEMPLATE' || !published.configJson) {
+      return;
+    }
+    const parsed = JSON.parse(published.configJson);
+    const vars: TemplateVariable[] = (parsed.segments || [])
+      .filter((s: any) => s.type === 'VARIABLE' && s.name)
+      .map((s: any) => ({
+        name: s.name,
+        label: s.params?.label,
+        pattern: s.params?.pattern,
+        pad: s.params?.pad,
+        default: s.params?.default,
+        required: s.params?.required !== false,
+      }));
+    templateVariables.value = vars;
+    // 预填默认值（附加码 "00" 等）
+    for (const v of vars) {
+      if (v.default) {
+        variableValues[v.name] = v.default;
+      }
+    }
+  } catch {
+    templateVariables.value = [];
+  }
+}
+
+/** 提交前校验变量段：必填非空 + 段级 pattern。返回 null 表示通过。 */
+function validateTemplateVariables(): string | null {
+  for (const v of templateVariables.value) {
+    const value = (variableValues[v.name] || '').trim();
+    if (!value) {
+      if (v.required) {
+        return `请填写${v.label || v.name}`;
+      }
+      continue;
+    }
+    if (v.pattern) {
+      try {
+        if (!new RegExp(`^(?:${v.pattern})$`).test(value)) {
+          return `${v.label || v.name} 不符合格式要求：${v.pattern}`;
+        }
+      } catch {
+        // 段正则非法交给后端处理
+      }
+    }
+  }
+  return null;
+}
+
 const isEditing = computed(() => !!form.id);
 
 const identifierMode = computed(() => selectedNamespace.value?.identifierInputMode || 'AUTO_WITH_OVERRIDE');
@@ -390,8 +473,12 @@ const versionMode = computed(() => selectedNamespace.value?.versionInputMode || 
 const showIdentifierChoice = computed(() => !isEditing.value && identifierMode.value === 'AUTO_WITH_OVERRIDE');
 const showVersionChoice = computed(() => !isEditing.value && versionMode.value === 'AUTO_WITH_OVERRIDE');
 
+// 外部命名空间：标识由外部签发，强制手动录入，无自动生成入口
+const isExternalNamespace = computed(() => selectedNamespace.value?.namespaceKind === 'EXTERNAL');
+
 const identifierAutoInEffect = computed(
-  () => !isEditing.value && (identifierMode.value === 'AUTO_ONLY' || (identifierMode.value === 'AUTO_WITH_OVERRIDE' && identifierChoice.value === 'auto')),
+  () => !isEditing.value && !isExternalNamespace.value
+    && (identifierMode.value === 'AUTO_ONLY' || (identifierMode.value === 'AUTO_WITH_OVERRIDE' && identifierChoice.value === 'auto')),
 );
 const versionAutoInEffect = computed(
   () => !isEditing.value && (versionMode.value === 'AUTO_ONLY' || (versionMode.value === 'AUTO_WITH_OVERRIDE' && versionChoice.value === 'auto')),
@@ -545,6 +632,7 @@ async function loadNamespaceDetail(namespaceId: string | undefined) {
   if (!namespaceId) {
     namespaceNamingConventions.value = [];
     namespaceMandatoryNC.value = false;
+    templateVariables.value = [];
     return;
   }
   try {
@@ -572,6 +660,7 @@ async function loadNamespaceDetail(namespaceId: string | undefined) {
     namespaceNamingConventions.value = [];
     namespaceMandatoryNC.value = false;
   }
+  await loadTemplateVariables(namespaceId);
 }
 
 async function loadOptions() {
@@ -764,11 +853,21 @@ async function handleSubmitInternal() {
           })),
         }));
       if (props.showRegistration) {
+        if (identifierAutoInEffect.value && templateVariables.value.length > 0) {
+          const varError = validateTemplateVariables();
+          if (varError) {
+            ElMessage.error(varError);
+            throw new Error(varError);
+          }
+        }
         payload.registration = {
           namespaceId: form.registration.namespaceId || null,
           identifier: identifierAutoInEffect.value ? null : form.registration.identifier || '',
           version: versionAutoInEffect.value ? null : form.registration.version || '',
           registrationAuthorityId: form.registration.registrationAuthorityId || null,
+          variables: identifierAutoInEffect.value && templateVariables.value.length > 0
+            ? { ...variableValues }
+            : undefined,
         };
       }
       const result = await props.submitFn(payload);

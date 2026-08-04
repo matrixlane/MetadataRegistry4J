@@ -222,9 +222,9 @@
             <div class="setting-item">
               <div class="setting-label-section">
                 <h4>创建基于注册机构的命名空间</h4>
-                <p>勾选后，系统将在注册机构下创建一个命名空间，作为注册自有元数据项和数据标准的起步区域。如果只打算导入和访问外部组织的数据标准，可以跳过；之后要开始创建自己的数据标准时，必须先创建基于注册机构的命名空间。</p>
+                <p>系统将在注册机构下创建一个自有命名空间，作为注册自有元数据项和数据标准的起步区域。初始化必须创建自有命名空间，此步骤不可跳过。</p>
               </div>
-              <el-switch v-model="form.createNamespace" size="large" />
+              <el-tag type="success" effect="dark" size="large">必选</el-tag>
             </div>
           </div>
 
@@ -263,11 +263,18 @@
             />
             <el-form-item label="策略类型" prop="identifierStrategy">
               <el-radio-group v-model="form.identifierStrategy" :disabled="form.identifierInputMode === 'MANUAL_ONLY'">
-                <el-radio-button value="UUID">UUID</el-radio-button>
-                <el-radio-button value="SEQUENCE">顺序编号</el-radio-button>
-                <el-radio-button value="TEMPLATE">模板</el-radio-button>
+                <el-radio-button value="SEGMENT_TEMPLATE">段模板</el-radio-button>
+                <el-radio-button value="UUID">UUID（内置兜底）</el-radio-button>
               </el-radio-group>
             </el-form-item>
+            <el-alert
+              v-if="form.identifierStrategy === 'SEGMENT_TEMPLATE'"
+              title="默认载入 WS/T 363 数据元标识符预设：对象缩写 + 大类.小类.序号.附加码（如 DE01.00.001.00），序号按大类.小类作用域计数；初始化后可在命名空间设置的段规则设计器中调整或载入其他预设。"
+              type="success"
+              :closable="false"
+              show-icon
+              style="margin-bottom: 12px;"
+            />
 
             <el-row v-if="form.identifierStrategy === 'SEQUENCE'" :gutter="20">
               <el-col :span="8">
@@ -544,7 +551,7 @@ const form = reactive({
   namespaceName: '默认命名空间',
   identifierInputMode: 'AUTO_WITH_OVERRIDE',
   versionInputMode: 'AUTO_WITH_OVERRIDE',
-  identifierStrategy: 'UUID',
+  identifierStrategy: 'SEGMENT_TEMPLATE',
   identifierPrefix: '',
   identifierTemplate: '',
   strategySeqStart: 1,

@@ -5,6 +5,8 @@ import io.github.matrixlane.metadataregistry.commonfacilities.identification.Ide
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.ScopedIdentifier;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.VersionStatus;
+import io.github.matrixlane.metadataregistry.commonfacilities.identification.segment.SegmentTemplateException;
+import io.github.matrixlane.metadataregistry.commonfacilities.identification.segment.SequenceOverflowException;
 import io.github.matrixlane.metadataregistry.web.common.BusinessException;
 import io.github.matrixlane.metadataregistry.web.common.ResourceNotFoundException;
 import io.github.matrixlane.metadataregistry.web.dto.scopedidentifier.IdentifierVersionHistoryResponse;
@@ -64,7 +66,15 @@ public class ScopedIdentifierService {
         String itemType = identifiedItem.getItem() != null
                 ? Hibernate.getClass(identifiedItem.getItem()).getSimpleName()
                 : Hibernate.getClass(identifiedItem).getSimpleName();
-        String identifier = identifierInputPolicyService.resolveIdentifier(namespace, request.identifier(), itemType);
+        String identifier;
+        try {
+            identifier = identifierInputPolicyService.resolveIdentifier(
+                    namespace, request.identifier(), itemType, request.variables());
+        } catch (SequenceOverflowException e) {
+            throw new BusinessException("序号溢出：" + e.getMessage());
+        } catch (SegmentTemplateException e) {
+            throw new BusinessException("标识生成失败：" + e.getMessage());
+        }
         String version = identifierInputPolicyService.resolveVersion(namespace, request.version());
 
         if (scopedIdentifierRepository.existsByNamespaceIdAndIdentifier(namespace.getId(), identifier)) {

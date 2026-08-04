@@ -5,6 +5,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
+import java.util.Map;
 import java.util.UUID;
 
 public record ScopedIdentifierCreateRequest(
@@ -21,6 +22,14 @@ public record ScopedIdentifierCreateRequest(
         UUID identifiedItemId,
 
         @Size(max = 1024, message = "变更摘要长度不能超过 1024")
-        String changeSummary
+        String changeSummary,
+
+        /** Segment-template VARIABLE values (e.g. major/minor category codes). */
+        Map<String, String> variables
 ) {
+    /** Backward-compatible constructor without segment variables. */
+    public ScopedIdentifierCreateRequest(UUID namespaceId, String identifier, String version,
+                                         UUID identifiedItemId, String changeSummary) {
+        this(namespaceId, identifier, version, identifiedItemId, changeSummary, null);
+    }
 }

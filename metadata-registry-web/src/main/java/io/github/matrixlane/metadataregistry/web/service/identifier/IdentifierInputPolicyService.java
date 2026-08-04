@@ -1,17 +1,24 @@
 package io.github.matrixlane.metadataregistry.web.service.identifier;
 
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifierInputMode;
+import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifierGenerationStrategyRegistry;
+import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifierStrategyConfig;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifierStrategyConfigService;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.SemVerValidator;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.VersioningPolicy;
+import io.github.matrixlane.metadataregistry.commonfacilities.identification.segment.SegmentTemplate;
+import io.github.matrixlane.metadataregistry.commonfacilities.identification.segment.SegmentTemplateEngine;
+import io.github.matrixlane.metadataregistry.commonfacilities.identification.segment.SegmentTemplateException;
 import io.github.matrixlane.metadataregistry.web.common.ApiCodes;
 import io.github.matrixlane.metadataregistry.web.common.BusinessException;
+import io.github.matrixlane.metadataregistry.web.service.namespace.NamespaceOwnershipService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
+import java.util.Map;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 
@@ -38,6 +45,7 @@ public class IdentifierInputPolicyService {
 
     private final NamespaceIdentifierPolicyResolver policyResolver;
     private final IdentifierStrategyConfigService identifierStrategyConfigService;
+    private final NamespaceOwnershipService namespaceOwnershipService;
 
     /**
      * Resolves the identifier to persist for a creation request.
@@ -56,10 +64,34 @@ public class IdentifierInputPolicyService {
      * can substitute the {@code {type}} placeholder.
      */
     public String resolveIdentifier(Namespace namespace, String requested, String itemType) {
+        return resolveIdentifier(namespace, requested, itemType, null);
+    }
+
+    /**
+     * Resolves the identifier to persist, carrying segment-template input
+     * variables supplied by the registration request.
+     *
+     * <p>External namespaces are gated before any strategy resolution: blank
+     * identifiers are rejected outright, so a global default strategy can
+     * never silently generate for an external namespace (design D6).
+     */
+    public String resolveIdentifier(Namespace namespace, String requested, String itemType,
+                                    Map<String, String> variables) {
         NamespaceIdentifierPolicy policy = policyResolver.resolve(namespace);
         boolean blank = requested == null || requested.isBlank();
+        boolean external = namespaceOwnershipService.isExternal(namespace);
         IdentifierStrategyConfigService.GenerationContext context =
-                IdentifierStrategyConfigService.GenerationContext.ofItemType(itemType);
+                IdentifierStrategyConfigService.GenerationContext.of(itemType, variables);
+
+        if (external) {
+            // 外部命名空间：标识由外部签发，禁止自动生成；全局默认策略 MUST NOT 回退生成
+            if (blank) {
+                throw new BusinessException(ApiCodes.VALIDATION_FAILED,
+                        "外部命名空间的标识必须手动录入：该命名空间不允许自动生成标识符");
+            }
+            validateManualIdentifier(policy, requested);
+            return requested;
+        }
 
         switch (policy.inputMode()) {
             case AUTO_ONLY -> {
@@ -75,6 +107,7 @@ public class IdentifierInputPolicyService {
                             "该命名空间的标识符输入模式为 MANUAL_ONLY，已禁用自动生成，请手动填写标识符");
                 }
                 validateManualIdentifier(policy, requested);
+                validateAgainstPublishedTemplate(namespace, requested);
                 return requested;
             }
             default -> { // AUTO_WITH_OVERRIDE
@@ -82,6 +115,7 @@ public class IdentifierInputPolicyService {
                     return identifierStrategyConfigService.generateIdentifier(namespace, context);
                 }
                 validateManualIdentifier(policy, requested);
+                validateAgainstPublishedTemplate(namespace, requested);
                 return requested;
             }
         }
@@ -186,6 +220,34 @@ public class IdentifierInputPolicyService {
         } catch (PatternSyntaxException e) {
             log.warn("[IdentifierInputPolicyService] Invalid manual identifier pattern '{}', skipping validation", pattern);
             return null;
+        }
+    }
+
+    /**
+     * Validates a manual identifier against the format regex derived from the
+     * namespace's published segment template, when one exists. Unparseable
+     * templates are skipped with a warning (same tolerance as the manual
+     * pattern rule).
+     */
+    private void validateAgainstPublishedTemplate(Namespace namespace, String identifier) {
+        if (namespace == null || namespace.getId() == null) {
+            return;
+        }
+        IdentifierStrategyConfig config =
+                IdentifierGenerationStrategyRegistry.getInstance().resolveNamespaceConfig(namespace.getId());
+        if (config == null || !"SEGMENT_TEMPLATE".equalsIgnoreCase(config.getStrategyType())
+                || config.getConfigJson() == null) {
+            return;
+        }
+        try {
+            SegmentTemplate template = SegmentTemplate.fromJson(config.getConfigJson());
+            if (!new SegmentTemplateEngine().matchesFormat(template, identifier)) {
+                throw new BusinessException(ApiCodes.VALIDATION_FAILED,
+                        "标识符不符合该命名空间已发布模板的格式要求: " + identifier);
+            }
+        } catch (SegmentTemplateException e) {
+            log.warn("[IdentifierInputPolicyService] Cannot derive format from template of namespace {}, skipping: {}",
+                    namespace.getId(), e.getMessage());
         }
     }
 }

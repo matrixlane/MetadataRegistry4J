@@ -27,5 +27,7 @@ public record NamespaceResponse(
         String strategyPrefix,
         String strategyTemplate,
         Long strategySeqStart,
-        Integer strategySeqPad) {
+        Integer strategySeqPad,
+        /** Namespace kind relative to the caller: OWN (自有) or EXTERNAL (外部). */
+        String namespaceKind) {
 }
