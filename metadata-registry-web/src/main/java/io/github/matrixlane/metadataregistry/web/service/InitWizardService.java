@@ -133,19 +133,24 @@ public class InitWizardService {
                 .orElseThrow(() -> new ResourceNotFoundException("Account", appUserId));
 
         // 版本驱动的有效配置：PERSONAL 名称类字段缺省时取默认值，治理布尔开关
-        // 缺省（null）按 true 处理以保持向后兼容；显式 false 时尊重用户选择
-        // （命名空间可跳过，注册规范为必选）。TEAM 使用表单值并校验必填。
+        // 缺省（null）按 true 处理以保持向后兼容。命名空间为必选（D7：初始化
+        // 必须创建注册机构的自有命名空间），显式 false 返回业务校验错误；
+        // 注册规范同为必选。TEAM 使用表单值并校验必填。
         String raName = request.registrationAuthorityName();
         boolean selfAsRegistrar = Boolean.TRUE.equals(request.selfAsRegistrar());
-        boolean createNamespace = Boolean.TRUE.equals(request.createNamespace());
         boolean createSpec = Boolean.TRUE.equals(request.createRegistrySpecification());
         String registryName = request.registryName();
+        // createNamespace 语义改为强制 true：缺省与显式 true 正常执行，显式 false 拒绝
+        if (Boolean.FALSE.equals(request.createNamespace())) {
+            throw new BusinessException(ApiCodes.VALIDATION_FAILED,
+                    "初始化必须创建注册机构的自有命名空间，不能跳过命名空间步骤");
+        }
+        boolean createNamespace = true;
         if (edition == DeploymentEdition.PERSONAL) {
             if (raName == null || raName.isBlank()) {
                 raName = "个人注册机构";
             }
             selfAsRegistrar = true;
-            createNamespace = !Boolean.FALSE.equals(request.createNamespace());
             createSpec = true;
             if (registryName == null || registryName.isBlank()) {
                 registryName = "个人元数据注册表规范";
@@ -243,14 +248,21 @@ public class InitWizardService {
      */
     private void createNamespaceStrategyConfig(Namespace ns, InitWizardSetupRequest request) {
         String strategy = request.identifierStrategy() == null || request.identifierStrategy().isBlank()
-                ? "UUID" : request.identifierStrategy().trim().toUpperCase();
-        if (!java.util.Set.of("UUID", "SEQUENCE", "TEMPLATE").contains(strategy)) {
+                ? "SEGMENT_TEMPLATE" : request.identifierStrategy().trim().toUpperCase();
+        if (!java.util.Set.of("UUID", "SEQUENCE", "TEMPLATE", "SEGMENT_TEMPLATE").contains(strategy)) {
             throw new BusinessException(ApiCodes.VALIDATION_FAILED, "不支持的标识生成策略: " + strategy);
         }
         // 与命名空间设置页一致：前缀缺省为空（可由 {ns}/{type} 令牌组合）
         String prefix = request.identifierPrefix() == null || request.identifierPrefix().isBlank()
                 ? "" : request.identifierPrefix().trim();
         String configJson = switch (strategy) {
+            case "SEGMENT_TEMPLATE" -> {
+                String raw = request.identifierTemplate();
+                String templateJson = raw == null || raw.isBlank()
+                        ? defaultSegmentTemplateJson() : raw.trim();
+                validateSegmentTemplate(templateJson);
+                yield templateJson;
+            }
             case "SEQUENCE" -> {
                 long start = request.strategySeqStart() != null ? request.strategySeqStart() : 1L;
                 int pad = request.strategySeqPad() != null ? request.strategySeqPad() : 6;
@@ -275,6 +287,39 @@ public class InitWizardService {
         config.publish();
         identifierStrategyConfigRepository.save(config);
         identifierStrategyLoader.refreshRegistry();
+    }
+
+    /**
+     * 向导默认段模板：WS/T 363 数据元标识符编排（对象缩写 + 大类.小类.序号.附加码）。
+     */
+    private static String defaultSegmentTemplateJson() {
+        return """
+                {"segments":[
+                  {"type":"OBJECT_ABBREVIATION","name":"objectAbbr","params":{"mapping":{"DataElement":"DE","ValueDomain":"VD"}}},
+                  {"type":"VARIABLE","name":"majorCategory","params":{"label":"大类编码","pattern":"\\\\d{2}","required":true}},
+                  {"type":"SEPARATOR","params":{"char":"."}},
+                  {"type":"VARIABLE","name":"minorCategory","params":{"label":"小类编码","pattern":"\\\\d{2}","required":true}},
+                  {"type":"SEPARATOR","params":{"char":"."}},
+                  {"type":"SEQUENCE","name":"seq","params":{"start":1,"increment":1,"pad":3,"scopeRefs":["majorCategory","minorCategory"],"overflow":"REJECT"}},
+                  {"type":"SEPARATOR","params":{"char":"."}},
+                  {"type":"VARIABLE","name":"suffixCode","params":{"label":"附加码","pattern":"\\\\d{2}","default":"00","required":false}}
+                ]}""";
+    }
+
+    private static void validateSegmentTemplate(String templateJson) {
+        try {
+            io.github.matrixlane.metadataregistry.commonfacilities.identification.segment.SegmentTemplate template =
+                    io.github.matrixlane.metadataregistry.commonfacilities.identification.segment.SegmentTemplate.fromJson(templateJson);
+            java.util.List<String> errors =
+                    new io.github.matrixlane.metadataregistry.commonfacilities.identification.segment.SegmentTemplateEngine()
+                            .validate(template);
+            if (!errors.isEmpty()) {
+                throw new BusinessException(ApiCodes.VALIDATION_FAILED,
+                        "段模板校验失败：" + String.join("；", errors));
+            }
+        } catch (io.github.matrixlane.metadataregistry.commonfacilities.identification.segment.SegmentTemplateException e) {
+            throw new BusinessException(ApiCodes.VALIDATION_FAILED, "段模板解析失败：" + e.getMessage());
+        }
     }
 
     /**

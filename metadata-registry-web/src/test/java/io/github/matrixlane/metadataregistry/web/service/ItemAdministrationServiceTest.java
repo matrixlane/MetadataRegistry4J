@@ -76,7 +76,7 @@ class ItemAdministrationServiceTest {
         item.setId(itemId);
 
         // 缺省按"透传手动值"裁决，个别用例可覆盖
-        lenient().when(identifierInputPolicyService.resolveIdentifier(any(), any(), any()))
+        lenient().when(identifierInputPolicyService.resolveIdentifier(any(), any(), any(), any()))
                 .thenAnswer(i -> i.getArgument(1));
         lenient().when(identifierInputPolicyService.resolveVersion(any(), any()))
                 .thenAnswer(i -> {
@@ -270,7 +270,7 @@ class ItemAdministrationServiceTest {
         Namespace ns = new Namespace();
         ns.setId(namespaceId);
         when(namespaceRepository.findById(namespaceId)).thenReturn(Optional.of(ns));
-        when(identifierInputPolicyService.resolveIdentifier(eq(ns), eq(""), any()))
+        when(identifierInputPolicyService.resolveIdentifier(eq(ns), eq(""), any(), any()))
                 .thenReturn("AUTO-999");
 
         ItemRegistrationRequest req = new ItemRegistrationRequest(
@@ -282,7 +282,7 @@ class ItemAdministrationServiceTest {
         assertThat(ai).isNotNull();
         assertThat(ai.getScopedIdentifiers()).hasSize(1);
         assertThat(ai.getScopedIdentifiers().get(0).getIdentifier()).isEqualTo("AUTO-999");
-        verify(identifierInputPolicyService).resolveIdentifier(eq(ns), eq(""), any());
+        verify(identifierInputPolicyService).resolveIdentifier(eq(ns), eq(""), any(), any());
     }
 
     @Test

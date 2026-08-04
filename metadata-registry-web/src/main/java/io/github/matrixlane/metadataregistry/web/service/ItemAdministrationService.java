@@ -275,8 +275,13 @@ public class ItemAdministrationService {
 
         if (ai.getScopedIdentifiers() == null || ai.getScopedIdentifiers().isEmpty()) {
             ScopedIdentifier si = new ScopedIdentifier();
-            String identifier = identifierInputPolicyService.resolveIdentifier(ns, req.identifier(),
-                    org.hibernate.Hibernate.getClass(item).getSimpleName());
+            String identifier;
+            try {
+                identifier = identifierInputPolicyService.resolveIdentifier(ns, req.identifier(),
+                        org.hibernate.Hibernate.getClass(item).getSimpleName(), req.variables());
+            } catch (io.github.matrixlane.metadataregistry.commonfacilities.identification.segment.SegmentTemplateException e) {
+                throw new BusinessException("标识生成失败：" + e.getMessage());
+            }
             si.setIdentifier(identifier);
             si.setVersion(identifierInputPolicyService.resolveVersion(ns, req.version()));
             si.setNamespace(ns);

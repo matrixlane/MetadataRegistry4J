@@ -111,7 +111,7 @@ class ScopedIdentifierServiceTest {
     void create_shouldGenerateIdentifierWhenBlank() {
         when(namespaceRepository.findById(namespaceId)).thenReturn(Optional.of(namespace));
         when(identifiedItemRepository.findById(identifiedItemId)).thenReturn(Optional.of(identifiedItem));
-        when(identifierInputPolicyService.resolveIdentifier(eq(namespace), isNull(), anyString()))
+        when(identifierInputPolicyService.resolveIdentifier(eq(namespace), isNull(), anyString(), any()))
                 .thenReturn("gen-id-123");
         when(identifierInputPolicyService.resolveVersion(eq(namespace), isNull())).thenReturn("1.0.0");
         when(scopedIdentifierRepository.existsByNamespaceIdAndIdentifier(namespaceId, "gen-id-123")).thenReturn(false);
@@ -136,7 +136,7 @@ class ScopedIdentifierServiceTest {
     void create_shouldUseProvidedIdentifier() {
         when(namespaceRepository.findById(namespaceId)).thenReturn(Optional.of(namespace));
         when(identifiedItemRepository.findById(identifiedItemId)).thenReturn(Optional.of(identifiedItem));
-        when(identifierInputPolicyService.resolveIdentifier(eq(namespace), eq("custom-id"), anyString()))
+        when(identifierInputPolicyService.resolveIdentifier(eq(namespace), eq("custom-id"), anyString(), any()))
                 .thenReturn("custom-id");
         when(identifierInputPolicyService.resolveVersion(namespace, "2.0.0")).thenReturn("2.0.0");
         when(scopedIdentifierRepository.existsByNamespaceIdAndIdentifier(namespaceId, "custom-id")).thenReturn(false);
@@ -160,7 +160,7 @@ class ScopedIdentifierServiceTest {
     void create_shouldThrowWhenDuplicateIdentifier() {
         when(namespaceRepository.findById(namespaceId)).thenReturn(Optional.of(namespace));
         when(identifiedItemRepository.findById(identifiedItemId)).thenReturn(Optional.of(identifiedItem));
-        when(identifierInputPolicyService.resolveIdentifier(eq(namespace), eq("dup-id"), anyString()))
+        when(identifierInputPolicyService.resolveIdentifier(eq(namespace), eq("dup-id"), anyString(), any()))
                 .thenReturn("dup-id");
         when(scopedIdentifierRepository.existsByNamespaceIdAndIdentifier(namespaceId, "dup-id")).thenReturn(true);
 
@@ -214,7 +214,7 @@ class ScopedIdentifierServiceTest {
     void create_shouldThrowForInvalidVersion() {
         when(namespaceRepository.findById(namespaceId)).thenReturn(Optional.of(namespace));
         when(identifiedItemRepository.findById(identifiedItemId)).thenReturn(Optional.of(identifiedItem));
-        when(identifierInputPolicyService.resolveIdentifier(eq(namespace), eq("id"), anyString()))
+        when(identifierInputPolicyService.resolveIdentifier(eq(namespace), eq("id"), anyString(), any()))
                 .thenReturn("id");
         when(identifierInputPolicyService.resolveVersion(namespace, "invalid"))
                 .thenThrow(new BusinessException(ApiCodes.VALIDATION_FAILED, "invalid version"));

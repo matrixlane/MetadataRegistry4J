@@ -131,6 +131,7 @@ class NamespaceControllerTest {
                 NS_ID, "Test Namespace", RA_ID, "Test RA",
                 RA_ID,
                 List.of(), List.of(),
-                null, null, null, EMPTY_NC, null, null, null, null, null, null, null, null, null, null, null);
+                null, null, null, EMPTY_NC, null, null, null, null, null, null, null, null, null, null, null,
+                "OWN");
     }
 }

@@ -67,6 +67,9 @@ class NamespaceServiceTest {
     @Mock
     private IdentifierStrategyLoader strategyLoader;
 
+    @Mock
+    private io.github.matrixlane.metadataregistry.web.service.namespace.NamespaceOwnershipService namespaceOwnershipService;
+
     @InjectMocks
     private NamespaceService service;
 
@@ -77,6 +80,7 @@ class NamespaceServiceTest {
 
     @BeforeEach
     void setUp() {
+        lenient().when(namespaceOwnershipService.isOwn(any())).thenReturn(true);
         namespaceId = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
         raId = UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
 

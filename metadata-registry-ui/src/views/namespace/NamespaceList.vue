@@ -170,6 +170,15 @@
 
           <!-- 标识生成策略 -->
           <el-tab-pane :label="$t('namespace.sectionIdentifierPolicy')" name="identifierPolicy">
+            <!-- 命名空间性质：创建时确定，只读展示，无变更入口 -->
+            <el-form-item v-if="editingId" :label="$t('namespace.kind')">
+              <el-tag :type="formKind === 'OWN' ? 'success' : 'info'" effect="dark">
+                {{ formKind === 'OWN' ? $t('namespace.kindOwn') : $t('namespace.kindExternal') }}
+              </el-tag>
+              <span style="margin-left: 8px; font-size: 12px; color: var(--el-text-color-secondary);">
+                {{ $t('namespace.kindImmutableTip') }}
+              </span>
+            </el-form-item>
             <el-form-item>
               <template #label>
                 <span>{{ $t('namespace.inputMode') }}</span>
@@ -206,6 +215,74 @@
               />
             </el-form-item>
 
+            <!-- 外部命名空间：仅手动录入说明 + 可选格式校验（含样例即时测试） -->
+            <template v-if="editingId && formKind === 'EXTERNAL'">
+              <el-alert
+                :title="$t('namespace.externalManualHint')"
+                type="info"
+                :closable="false"
+                show-icon
+                style="margin-bottom: 12px;"
+              />
+              <el-form-item :label="$t('namespace.externalPatternTest')">
+                <div style="display: flex; gap: 8px; width: 100%;">
+                  <el-input v-model="patternTestSample" placeholder="DE01.00.001.00" clearable />
+                  <el-button @click="testExternalPattern">{{ $t('common.test') }}</el-button>
+                </div>
+              </el-form-item>
+              <el-alert
+                v-if="patternTestResult"
+                :title="patternTestResult"
+                :type="patternTestOk ? 'success' : 'error'"
+                :closable="false"
+                show-icon
+                style="margin-bottom: 12px;"
+              />
+            </template>
+
+            <!-- 自有命名空间：段模板策略（设计器入口 + 版本信息 + 序号回填） -->
+            <template v-else-if="editingId && formKind === 'OWN'">
+              <el-divider content-position="left">{{ $t('namespace.groupSegmentStrategy') }}</el-divider>
+              <el-form-item :label="$t('namespace.publishedTemplate')">
+                <div v-if="strategyView?.published" style="width: 100%;">
+                  <el-tag size="small" type="success">v{{ strategyView.published.version }} PUBLISHED</el-tag>
+                  <code style="margin-left: 8px; font-size: 12px;">{{ summarizeTemplate(strategyView.published.configJson) }}</code>
+                </div>
+                <span v-else style="font-size: 12px; color: var(--el-text-color-secondary);">
+                  {{ $t('namespace.noPublishedTemplate') }}
+                </span>
+              </el-form-item>
+              <el-form-item>
+                <el-button type="primary" plain @click="openDesigner">
+                  {{ $t('namespace.openDesigner') }}
+                </el-button>
+                <el-button v-if="strategyView?.published" @click="handleBackfill" :loading="backfilling">
+                  {{ $t('namespace.backfill') }}
+                </el-button>
+                <el-popconfirm
+                  v-if="strategyView?.published"
+                  :title="$t('namespace.disableConfirm')"
+                  @confirm="handleDisableStrategy"
+                >
+                  <template #reference>
+                    <el-button type="danger" plain>{{ $t('namespace.disableStrategy') }}</el-button>
+                  </template>
+                </el-popconfirm>
+              </el-form-item>
+            </template>
+
+            <!-- 新建命名空间：本界面创建的是外部命名空间，提示性质 -->
+            <el-alert
+              v-else-if="!editingId"
+              :title="$t('namespace.createIsExternalHint')"
+              type="info"
+              :closable="false"
+              show-icon
+              style="margin-bottom: 12px;"
+            />
+
+            <!-- 旧版独立策略（UUID/URN/SEQUENCE）已收敛为段模板；仅编辑中且已有旧配置时显示 -->
+            <template v-if="false">
             <el-divider content-position="left">{{ $t('namespace.groupStrategy') }}</el-divider>
             <el-form-item>
               <template #label>
@@ -256,6 +333,7 @@
                 <el-input-number v-model="form.strategySeqPad" :min="1" :max="18" style="width: 180px;" />
               </el-form-item>
             </template>
+            </template>
           </el-tab-pane>
 
           <!-- 版本生成策略 -->
@@ -302,6 +380,29 @@
         </el-tabs>
       </template>
     </ResourceFormDialog>
+
+    <!-- 段规则设计器（自有命名空间） -->
+    <el-dialog
+      v-model="designerVisible"
+      :title="$t('namespace.designerTitle')"
+      width="860px"
+      destroy-on-close
+    >
+      <SegmentTemplateDesigner
+        v-if="designerVisible && editingId"
+        v-model="designerJson"
+        :namespace-id="editingId"
+      />
+      <template #footer>
+        <el-button @click="designerVisible = false">{{ $t('common.cancel') }}</el-button>
+        <el-button :loading="strategySaving" @click="saveStrategyDraft">
+          {{ $t('namespace.saveDraft') }}
+        </el-button>
+        <el-button type="primary" :loading="strategySaving" @click="publishStrategy">
+          {{ $t('namespace.publishStrategy') }}
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -310,6 +411,7 @@ import { onMounted, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { QuestionFilled } from '@element-plus/icons-vue';
 import { namespaceApi, organizationApi, namingConventionApi } from '@/api/resources';
+import { identifierStrategyApi, type NamespaceStrategyView } from '@/api/identifierStrategy';
 import type {
   NamespaceRequest,
   NamespaceResponse,
@@ -320,12 +422,23 @@ import DataTablePage from '@/components/DataTablePage.vue';
 import ResourceFormDialog from '@/components/ResourceFormDialog.vue';
 import DesignationEditor from '@/components/DesignationEditor.vue';
 import DefinitionEditor from '@/components/DefinitionEditor.vue';
+import SegmentTemplateDesigner from '@/components/identifier/SegmentTemplateDesigner.vue';
 
 const tableRef = ref<InstanceType<typeof DataTablePage>>();
 const dialog = ref<InstanceType<typeof ResourceFormDialog>>();
 const activeTab = ref('basic');
 
 const editingId = ref<string | null>(null);
+
+const formKind = ref<'OWN' | 'EXTERNAL' | ''>('');
+const strategyView = ref<NamespaceStrategyView | null>(null);
+const designerVisible = ref(false);
+const designerJson = ref('');
+const strategySaving = ref(false);
+const backfilling = ref(false);
+const patternTestSample = ref('');
+const patternTestResult = ref('');
+const patternTestOk = ref(false);
 
 const organizationOptions = ref<{ id: string; name: string; identifier?: string }[]>([]);
 const namingConventionOptions = ref<{ id: string; label?: string; scopeRule?: string }[]>([]);
@@ -369,6 +482,8 @@ function onMandatoryNCChange(val: boolean | string | number) {
 
 function handleCreate() {
   editingId.value = null;
+  formKind.value = '';
+  strategyView.value = null;
   activeTab.value = 'basic';
   dialog.value?.open({
     identifierInputMode: 'AUTO_WITH_OVERRIDE',
@@ -388,9 +503,119 @@ async function handleEdit(row: NamespaceResponse) {
   try {
     const detail = await namespaceApi.detail(row.id);
     editingId.value = detail.id;
+    formKind.value = (detail as any).namespaceKind === 'OWN' ? 'OWN' : 'EXTERNAL';
+    patternTestSample.value = '';
+    patternTestResult.value = '';
     dialog.value?.open(buildFormFromDetail(detail));
+    if (formKind.value === 'OWN') {
+      await loadStrategyView();
+    }
   } catch {
     ElMessage.error('加载命名空间详情失败');
+  }
+}
+
+async function loadStrategyView() {
+  if (!editingId.value) return;
+  try {
+    strategyView.value = await identifierStrategyApi.view(editingId.value);
+  } catch {
+    strategyView.value = null;
+  }
+}
+
+function summarizeTemplate(configJson: string): string {
+  try {
+    const parsed = JSON.parse(configJson);
+    return (parsed.segments || [])
+      .map((s: any) => s.name || s.params?.value || s.params?.char || s.type)
+      .join(' → ');
+  } catch {
+    return configJson;
+  }
+}
+
+async function openDesigner() {
+  if (!editingId.value) return;
+  await loadStrategyView();
+  designerJson.value = strategyView.value?.published?.configJson
+    || strategyView.value?.drafts?.[0]?.configJson
+    || '{"segments":[]}';
+  designerVisible.value = true;
+}
+
+async function saveStrategyDraft() {
+  if (!editingId.value) return;
+  strategySaving.value = true;
+  try {
+    await identifierStrategyApi.saveDraft(editingId.value, designerJson.value);
+    ElMessage.success('草稿已保存');
+    await loadStrategyView();
+  } catch (e: any) {
+    ElMessage.error(e?.message || '保存草稿失败');
+  } finally {
+    strategySaving.value = false;
+  }
+}
+
+async function publishStrategy() {
+  if (!editingId.value) return;
+  strategySaving.value = true;
+  try {
+    await identifierStrategyApi.publish(editingId.value, designerJson.value);
+    ElMessage.success('策略已发布并立即生效（历史标识不受影响）');
+    designerVisible.value = false;
+    await loadStrategyView();
+  } catch (e: any) {
+    ElMessage.error(e?.message || '发布失败');
+  } finally {
+    strategySaving.value = false;
+  }
+}
+
+async function handleDisableStrategy() {
+  if (!editingId.value) return;
+  try {
+    await identifierStrategyApi.disable(editingId.value);
+    ElMessage.success('策略已停用');
+    await loadStrategyView();
+  } catch (e: any) {
+    ElMessage.error(e?.message || '停用失败');
+  }
+}
+
+async function handleBackfill() {
+  if (!editingId.value) return;
+  backfilling.value = true;
+  try {
+    const res = await identifierStrategyApi.backfill(editingId.value);
+    const scopes = Object.entries(res.scopeMaxValues)
+      .map(([k, v]) => `${k}: ${v}`)
+      .join('，');
+    ElMessage.success(`序号回填完成：解析 ${res.parsed} 个、跳过 ${res.skipped} 个${scopes ? `；${scopes}` : ''}`);
+  } catch (e: any) {
+    ElMessage.error(e?.message || '回填失败');
+  } finally {
+    backfilling.value = false;
+  }
+}
+
+function testExternalPattern() {
+  patternTestResult.value = '';
+  const dialogForm = (dialog.value as any)?.form || {};
+  const pattern = (dialogForm.manualIdentifierPattern as string) || '';
+  if (!pattern) {
+    patternTestOk.value = false;
+    patternTestResult.value = '请先配置校验正则';
+    return;
+  }
+  try {
+    const re = new RegExp(`^(?:${pattern})$`);
+    patternTestOk.value = re.test(patternTestSample.value);
+    patternTestResult.value = patternTestOk.value ? '样例符合校验规则' : '样例不符合校验规则';
+  } catch {
+    patternTestOk.value = false;
+    patternTestResult.value = '正则本身无法编译（保存时将跳过该校验）';
   }
 }
 

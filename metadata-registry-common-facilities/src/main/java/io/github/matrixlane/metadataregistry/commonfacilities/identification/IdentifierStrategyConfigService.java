@@ -1,5 +1,12 @@
 package io.github.matrixlane.metadataregistry.commonfacilities.identification;
 
+import io.github.matrixlane.metadataregistry.commonfacilities.identification.segment.SegmentContext;
+import io.github.matrixlane.metadataregistry.commonfacilities.identification.segment.SegmentTemplate;
+import io.github.matrixlane.metadataregistry.commonfacilities.identification.segment.SegmentTemplateEngine;
+
+import java.util.Collections;
+import java.util.Map;
+
 /**
  * Service layer for identifier generation and strategy management.
  *
@@ -21,6 +28,7 @@ package io.github.matrixlane.metadataregistry.commonfacilities.identification;
 public class IdentifierStrategyConfigService {
 
     private final IdentifierGenerationStrategyRegistry registry;
+    private final SegmentTemplateEngine segmentEngine = new SegmentTemplateEngine();
     private SequenceProvider sequenceProvider = new SequenceProvider() {
         private long sequenceCounter = 0;
 
@@ -58,6 +66,14 @@ public class IdentifierStrategyConfigService {
      * @return the generated identifier string
      */
     public String generateIdentifier(Namespace namespace, GenerationContext context) {
+        // Segment templates are engine-driven, not IdentifierGenerationStrategy
+        // instances: resolve the config type directly so the legacy registry
+        // fallback to UUID cannot swallow SEGMENT_TEMPLATE.
+        IdentifierStrategyConfig resolvedConfig = resolveStrategyConfig(namespace);
+        if (resolvedConfig != null && "SEGMENT_TEMPLATE".equalsIgnoreCase(resolvedConfig.getStrategyType())) {
+            return generateSegmentTemplateIdentifier(namespace, context);
+        }
+
         IdentifierGenerationStrategy strategy = registry.resolve(namespace);
         String strategyType = strategy.getType();
 
@@ -73,6 +89,9 @@ public class IdentifierStrategyConfigService {
 
             case "TEMPLATE":
                 return generateTemplateIdentifier(namespace, context);
+
+            case "SEGMENT_TEMPLATE":
+                return generateSegmentTemplateIdentifier(namespace, context);
 
             default:
                 System.out.println("[IdentifierStrategyConfigService] Unknown strategy type '"
@@ -148,6 +167,31 @@ public class IdentifierStrategyConfigService {
     }
 
     /**
+     * Generates an identifier from a segment template strategy. The template
+     * JSON is the persisted form of {@link SegmentTemplate}; caller-supplied
+     * {@code variables} feed VARIABLE segments and the item type drives
+     * OBJECT_ABBREVIATION segments. SEQUENCE segments allocate through the
+     * configured {@link SequenceProvider} with scope-key support.
+     */
+    private String generateSegmentTemplateIdentifier(Namespace namespace,
+                                                     GenerationContext context) {
+        IdentifierStrategyConfig config = resolveStrategyConfig(namespace);
+        if (config == null || config.getConfigJson() == null) {
+            System.out.println("[IdentifierStrategyConfigService] No segment template config found, falling back to UUID");
+            return registry.getStrategyInstance("UUID").generate(namespace);
+        }
+
+        SegmentTemplate template = SegmentTemplate.fromJson(config.getConfigJson());
+        Map<String, String> variables = context != null ? context.getVariables() : Collections.emptyMap();
+        String itemType = context != null ? context.getItemType() : null;
+
+        SegmentContext segmentContext = SegmentContext.of(itemType, variables,
+                (scopeKey, start, increment, pad) ->
+                        sequenceProvider.getNextValue(namespace, scopeKey, start, increment, pad));
+        return segmentEngine.generate(template, segmentContext);
+    }
+
+    /**
      * Substitutes {ns} (namespace shorthand prefix) and {type} (item type
      * abbreviation) tokens in a configured prefix string.
      */
@@ -198,6 +242,7 @@ public class IdentifierStrategyConfigService {
         private long sequenceNumber;
         private String prefix;
         private String itemType;
+        private Map<String, String> variables = Collections.emptyMap();
 
         public long getSequenceNumber() { return sequenceNumber; }
         public void setSequenceNumber(long sequenceNumber) { this.sequenceNumber = sequenceNumber; }
@@ -205,6 +250,10 @@ public class IdentifierStrategyConfigService {
         public void setPrefix(String prefix) { this.prefix = prefix; }
         public String getItemType() { return itemType; }
         public void setItemType(String itemType) { this.itemType = itemType; }
+        public Map<String, String> getVariables() { return variables; }
+        public void setVariables(Map<String, String> variables) {
+            this.variables = variables != null ? variables : Collections.emptyMap();
+        }
 
         public static GenerationContext ofSeq(long seq) {
             GenerationContext ctx = new GenerationContext();
@@ -221,6 +270,13 @@ public class IdentifierStrategyConfigService {
         public static GenerationContext ofItemType(String itemType) {
             GenerationContext ctx = new GenerationContext();
             ctx.itemType = itemType;
+            return ctx;
+        }
+
+        public static GenerationContext of(String itemType, Map<String, String> variables) {
+            GenerationContext ctx = new GenerationContext();
+            ctx.itemType = itemType;
+            ctx.setVariables(variables);
             return ctx;
         }
     }

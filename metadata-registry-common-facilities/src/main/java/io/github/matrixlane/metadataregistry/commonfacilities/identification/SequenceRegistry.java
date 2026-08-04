@@ -21,8 +21,13 @@ import java.time.LocalDateTime;
 /**
  * Tracks sequence state for SequenceGenerationStrategy.
  *
- * <p>Each namespace has its own sequence counter, incremented atomically when
- * a new identifier is generated.
+ * <p>Each (namespace, scope key) pair has its own counter, incremented
+ * atomically when a new identifier is generated. The scope key is composed of
+ * the values of the segments referenced by a SEQUENCE segment's scopeRefs;
+ * the reserved key {@code __GLOBAL__} expresses namespace-level counting
+ * (the pre-scope behavior). A non-empty sentinel is used instead of NULL or
+ * empty string so the unique constraint behaves identically on SQLite,
+ * SQL Server and Dameng (Oracle-mode treats '' as NULL).
  *
  * <p>Thread-safety: Uses database-level locking (SELECT FOR UPDATE) to ensure
  * atomic increment in concurrent scenarios.
@@ -30,12 +35,15 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "identifier_sequence_registry",
         uniqueConstraints = @UniqueConstraint(
-                name = "uk_seq_registry_namespace",
-                columnNames = {"namespace_id"}))
+                name = "uk_seq_registry_ns_scope",
+                columnNames = {"namespace_id", "scope_key"}))
 @Getter
 @Setter
 @NoArgsConstructor
 public class SequenceRegistry {
+
+    /** Reserved scope key for namespace-level global counting. */
+    public static final String GLOBAL_SCOPE_KEY = "__GLOBAL__";
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -48,6 +56,15 @@ public class SequenceRegistry {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "namespace_id", nullable = false)
     private Namespace namespace;
+
+    /**
+     * Scope key composed of referenced segment values (e.g. "02.01" for
+     * major/minor category scoped counting). {@value #GLOBAL_SCOPE_KEY} means
+     * namespace-level global counting.
+     */
+    @Column(name = "scope_key", nullable = false, length = 512,
+            columnDefinition = "VARCHAR(512) DEFAULT '__GLOBAL__'")
+    private String scopeKey = GLOBAL_SCOPE_KEY;
 
     /**
      * The current sequence value (the last allocated number).
@@ -99,7 +116,12 @@ public class SequenceRegistry {
     private LocalDateTime modifiedAt;
 
     public SequenceRegistry(Namespace namespace) {
+        this(namespace, GLOBAL_SCOPE_KEY);
+    }
+
+    public SequenceRegistry(Namespace namespace, String scopeKey) {
         this.namespace = namespace;
+        this.scopeKey = scopeKey != null && !scopeKey.isBlank() ? scopeKey : GLOBAL_SCOPE_KEY;
         this.currentValue = 0L;
         this.incrementBy = 1;
         this.startValue = 1L;
