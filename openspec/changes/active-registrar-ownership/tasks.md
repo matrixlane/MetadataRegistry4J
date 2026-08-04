@@ -7,8 +7,8 @@
 ## 2. 注册权限与所有权归属
 
 - [ ] 2.1 `ItemAdministrationRequest` 移除 `registrationAuthorityId` 字段；确认 Jackson 忽略未知字段（或显式配置），避免旧客户端 400
-- [ ] 2.2 `ItemAdministrationService` 创建路径：非 Registrar 一律拒绝（含团队版未自指派 Registrar 的 Admin，提示先取得身份）；注册机构自有命名空间 → 归属设为活动身份所在机构，命名空间所属机构与活动身份机构不一致时拒绝；外部命名空间 → 保持无归属
-- [ ] 2.3 `ItemAdministrationService` 更新/删除路径：有归属条目要求当前用户以归属机构的 Registrar 身份为活动身份（未激活须先切换）；无归属条目维持既有校验；超级管理员不豁免
+- [ ] 2.2 `ItemAdministrationService` 创建路径：非 Registrar 一律拒绝（含团队版未自指派 Registrar 的 Admin，提示先取得身份）；注册机构自有命名空间 → 归属设为活动身份所在机构，命名空间所属机构与活动身份机构不一致时拒绝；外部命名空间（含导入与手工编目）→ 同样要求活动 Registrar 身份，条目归属活动身份所在机构（Namespace 不关联注册机构，`namingAuthority` 记录外部来源机构，实体字段已具备，仅核对赋值链路）
+- [ ] 2.3 `ItemAdministrationService` 更新/删除路径：有归属条目要求当前用户以归属机构的 Registrar 身份为活动身份（未激活须先切换）；无归属条目（仅历史遗留）维持既有校验；超级管理员不豁免
 
 ## 3. 联邦合并防护
 
@@ -21,5 +21,5 @@
 
 ## 5. 测试与收尾
 
-- [ ] 5.1 后端单测/集成测试：非 Registrar 拒绝、归属自动推导、跨机构写入拒绝、未激活身份修改拒绝、失效回退、联邦归属保持
+- [ ] 5.1 后端单测/集成测试：非 Registrar 拒绝（自有与外部命名空间）、归属自动推导、外部命名空间条目归属本机构且 namingAuthority 保持外部来源、跨机构写入拒绝、未激活身份修改拒绝、失效回退、联邦归属保持
 - [ ] 5.2 `openspec validate active-registrar-ownership --strict` 通过；`gitnexus_detect_changes()` 核对受影响符号与执行流符合预期

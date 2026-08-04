@@ -6,7 +6,7 @@
 
 - 引入"活动 Registrar 身份"：Registrar 才是注册工作的执行身份。用户可同时持有多个 Registrar 身份（云部署多租户场景下，一个租户可授权另一租户的用户成为本租户注册机构的 Registrar——CLOUD 留待未来实现，机制先行兼容）；登录后同时只能激活一个 Registrar 身份，所有注册工作均以该活动身份进行。
 - **BREAKING** 注册（创建/更新）Administered_Item 时，归属由服务端依据活动 Registrar 身份自动推导，移除请求体中的 `registrationAuthorityId` 字段；客户端不再能指定或清空条目归属。所注册的 Administered_Item 一定关联活动 Registrar 所在的 Registration_Authority。
-- 注册权限：非 Registrar 没有权限注册 Administered_Item；Registrar 有权限注册。个人版 Admin 自动成为所创建注册机构的 Registrar（既有行为）；团队版 Admin 是否成为 Registrar 是可选的（既有行为），未自指派时不具备注册权限，须先被指派为 Registrar。
+- 注册权限：非 Registrar 没有权限注册 Administered_Item；Registrar 有权限注册。个人版 Admin 自动成为所创建注册机构的 Registrar（既有行为）；团队版 Admin 是否成为 Registrar 是可选的（既有行为），未自指派时不具备注册权限，须先被指派为 Registrar。外部命名空间下的条目（导入或按外部标准手工编目）同样归属操作 Registrar 所在的注册机构：外部命名空间本身不关联任何注册机构，其 Naming_Authority 记录该外部标准的真实来源机构。
 - 变更权限约束：修改/删除已归属注册机构的条目时，当前用户 MUST 以该机构的 Registrar 身份为活动身份；无归属的外部编目条目维持既有规则。
 - 联邦合并引入的条目 MUST 保留其来源注册机构所有权，本地活动 Registrar 不得将其归属变更为本地注册机构。
 - 前端条目表单移除注册机构选择控件，改为只读展示由服务端推导的归属注册机构；持有多个 Registrar 身份的用户在登录后选择并在使用中切换活动身份。

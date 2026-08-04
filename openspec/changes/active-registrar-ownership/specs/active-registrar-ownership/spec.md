@@ -35,7 +35,7 @@
 
 ### Requirement: 注册权限与所有权归属
 
-非 Registrar 没有权限注册 Administered_Item；Registrar 有权限注册 Administered_Item，且所注册的 Administered_Item MUST 关联其活动 Registrar 身份所在的 Registration_Authority。在注册机构自有命名空间下创建条目时，命名空间所属机构与活动身份所在机构不一致的，系统 SHALL 拒绝。请求体 MUST NOT 接受 `registrationAuthorityId` 或等效字段。在外部命名空间（无关联注册机构、非 system-default）下编目外部标准不属于本机构注册行为，条目 SHALL 保持无注册机构归属。
+非 Registrar 没有权限注册 Administered_Item；Registrar 有权限注册 Administered_Item，且所注册的 Administered_Item MUST 关联其活动 Registrar 身份所在的 Registration_Authority。在注册机构自有命名空间下创建条目时，命名空间所属机构与活动身份所在机构不一致的，系统 SHALL 拒绝。在外部命名空间（无关联注册机构、非 system-default）下通过导入或手工编目创建的条目，同样 SHALL 归属活动 Registrar 身份所在的注册机构；外部命名空间本身 MUST NOT 关联任何注册机构，其 Naming_Authority SHALL 记录该外部标准的真实来源机构。请求体 MUST NOT 接受 `registrationAuthorityId` 或等效字段。
 
 #### Scenario: Registrar 在自有命名空间注册条目
 
@@ -52,14 +52,19 @@
 - **WHEN** 用户的活动 Registrar 身份属于注册机构 A，尝试在注册机构 B 的自有命名空间下创建条目
 - **THEN** 系统 SHALL 拒绝该请求并返回业务校验错误
 
-#### Scenario: 外部命名空间编目
+#### Scenario: 外部命名空间编目条目归属本机构
 
-- **WHEN** 已认证用户在外部命名空间下编目外部组织的数据标准
-- **THEN** 系统 SHALL 创建无注册机构归属的条目
+- **WHEN** 用户以活动 Registrar 身份（所在注册机构 A）在外部命名空间下导入或手工编目外部组织的数据标准
+- **THEN** 系统 SHALL 创建归属注册机构 A 的条目；该外部命名空间保持不关联任何注册机构，其 Naming_Authority 记录外部标准的真实来源机构
+
+#### Scenario: 非 Registrar 在外部命名空间编目被拒绝
+
+- **WHEN** 没有任何 Registrar 身份的用户尝试在外部命名空间下创建条目
+- **THEN** 系统 SHALL 拒绝该请求，并提示需先取得 Registrar 身份
 
 ### Requirement: 变更权限约束
 
-修改或删除已归属注册机构的管理项时，当前用户 MUST 正以该注册机构的 Registrar 身份为活动身份；仅持有该机构 Registrar 身份但未激活的，须先切换活动身份。无归属的管理项维持既有校验规则。超级管理员 SHALL NOT 豁免此约束，但可通过既有 Registrar 指派能力先获得身份。
+修改或删除已归属注册机构的管理项时，当前用户 MUST 正以该注册机构的 Registrar 身份为活动身份；仅持有该机构 Registrar 身份但未激活的，须先切换活动身份。无归属的管理项仅可能为历史遗留数据（新注册条目一律有归属），维持既有校验规则。超级管理员 SHALL NOT 豁免此约束，但可通过既有 Registrar 指派能力先获得身份。
 
 #### Scenario: 以对应机构活动身份修改条目
 
