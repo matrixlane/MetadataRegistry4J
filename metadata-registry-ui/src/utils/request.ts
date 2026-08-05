@@ -31,7 +31,12 @@ request.interceptors.response.use(
   },
   (error: AxiosError<{ message?: string }>) => {
     if ((error.response?.data as any)?.code === 499) {
-      window.location.href = '/init-wizard';
+      // 已在向导页时不再整页跳转（location.href 会触发向导的 beforeunload 原生弹窗）
+      if (window.location.pathname !== '/init-wizard') {
+        window.location.href = '/init-wizard';
+      } else {
+        ElMessage.error('系统尚未完成初始化，请按向导完成配置');
+      }
     } else if ((error.response?.data as any)?.code === 498 || error.response?.status === 498) {
       // Session is in force-change-password state (e.g. wizard session token,
       // temp password, emergency login). Surface the dialog in AppLayout so
@@ -49,7 +54,11 @@ request.interceptors.response.use(
       }
       const msg = (error.response?.data as any)?.message || '认证失败，请重新登录';
       ElMessage.error(msg);
-      window.location.href = '/login';
+      // 初始化向导处于无账号的前置阶段，其端点均匿名放行；
+      // 此时跳登录页既无意义，又会触发向导的 beforeunload 原生弹窗
+      if (window.location.pathname !== '/init-wizard') {
+        window.location.href = '/login';
+      }
     } else {
       const status = error.response?.status;
       const serverMsg = error.response?.data?.message;
