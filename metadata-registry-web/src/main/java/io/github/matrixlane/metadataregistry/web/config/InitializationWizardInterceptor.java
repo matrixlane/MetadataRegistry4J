@@ -21,6 +21,7 @@ public class InitializationWizardInterceptor implements HandlerInterceptor {
         if (path.startsWith("/api/v1/init-wizard/") ||
             path.startsWith("/api/v1/datasource/") ||
             path.startsWith("/api/v1/migration/") ||
+            path.startsWith("/api/v1/identifier-strategy/") ||
             path.startsWith("/api/v1/auth/login") ||
             path.startsWith("/api/v1/auth/me") ||
             path.startsWith("/api/v1/auth/allow-registration") ||

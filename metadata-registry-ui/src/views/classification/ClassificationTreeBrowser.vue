@@ -1087,7 +1087,7 @@ async function handleExport(format: string) {
   if (!currentSchemeId.value) return;
   try {
     const token = useAuthStore().token;
-    const baseURL = import.meta.env.VITE_API_BASE;
+    const baseURL = import.meta.env.VITE_API_BASE ?? '/api/v1';
     // Direct Axios request with Blob output to bypass standard API interceptor unwrapping
     const response = await axios.get(`${baseURL}/classification-schemes/${currentSchemeId.value}/export`, {
       params: { format },

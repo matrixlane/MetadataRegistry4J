@@ -17,6 +17,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.util.matcher.RegexRequestMatcher;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 @Configuration
@@ -56,6 +57,11 @@ public class SecurityConfig {
                                 "/api/v1/init-wizard/status", "/api/v1/init-wizard/wizard-state",
                                 "/api/v1/init-wizard/setup", "/api/v1/init-wizard/commit",
                                 "/api/v1/init-wizard/abort",
+                                // 标识模板设计器的匿名只读端点（初始化向导在无账号状态下也需要）：
+                                // 预设/对象缩写为静态资源，匿名预览不产生序号分配
+                                "/api/v1/identifier-strategy/presets",
+                                "/api/v1/identifier-strategy/object-abbreviations",
+                                "/api/v1/identifier-strategy/preview",
                                 "/", "/index.html", "/favicon.svg", "/assets/**").permitAll()
                         .requestMatchers("/swagger-ui.html",
                                 "/swagger-ui/**",
@@ -67,6 +73,11 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/system/**").hasRole("SUPER_ADMIN")
                         .requestMatchers("/api/v1/federation/inbound/**").permitAll()
                         .requestMatchers("/api/v1/federation/**").hasRole("SUPER_ADMIN")
+                        // SPA 前端路由深链接（如 /login、/namespaces）：放行 GET，
+                        // 由 SpaForwardController 转发到 index.html 交给客户端路由
+                        .requestMatchers(RegexRequestMatcher.regexMatcher(HttpMethod.GET,
+                                "^/(?!api(?:/.*)?$|v3(?:/.*)?$|swagger-ui|actuator(?:/.*)?$|assets(?:/.*)?$|favicon\\.svg$|index\\.html$).*$"))
+                        .permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/**").authenticated()
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/change-password").authenticated()
                         .requestMatchers(HttpMethod.PUT, "/api/v1/auth/me/individual").authenticated()

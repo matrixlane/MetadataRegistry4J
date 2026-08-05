@@ -153,16 +153,21 @@ public class SegmentTemplateEngine {
                 continue;
             }
 
+            boolean paramsValid = true;
             try {
                 registry.handlerOf(type).validateParams(def);
             } catch (SegmentTemplateException e) {
+                paramsValid = false;
                 errors.add(label + ": " + e.getMessage());
             }
 
-            try {
-                registry.handlerOf(type).valueRegex(def);
-            } catch (SegmentTemplateException e) {
-                errors.add(label + " 无法派生格式正则: " + e.getMessage());
+            // 参数校验未通过的段跳过格式正则派生，避免 handler 在缺失参数上抛出 NPE
+            if (paramsValid) {
+                try {
+                    registry.handlerOf(type).valueRegex(def);
+                } catch (SegmentTemplateException e) {
+                    errors.add(label + " 无法派生格式正则: " + e.getMessage());
+                }
             }
 
             if (def.getName() != null && !def.getName().isBlank()) {

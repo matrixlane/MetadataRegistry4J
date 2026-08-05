@@ -3,7 +3,8 @@ import type { AxiosInstance, AxiosError } from 'axios';
 import { ElMessage } from 'element-plus';
 import { useAuthStore } from '@/stores/auth';
 
-const baseURL = import.meta.env.VITE_API_BASE;
+// 生产构建没有 .env.development，VITE_API_BASE 为空时默认 /api/v1（同源部署）
+const baseURL = import.meta.env.VITE_API_BASE ?? '/api/v1';
 
 const request: AxiosInstance = axios.create({
   baseURL,
