@@ -2,15 +2,13 @@ package io.github.matrixlane.metadataregistry.commonfacilities.identification.se
 
 /**
  * Catalog of identifier template segment types.
- *
- * <p>RANDOM is optional per spec; all others are mandatory.
  */
 public enum SegmentType {
     /** Fixed literal string, e.g. a custom prefix. */
     LITERAL,
     /** Abbreviation derived from the registered item's object type (DataElement -&gt; DE). */
     OBJECT_ABBREVIATION,
-    /** Auto-incrementing sequence number, optionally scoped to other segments. */
+    /** Auto-incrementing sequence number; scope derived from the template structure. */
     SEQUENCE,
     /** Random UUID, full or short form. */
     UUID,
@@ -21,7 +19,5 @@ public enum SegmentType {
     /** Check digit(s) computed over the concatenation of preceding segments. */
     CHECKSUM,
     /** Caller-supplied input variable (e.g. major/minor category). */
-    VARIABLE,
-    /** Fixed-length random characters (optional type). */
-    RANDOM
+    VARIABLE
 }

@@ -110,7 +110,9 @@ class ScopedIdentifierServiceTest {
     @Test
     void create_shouldGenerateIdentifierWhenBlank() {
         when(namespaceRepository.findById(namespaceId)).thenReturn(Optional.of(namespace));
-        when(identifiedItemRepository.findById(identifiedItemId)).thenReturn(Optional.of(identifiedItem));
+        when(identifiedItemRepository.existsById(identifiedItemId)).thenReturn(true);
+        when(identifiedItemRepository.findItemIdById(identifiedItemId)).thenReturn(Optional.empty());
+        when(identifiedItemRepository.getReferenceById(identifiedItemId)).thenReturn(identifiedItem);
         when(identifierInputPolicyService.resolveIdentifier(eq(namespace), isNull(), anyString(), any()))
                 .thenReturn("gen-id-123");
         when(identifierInputPolicyService.resolveVersion(eq(namespace), isNull())).thenReturn("1.0.0");
@@ -135,7 +137,9 @@ class ScopedIdentifierServiceTest {
     @Test
     void create_shouldUseProvidedIdentifier() {
         when(namespaceRepository.findById(namespaceId)).thenReturn(Optional.of(namespace));
-        when(identifiedItemRepository.findById(identifiedItemId)).thenReturn(Optional.of(identifiedItem));
+        when(identifiedItemRepository.existsById(identifiedItemId)).thenReturn(true);
+        when(identifiedItemRepository.findItemIdById(identifiedItemId)).thenReturn(Optional.empty());
+        when(identifiedItemRepository.getReferenceById(identifiedItemId)).thenReturn(identifiedItem);
         when(identifierInputPolicyService.resolveIdentifier(eq(namespace), eq("custom-id"), anyString(), any()))
                 .thenReturn("custom-id");
         when(identifierInputPolicyService.resolveVersion(namespace, "2.0.0")).thenReturn("2.0.0");
@@ -159,7 +163,9 @@ class ScopedIdentifierServiceTest {
     @Test
     void create_shouldThrowWhenDuplicateIdentifier() {
         when(namespaceRepository.findById(namespaceId)).thenReturn(Optional.of(namespace));
-        when(identifiedItemRepository.findById(identifiedItemId)).thenReturn(Optional.of(identifiedItem));
+        when(identifiedItemRepository.existsById(identifiedItemId)).thenReturn(true);
+        when(identifiedItemRepository.findItemIdById(identifiedItemId)).thenReturn(Optional.empty());
+        when(identifiedItemRepository.getReferenceById(identifiedItemId)).thenReturn(identifiedItem);
         when(identifierInputPolicyService.resolveIdentifier(eq(namespace), eq("dup-id"), anyString(), any()))
                 .thenReturn("dup-id");
         when(scopedIdentifierRepository.existsByNamespaceIdAndIdentifier(namespaceId, "dup-id")).thenReturn(true);
@@ -175,7 +181,9 @@ class ScopedIdentifierServiceTest {
     @Test
     void create_shouldHandleConcurrentConflict() {
         when(namespaceRepository.findById(namespaceId)).thenReturn(Optional.of(namespace));
-        when(identifiedItemRepository.findById(identifiedItemId)).thenReturn(Optional.of(identifiedItem));
+        when(identifiedItemRepository.existsById(identifiedItemId)).thenReturn(true);
+        when(identifiedItemRepository.findItemIdById(identifiedItemId)).thenReturn(Optional.empty());
+        when(identifiedItemRepository.getReferenceById(identifiedItemId)).thenReturn(identifiedItem);
         when(scopedIdentifierRepository.existsByNamespaceIdAndIdentifier(any(), any())).thenReturn(false);
         when(scopedIdentifierRepository.save(any())).thenThrow(new DataIntegrityViolationException("dup"));
 
@@ -201,7 +209,7 @@ class ScopedIdentifierServiceTest {
     @Test
     void create_shouldThrowWhenIdentifiedItemNotFound() {
         when(namespaceRepository.findById(namespaceId)).thenReturn(Optional.of(namespace));
-        when(identifiedItemRepository.findById(identifiedItemId)).thenReturn(Optional.empty());
+        when(identifiedItemRepository.existsById(identifiedItemId)).thenReturn(false);
 
         ScopedIdentifierCreateRequest request = new ScopedIdentifierCreateRequest(
                 namespaceId, "id", "1.0.0", identifiedItemId, null);
@@ -213,7 +221,9 @@ class ScopedIdentifierServiceTest {
     @Test
     void create_shouldThrowForInvalidVersion() {
         when(namespaceRepository.findById(namespaceId)).thenReturn(Optional.of(namespace));
-        when(identifiedItemRepository.findById(identifiedItemId)).thenReturn(Optional.of(identifiedItem));
+        when(identifiedItemRepository.existsById(identifiedItemId)).thenReturn(true);
+        when(identifiedItemRepository.findItemIdById(identifiedItemId)).thenReturn(Optional.empty());
+        when(identifiedItemRepository.getReferenceById(identifiedItemId)).thenReturn(identifiedItem);
         when(identifierInputPolicyService.resolveIdentifier(eq(namespace), eq("id"), anyString(), any()))
                 .thenReturn("id");
         when(identifierInputPolicyService.resolveVersion(namespace, "invalid"))

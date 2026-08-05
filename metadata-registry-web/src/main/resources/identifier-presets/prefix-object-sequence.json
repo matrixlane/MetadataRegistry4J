@@ -1,0 +1,18 @@
+{
+  "key": "prefix-object-sequence",
+  "name": "固定前缀 + 对象缩写 + 顺序号",
+  "description": "机构缩写等固定前缀加对象类型缩写加顺序号，顺序号按对象类型分别计数。示例：WN.DE.00001（前缀请改为本机构缩写）",
+  "template": {
+    "segments": [
+      { "type": "LITERAL", "params": { "value": "CO" } },
+      { "type": "SEPARATOR", "params": { "char": "." } },
+      { "type": "OBJECT_ABBREVIATION", "name": "objectAbbr", "params": {} },
+      { "type": "SEPARATOR", "params": { "char": "." } },
+      {
+        "type": "SEQUENCE",
+        "name": "seq",
+        "params": { "start": 1, "increment": 1, "pad": 5, "overflow": "REJECT" }
+      }
+    ]
+  }
+}

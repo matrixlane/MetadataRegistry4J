@@ -12,7 +12,9 @@ import java.util.Map;
  *       (drives OBJECT_ABBREVIATION).</li>
  *   <li>{@code variables}: caller-supplied values for VARIABLE segments.</li>
  *   <li>{@code resolvedValues}: values produced so far, keyed by segment name
- *       (drives SEQUENCE scopeRefs and CHECKSUM input).</li>
+ *       (drives CHECKSUM input and reverse-parse results).</li>
+ *   <li>{@code objectAbbreviation}: resolved value of the OBJECT_ABBREVIATION
+ *       segment, when the template contains one (drives the SEQUENCE scope).</li>
  *   <li>{@code preview}: when true, SEQUENCE segments use their start value
  *       without touching the allocator (preview must not allocate).</li>
  * </ul>
@@ -26,6 +28,8 @@ public class SegmentContext {
     private final boolean preview;
     /** Concatenation of segment values produced so far (drives CHECKSUM). */
     private final StringBuilder currentPrefix = new StringBuilder();
+    /** Resolved OBJECT_ABBREVIATION value (drives the SEQUENCE scope key). */
+    private String objectAbbreviation;
 
     public SegmentContext(String itemType, Map<String, String> variables,
                           SequenceAllocator allocator, boolean preview) {
@@ -54,6 +58,14 @@ public class SegmentContext {
 
     public Map<String, String> getResolvedValues() {
         return resolvedValues;
+    }
+
+    public void recordObjectAbbreviation(String value) {
+        this.objectAbbreviation = value;
+    }
+
+    public String getObjectAbbreviation() {
+        return objectAbbreviation;
     }
 
     public void recordValue(String name, String value) {

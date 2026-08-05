@@ -3,7 +3,6 @@ package io.github.matrixlane.metadataregistry.commonfacilities.identification.se
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.segment.types.ChecksumSegmentHandler;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.segment.types.LiteralSegmentHandler;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.segment.types.ObjectAbbreviationSegmentHandler;
-import io.github.matrixlane.metadataregistry.commonfacilities.identification.segment.types.RandomSegmentHandler;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.segment.types.SeparatorSegmentHandler;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.segment.types.SequenceSegmentHandler;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.segment.types.TimestampSegmentHandler;
@@ -35,7 +34,6 @@ public class SegmentTypeRegistry {
         register(new TimestampSegmentHandler());
         register(new ChecksumSegmentHandler());
         register(new VariableSegmentHandler());
-        register(new RandomSegmentHandler());
     }
 
     public static SegmentTypeRegistry getInstance() {

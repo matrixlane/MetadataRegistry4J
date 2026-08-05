@@ -22,13 +22,7 @@ public record InitWizardSetupRequest(
 
     String identifierStrategy,
 
-    String identifierPrefix,
-
     String identifierTemplate,
-
-    Long strategySeqStart,
-
-    Integer strategySeqPad,
 
     String identifierInputMode,
 

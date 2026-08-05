@@ -44,6 +44,21 @@ public class IdentifierStrategyLoader implements CommandLineRunner {
             if (!config.isEffective()) {
                 continue;
             }
+            // 存量模板归一化提示：显式 scopeRefs 与 RANDOM 段已废止——生成期
+            // 作用域由引擎按模板结构自动推导（显式 scopeRefs 被忽略），
+            // 含 RANDOM 段的配置在下次编辑/发布时会被校验拒绝
+            if (config.getConfigJson() != null) {
+                if (config.getConfigJson().contains("\"scopeRefs\"")) {
+                    log.warn("[IdentifierStrategyLoader] 命名空间策略配置含已废止的 scopeRefs，"
+                            + "作用域将按模板结构自动推导: namespaceId={}",
+                            config.getNamespace() != null ? config.getNamespace().getId() : null);
+                }
+                if (config.getConfigJson().contains("\"RANDOM\"")) {
+                    log.warn("[IdentifierStrategyLoader] 命名空间策略配置含已移除的 RANDOM 段，"
+                            + "重新发布前需调整模板: namespaceId={}",
+                            config.getNamespace() != null ? config.getNamespace().getId() : null);
+                }
+            }
             if (config.getIsGlobalDefault()) {
                 registry.setGlobalDefault(config);
                 log.info("[IdentifierStrategyLoader] Loaded global default strategy: strategy={}",

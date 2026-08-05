@@ -43,6 +43,10 @@ public class SegmentDefinition {
         try {
             return SegmentType.valueOf(type.trim().toUpperCase());
         } catch (IllegalArgumentException e) {
+            if ("RANDOM".equalsIgnoreCase(type.trim())) {
+                throw new SegmentTemplateException(
+                        "段类型 RANDOM 已移除：随机段无唯一性保证，请改用顺序号、时间戳或 UUID 段");
+            }
             throw new SegmentTemplateException("Unknown segment type: " + type);
         }
     }

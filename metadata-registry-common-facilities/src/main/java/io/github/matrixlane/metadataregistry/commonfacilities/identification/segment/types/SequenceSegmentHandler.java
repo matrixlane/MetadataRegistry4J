@@ -10,16 +10,19 @@ import io.github.matrixlane.metadataregistry.commonfacilities.identification.seg
 import java.util.List;
 
 /**
- * Auto-incrementing sequence number. Params: start, increment, pad,
- * scopeRefs (names of other segments composing the scope key), overflow.
+ * Auto-incrementing sequence number. Params: start, increment, pad, overflow.
  *
- * <p>Without scopeRefs the counter is namespace-global. Overflow is detected
- * against the pad ceiling and always rejected — identifiers are never
- * truncated or repeated.
+ * <p>The scope is derived implicitly from the template structure and cannot
+ * be configured: when the template contains an OBJECT_ABBREVIATION segment
+ * (which must precede the sequence), the resolved abbreviation is the scope
+ * key, so each object type counts independently; otherwise the counter is
+ * namespace-global. Explicit {@code scopeRefs} params are rejected at
+ * template validation. Overflow is detected against the pad ceiling and
+ * always rejected — identifiers are never truncated or repeated.
  */
 public class SequenceSegmentHandler implements SegmentTypeHandler {
 
-    /** Scope key used when the sequence references no other segments. */
+    /** Scope key used when the template has no OBJECT_ABBREVIATION segment. */
     public static final String GLOBAL_SCOPE_KEY = "__GLOBAL__";
 
     @Override
@@ -52,7 +55,7 @@ public class SequenceSegmentHandler implements SegmentTypeHandler {
         long start = def.longParam("start", 1);
         int increment = def.intParam("increment", 1);
         int pad = def.intParam("pad", 6);
-        String scopeKey = scopeKeyOf(def, context);
+        String scopeKey = scopeKeyOf(context);
 
         long next;
         if (context.isPreview()) {
@@ -75,32 +78,13 @@ public class SequenceSegmentHandler implements SegmentTypeHandler {
     }
 
     /**
-     * Composes the scope key from the values of referenced segments, in
-     * template order. References must point at earlier segments whose values
-     * are already resolved.
+     * Derives the scope key from the generation context: the resolved
+     * OBJECT_ABBREVIATION value when the template produced one, otherwise
+     * the namespace-global scope.
      */
-    public static String scopeKeyOf(SegmentDefinition def, SegmentContext context) {
-        List<String> refs = def.listParam("scopeRefs");
-        if (refs.isEmpty()) {
-            return GLOBAL_SCOPE_KEY;
-        }
-        StringBuilder key = new StringBuilder();
-        for (String ref : refs) {
-            String value = context.getResolvedValues().get(ref);
-            if (value == null) {
-                value = context.getVariables().get(ref);
-            }
-            if (value == null) {
-                throw new SegmentTemplateException(
-                        "SEQUENCE segment scopeRef '" + ref + "' has no resolved value; "
-                                + "scopeRefs must reference earlier segments");
-            }
-            if (key.length() > 0) {
-                key.append('.');
-            }
-            key.append(value);
-        }
-        return key.toString();
+    public static String scopeKeyOf(SegmentContext context) {
+        String abbreviation = context.getObjectAbbreviation();
+        return abbreviation != null && !abbreviation.isBlank() ? abbreviation : GLOBAL_SCOPE_KEY;
     }
 
     /** Maximum value representable with the given pad length (pad=3 -&gt; 999). */
@@ -123,7 +107,6 @@ public class SequenceSegmentHandler implements SegmentTypeHandler {
         return "{\"fields\":[{\"key\":\"start\",\"label\":\"起始值\",\"type\":\"number\",\"default\":1},"
                 + "{\"key\":\"increment\",\"label\":\"步长\",\"type\":\"number\",\"default\":1},"
                 + "{\"key\":\"pad\",\"label\":\"补零位数\",\"type\":\"number\",\"default\":6},"
-                + "{\"key\":\"scopeRefs\",\"label\":\"作用域引用\",\"type\":\"segment-refs\"},"
                 + "{\"key\":\"overflow\",\"label\":\"溢出策略\",\"type\":\"select\",\"options\":[\"REJECT\"],\"default\":\"REJECT\"}]}";
     }
 }

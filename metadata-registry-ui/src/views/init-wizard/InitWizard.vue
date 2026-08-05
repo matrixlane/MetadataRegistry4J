@@ -261,61 +261,13 @@
               show-icon
               style="margin-bottom: 12px;"
             />
-            <el-form-item label="策略类型" prop="identifierStrategy">
-              <el-radio-group v-model="form.identifierStrategy" :disabled="form.identifierInputMode === 'MANUAL_ONLY'">
-                <el-radio-button value="SEGMENT_TEMPLATE">段模板</el-radio-button>
-                <el-radio-button value="UUID">UUID（内置兜底）</el-radio-button>
-              </el-radio-group>
+            <el-form-item label="标识模板" prop="identifierTemplate">
+              <SegmentTemplateDesigner
+                v-model="form.identifierTemplate"
+                :disabled="form.identifierInputMode === 'MANUAL_ONLY'"
+                style="width: 100%;"
+              />
             </el-form-item>
-            <el-alert
-              v-if="form.identifierStrategy === 'SEGMENT_TEMPLATE'"
-              title="默认载入 WS/T 363 数据元标识符预设：对象缩写 + 大类.小类.序号.附加码（如 DE01.00.001.00），序号按大类.小类作用域计数；初始化后可在命名空间设置的段规则设计器中调整或载入其他预设。"
-              type="success"
-              :closable="false"
-              show-icon
-              style="margin-bottom: 12px;"
-            />
-
-            <el-row v-if="form.identifierStrategy === 'SEQUENCE'" :gutter="20">
-              <el-col :span="8">
-                <el-form-item label="标识符前缀" prop="identifierPrefix">
-                  <el-input
-                    v-model="form.identifierPrefix"
-                    placeholder="DE- 或 {ns}. 或 {type}-"
-                    size="large"
-                    clearable
-                  />
-                </el-form-item>
-              </el-col>
-              <el-col :span="8">
-                <el-form-item label="序列起始值" prop="strategySeqStart">
-                  <el-input-number v-model="form.strategySeqStart" :min="0" size="large" style="width: 100%;" />
-                </el-form-item>
-              </el-col>
-              <el-col :span="8">
-                <el-form-item label="序列补零位数" prop="strategySeqPad">
-                  <el-input-number v-model="form.strategySeqPad" :min="1" :max="18" size="large" style="width: 100%;" />
-                </el-form-item>
-              </el-col>
-            </el-row>
-
-            <el-row v-if="form.identifierStrategy === 'TEMPLATE'" :gutter="20">
-              <el-col :span="16">
-                <el-form-item label="标识符模板" prop="identifierTemplate">
-                  <el-input
-                    v-model="form.identifierTemplate"
-                    placeholder="例如：{ns}.{type}.{seq:4}"
-                    size="large"
-                    clearable
-                  />
-                </el-form-item>
-              </el-col>
-              <el-col :span="8">
-                <el-form-item label="序列补零位数" prop="strategySeqPad">
-                  <el-input-number v-model="form.strategySeqPad" :min="1" :max="18" size="large" style="width: 100%;" />
-                </el-form-item>
-              </el-col>
-            </el-row>
 
             <el-divider content-position="left">版本生成策略</el-divider>
             <el-form-item label="输入模式" prop="versionInputMode">
@@ -497,6 +449,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { Setting, OfficeBuilding, Check, Message } from '@element-plus/icons-vue';
 import request from '@/utils/request';
 import { useAuthStore } from '@/stores/auth';
+import SegmentTemplateDesigner from '@/components/identifier/SegmentTemplateDesigner.vue';
 
 const router = useRouter();
 const auth = useAuthStore();
@@ -552,10 +505,15 @@ const form = reactive({
   identifierInputMode: 'AUTO_WITH_OVERRIDE',
   versionInputMode: 'AUTO_WITH_OVERRIDE',
   identifierStrategy: 'SEGMENT_TEMPLATE',
-  identifierPrefix: '',
-  identifierTemplate: '',
-  strategySeqStart: 1,
-  strategySeqPad: 4,
+  // 默认编排：元数据对象缩写 + 分隔符 + 五位顺序号（如 DE.00001）；
+  // identifierStrategy 固定为 SEGMENT_TEMPLATE，由编辑器产出模板 JSON。
+  identifierTemplate: JSON.stringify({
+    segments: [
+      { type: 'OBJECT_ABBREVIATION', name: 'objectAbbr', params: {} },
+      { type: 'SEPARATOR', params: { char: '.' } },
+      { type: 'SEQUENCE', name: 'seq', params: { start: 1, increment: 1, pad: 5, overflow: 'REJECT' } },
+    ],
+  }),
   versionPolicy: 'SEMVER',
   createRegistrySpecification: true,
   registryName: '',
@@ -591,13 +549,40 @@ const rulesStep4 = reactive<FormRules>({
   ]
 });
 
+/**
+ * 标识模板校验：手动录入模式下豁免；自动模式下模板必须可解析，
+ * 且恰好包含一个唯一性段（顺序号/时间戳/UUID）。
+ */
+function validateIdentifierTemplate(rule: any, value: any, callback: any) {
+  if (form.identifierInputMode === 'MANUAL_ONLY') {
+    callback();
+    return;
+  }
+  if (!value) {
+    callback(new Error('请在编辑器中配置标识模板'));
+    return;
+  }
+  try {
+    const parsed = JSON.parse(value);
+    const segs: any[] = parsed.segments || [];
+    const uniqueness = segs.filter((s: any) => ['SEQUENCE', 'TIMESTAMP', 'UUID'].includes(s.type));
+    if (uniqueness.length !== 1) {
+      callback(new Error('模板必须恰好包含一个唯一性段（顺序号/时间戳/UUID）'));
+      return;
+    }
+    callback();
+  } catch {
+    callback(new Error('模板 JSON 格式不正确'));
+  }
+}
+
 const rulesStep3 = reactive<FormRules>({
   namespaceName: [
     { required: true, message: '请输入命名空间名称', trigger: 'blur' },
     { min: 2, max: 100, message: '长度在 2 到 100 个字符', trigger: 'blur' }
   ],
-  identifierStrategy: [
-    { required: true, message: '请选择标识生成策略', trigger: 'change' }
+  identifierTemplate: [
+    { validator: validateIdentifierTemplate, trigger: 'change' }
   ],
   versionPolicy: [
     { required: true, message: '请选择版本生成策略', trigger: 'change' }

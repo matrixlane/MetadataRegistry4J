@@ -23,6 +23,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -85,6 +86,12 @@ public class IdentifierStrategyAdminController {
         return ApiResponse.ok(service.validateFormat(request.configJson(), request.identifier()));
     }
 
+    @PostMapping("/identifier-strategy/preview")
+    @Operation(summary = "无命名空间上下文预览（初始化向导等场景；与按命名空间预览共用引擎管线，不产生序号分配）")
+    public ApiResponse<PreviewResponse> previewWithoutNamespace(@Valid @RequestBody PreviewRequest request) {
+        return ApiResponse.ok(service.preview(request.configJson(), request.itemType(), request.variables()));
+    }
+
     @PostMapping("/namespaces/{namespaceId}/identifier-strategy/backfill")
     @Operation(summary = "序号回填：按既有标识对齐各作用域计数器")
     public ApiResponse<BackfillResponse> backfill(@PathVariable UUID namespaceId) {
@@ -92,8 +99,14 @@ public class IdentifierStrategyAdminController {
     }
 
     @GetMapping("/identifier-strategy/presets")
-    @Operation(summary = "段模板预设库（WS/T 363 等）")
+    @Operation(summary = "段模板预设库")
     public ApiResponse<List<PresetResponse>> presets() {
         return ApiResponse.ok(service.presets());
+    }
+
+    @GetMapping("/identifier-strategy/object-abbreviations")
+    @Operation(summary = "元数据对象缩写系统映射表（只读展示；调整需编辑服务端 object-abbreviations.json）")
+    public ApiResponse<Map<String, String>> objectAbbreviations() {
+        return ApiResponse.ok(service.objectAbbreviations());
     }
 }

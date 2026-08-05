@@ -1,0 +1,16 @@
+{
+  "key": "object-sequence",
+  "name": "对象缩写 + 顺序号",
+  "description": "按对象类型缩写加顺序号的简洁编排，顺序号按对象类型分别计数。示例：DE.00001",
+  "template": {
+    "segments": [
+      { "type": "OBJECT_ABBREVIATION", "name": "objectAbbr", "params": {} },
+      { "type": "SEPARATOR", "params": { "char": "." } },
+      {
+        "type": "SEQUENCE",
+        "name": "seq",
+        "params": { "start": 1, "increment": 1, "pad": 5, "overflow": "REJECT" }
+      }
+    ]
+  }
+}

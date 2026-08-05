@@ -174,9 +174,7 @@ public class InitWizardService {
         }
 
         RegistrationAuthorityIdentifier rai = new RegistrationAuthorityIdentifier();
-        rai.setOrganizationIdentifier(request.identifierPrefix() != null && !request.identifierPrefix().isBlank()
-                ? request.identifierPrefix()
-                : "RA");
+        rai.setOrganizationIdentifier("RA");
         ra.setRegistrationAuthorityIdentifier(rai);
 
         ra = registrationAuthorityRepository.save(ra);
@@ -249,34 +247,15 @@ public class InitWizardService {
     private void createNamespaceStrategyConfig(Namespace ns, InitWizardSetupRequest request) {
         String strategy = request.identifierStrategy() == null || request.identifierStrategy().isBlank()
                 ? "SEGMENT_TEMPLATE" : request.identifierStrategy().trim().toUpperCase();
-        if (!java.util.Set.of("UUID", "SEQUENCE", "TEMPLATE", "SEGMENT_TEMPLATE").contains(strategy)) {
-            throw new BusinessException(ApiCodes.VALIDATION_FAILED, "不支持的标识生成策略: " + strategy);
+        // 标识生成策略收敛为段模板唯一选择；UUID/顺序号/旧模板等旧值一律拒绝
+        if (!"SEGMENT_TEMPLATE".equals(strategy)) {
+            throw new BusinessException(ApiCodes.VALIDATION_FAILED,
+                    "标识生成策略仅支持段模板（SEGMENT_TEMPLATE），不支持的策略值: " + strategy);
         }
-        // 与命名空间设置页一致：前缀缺省为空（可由 {ns}/{type} 令牌组合）
-        String prefix = request.identifierPrefix() == null || request.identifierPrefix().isBlank()
-                ? "" : request.identifierPrefix().trim();
-        String configJson = switch (strategy) {
-            case "SEGMENT_TEMPLATE" -> {
-                String raw = request.identifierTemplate();
-                String templateJson = raw == null || raw.isBlank()
-                        ? defaultSegmentTemplateJson() : raw.trim();
-                validateSegmentTemplate(templateJson);
-                yield templateJson;
-            }
-            case "SEQUENCE" -> {
-                long start = request.strategySeqStart() != null ? request.strategySeqStart() : 1L;
-                int pad = request.strategySeqPad() != null ? request.strategySeqPad() : 6;
-                yield "{\"prefix\":\"" + prefix + "\",\"start\":" + start
-                        + ",\"incrementBy\":1,\"pad\":" + pad + "}";
-            }
-            case "TEMPLATE" -> {
-                String template = request.identifierTemplate() == null || request.identifierTemplate().isBlank()
-                        ? "{prefix}-{seq:4}" : request.identifierTemplate().trim();
-                int pad = request.strategySeqPad() != null ? request.strategySeqPad() : 4;
-                yield "{\"template\":\"" + template + "\",\"prefix\":\"" + prefix + "\",\"pad\":" + pad + "}";
-            }
-            default -> "{}";
-        };
+        String raw = request.identifierTemplate();
+        String configJson = raw == null || raw.isBlank()
+                ? defaultSegmentTemplateJson() : raw.trim();
+        validateSegmentTemplate(configJson);
         IdentifierStrategyConfig config = new IdentifierStrategyConfig(strategy);
         config.setNamespace(ns);
         config.setConfigJson(configJson);
@@ -290,19 +269,15 @@ public class InitWizardService {
     }
 
     /**
-     * 向导默认段模板：WS/T 363 数据元标识符编排（对象缩写 + 大类.小类.序号.附加码）。
+     * 向导默认段模板：对象缩写 + 分隔符 + 顺序号（示例 DE.00001）；
+     * 顺序号作用域自动按对象类型区分。
      */
     private static String defaultSegmentTemplateJson() {
         return """
                 {"segments":[
-                  {"type":"OBJECT_ABBREVIATION","name":"objectAbbr","params":{"mapping":{"DataElement":"DE","ValueDomain":"VD"}}},
-                  {"type":"VARIABLE","name":"majorCategory","params":{"label":"大类编码","pattern":"\\\\d{2}","required":true}},
+                  {"type":"OBJECT_ABBREVIATION","name":"objectAbbr","params":{}},
                   {"type":"SEPARATOR","params":{"char":"."}},
-                  {"type":"VARIABLE","name":"minorCategory","params":{"label":"小类编码","pattern":"\\\\d{2}","required":true}},
-                  {"type":"SEPARATOR","params":{"char":"."}},
-                  {"type":"SEQUENCE","name":"seq","params":{"start":1,"increment":1,"pad":3,"scopeRefs":["majorCategory","minorCategory"],"overflow":"REJECT"}},
-                  {"type":"SEPARATOR","params":{"char":"."}},
-                  {"type":"VARIABLE","name":"suffixCode","params":{"label":"附加码","pattern":"\\\\d{2}","default":"00","required":false}}
+                  {"type":"SEQUENCE","name":"seq","params":{"start":1,"increment":1,"pad":5,"overflow":"REJECT"}}
                 ]}""";
     }
 

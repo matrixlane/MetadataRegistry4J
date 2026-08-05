@@ -226,7 +226,7 @@
               />
               <el-form-item :label="$t('namespace.externalPatternTest')">
                 <div style="display: flex; gap: 8px; width: 100%;">
-                  <el-input v-model="patternTestSample" placeholder="DE01.00.001.00" clearable />
+                  <el-input v-model="patternTestSample" placeholder="DE.00001" clearable />
                   <el-button @click="testExternalPattern">{{ $t('common.test') }}</el-button>
                 </div>
               </el-form-item>

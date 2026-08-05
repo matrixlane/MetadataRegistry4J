@@ -6,6 +6,7 @@ import io.github.matrixlane.metadataregistry.commonfacilities.identification.Ide
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.ScopedIdentifier;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.segment.SegmentDefinition;
+import io.github.matrixlane.metadataregistry.commonfacilities.identification.segment.ObjectAbbreviationCatalog;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.segment.SegmentTemplate;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.segment.SegmentTemplateEngine;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.segment.SegmentTemplateException;
@@ -202,6 +203,14 @@ public class IdentifierStrategyAdminService {
     // --- presets ---
 
     @Transactional(readOnly = true)
+    /**
+     * 元数据对象缩写系统映射表（供编辑器只读展示；调整需编辑服务端
+     * object-abbreviations.json 资源文件）。
+     */
+    public Map<String, String> objectAbbreviations() {
+        return ObjectAbbreviationCatalog.getInstance().all();
+    }
+
     public List<PresetResponse> presets() {
         List<PresetResponse> result = new ArrayList<>();
         try {
@@ -268,7 +277,7 @@ public class IdentifierStrategyAdminService {
             }
             try {
                 long seq = Long.parseLong(seqValue);
-                String scopeKey = SegmentTemplateEngine.scopeKeyOf(sequenceDef, values);
+                String scopeKey = SegmentTemplateEngine.scopeKeyOf(template, values);
                 scopeMax.merge(scopeKey, seq, Math::max);
             } catch (NumberFormatException | SegmentTemplateException e) {
                 log.warn("[IdentifierStrategyAdminService] Backfill skipped identifier {}: {}",

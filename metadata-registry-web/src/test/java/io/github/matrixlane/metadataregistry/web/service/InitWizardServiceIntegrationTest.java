@@ -95,11 +95,8 @@ class InitWizardServiceIntegrationTest {
                 true, // selfAsRegistrar
                 true,  // createNamespace
                 null,        // namespaceName（缺省 "默认命名空间"）
-                "SEQUENCE",  // identifierStrategy
-                null,        // identifierPrefix（缺省为空）
-                null,        // identifierTemplate
-                null,        // strategySeqStart
-                null,        // strategySeqPad
+                null,        // identifierStrategy（缺省段模板）
+                null,        // identifierTemplate（缺省系统默认模板）
                 null,        // identifierInputMode
                 null,        // versionInputMode
                 "SEQUENTIAL",// versionPolicy
@@ -145,9 +142,10 @@ class InitWizardServiceIntegrationTest {
                 .toList();
         assertThat(nsConfigs).hasSize(1);
         IdentifierStrategyConfig nsConfig = nsConfigs.get(0);
-        assertThat(nsConfig.getStrategyType()).isEqualTo("SEQUENCE");
+        assertThat(nsConfig.getStrategyType()).isEqualTo("SEGMENT_TEMPLATE");
         assertThat(nsConfig.getStatus().name()).isEqualTo("PUBLISHED");
-        assertThat(nsConfig.getConfigJson()).contains("\"prefix\":\"\"");
+        // 系统默认模板：对象缩写 + 分隔符 + 顺序号（如 DE.00001）
+        assertThat(nsConfig.getConfigJson()).contains("OBJECT_ABBREVIATION");
         // 标识/版本输入模式缺省为 AUTO_WITH_OVERRIDE
         assertThat(createdNs.getIdentifierInputMode()).isEqualTo("AUTO_WITH_OVERRIDE");
         assertThat(createdNs.getVersionInputMode()).isEqualTo("AUTO_WITH_OVERRIDE");
@@ -190,7 +188,7 @@ class InitWizardServiceIntegrationTest {
                 null,
                 false, // selfAsRegistrar
                 true,  // createNamespace（命名空间为必选，不能再跳过）
-                null, null, null, null, null, null, null, null, null, null, null, null, null
+                null, null, null, null, null, null, null, null, null, null
         );
 
         initWizardService.setup(request, appUserId);
@@ -208,9 +206,8 @@ class InitWizardServiceIntegrationTest {
         // 命名空间与注册表规范，并把管理员设为注册员。
         InitWizardSetupRequest request = new InitWizardSetupRequest(
                 "PERSONAL",
-                null, null, null, null,
-                null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null, null
+                null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null
         );
 
         initWizardService.setup(request, appUserId);
@@ -245,8 +242,7 @@ class InitWizardServiceIntegrationTest {
                 null, null, null, null,
                 null,
                 false, // createNamespace
-                null, null, null, null, null,
-                null, null, null, null, null, null, null, null
+                null, null, null, null, null, null, null, null, null, null
         );
         assertThatThrownBy(() -> initWizardService.setup(personalRequest, appUserId))
                 .hasMessageContaining("命名空间");
@@ -258,8 +254,7 @@ class InitWizardServiceIntegrationTest {
                 "Team RA",
                 null, null, null,
                 false, // createNamespace
-                null, null, null, null, null,
-                null, null, null, null, null, null, null, null
+                null, null, null, null, null, null, null, null, null, null
         );
         assertThatThrownBy(() -> initWizardService.setup(teamRequest, appUserId))
                 .hasMessageContaining("命名空间");
@@ -273,8 +268,7 @@ class InitWizardServiceIntegrationTest {
         InitWizardSetupRequest personalRequest = new InitWizardSetupRequest(
                 "PERSONAL",
                 null, null, null, null,
-                null, null,
-                null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null,
                 false, // createRegistrySpecification
                 null, null, null
         );
@@ -286,7 +280,7 @@ class InitWizardServiceIntegrationTest {
                 "TEAM",
                 null, "Team RA", null, null,
                 true, true,
-                null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null,
                 false, // createRegistrySpecification
                 null, null, null
         );
@@ -301,12 +295,68 @@ class InitWizardServiceIntegrationTest {
                 "CLOUD",
                 null, "Some RA", null, null,
                 true, true,
-                null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null,
                 null,
                 null, null, null
         );
 
         assertThatThrownBy(() -> initWizardService.setup(request, appUserId))
                 .hasMessageContaining("不可用");
+    }
+
+    @Test
+    void setup_legacyStrategyValue_rejected() {
+        // 策略白名单收敛：UUID/SEQUENCE/TEMPLATE 等旧策略值一律拒绝
+        InitWizardSetupRequest request = new InitWizardSetupRequest(
+                "TEAM",
+                null, "Team RA", null, null,
+                true, true,
+                null,
+                "UUID", // identifierStrategy：旧策略值
+                null,
+                null, null, null,
+                null,
+                null, null, null
+        );
+        assertThatThrownBy(() -> initWizardService.setup(request, appUserId))
+                .hasMessageContaining("段模板");
+    }
+
+    @Test
+    void setup_inlineTemplate_publishedAsIs() {
+        // 向导就地编排的模板（固定前缀 + 对象缩写 + 顺序号）直接成为已发布策略
+        String inlineTemplate = """
+                {"segments":[
+                  {"type":"LITERAL","params":{"value":"WN"}},
+                  {"type":"SEPARATOR","params":{"char":"."}},
+                  {"type":"OBJECT_ABBREVIATION","name":"objectAbbr","params":{}},
+                  {"type":"SEPARATOR","params":{"char":"."}},
+                  {"type":"SEQUENCE","name":"seq","params":{"start":1,"increment":1,"pad":5,"overflow":"REJECT"}}
+                ]}""";
+        InitWizardSetupRequest request = new InitWizardSetupRequest(
+                "TEAM",
+                null, "Inline Template RA", null, null,
+                true, true,
+                null,
+                "SEGMENT_TEMPLATE",
+                inlineTemplate,
+                null, null, null,
+                null,
+                null, null, null
+        );
+
+        initWizardService.setup(request, appUserId);
+
+        Namespace createdNs = namespaceRepository.findAll().stream()
+                .filter(ns -> ns.getRegistrationAuthority() != null)
+                .findFirst()
+                .orElseThrow();
+        IdentifierStrategyConfig config = identifierStrategyConfigRepository.findAll().stream()
+                .filter(c -> c.getNamespace() != null && createdNs.getId().equals(c.getNamespace().getId()))
+                .findFirst()
+                .orElseThrow();
+        assertThat(config.getStrategyType()).isEqualTo("SEGMENT_TEMPLATE");
+        assertThat(config.getStatus().name()).isEqualTo("PUBLISHED");
+        assertThat(config.getConfigJson()).contains("WN").contains("OBJECT_ABBREVIATION");
     }
 }

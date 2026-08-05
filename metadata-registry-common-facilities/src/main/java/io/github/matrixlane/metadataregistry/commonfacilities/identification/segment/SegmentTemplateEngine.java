@@ -25,6 +25,9 @@ import java.util.regex.Pattern;
  */
 public class SegmentTemplateEngine {
 
+    /** Maximum identifier length (scoped_identifier.identifier column). */
+    public static final int MAX_IDENTIFIER_LENGTH = 255;
+
     private final SegmentTypeRegistry registry;
 
     public SegmentTemplateEngine() {
@@ -116,8 +119,11 @@ public class SegmentTemplateEngine {
 
     /**
      * Validates the template structurally: parameter schema of every segment,
-     * unique variable names, scopeRefs pointing at earlier named segments,
-     * regex derivability, and CHECKSUM placement (must not be first).
+     * unique variable names, regex derivability, CHECKSUM placement (must not
+     * be first), exactly one uniqueness segment (SEQUENCE / TIMESTAMP / UUID),
+     * millisecond precision for a uniqueness TIMESTAMP, implicit SEQUENCE
+     * scope rules (no explicit scopeRefs; OBJECT_ABBREVIATION must precede
+     * and be named), and the total output length ceiling.
      *
      * @return list of validation error messages (empty = valid)
      */
@@ -128,9 +134,12 @@ public class SegmentTemplateEngine {
             return errors;
         }
 
-        Set<String> declaredNames = new LinkedHashSet<>();
         Set<String> variableNames = new LinkedHashSet<>();
         List<SegmentDefinition> segments = template.getSegments();
+        List<SegmentDefinition> uniquenessSegments = new ArrayList<>();
+        int abbreviationIndex = -1;
+        SegmentDefinition abbreviationDef = null;
+        int sequenceIndex = -1;
 
         for (int i = 0; i < segments.size(); i++) {
             SegmentDefinition def = segments.get(i);
@@ -160,46 +169,130 @@ public class SegmentTemplateEngine {
                 if (type == SegmentType.VARIABLE && !variableNames.add(def.getName())) {
                     errors.add(label + ": 变量段名 '" + def.getName() + "' 重复");
                 }
-                declaredNames.add(def.getName());
             }
 
-            if (type == SegmentType.SEQUENCE) {
-                for (String ref : def.listParam("scopeRefs")) {
-                    if (!declaredNames.contains(ref)) {
-                        errors.add(label + ": 顺序号段引用了不存在的段名 '" + ref
-                                + "'（scopeRefs 必须引用前面已声明的段）");
+            switch (type) {
+                case OBJECT_ABBREVIATION -> {
+                    if (abbreviationIndex < 0) {
+                        abbreviationIndex = i;
+                        abbreviationDef = def;
                     }
                 }
+                case SEQUENCE -> {
+                    if (!def.listParam("scopeRefs").isEmpty()) {
+                        errors.add(label + ": 顺序号段不允许显式配置 scopeRefs——作用域由系统自动推导"
+                                + "（模板含对象缩写段时按对象类型计数，否则全局计数）");
+                    }
+                    if (sequenceIndex < 0) {
+                        sequenceIndex = i;
+                    }
+                    uniquenessSegments.add(def);
+                }
+                case TIMESTAMP, UUID -> uniquenessSegments.add(def);
+                case CHECKSUM -> {
+                    if (i == 0) {
+                        errors.add(label + ": 校验位段不能是第一个段（需要前序段作为输入）");
+                    }
+                }
+                default -> { }
             }
+        }
 
-            if (type == SegmentType.CHECKSUM && i == 0) {
-                errors.add(label + ": 校验位段不能是第一个段（需要前序段作为输入）");
+        // 唯一性段：顺序号、时间戳、UUID 三者择其一
+        if (uniquenessSegments.isEmpty()) {
+            errors.add("模板必须恰好包含一个唯一性段（顺序号 SEQUENCE、时间戳 TIMESTAMP、UUID 三者择其一），"
+                    + "当前未包含任何唯一性段");
+        } else if (uniquenessSegments.size() > 1) {
+            errors.add("模板包含 " + uniquenessSegments.size() + " 个唯一性段"
+                    + "（顺序号、时间戳、UUID 必须三者择其一），请仅保留一个");
+        } else {
+            SegmentDefinition only = uniquenessSegments.get(0);
+            if (only.segmentType() == SegmentType.TIMESTAMP) {
+                String pattern = only.stringParam("pattern", "");
+                if (maxRunOf(pattern, 'S') < 3) {
+                    errors.add("时间戳段作为唯一性段时必须精确到毫秒（pattern 中连续 S 不少于 3 位，"
+                            + "如 yyyyMMddHHmmssSSS），当前 pattern: " + pattern);
+                }
             }
+        }
+
+        // 顺序号作用域取对象缩写段的值：缩写段必须先于顺序号段且必须命名
+        if (sequenceIndex >= 0 && abbreviationIndex >= 0) {
+            if (abbreviationIndex > sequenceIndex) {
+                errors.add("对象缩写段必须位于顺序号段之前（顺序号作用域取其值）");
+            }
+            if (abbreviationDef.getName() == null || abbreviationDef.getName().isBlank()) {
+                errors.add("对象缩写段必须命名（name），以便顺序号作用域与序号回填定位其值");
+            }
+        }
+
+        // 模板输出总长度上限（scoped_identifier.identifier 列长 255）
+        long totalMaxLength = 0;
+        for (SegmentDefinition def : segments) {
+            SegmentType type;
+            try {
+                type = def.segmentType();
+            } catch (SegmentTemplateException e) {
+                continue;
+            }
+            totalMaxLength += maxSegmentLength(def, type);
+        }
+        if (totalMaxLength > MAX_IDENTIFIER_LENGTH) {
+            errors.add("模板各段最大输出长度之和 " + totalMaxLength + " 超出标识列上限 "
+                    + MAX_IDENTIFIER_LENGTH + "：请缩短固定字符串、减小变量段 maxLength 或改用短型 UUID");
         }
         return errors;
     }
 
     /**
-     * Computes the scope key a SEQUENCE segment would use for the given parsed
-     * segment values. Blank-scope sequences yield
+     * Computes the scope key a SEQUENCE segment uses for the given parsed
+     * segment values: the parsed OBJECT_ABBREVIATION value when the template
+     * contains such a segment, otherwise
      * {@link SequenceSegmentHandler#GLOBAL_SCOPE_KEY}.
      */
-    public static String scopeKeyOf(SegmentDefinition sequenceDef, Map<String, String> segmentValues) {
-        List<String> refs = sequenceDef.listParam("scopeRefs");
-        if (refs.isEmpty()) {
-            return SequenceSegmentHandler.GLOBAL_SCOPE_KEY;
-        }
-        StringBuilder key = new StringBuilder();
-        for (String ref : refs) {
-            String value = segmentValues.get(ref);
-            if (value == null) {
-                throw new SegmentTemplateException("scopeRef '" + ref + "' has no parsed value");
+    public static String scopeKeyOf(SegmentTemplate template, Map<String, String> segmentValues) {
+        for (SegmentDefinition def : template.getSegments()) {
+            if (def.segmentType() == SegmentType.OBJECT_ABBREVIATION) {
+                String value = def.getName() != null ? segmentValues.get(def.getName()) : null;
+                if (value != null && !value.isBlank()) {
+                    return value;
+                }
+                break;
             }
-            if (key.length() > 0) {
-                key.append('.');
-            }
-            key.append(value);
         }
-        return key.toString();
+        return SequenceSegmentHandler.GLOBAL_SCOPE_KEY;
+    }
+
+    /** Longest run of the given character in the value. */
+    private static int maxRunOf(String value, char c) {
+        int max = 0;
+        int run = 0;
+        for (int i = 0; i < value.length(); i++) {
+            if (value.charAt(i) == c) {
+                run++;
+                max = Math.max(max, run);
+            } else {
+                run = 0;
+            }
+        }
+        return max;
+    }
+
+    /** Maximum output length one segment can produce (for the total-length check). */
+    private static long maxSegmentLength(SegmentDefinition def, SegmentType type) {
+        return switch (type) {
+            case LITERAL -> def.stringParam("value", "").length();
+            case OBJECT_ABBREVIATION -> {
+                int catalogMax = ObjectAbbreviationCatalog.getInstance().maxAbbreviationLength();
+                String fallback = def.stringParam("default");
+                yield Math.max(catalogMax, fallback != null ? fallback.length() : 0);
+            }
+            case SEQUENCE -> def.intParam("pad", 6);
+            case UUID -> "short".equalsIgnoreCase(def.stringParam("form", "full")) ? 8 : 36;
+            case SEPARATOR -> Math.max(1, def.stringParam("char", ".").length());
+            case TIMESTAMP -> def.stringParam("pattern", "").length();
+            case CHECKSUM -> 1;
+            case VARIABLE -> def.intParam("maxLength", 32);
+        };
     }
 }

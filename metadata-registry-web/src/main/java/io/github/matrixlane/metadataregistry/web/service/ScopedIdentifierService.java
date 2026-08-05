@@ -58,45 +58,62 @@ public class ScopedIdentifierService {
         Namespace namespace = namespaceRepository.findById(request.namespaceId())
                 .orElseThrow(() -> new ResourceNotFoundException("Namespace", request.namespaceId()));
 
-        IdentifiedItem identifiedItem = identifiedItemRepository.findById(request.identifiedItemId())
-                .orElseThrow(() -> new ResourceNotFoundException("IdentifiedItem", request.identifiedItemId()));
-
-        // Hibernate.getClass 不初始化代理：避免触发 Item 联合子类全表 join
-        // （SQLite 200 FROM 项上限），仅取持久化类名供 {type} 占位符使用
-        String itemType = identifiedItem.getItem() != null
-                ? Hibernate.getClass(identifiedItem.getItem()).getSimpleName()
-                : Hibernate.getClass(identifiedItem).getSimpleName();
-        String identifier;
-        try {
-            identifier = identifierInputPolicyService.resolveIdentifier(
-                    namespace, request.identifier(), itemType, request.variables());
-        } catch (SequenceOverflowException e) {
-            throw new BusinessException("序号溢出：" + e.getMessage());
-        } catch (SegmentTemplateException e) {
-            throw new BusinessException("标识生成失败：" + e.getMessage());
+        if (!identifiedItemRepository.existsById(request.identifiedItemId())) {
+            throw new ResourceNotFoundException("IdentifiedItem", request.identifiedItemId());
         }
-        String version = identifierInputPolicyService.resolveVersion(namespace, request.version());
+        // 只为段模板 {type} 解析取持久化类名：先读 FK，再按 type() 探测具体类
+        // （只探测子类表主键），不加载 Item 联合子类对象图（30+ 子类整图 join
+        // 超出 SQLite 单条 SQL 64 表上限）；实体本体用 getReference 代理，仅借其外键。
+        Class<?> itemClass = identifiedItemRepository.findItemIdById(request.identifiedItemId())
+                .map(identifiedItemRepository::findItemConcreteTypeById)
+                .orElse(null);
+        Class<?> identifiedItemClass = IdentifiedItem.class;
+        String itemType = (itemClass != null ? itemClass : identifiedItemClass).getSimpleName();
+        IdentifiedItem identifiedItem = identifiedItemRepository.getReferenceById(request.identifiedItemId());
+        boolean autoGenerate = request.identifier() == null || request.identifier().isBlank();
+        // 自动生成的标识（尤其时间戳唯一性段）与已有标识撞库时有界重试：
+        // 重试重新执行生成（时间戳取新值）；顺序号有悲观锁、UUID 碰撞概率可忽略，
+        // 对二者重试同样无害。手动标识不重试，直接报错。
+        int maxAttempts = autoGenerate ? 3 : 1;
+        for (int attempt = 1; ; attempt++) {
+            String identifier;
+            try {
+                identifier = identifierInputPolicyService.resolveIdentifier(
+                        namespace, request.identifier(), itemType, request.variables());
+            } catch (SequenceOverflowException e) {
+                throw new BusinessException("序号溢出：" + e.getMessage());
+            } catch (SegmentTemplateException e) {
+                throw new BusinessException("标识生成失败：" + e.getMessage());
+            }
+            String version = identifierInputPolicyService.resolveVersion(namespace, request.version());
 
-        if (scopedIdentifierRepository.existsByNamespaceIdAndIdentifier(namespace.getId(), identifier)) {
-            throw new BusinessException("Identifier already exists in namespace: " + identifier);
-        }
+            if (scopedIdentifierRepository.existsByNamespaceIdAndIdentifier(namespace.getId(), identifier)) {
+                if (autoGenerate && attempt < maxAttempts) {
+                    continue;
+                }
+                throw new BusinessException("Identifier already exists in namespace: " + identifier);
+            }
 
-        ScopedIdentifier entity = new ScopedIdentifier();
-        entity.setIdentifier(identifier);
-        entity.setVersion(version);
-        entity.setVersionStatus(VersionStatus.DRAFT);
-        entity.setNamespace(namespace);
-        entity.setIdentifiedItem(identifiedItem);
-        entity.setCreatedAt(LocalDateTime.now());
+            ScopedIdentifier entity = new ScopedIdentifier();
+            entity.setIdentifier(identifier);
+            entity.setVersion(version);
+            entity.setVersionStatus(VersionStatus.DRAFT);
+            entity.setNamespace(namespace);
+            entity.setIdentifiedItem(identifiedItem);
+            entity.setCreatedAt(LocalDateTime.now());
 
-        namespaceConstraintValidator.validateScopedIdentifier(namespace.getId(), entity, null);
+            namespaceConstraintValidator.validateScopedIdentifier(namespace.getId(), entity, null);
 
-        try {
-            ScopedIdentifier saved = scopedIdentifierRepository.save(entity);
-            recordHistory(saved, version, VersionStatus.DRAFT, "Created: " + (request.changeSummary() != null ? request.changeSummary() : "Initial version"));
-            return toResponse(saved);
-        } catch (DataIntegrityViolationException e) {
-            throw new BusinessException("Identifier already exists in namespace (concurrent conflict): " + identifier);
+            try {
+                ScopedIdentifier saved = scopedIdentifierRepository.save(entity);
+                recordHistory(saved, version, VersionStatus.DRAFT, "Created: " + (request.changeSummary() != null ? request.changeSummary() : "Initial version"));
+                return toCreatedResponse(saved, identifiedItemClass);
+            } catch (DataIntegrityViolationException e) {
+                if (autoGenerate && attempt < maxAttempts) {
+                    continue;
+                }
+                throw new BusinessException("Identifier already exists in namespace (concurrent conflict): " + identifier);
+            }
         }
     }
 
@@ -119,9 +136,11 @@ public class ScopedIdentifierService {
 
         if (request.identifiedItemId() != null
                 && !request.identifiedItemId().equals(entity.getIdentifiedItem().getId())) {
-            IdentifiedItem ii = identifiedItemRepository.findById(request.identifiedItemId())
-                    .orElseThrow(() -> new ResourceNotFoundException("IdentifiedItem", request.identifiedItemId()));
-            entity.setIdentifiedItem(ii);
+            if (!identifiedItemRepository.existsById(request.identifiedItemId())) {
+                throw new ResourceNotFoundException("IdentifiedItem", request.identifiedItemId());
+            }
+            // 仅需更换外键引用：getReference 代理即可，避免加载 Item 联合子类整图
+            entity.setIdentifiedItem(identifiedItemRepository.getReferenceById(request.identifiedItemId()));
         }
 
         namespaceConstraintValidator.validateScopedIdentifier(
@@ -190,6 +209,30 @@ public class ScopedIdentifierService {
         IdentifierVersionHistory history = new IdentifierVersionHistory(
                 si, version, status, "system", summary);
         historyRepository.save(history);
+    }
+
+    /**
+     * 创建路径专用响应：IdentifiedItem 是未初始化代理，不触发其加载
+     * （Item 联合子类整图 join 在 SQLite 上超出 64 表上限）；类型取自
+     * create() 已完成的 type() 探测，标签留空，详情经查询接口获取。
+     */
+    private ScopedIdentifierResponse toCreatedResponse(ScopedIdentifier si, Class<?> identifiedItemClass) {
+        Namespace ns = si.getNamespace();
+        return new ScopedIdentifierResponse(
+                si.getId(),
+                ns == null ? null : ns.getId(),
+                ns == null ? null : ItemNamingHelper.preferredDesignation(ns),
+                si.getIdentifier(),
+                si.getVersion(),
+                si.getVersionStatus(),
+                si.getIdentifiedItem() == null ? null : si.getIdentifiedItem().getId(),
+                identifiedItemClass == null ? null : identifiedItemClass.getSimpleName(),
+                null,
+                si.getCreatedAt(),
+                si.getPublishedAt(),
+                si.getDeprecatedAt(),
+                si.getObsoleteAt()
+        );
     }
 
     private ScopedIdentifierResponse toResponse(ScopedIdentifier si) {

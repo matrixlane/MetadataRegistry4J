@@ -12,7 +12,8 @@ import java.util.regex.PatternSyntaxException;
 /**
  * Caller-supplied input variable. Params: label, pattern (validation regex,
  * required for regex derivation), pad (zero-pad to length), default,
- * required (default true).
+ * required (default true), maxLength (max output length, default 32 — used
+ * by the template total-length check).
  *
  * <p>The segment's {@code name} is the variable key.
  */
@@ -38,6 +39,11 @@ public class VariableSegmentHandler implements SegmentTypeHandler {
         } catch (PatternSyntaxException e) {
             throw new SegmentTemplateException(
                     "VARIABLE segment '" + def.getName() + "' has an invalid 'pattern': " + e.getMessage());
+        }
+        int maxLength = def.intParam("maxLength", 32);
+        if (maxLength < 1 || maxLength > 255) {
+            throw new SegmentTemplateException(
+                    "VARIABLE segment '" + def.getName() + "' 'maxLength' must be between 1 and 255");
         }
     }
 
@@ -89,6 +95,7 @@ public class VariableSegmentHandler implements SegmentTypeHandler {
                 + "{\"key\":\"pattern\",\"label\":\"校验正则\",\"type\":\"text\",\"required\":true},"
                 + "{\"key\":\"pad\",\"label\":\"补零位数\",\"type\":\"number\",\"default\":0},"
                 + "{\"key\":\"default\",\"label\":\"默认值\",\"type\":\"text\"},"
-                + "{\"key\":\"required\",\"label\":\"必填\",\"type\":\"boolean\",\"default\":true}]}";
+                + "{\"key\":\"required\",\"label\":\"必填\",\"type\":\"boolean\",\"default\":true},"
+                + "{\"key\":\"maxLength\",\"label\":\"最大长度\",\"type\":\"number\",\"default\":32}]}";
     }
 }

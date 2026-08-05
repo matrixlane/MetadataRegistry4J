@@ -255,8 +255,8 @@ class IdentifierInputPolicyServiceTest {
                 VersioningPolicy.SEMVER, null);
         when(namespaceOwnershipService.isExternal(namespace)).thenReturn(true);
 
-        assertThat(service.resolveIdentifier(namespace, "DE01.00.001.00", "DataElement"))
-                .isEqualTo("DE01.00.001.00");
+        assertThat(service.resolveIdentifier(namespace, "DE.00027", "DataElement"))
+                .isEqualTo("DE.00027");
         verify(identifierStrategyConfigService, never()).generateIdentifier(any(), any());
     }
 
@@ -264,12 +264,12 @@ class IdentifierInputPolicyServiceTest {
     void external_manualIdentifierValidatesPattern() {
         // 导入/手动录入格式校验：配置正则后不符合格式的标识被拒绝
         stubPolicy(IdentifierInputMode.AUTO_WITH_OVERRIDE, IdentifierInputMode.AUTO_WITH_OVERRIDE,
-                VersioningPolicy.SEMVER, "DE\\d{2}\\.\\d{2}\\.\\d{3}\\.\\d{2}");
+                VersioningPolicy.SEMVER, "DE\\.\\d{5}");
         when(namespaceOwnershipService.isExternal(namespace)).thenReturn(true);
 
-        assertThat(service.resolveIdentifier(namespace, "DE01.00.001.00", "DataElement"))
-                .isEqualTo("DE01.00.001.00");
-        assertThatThrownBy(() -> service.resolveIdentifier(namespace, "DE01.0.001", "DataElement"))
+        assertThat(service.resolveIdentifier(namespace, "DE.00027", "DataElement"))
+                .isEqualTo("DE.00027");
+        assertThatThrownBy(() -> service.resolveIdentifier(namespace, "DE.27", "DataElement"))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("手动标识校验规则");
     }

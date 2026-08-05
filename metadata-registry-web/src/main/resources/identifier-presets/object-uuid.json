@@ -1,0 +1,12 @@
+{
+  "key": "object-uuid",
+  "name": "对象缩写 + UUID",
+  "description": "对象类型缩写加完整 UUID，适合不要求可读序号的场景。示例：DE.3f2a9c1e-...",
+  "template": {
+    "segments": [
+      { "type": "OBJECT_ABBREVIATION", "name": "objectAbbr", "params": {} },
+      { "type": "SEPARATOR", "params": { "char": "." } },
+      { "type": "UUID", "name": "uuid", "params": { "form": "full" } }
+    ]
+  }
+}

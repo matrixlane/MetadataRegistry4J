@@ -64,6 +64,15 @@ export const identifierStrategyApi = {
             variables?: Record<string, string>, itemType?: string) =>
     request.post<PreviewResult>(`${base(namespaceId)}/preview`, { configJson, variables, itemType }),
 
+  /** 无命名空间上下文预览（初始化向导等场景），与按命名空间预览共用引擎管线。 */
+  previewAnonymous: (configJson: string,
+                     variables?: Record<string, string>, itemType?: string) =>
+    request.post<PreviewResult>('/identifier-strategy/preview', { configJson, variables, itemType }),
+
+  /** 元数据对象缩写系统映射表（只读）。 */
+  objectAbbreviations: () =>
+    request.get<Record<string, string>>('/identifier-strategy/object-abbreviations'),
+
   validateFormat: (namespaceId: string, configJson: string, identifier: string) =>
     request.post<ValidateFormatResult>(`${base(namespaceId)}/validate`, { configJson, identifier }),
 

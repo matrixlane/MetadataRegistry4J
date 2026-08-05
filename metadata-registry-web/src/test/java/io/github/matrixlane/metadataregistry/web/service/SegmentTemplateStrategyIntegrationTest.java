@@ -7,13 +7,15 @@ import io.github.matrixlane.metadataregistry.commonfacilities.identification.Ide
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.Registrar;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationAuthority;
-import io.github.matrixlane.metadataregistry.commonfacilities.identification.segment.SegmentTemplate;
+import io.github.matrixlane.metadataregistry.dataspecification.DataElement;
 import io.github.matrixlane.metadataregistry.web.auth.AccountRepository;
 import io.github.matrixlane.metadataregistry.web.auth.AuthenticatedUser;
 import io.github.matrixlane.metadataregistry.web.common.BusinessException;
 import io.github.matrixlane.metadataregistry.web.config.IdentifierStrategyLoader;
+import io.github.matrixlane.metadataregistry.web.dto.identifierstrategy.IdentifierStrategyDtos.PreviewResponse;
 import io.github.matrixlane.metadataregistry.web.dto.scopedidentifier.ScopedIdentifierCreateRequest;
 import io.github.matrixlane.metadataregistry.web.dto.scopedidentifier.ScopedIdentifierResponse;
+import io.github.matrixlane.metadataregistry.web.repository.DataElementRepository;
 import io.github.matrixlane.metadataregistry.web.repository.IdentifiedItemRepository;
 import io.github.matrixlane.metadataregistry.web.repository.IdentifierVersionHistoryRepository;
 import io.github.matrixlane.metadataregistry.web.repository.IdentifierStrategyConfigRepository;
@@ -22,6 +24,7 @@ import io.github.matrixlane.metadataregistry.web.repository.RegistrarRepository;
 import io.github.matrixlane.metadataregistry.web.repository.RegistrationAuthorityRepository;
 import io.github.matrixlane.metadataregistry.web.repository.ScopedIdentifierRepository;
 import io.github.matrixlane.metadataregistry.web.repository.SequenceRegistryRepository;
+import io.github.matrixlane.metadataregistry.web.service.identifier.IdentifierStrategyAdminService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -36,7 +39,6 @@ import org.springframework.test.context.ActiveProfiles;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.TreeSet;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
@@ -49,22 +51,37 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * End-to-end segment template strategy tests: WS/T 363 generation through the
- * creation entry, scoped sequence allocation (incl. concurrency), backfill
- * alignment, and the external-namespace generation gate.
+ * End-to-end segment template strategy tests: fixed-prefix + object
+ * abbreviation + sequence generation through the creation entry, implicit
+ * per-object-type sequence scopes, backfill alignment, namespace-agnostic
+ * preview, timestamp-collision retry, and the external-namespace gate.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @ActiveProfiles("test")
 class SegmentTemplateStrategyIntegrationTest {
+
+    /** WN.DE.00001 风格模板；未映射条目类型（如裸 IdentifiedItem）走 default=MD。 */
+    private static final String WN_TEMPLATE_JSON = """
+            {"segments":[
+              {"type":"LITERAL","params":{"value":"WN"}},
+              {"type":"SEPARATOR","params":{"char":"."}},
+              {"type":"OBJECT_ABBREVIATION","name":"objectAbbr","params":{"default":"MD"}},
+              {"type":"SEPARATOR","params":{"char":"."}},
+              {"type":"SEQUENCE","name":"seq","params":{"start":1,"increment":1,"pad":5,"overflow":"REJECT"}}
+            ]}""";
 
     @Autowired
     private ScopedIdentifierService scopedIdentifierService;
     @Autowired
     private SequenceRegistryService sequenceRegistryService;
     @Autowired
+    private IdentifierStrategyAdminService identifierStrategyAdminService;
+    @Autowired
     private NamespaceRepository namespaceRepository;
     @Autowired
     private IdentifiedItemRepository identifiedItemRepository;
+    @Autowired
+    private DataElementRepository dataElementRepository;
     @Autowired
     private RegistrationAuthorityRepository registrationAuthorityRepository;
     @Autowired
@@ -87,7 +104,10 @@ class SegmentTemplateStrategyIntegrationTest {
     private Registrar registrar;
     private Namespace ownNamespace;
     private Namespace externalNamespace;
-    private IdentifiedItem identifiedItem;
+    private DataElement dataElement;
+    private IdentifiedItem dataElementItem;
+    private IdentifiedItem bareItem;
+    private int templateVersion;
 
     // 不加 @Transactional：避免测试管理事务持有 SQLite 写锁（同并发用例的教训）。
     @BeforeEach
@@ -112,14 +132,17 @@ class SegmentTemplateStrategyIntegrationTest {
 
         externalNamespace = namespaceRepository.save(new Namespace());
 
-        identifiedItem = identifiedItemRepository.save(new IdentifiedItem());
+        dataElement = dataElementRepository.save(new DataElement());
+        dataElementItem = identifiedItemRepository.save(new IdentifiedItem(dataElement));
+        bareItem = identifiedItemRepository.save(new IdentifiedItem());
 
         // 活动 Registrar 会话：自有/外部判定的主判定链
         AuthenticatedUser principal = new AuthenticatedUser(account.getId(), account.getUsername(), SystemRole.SUPER_ADMIN);
         SecurityContextHolder.getContext().setAuthentication(
                 new UsernamePasswordAuthenticationToken(principal, null, List.of()));
 
-        publishWst363Template(ownNamespace);
+        templateVersion = 0;
+        publishTemplate(ownNamespace, WN_TEMPLATE_JSON);
     }
 
     @AfterEach
@@ -127,8 +150,6 @@ class SegmentTemplateStrategyIntegrationTest {
         SecurityContextHolder.clearContext();
         // 测试库是跨类共享的文件库：本类的提交数据必须按外键序清理干净，
         // 否则残留的注册机构会破坏其他测试类的前置条件（如命名空间门槛）。
-        // 仓库方法各自带事务，直接按序调用即可（DataSourceTransactionManager
-        // 与 JPA EntityManager 不兼容，不能套用）。
         cleanup();
         strategyLoader.refreshRegistry();
     }
@@ -146,82 +167,135 @@ class SegmentTemplateStrategyIntegrationTest {
         }
         registrarRepository.delete(registrar);
         namespaceRepository.deleteAll(List.of(ownNamespace, externalNamespace));
-        identifiedItemRepository.delete(identifiedItem);
+        // 批量删除：逐条 delete 会先 merge 加载实体，EAGER item 关联的
+        // 联合子类整图 join 会超出 SQLite 单条 SQL 64 表上限
+        identifiedItemRepository.deleteAllByIdIn(List.of(dataElementItem.getId(), bareItem.getId()));
+        dataElementRepository.delete(dataElement);
         accountRepository.delete(account);
         registrationAuthorityRepository.delete(registrationAuthority);
     }
 
-    private void publishWst363Template(Namespace namespace) {
-        SegmentTemplate template = SegmentTemplate.fromJson("""
-                {"segments":[
-                  {"type":"OBJECT_ABBREVIATION","name":"objectAbbr","params":{"mapping":{"IdentifiedItem":"DE","DataElement":"DE","ValueDomain":"CV"}}},
-                  {"type":"VARIABLE","name":"majorCategory","params":{"label":"大类编码","pattern":"\\\\d{2}","required":true}},
-                  {"type":"SEPARATOR","params":{"char":"."}},
-                  {"type":"VARIABLE","name":"minorCategory","params":{"label":"小类编码","pattern":"\\\\d{2}","required":true}},
-                  {"type":"SEPARATOR","params":{"char":"."}},
-                  {"type":"SEQUENCE","name":"seq","params":{"start":1,"increment":1,"pad":3,"scopeRefs":["majorCategory","minorCategory"],"overflow":"REJECT"}},
-                  {"type":"SEPARATOR","params":{"char":"."}},
-                  {"type":"VARIABLE","name":"suffixCode","params":{"label":"附加码","pattern":"\\\\d{2}","default":"00","required":false}}
-                ]}""");
+    /** 发布模板：先停用既有 PUBLISHED 配置，再写入新版本并刷新运行时注册表。 */
+    private void publishTemplate(Namespace namespace, String templateJson) {
+        configRepository.findByNamespaceIdOrderByVersionDesc(namespace.getId()).stream()
+                .filter(c -> c.getStatus() == IdentifierStrategyConfig.StrategyStatus.PUBLISHED)
+                .forEach(c -> {
+                    c.disable();
+                    configRepository.save(c);
+                });
 
         IdentifierStrategyConfig config = new IdentifierStrategyConfig("SEGMENT_TEMPLATE");
         config.setNamespace(namespace);
-        config.setConfigJson(template.toJson());
+        config.setConfigJson(templateJson);
         config.publish();
         config.setIsGlobalDefault(false);
-        config.setVersion(1);
+        config.setVersion(++templateVersion);
         config.setCreatedAt(LocalDateTime.now());
         configRepository.save(config);
         strategyLoader.refreshRegistry();
     }
 
     private ScopedIdentifierCreateRequest createRequest(Namespace namespace, String identifier,
-                                                        String major, String minor) {
-        Map<String, String> variables = major == null ? null
-                : Map.of("majorCategory", major, "minorCategory", minor);
+                                                        IdentifiedItem item) {
         return new ScopedIdentifierCreateRequest(
-                namespace.getId(), identifier, "1.0.0", identifiedItem.getId(), "segment test", variables);
+                namespace.getId(), identifier, "1.0.0", item.getId(), "segment test", null);
     }
 
     @Test
-    void ownNamespace_generatesWst363IdentifierWithScopedSequence() {
-        ScopedIdentifierResponse first = scopedIdentifierService.create(
-                createRequest(ownNamespace, null, "02", "01"));
-        assertThat(first.identifier()).isEqualTo("DE02.01.001.00");
+    void ownNamespace_generatesPerObjectTypeScopedSequence() {
+        ScopedIdentifierResponse de1 = scopedIdentifierService.create(
+                createRequest(ownNamespace, null, dataElementItem));
+        assertThat(de1.identifier()).isEqualTo("WN.DE.00001");
 
-        ScopedIdentifierResponse second = scopedIdentifierService.create(
-                createRequest(ownNamespace, null, "02", "01"));
-        assertThat(second.identifier()).isEqualTo("DE02.01.002.00");
+        ScopedIdentifierResponse de2 = scopedIdentifierService.create(
+                createRequest(ownNamespace, null, dataElementItem));
+        assertThat(de2.identifier()).isEqualTo("WN.DE.00002");
 
-        // 不同小类独立计数
-        ScopedIdentifierResponse otherScope = scopedIdentifierService.create(
-                createRequest(ownNamespace, null, "02", "10"));
-        assertThat(otherScope.identifier()).isEqualTo("DE02.10.001.00");
+        // 不同对象类型独立计数：裸 IdentifiedItem 未命中系统映射表，走 default=MD
+        ScopedIdentifierResponse md1 = scopedIdentifierService.create(
+                createRequest(ownNamespace, null, bareItem));
+        assertThat(md1.identifier()).isEqualTo("WN.MD.00001");
     }
 
     @Test
     void missingRequiredVariable_rejected() {
+        publishTemplate(ownNamespace, """
+                {"segments":[
+                  {"type":"VARIABLE","name":"deptCode","params":{"label":"科室代码","pattern":"\\\\d{2}","required":true}},
+                  {"type":"SEPARATOR","params":{"char":"-"}},
+                  {"type":"SEQUENCE","name":"seq","params":{"start":1,"increment":1,"pad":4,"overflow":"REJECT"}}
+                ]}""");
+
         assertThatThrownBy(() -> scopedIdentifierService.create(
-                new ScopedIdentifierCreateRequest(ownNamespace.getId(), null, "1.0.0",
-                        identifiedItem.getId(), "segment test", Map.of("majorCategory", "02"))))
+                createRequest(ownNamespace, null, dataElementItem)))
                 .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("小类编码");
+                .hasMessageContaining("deptCode");
     }
 
     @Test
     void backfillAlignsCounterAboveImportedMaximum() {
-        // 模拟导入 DE03.01.001.00 .. DE03.01.026.00 后回填计数器
-        sequenceRegistryService.alignCounter(ownNamespace, "03.01", 26, 1, 1, 3);
+        // 模拟导入 WN.DE.00001 .. WN.DE.00026 后回填 DE 作用域计数器
+        sequenceRegistryService.alignCounter(ownNamespace, "DE", 26, 1, 1, 5);
 
         ScopedIdentifierResponse next = scopedIdentifierService.create(
-                createRequest(ownNamespace, null, "03", "01"));
-        assertThat(next.identifier()).isEqualTo("DE03.01.027.00");
+                createRequest(ownNamespace, null, dataElementItem));
+        assertThat(next.identifier()).isEqualTo("WN.DE.00027");
+    }
+
+    @Test
+    void namespaceAgnosticPreview_matchesRuntimeWithoutAllocation() {
+        long allocationsBefore = allocationCountOf(ownNamespace);
+
+        PreviewResponse preview = identifierStrategyAdminService.preview(WN_TEMPLATE_JSON, "DataElement", null);
+
+        assertThat(preview.validationErrors()).isEmpty();
+        assertThat(preview.sample()).isEqualTo("WN.DE.00001");
+        assertThat(preview.formatRegex()).isNotBlank();
+        // 预览不产生任何序号分配
+        assertThat(allocationCountOf(ownNamespace)).isEqualTo(allocationsBefore);
+    }
+
+    private long allocationCountOf(Namespace namespace) {
+        return sequenceRegistryRepository.findAll().stream()
+                .filter(r -> r.getNamespace() != null && namespace.getId().equals(r.getNamespace().getId()))
+                .count();
+    }
+
+    @Test
+    void timestampTemplate_generatedIdentifiersUnique() {
+        publishTemplate(ownNamespace, """
+                {"segments":[
+                  {"type":"OBJECT_ABBREVIATION","name":"objectAbbr","params":{"default":"MD"}},
+                  {"type":"SEPARATOR","params":{"char":"."}},
+                  {"type":"TIMESTAMP","name":"ts","params":{"pattern":"yyyyMMddHHmmssSSS"}}
+                ]}""");
+
+        TreeSet<String> identifiers = new TreeSet<>();
+        for (int i = 0; i < 5; i++) {
+            identifiers.add(scopedIdentifierService
+                    .create(createRequest(ownNamespace, null, dataElementItem))
+                    .identifier());
+        }
+        // 同一毫秒撞库时由有界重试重新生成，最终全部唯一
+        assertThat(identifiers).hasSize(5);
+        assertThat(identifiers.first()).startsWith("DE.");
+    }
+
+    @Test
+    void manualDuplicateIdentifier_rejectedWithoutRetry() {
+        // 手动标识须符合已发布模板格式（WN.<缩写>.<五位序号>）
+        scopedIdentifierService.create(createRequest(ownNamespace, "WN.DE.99999", dataElementItem));
+
+        assertThatThrownBy(() -> scopedIdentifierService.create(
+                createRequest(ownNamespace, "WN.DE.99999", dataElementItem)))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("already exists");
     }
 
     @Test
     void externalNamespace_blankIdentifierRejected() {
         assertThatThrownBy(() -> scopedIdentifierService.create(
-                createRequest(externalNamespace, null, "02", "01")))
+                createRequest(externalNamespace, null, dataElementItem)))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("外部命名空间");
     }
@@ -229,9 +303,9 @@ class SegmentTemplateStrategyIntegrationTest {
     @Test
     void externalNamespace_manualIdentifierAccepted() {
         ScopedIdentifierResponse created = scopedIdentifierService.create(
-                new ScopedIdentifierCreateRequest(externalNamespace.getId(), "EXT-DE01.00.001.00",
-                        "1.0.0", identifiedItem.getId(), "segment test", null));
-        assertThat(created.identifier()).isEqualTo("EXT-DE01.00.001.00");
+                new ScopedIdentifierCreateRequest(externalNamespace.getId(), "EXT-DE-00001",
+                        "1.0.0", dataElementItem.getId(), "segment test", null));
+        assertThat(created.identifier()).isEqualTo("EXT-DE-00001");
     }
 
     @Test
@@ -242,7 +316,7 @@ class SegmentTemplateStrategyIntegrationTest {
         List<Future<Long>> futures = new ArrayList<>();
 
         for (int i = 0; i < perScope * 2; i++) {
-            final String scope = i < perScope ? "09.01" : "09.02";
+            final String scope = i < perScope ? "DE" : "VD";
             futures.add(executor.submit(() -> {
                 latch.countDown();
                 latch.await();
@@ -273,7 +347,7 @@ class SegmentTemplateStrategyIntegrationTest {
         final int maxAttempts = 20;
         for (int attempt = 1; ; attempt++) {
             try {
-                return sequenceRegistryService.getNextValue(ownNamespace, scope, 1, 1, 3);
+                return sequenceRegistryService.getNextValue(ownNamespace, scope, 1, 1, 5);
             } catch (CannotAcquireLockException | UncategorizedSQLException e) {
                 if (attempt >= maxAttempts) {
                     throw e;

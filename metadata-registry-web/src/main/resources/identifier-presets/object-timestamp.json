@@ -1,0 +1,12 @@
+{
+  "key": "object-timestamp",
+  "name": "对象缩写 + 时间戳",
+  "description": "对象类型缩写加毫秒级时间戳（年月日时分秒毫秒），适合按生成时间排序的场景。示例：DE.20260805143025123",
+  "template": {
+    "segments": [
+      { "type": "OBJECT_ABBREVIATION", "name": "objectAbbr", "params": {} },
+      { "type": "SEPARATOR", "params": { "char": "." } },
+      { "type": "TIMESTAMP", "name": "ts", "params": { "pattern": "yyyyMMddHHmmssSSS" } }
+    ]
+  }
+}
