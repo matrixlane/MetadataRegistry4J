@@ -5,12 +5,12 @@ This capability defines the rules for namespace-level unique identifier auto-gen
 ## Requirements
 ### Requirement: 命名空间内唯一标识符自动生成 (Auto-Generation of Unique Identifiers)
 
-对于自有命名空间内的本地注册元数据，当且仅当用户选择自动生成且注册请求中没有填写标识符时，系统 MUST 基于该命名空间已发布的段模板策略自动分配唯一标识符；输入变量段的值 SHALL 由注册请求的 variables 提供并通过段级校验；元数据对象缩写段的值 SHALL 由系统按被注册条目的对象类型推导。独立标识策略选项 MUST 仅包含段模板：UUID、URN、SEQUENCE MUST NOT 作为独立策略出现（顺序号与 UUID 作为模板段组件可用）。手动输入时，系统 MUST 对输入的标识符执行格式与唯一性验证。
+对于自有命名空间内的本地注册元数据，当且仅当用户选择自动生成且注册请求中没有填写标识符时，系统 MUST 基于该命名空间已发布的段模板策略自动分配唯一标识符；输入变量段的值 SHALL 由注册请求的 variables 提供并通过段级校验；元数据对象缩写段的值 SHALL 由系统按被注册条目的对象类型经系统级静态映射表推导。独立标识策略选项 MUST 仅包含段模板：UUID、URN、SEQUENCE MUST NOT 作为独立策略出现（顺序号与 UUID 作为模板段组件可用）。已发布模板 MUST 通过唯一性段校验（恰好一个 SEQUENCE/TIMESTAMP/UUID）；模板缺少唯一性段而无法保证唯一值时，系统 MUST NOT 执行自动生成。顺序号作用域 SHALL 按模板结构自动推导：模板含 OBJECT_ABBREVIATION 段时按对象缩写值区分作用域（每类型独立计数），否则为命名空间级全局计数。手动输入时，系统 MUST 对输入的标识符执行格式与唯一性验证。
 
 #### Scenario: 段模板自动生成
 
-- **WHEN** 自有命名空间已发布段模板策略，注册请求标识符为空且提供变量值（大类=02, 小类=01）
-- **THEN** 系统按模板生成标识（如 `DE02.01.007.00`），序号在该变量组合作用域内以悲观锁原子递增并保证命名空间内唯一
+- **WHEN** 自有命名空间已发布段模板策略（OBJECT_ABBREVIATION + SEPARATOR(".") + SEQUENCE(pad=5)），注册请求标识符为空
+- **THEN** 系统按模板生成标识（首个数据元为 `DE.00001`），序号在对象缩写作用域内以悲观锁原子递增并保证命名空间内唯一
 
 #### Scenario: 变量缺失拒绝注册
 
@@ -22,10 +22,10 @@ This capability defines the rules for namespace-level unique identifier auto-gen
 - **WHEN** 管理员配置命名空间的标识生成策略
 - **THEN** 独立策略选项仅呈现段模板（含预设库）；UUID 可作为模板中的一个段组件选用
 
-#### Scenario: 对象缩写由条目类型推导
+#### Scenario: 对象缩写由条目类型经系统映射表推导
 
-- **WHEN** 模板以 OBJECT_ABBREVIATION 段开头，用户在自有命名空间注册值域（映射 值域→CV）
-- **THEN** 生成的标识以 CV 开头，无需用户填写该段
+- **WHEN** 模板以 OBJECT_ABBREVIATION 段开头，用户在自有命名空间注册值域（系统映射表 ValueDomain→VD）
+- **THEN** 生成的标识以 VD 开头，无需用户填写该段，也无需在模板中配置映射
 
 #### Scenario: 手动输入仍受格式与唯一性约束
 
@@ -63,11 +63,11 @@ This capability defines the rules for namespace-level unique identifier auto-gen
 
 #### Scenario: 导入时格式校验
 
-- **WHEN** 外部命名空间配置了校验正则 `DE\d{2}\.\d{2}\.\d{3}\.\d{2}`，导入标识 `DE01.00.001.00`
-- **THEN** 校验通过并正常入库；导入不符合格式的标识（如 `DE01.0.001`）时被拒绝并提示格式要求
+- **WHEN** 外部命名空间配置了校验正则 `DE\d{5}`，导入标识 `DE00001`
+- **THEN** 校验通过并正常入库；导入不符合格式的标识（如 `DE001`）时被拒绝并提示格式要求
 
 #### Scenario: 版本手动编辑
 
-- **WHEN** 在外部命名空间登记外部标准的新版次（如 WS/T 363 的 "2023" 版）
+- **WHEN** 在外部命名空间登记外部标准的新版次（如 "2023" 版）
 - **THEN** 版本字符串由用户手动录入，系统 MUST NOT 按版本自动化策略递增
 

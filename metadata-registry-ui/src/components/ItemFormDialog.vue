@@ -117,6 +117,7 @@
               :naming-convention-options="designationNamingConventionOptions"
               :require-naming-conventions="namespaceMandatoryNC"
               :pairings="form.pairings"
+              :default-language-id="defaultLanguageId || undefined"
               @conflicts="designationConflicts = $event"
             />
           </el-form-item>
@@ -136,6 +137,7 @@
               v-model="form.definitions"
               label="定义"
               :pairings="form.pairings"
+              :default-language-id="defaultLanguageId || undefined"
               @conflicts="definitionConflicts = $event"
             />
           </el-form-item>
@@ -223,6 +225,7 @@ import DesignationDefinitionPairingEditor from './DesignationDefinitionPairingEd
 import { namingConventionApi, namespaceApi, activeRegistrarApi, pairingApi, readinessApi } from '@/api/resources';
 import { languageApi } from '@/api/resources';
 import { identifierStrategyApi } from '@/api/identifierStrategy';
+import { useRegistryDefaultLanguage } from '@/composables/useRegistryDefaultLanguage';
 import type { TextLineForm, PairingForm, NamespaceDetailResponse } from '@/types/common';
 
 interface RegistrationForm {
@@ -254,6 +257,7 @@ const emit = defineEmits<{ success: [] }>();
 const router = useRouter();
 const visible = ref(false);
 const saving = ref(false);
+const { defaultLanguageId } = useRegistryDefaultLanguage();
 const formRef = ref<FormInstance>();
 const pairingEditorRef = ref<InstanceType<typeof DesignationDefinitionPairingEditor>>();
 const activeTab = ref('designations');
@@ -598,14 +602,14 @@ const rules = computed<FormRules>(() => ({
           callback(new Error('至少添加一条指称'));
           return;
         }
-        const valid = value.filter((v) => v.languageId && v.value?.trim()).length > 0;
+        const valid = value.filter((v) => v.value?.trim()).length > 0;
         if (!valid) {
-          callback(new Error('至少有一条完整的指称（语言+内容）'));
+          callback(new Error('至少有一条指称内容'));
           return;
         }
         if (namespaceMandatoryNC.value) {
           const missing = value.filter(
-            (v) => v.languageId && v.value?.trim() && !(v.namingConventionIds || []).length
+            (v) => v.value?.trim() && !(v.namingConventionIds || []).length
           );
           if (missing.length > 0) {
             callback(new Error('该命名空间要求强制命名规范，请为每条指称至少选择一个命名规范'));
@@ -825,9 +829,9 @@ async function handleSubmitInternal() {
       });
       // Normalize designations/definitions for API
       payload.designations = form.designations
-        .filter((d) => d.languageId && d.value?.trim())
+        .filter((d) => d.value?.trim())
         .map((d) => ({
-          languageId: d.languageId,
+          languageId: d.languageId || defaultLanguageId || null,
           value: d.value.trim(),
           sourceId: d.sourceId || null,
           namingConventionIds: d.namingConventionIds || [],
@@ -838,9 +842,9 @@ async function handleSubmitInternal() {
           })),
         }));
       payload.definitions = form.definitions
-        .filter((d) => d.languageId && d.value?.trim())
+        .filter((d) => d.value?.trim())
         .map((d) => ({
-          languageId: d.languageId,
+          languageId: d.languageId || defaultLanguageId || null,
           value: d.value.trim(),
           sourceId: d.sourceId || null,
           namingConventionIds: d.namingConventionIds || [],

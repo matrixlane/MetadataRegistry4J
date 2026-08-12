@@ -182,6 +182,15 @@
         </div>
       </aside>
       <main class="app-main">
+        <el-alert
+          v-if="showDefaultLanguageAlert"
+          :title="defaultLanguageAlertText"
+          type="warning"
+          :closable="false"
+          show-icon
+          style="margin-bottom: 12px;"
+          data-testid="default-language-alert"
+        />
         <router-view />
       </main>
 
@@ -311,10 +320,28 @@ import { ElMessage } from 'element-plus';
 import request from '@/utils/request';
 import { activeRegistrarApi } from '@/api/resources';
 import type { ActiveRegistrarResponse } from '@/types/common';
+import { useRegistryDefaultLanguage } from '@/composables/useRegistryDefaultLanguage';
 
 const route = useRoute();
 const router = useRouter();
 const auth = useAuthStore();
+const {
+  load: loadRegistryDefaultLanguage,
+  defaultLanguageId,
+  error: defaultLanguageError,
+  loading: defaultLanguageLoading,
+} = useRegistryDefaultLanguage();
+
+const showDefaultLanguageAlert = computed(() =>
+  !defaultLanguageLoading.value && (Boolean(defaultLanguageError.value) || (!!auth.user && !defaultLanguageId.value))
+);
+
+const defaultLanguageAlertText = computed(() => {
+  if (defaultLanguageError.value) {
+    return `注册表默认语言加载失败：${defaultLanguageError.value}，创建指称/定义时可能无法自动填充语言。`;
+  }
+  return '当前未配置注册表默认语言，创建指称/定义前请先在“注册规范”中设置默认语言。';
+});
 
 const collapsed = ref(false);
 
@@ -356,6 +383,7 @@ async function confirmIdentitySelection() {
 }
 
 onMounted(loadActiveRegistrar);
+onMounted(loadRegistryDefaultLanguage);
 
 const activeMenu = computed(() => {
   if (route.query.group) {

@@ -9,7 +9,6 @@ import java.util.List;
 import java.util.UUID;
 
 public record TextLine(
-        @NotNull(message = "language 不能为空")
         UUID languageId,
         @NotBlank(message = "value 不能为空")
         String value,

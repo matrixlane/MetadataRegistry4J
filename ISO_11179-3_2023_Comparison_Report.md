@@ -236,3 +236,27 @@
 - 前端新增 i18n key：`multilingual`、`pairing`、`contextUsage`、`context`、`relationship`、`browser`、`itemForm`。
 - 新增单测：`MultilingualTextEditor.spec.ts`、`DesignationDefinitionPairingEditor.spec.ts`、`ContextUsageDialog.spec.ts`。
 - `OpenSpec validate --all` 验证通过。
+
+---
+
+## 七、已补充的实现（2026-08-11 变更：指称/定义默认语言与语言标识可选）
+
+本次 OpenSpec 变更依据 ISO/IEC 11179-3:2023 Figure 6 — Designation and Definition metamodel region 的语义，将语言标识与来源文档由“必填”改为“可选”，并引入注册表默认语言自动补全机制：
+
+| 标准/需求点 | 项目实现 | 状态 |
+|---|---|---|
+| 语言标识可选 | `TextLine.languageId` 移除 `@NotNull`；`DesignationRequest` / `DefinitionRequest` 的 `languageId` 移除 `@NotNull` | 完成 |
+| 来源文档可选 | `TextLine.sourceId` 保持可选；前端 `MultilingualTextEditor` 不再强制选择来源文档 | 完成 |
+| 注册表默认语言 | `RegistrySpecification.defaultLanguage` 作为默认语言来源；`ItemAdministrationService`、`DesignationService`、`DefinitionService` 新增 `resolveLanguage(UUID languageId)`，未指定语言时自动回退到首个注册规范的默认语言 | 完成 |
+| 默认语言全局加载 | 新增 `useRegistryDefaultLanguage()` 组合式函数；`AppLayout.vue` 挂载时加载并缓存，无默认语言或加载失败时向用户显示全局提示 | 完成 |
+| 编辑器默认填充 | `DesignationEditor`、`DefinitionEditor`、`MultilingualTextEditor` 支持 `defaultLanguageId` prop，新增行自动填充默认语言；允许用户清空后保存 | 完成 |
+| 通用编辑器抽象 | 新增 `DesignationDefinitionSection.vue`，作为 Item 抽象层通用指称/定义编辑区；`NamespaceList`、`ConceptualDomainList`、`ValueDomainList`、`NamingConventionList` 已统一接入 | 完成 |
+| 注册规范设置 | `RegistrySpecificationSettings.vue` 增加“默认语言”选择器，支持管理员配置 | 完成 |
+| 后端测试 | `ItemAdministrationServiceTest`、`DesignationServiceTest`、`DefinitionServiceTest` 新增默认语言解析与缺失场景测试 | 完成 |
+| 前端测试 | 新增 `DesignationEditor.spec.ts`、`DefinitionEditor.spec.ts`，并扩展 `MultilingualTextEditor.spec.ts` 默认语言用例 | 完成 |
+
+### 说明
+
+- 本次变更不改变 `ItemFormDialog.vue` 与 `ContextList.vue` 的现有编辑器选择（仍使用 `MultilingualTextEditor`），符合 OpenSpec design.md 中的 Non-Goals 约定。
+- `OpenSpec validate --all` 验证通过；`npx vite build` 与 `npm run test` 通过；`mvnw test -pl metadata-registry-web` 通过。
+- 2026-08-12 修复：初始化向导在 `RegistrySpecificationService.createDefault` 中仅将语言标识用于指称、未写入 `RegistrySpecification.defaultLanguage` 字段，导致登录后仍提示无默认语言；已修正为同时写入 `defaultLanguageId`。同时修正 `useRegistryDefaultLanguage()` 对 `registrySpecificationApi.list` 响应结构的解析，使其读取 `defaultLanguageId` / `defaultLanguageIdentifier` 扁平字段而非嵌套对象。

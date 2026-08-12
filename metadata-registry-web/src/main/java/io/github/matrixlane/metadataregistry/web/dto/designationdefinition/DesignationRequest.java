@@ -11,7 +11,6 @@ import java.util.UUID;
 public record DesignationRequest(
         @NotNull(message = "itemId 不能为空")
         UUID itemId,
-        @NotNull(message = "languageId 不能为空")
         UUID languageId,
         @NotBlank(message = "value 不能为空")
         String value,

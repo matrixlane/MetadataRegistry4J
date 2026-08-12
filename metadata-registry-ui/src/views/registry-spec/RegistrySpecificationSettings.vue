@@ -66,6 +66,16 @@
         <el-form-item label="默认时区">
           <el-input v-model="form.defaultTimeZone" placeholder="+08:00" />
         </el-form-item>
+        <el-form-item label="默认语言">
+          <el-select v-model="form.defaultLanguageId" clearable placeholder="选择默认语言" style="width: 100%;">
+            <el-option
+              v-for="lang in languageOptions"
+              :key="lang.id"
+              :label="lang.languageIdentifier"
+              :value="lang.id"
+            />
+          </el-select>
+        </el-form-item>
         <el-form-item label="中文名称" prop="zhName">
           <el-input v-model="form.zhName" />
         </el-form-item>
@@ -101,11 +111,13 @@ const visible = ref(false);
 const saving = ref(false);
 const isEdit = ref(false);
 const languages = ref<Record<string, string>>({});
+const languageOptions = ref<{ id: string; languageIdentifier: string }[]>([]);
 
 const form = reactive<Record<string, any>>({
   name: '',
   comment: '',
   webAddress: '',
+  defaultLanguageId: '',
   characterRepertoire: '',
   standard: '',
   degreeOfConformance: undefined,
@@ -128,6 +140,10 @@ const rules: FormRules = {
 onMounted(async () => {
   try {
     const res = await languageApi.list({ size: 100 });
+    languageOptions.value = (res.content || []).map((lang: any) => ({
+      id: lang.id,
+      languageIdentifier: lang.languageIdentifier || lang.identifier || lang.id,
+    }));
     (res.content || []).forEach((lang: any) => {
       const key = lang.languageIdentifier || lang.identifier || '';
       if (key) languages.value[key] = lang.id;
@@ -141,6 +157,7 @@ function resetForm() {
   Object.keys(form).forEach((k) => {
     form[k] = k === 'degreeOfConformance' ? undefined : '';
   });
+  form.defaultLanguageId = '';
   formRef.value?.resetFields();
 }
 
@@ -149,6 +166,7 @@ function openDialog(row?: Record<string, any>) {
   isEdit.value = !!row?.id;
   if (row) {
     Object.assign(form, row);
+    form.defaultLanguageId = row.defaultLanguageId || '';
     const zh = row.designations?.find((d: any) => d.languageCode === 'zh-CN' || d.languageIdentifier === 'zh-CN')?.value || '';
     const en = row.designations?.find((d: any) => d.languageCode === 'en-US' || d.languageIdentifier === 'en-US')?.value || '';
     form.zhName = zh;
@@ -190,6 +208,7 @@ async function submit() {
         includedFeatures: form.includedFeatures || undefined,
         excludedFeatures: form.excludedFeatures || undefined,
         defaultTimeZone: form.defaultTimeZone || undefined,
+        defaultLanguageId: form.defaultLanguageId || undefined,
         designations: buildTextLines(form.zhName, form.enName),
         definitions: buildTextLines(form.zhDefinition, form.enDefinition),
       };

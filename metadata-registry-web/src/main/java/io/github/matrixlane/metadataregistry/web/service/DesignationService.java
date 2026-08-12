@@ -12,6 +12,7 @@ import io.github.matrixlane.metadataregistry.web.common.BusinessException;
 import io.github.matrixlane.metadataregistry.web.common.ResourceNotFoundException;
 import io.github.matrixlane.metadataregistry.web.dto.designationdefinition.DesignationRequest;
 import io.github.matrixlane.metadataregistry.web.dto.designationdefinition.DesignationResponse;
+import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.LanguageIdentification;
 import io.github.matrixlane.metadataregistry.web.repository.ContextRepository;
 import io.github.matrixlane.metadataregistry.web.repository.DesignationRepository;
 import io.github.matrixlane.metadataregistry.web.repository.ItemRepository;
@@ -19,6 +20,7 @@ import io.github.matrixlane.metadataregistry.web.repository.LanguageIdentificati
 import io.github.matrixlane.metadataregistry.web.repository.NamespaceRepository;
 import io.github.matrixlane.metadataregistry.web.repository.NamingConventionRepository;
 import io.github.matrixlane.metadataregistry.web.repository.ReferenceDocumentRepository;
+import io.github.matrixlane.metadataregistry.web.repository.RegistrySpecificationRepository;
 import io.github.matrixlane.metadataregistry.web.service.namingconvention.NamingConflictDetector;
 import io.github.matrixlane.metadataregistry.web.service.namingconvention.NamingConventionEngine;
 import io.github.matrixlane.metadataregistry.web.service.namingconvention.NamingConventionRuleResult;
@@ -56,6 +58,7 @@ public class DesignationService {
     private final NamingConflictDetector namingConflictDetector;
     private final NamespaceConstraintValidator namespaceConstraintValidator;
     private final NamingConventionRepository namingConventionRepository;
+    private final RegistrySpecificationRepository registrySpecificationRepository;
 
     @Transactional(readOnly = true)
     public List<DesignationResponse> listByItemId(UUID itemId) {
@@ -74,6 +77,7 @@ public class DesignationService {
         var item = itemRepository.findById(request.itemId())
                 .orElseThrow(() -> new ResourceNotFoundException("Item", request.itemId()));
 
+        LanguageIdentification language = resolveLanguage(request.languageId());
         Sign sign = Sign.of(request.value());
         validateNamingConvention(sign);
 
@@ -81,13 +85,12 @@ public class DesignationService {
             validateNoConflict(request.namespaceId(), sign, null);
         }
 
-        validatePreferredUniqueness(item.getId(), request.languageId(), request.contexts(), null);
+        validatePreferredUniqueness(item.getId(), language.getId(), request.contexts(), null);
 
         Designation d = new Designation();
         d.setItem(item);
         d.setSign(sign);
-        d.setLanguage(languageRepository.findById(request.languageId())
-                .orElseThrow(() -> new ResourceNotFoundException("LanguageIdentification", request.languageId())));
+        d.setLanguage(language);
         if (request.sourceId() != null) {
             d.setSource(referenceDocumentRepository.findById(request.sourceId())
                     .orElseThrow(() -> new ResourceNotFoundException("ReferenceDocument", request.sourceId())));
@@ -109,6 +112,7 @@ public class DesignationService {
     public DesignationResponse update(UUID id, DesignationRequest request) {
         Designation d = loadOrThrow(id);
 
+        LanguageIdentification language = resolveLanguage(request.languageId());
         Sign sign = Sign.of(request.value());
         validateNamingConvention(sign);
 
@@ -116,11 +120,10 @@ public class DesignationService {
             validateNoConflict(request.namespaceId(), sign, d.getItem().getId());
         }
 
-        validatePreferredUniqueness(d.getItem().getId(), request.languageId(), request.contexts(), id);
+        validatePreferredUniqueness(d.getItem().getId(), language.getId(), request.contexts(), id);
 
         d.setSign(sign);
-        d.setLanguage(languageRepository.findById(request.languageId())
-                .orElseThrow(() -> new ResourceNotFoundException("LanguageIdentification", request.languageId())));
+        d.setLanguage(language);
         if (request.sourceId() != null) {
             d.setSource(referenceDocumentRepository.findById(request.sourceId())
                     .orElseThrow(() -> new ResourceNotFoundException("ReferenceDocument", request.sourceId())));
@@ -154,6 +157,26 @@ public class DesignationService {
     /**
      * Apply DesignationContext entries from the request to the Designation entity.
      */
+    /**
+     * 解析指称的语言。显式指定时直接加载；未指定时回退到注册表默认语言。
+     * 若两者皆无，则抛出业务异常。
+     */
+    private LanguageIdentification resolveLanguage(UUID languageId) {
+        if (languageId != null) {
+            return languageRepository.findById(languageId)
+                    .orElseThrow(() -> new ResourceNotFoundException("LanguageIdentification", languageId));
+        }
+        return loadDefaultLanguage()
+                .orElseThrow(() -> new BusinessException(ApiCodes.VALIDATION_FAILED,
+                        "未配置注册表默认语言，无法省略指称/定义的语言标识"));
+    }
+
+    private java.util.Optional<LanguageIdentification> loadDefaultLanguage() {
+        return registrySpecificationRepository.findAll().stream()
+                .findFirst()
+                .map(rs -> rs.getDefaultLanguage());
+    }
+
     private void applyContexts(Designation d, List<DesignationRequest.ContextEntry> contexts) {
         if (contexts == null || contexts.isEmpty()) return;
         for (DesignationRequest.ContextEntry entry : contexts) {

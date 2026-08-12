@@ -34,6 +34,7 @@ import io.github.matrixlane.metadataregistry.web.repository.NamespaceRepository;
 import io.github.matrixlane.metadataregistry.web.repository.NamingConventionRepository;
 import io.github.matrixlane.metadataregistry.web.repository.ReferenceDocumentRepository;
 import io.github.matrixlane.metadataregistry.web.repository.RegistrationAuthorityRepository;
+import io.github.matrixlane.metadataregistry.web.repository.RegistrySpecificationRepository;
 import io.github.matrixlane.metadataregistry.web.federation.GlobalNamespaceService;
 import io.github.matrixlane.metadataregistry.web.seed.SystemDefaultNamespaceInitializer;
 import io.github.matrixlane.metadataregistry.web.service.namingconvention.NamingConventionEngine;
@@ -73,6 +74,7 @@ public class ItemAdministrationService {
     private final NamingConventionRepository namingConventionRepository;
     private final NamespaceConstraintValidator namespaceConstraintValidator;
     private final ActiveRegistrarService activeRegistrarService;
+    private final RegistrySpecificationRepository registrySpecificationRepository;
 
     public void applyDesignations(Item item, List<TextLine> designations) {
         applyDesignations(item, designations, null);
@@ -87,14 +89,15 @@ public class ItemAdministrationService {
 
         validateIsolatedLines(designations, "指称");
         validateNamingConventions(designations);
-        validatePreferredUniqueness(designations, "指称");
+        validatePreferredUniqueness(designations, resolveLanguages(designations), "指称");
 
         item.getDesignations().clear();
-        for (TextLine line : designations) {
+        for (int i = 0; i < designations.size(); i++) {
+            TextLine line = designations.get(i);
             Designation d = new Designation();
             d.setItem(item);
             d.setSign(Sign.of(line.value()));
-            d.setLanguage(loadLanguage(line.languageId()));
+            d.setLanguage(resolveLanguage(line.languageId()));
             d.setSource(loadSourceOrNull(line.sourceId()));
             applyNamingConventions(d, line.namingConventionIds());
             d.setAcceptability(line.acceptability());
@@ -154,13 +157,16 @@ public class ItemAdministrationService {
         }
     }
 
-    private void validatePreferredUniqueness(List<TextLine> lines, String label) {
+    private void validatePreferredUniqueness(List<TextLine> lines, List<LanguageIdentification> resolvedLanguages, String label) {
         Map<String, Integer> preferredCountByLanguageContext = new HashMap<>();
-        for (TextLine line : lines) {
+        for (int i = 0; i < lines.size(); i++) {
+            TextLine line = lines.get(i);
             if (line.contexts() == null) continue;
+            LanguageIdentification lang = resolvedLanguages.get(i);
+            String languageIdStr = lang == null ? "null" : lang.getId().toString();
             for (var ce : line.contexts()) {
                 if (ce.acceptability() == io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.Acceptability.PREFERRED) {
-                    String key = line.languageId() + "|" + (ce.contextId() == null ? "null" : ce.contextId());
+                    String key = languageIdStr + "|" + (ce.contextId() == null ? "null" : ce.contextId());
                     preferredCountByLanguageContext.merge(key, 1, Integer::sum);
                 }
             }
@@ -177,16 +183,17 @@ public class ItemAdministrationService {
         if (definitions == null) return;
 
         validateIsolatedLines(definitions, "定义");
-        validatePreferredUniqueness(definitions, "定义");
+        validatePreferredUniqueness(definitions, resolveLanguages(definitions), "定义");
 
         List<DefinitionSnapshot> oldSnapshots = snapshotDefinitions(item.getDefinitions());
 
         item.getDefinitions().clear();
-        for (TextLine line : definitions) {
+        for (int i = 0; i < definitions.size(); i++) {
+            TextLine line = definitions.get(i);
             Definition d = new Definition();
             d.setItem(item);
             d.setText(Text.of(line.value()));
-            d.setLanguage(loadLanguage(line.languageId()));
+            d.setLanguage(resolveLanguage(line.languageId()));
             d.setSource(loadSourceOrNull(line.sourceId()));
             d.setAcceptability(line.acceptability());
             if (line.contexts() != null) {
@@ -572,7 +579,7 @@ public class ItemAdministrationService {
 
     private LanguageIdentification loadLanguage(UUID id) {
         if (id == null) {
-            throw new BusinessException("designation/definition 缺少 languageId");
+            throw new BusinessException(ApiCodes.VALIDATION_FAILED, "designation/definition 缺少 languageId");
         }
         return languageRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("LanguageIdentification", id));
@@ -587,5 +594,30 @@ public class ItemAdministrationService {
     private io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.Context loadContext(UUID id) {
         return contextRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Context", id));
+    }
+
+    /**
+     * 解析指称/定义的语言。显式指定时直接加载；未指定时回退到注册表默认语言。
+     * 若两者皆无，则抛出业务异常，符合 ISO/IEC 11179-3 的条件重数规则。
+     */
+    private LanguageIdentification resolveLanguage(UUID languageId) {
+        if (languageId != null) {
+            return loadLanguage(languageId);
+        }
+        return loadDefaultLanguage()
+                .orElseThrow(() -> new BusinessException(ApiCodes.VALIDATION_FAILED,
+                        "未配置注册表默认语言，无法省略指称/定义的语言标识"));
+    }
+
+    private List<LanguageIdentification> resolveLanguages(List<TextLine> lines) {
+        return lines.stream()
+                .map(line -> resolveLanguage(line.languageId()))
+                .toList();
+    }
+
+    private java.util.Optional<LanguageIdentification> loadDefaultLanguage() {
+        return registrySpecificationRepository.findAll().stream()
+                .findFirst()
+                .map(rs -> rs.getDefaultLanguage());
     }
 }

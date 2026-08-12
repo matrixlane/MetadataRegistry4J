@@ -113,10 +113,14 @@
                 <el-icon><Delete /></el-icon>
               </el-button>
             </div>
-            <MultilingualTextEditor v-model="pv.designations" label="指称" />
-            <div style="margin-top: 8px;">
-              <MultilingualTextEditor v-model="pv.definitions" label="定义" />
-            </div>
+            <DesignationDefinitionSection
+              :designations="pv.designations"
+              :definitions="pv.definitions"
+              :show-pairings="false"
+              :default-language-id="defaultLanguageId || undefined"
+              @update:designations="pv.designations = $event"
+              @update:definitions="pv.definitions = $event"
+            />
             <div style="display: flex; gap: 8px; margin-top: 8px;">
               <el-date-picker
                 v-model="pv.validPeriodStart"
@@ -147,12 +151,15 @@
 </template>
 
 <script setup lang="ts">
+import { useRegistryDefaultLanguage } from '@/composables/useRegistryDefaultLanguage';
+
+const { defaultLanguageId } = useRegistryDefaultLanguage();
 import { ref } from 'vue';
 import { Plus, Delete } from '@element-plus/icons-vue';
 import { valueDomainApi, dataTypeApi, unitOfMeasureApi, conceptualDomainApi } from '@/api/resources';
 import DataTablePage from '@/components/DataTablePage.vue';
 import ItemFormDialog from '@/components/ItemFormDialog.vue';
-import MultilingualTextEditor from '@/components/MultilingualTextEditor.vue';
+import DesignationDefinitionSection from '@/components/DesignationDefinitionSection.vue';
 
 const tableRef = ref<InstanceType<typeof DataTablePage>>();
 const dialog = ref<InstanceType<typeof ItemFormDialog>>();

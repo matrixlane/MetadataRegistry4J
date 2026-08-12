@@ -98,17 +98,18 @@ public class RegistrySpecificationService {
      * 创建默认注册规范。标识生成策略与版本生成策略属于命名空间范畴
      * （见 InitWizardService 的命名空间步骤），不由注册规范承载。
      */
-    public RegistrySpecificationResponse createDefault(String registryName,
-                                                     String defaultLanguage,
-                                                     String description) {
+   public RegistrySpecificationResponse createDefault(String registryName,
+                                                    String defaultLanguage,
+                                                    String description) {
         // 名称缺省值需在名称字段与首选指称中保持一致，否则 designation 为 null
         // 会触发命名规范校验失败。
         String effectiveName = registryName != null ? registryName : "默认元数据注册表";
+        UUID languageId = defaultLanguageId(defaultLanguage);
         RegistrySpecificationRequest request = new RegistrySpecificationRequest(
                 effectiveName,
                 description,
                 null,
-                null,
+                languageId,
                 null,
                 "UTF-8",
                 null,
@@ -121,7 +122,7 @@ public class RegistrySpecificationService {
                 null,
                 null,
                 "UTC+8",
-                List.of(new io.github.matrixlane.metadataregistry.web.dto.common.TextLine(defaultLanguageId(defaultLanguage), effectiveName, null, null, null, true)),
+                List.of(new io.github.matrixlane.metadataregistry.web.dto.common.TextLine(languageId, effectiveName, null, null, null, true)),
                 null,
                 null);
         return create(request);

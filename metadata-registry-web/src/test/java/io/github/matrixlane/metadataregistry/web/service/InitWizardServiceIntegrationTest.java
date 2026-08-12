@@ -20,6 +20,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -162,6 +163,14 @@ class InitWizardServiceIntegrationTest {
         assertThat(languageRepository.count()).isGreaterThanOrEqualTo(22);
         assertThat(languageRepository.findByLanguageIdentifier("zh-CN")).isPresent();
         assertThat(languageRepository.findByLanguageIdentifier("en-US")).isPresent();
+        UUID zhCnLanguageId = languageRepository.findByLanguageIdentifier("zh-CN").orElseThrow().getId();
+
+        // 5.1 Verify Registry Specification is created with default language
+        assertThat(registrySpecificationService.exists()).isTrue();
+        var specPage = registrySpecificationService.list(null, Pageable.ofSize(1));
+        assertThat(specPage.getContent()).isNotEmpty();
+        assertThat(specPage.getContent().get(0).defaultLanguageId()).isEqualTo(zhCnLanguageId);
+        assertThat(specPage.getContent().get(0).defaultLanguageIdentifier()).isEqualTo("zh-CN");
 
         // 6. Verify System Default Namespace is created (if initializer bean is present)
         if (systemDefaultNamespaceInitializer.isPresent()) {

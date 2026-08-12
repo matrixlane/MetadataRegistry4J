@@ -190,6 +190,7 @@ interface Props {
   namingConventionOptions?: NamingConventionResponse[];
   requireNamingConventions?: boolean;
   pairings?: PairingForm[];
+  defaultLanguageId?: string;
 }
 
 const props = defineProps<Props>();
@@ -294,7 +295,7 @@ function toggleExpand(index: number) {
 }
 
 function addRow() {
-  const next = [...props.modelValue, { languageId: '', value: '', isolatedException: false }];
+  const next = [...props.modelValue, { languageId: props.defaultLanguageId || '', value: '', isolatedException: false }];
   emit('update:modelValue', next);
   updateConflicts();
 }

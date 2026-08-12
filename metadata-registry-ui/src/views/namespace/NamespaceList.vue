@@ -61,11 +61,15 @@
         <el-tabs v-model="activeTab" type="border-card">
           <!-- 基础信息 -->
           <el-tab-pane :label="$t('namespace.sectionBasic')" name="basic">
-            <el-form-item :label="$t('common.name')" required>
-              <DesignationEditor v-model="form.designations" />
-            </el-form-item>
-            <el-form-item :label="$t('common.description')">
-              <DefinitionEditor v-model="form.definitions" />
+            <el-form-item :label="$t('common.name') + ' / ' + $t('common.description')">
+              <DesignationDefinitionSection
+                :designations="form.designations"
+                :definitions="form.definitions"
+                :show-pairings="false"
+                :default-language-id="defaultLanguageId || undefined"
+                @update:designations="form.designations = $event"
+                @update:definitions="form.definitions = $event"
+              />
             </el-form-item>
           </el-tab-pane>
 
@@ -420,8 +424,8 @@ import type {
 } from '@/types/common';
 import DataTablePage from '@/components/DataTablePage.vue';
 import ResourceFormDialog from '@/components/ResourceFormDialog.vue';
-import DesignationEditor from '@/components/DesignationEditor.vue';
-import DefinitionEditor from '@/components/DefinitionEditor.vue';
+import DesignationDefinitionSection from '@/components/DesignationDefinitionSection.vue';
+import { useRegistryDefaultLanguage } from '@/composables/useRegistryDefaultLanguage';
 import SegmentTemplateDesigner from '@/components/identifier/SegmentTemplateDesigner.vue';
 
 const tableRef = ref<InstanceType<typeof DataTablePage>>();

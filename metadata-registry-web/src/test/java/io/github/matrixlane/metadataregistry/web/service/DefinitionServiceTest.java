@@ -5,6 +5,7 @@ import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.
 import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.Acceptability;
 import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.Definition;
 import io.github.matrixlane.metadataregistry.web.common.ResourceNotFoundException;
+import io.github.matrixlane.metadataregistry.web.common.BusinessException;
 import io.github.matrixlane.metadataregistry.web.dto.designationdefinition.DefinitionRequest;
 import io.github.matrixlane.metadataregistry.web.dto.designationdefinition.DefinitionResponse;
 import io.github.matrixlane.metadataregistry.web.entity.DefinitionAuditLog;
@@ -13,6 +14,7 @@ import io.github.matrixlane.metadataregistry.web.repository.DefinitionRepository
 import io.github.matrixlane.metadataregistry.web.repository.ItemRepository;
 import io.github.matrixlane.metadataregistry.web.repository.LanguageIdentificationRepository;
 import io.github.matrixlane.metadataregistry.web.repository.ReferenceDocumentRepository;
+import io.github.matrixlane.metadataregistry.web.repository.RegistrySpecificationRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -39,6 +41,7 @@ class DefinitionServiceTest {
     @Mock private ContextRepository contextRepository;
     @Mock private ReferenceDocumentRepository referenceDocumentRepository;
     @Mock private DefinitionAuditLogService definitionAuditLogService;
+    @Mock private RegistrySpecificationRepository registrySpecificationRepository;
 
     @InjectMocks
     private DefinitionService definitionService;
@@ -61,6 +64,7 @@ class DefinitionServiceTest {
         lang = new LanguageIdentification();
         lang.setId(languageId);
         lang.setLanguageIdentifier("zh-CN");
+        lenient().when(registrySpecificationRepository.findAll()).thenReturn(List.of());
     }
 
     @Test
@@ -158,6 +162,43 @@ class DefinitionServiceTest {
         return d;
     }
 
+    @Test
+    void create_shouldResolveDefaultLanguageWhenLanguageIdOmitted() {
+        when(registrySpecificationRepository.findAll()).thenReturn(List.of(defaultRegistrySpecification()));
+        when(itemRepository.findById(itemId)).thenReturn(Optional.of(item));
+        when(definitionRepository.save(any(Definition.class))).thenAnswer(i -> {
+            Definition d = i.getArgument(0);
+            d.setId(UUID.randomUUID());
+            return d;
+        });
+
+        DefinitionRequest request = new DefinitionRequest(
+                itemId, null, "默认语言定义", null, null, Acceptability.PREFERRED);
+
+        DefinitionResponse result = definitionService.create(request);
+        assertThat(result.value()).isEqualTo("默认语言定义");
+        assertThat(result.languageId()).isEqualTo(languageId);
+    }
+
+    @Test
+    void create_shouldRejectWhenNoDefaultLanguageConfigured() {
+        when(itemRepository.findById(itemId)).thenReturn(Optional.of(item));
+
+        DefinitionRequest request = new DefinitionRequest(
+                itemId, null, "无默认语言定义", null, null, Acceptability.PREFERRED);
+
+        assertThatThrownBy(() -> definitionService.create(request))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("未配置注册表默认语言");
+    }
+
+    private io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrySpecification defaultRegistrySpecification() {
+        io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrySpecification rs =
+                new io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrySpecification();
+        rs.setId(UUID.randomUUID());
+        rs.setDefaultLanguage(lang);
+        return rs;
+    }
     @jakarta.persistence.Entity
     static class TestItem extends Item {}
 }

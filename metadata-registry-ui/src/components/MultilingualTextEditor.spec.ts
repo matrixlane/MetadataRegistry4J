@@ -50,6 +50,13 @@ describe('MultilingualTextEditor', () => {
     expect((events![0] as any[])[0]).toHaveLength(1);
   });
 
+  it('uses defaultLanguageId when addRow is clicked', async () => {
+    const wrapper = mountComponent({ defaultLanguageId: 'lang-1' });
+    await wrapper.find('.add-row-button').trigger('click');
+    const events = wrapper.emitted('update:modelValue');
+    expect((events![0] as any[])[0][0].languageId).toBe('lang-1');
+  });
+
   it('detects PREFERRED conflict across rows', async () => {
     const wrapper = mountComponent({
       modelValue: [

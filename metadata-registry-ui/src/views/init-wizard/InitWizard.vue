@@ -424,10 +424,10 @@
           :loading="loading"
           @click="nextStep"
         >
-          下一步
+         下一步
         </el-button>
         <el-button
-          v-else
+          v-else-if="!restartRequired"
           type="success"
           size="large"
           :loading="loading"
@@ -435,6 +435,14 @@
           @click="handleCommit"
         >
           完成初始化并启用系统
+        </el-button>
+        <el-button
+          v-else
+          size="large"
+          style="width: 200px; margin-left: auto;"
+          disabled
+        >
+          请重启应用后继续
         </el-button>
       </div>
     </el-card>
@@ -784,7 +792,11 @@ async function testDbConnection() {
     });
     dbTestResult.value = result;
   } catch (e) {
-    dbTestResult.value = { success: false, message: '连接失败，请检查参数' };
+    const err = e as any;
+    dbTestResult.value = {
+      success: false,
+      message: err?.response?.data?.message || err?.message || '连接失败，请检查参数',
+    };
   } finally {
     dbTesting.value = false;
   }

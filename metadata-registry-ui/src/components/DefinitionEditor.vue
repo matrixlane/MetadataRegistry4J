@@ -107,6 +107,7 @@ import AcceptabilitySelect from './AcceptabilitySelect.vue';
 
 interface Props {
   modelValue: TextLineForm[];
+  defaultLanguageId?: string;
 }
 
 const props = defineProps<Props>();
@@ -135,7 +136,7 @@ function toggleExpand(index: number) {
 
 function addRow() {
   const tempId = typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : `temp-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-  const next: TextLineForm[] = [...props.modelValue, { id: tempId, languageId: '', value: '', contexts: [] }];
+  const next: TextLineForm[] = [...props.modelValue, { id: tempId, languageId: props.defaultLanguageId || '', value: '', contexts: [] }];
   emit('update:modelValue', next);
 }
 

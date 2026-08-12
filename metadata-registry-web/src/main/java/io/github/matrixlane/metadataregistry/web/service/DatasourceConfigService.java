@@ -70,6 +70,7 @@ public class DatasourceConfigService {
     public DatasourceTestResult testConnection(DatasourceConfigRequest request) {
         DatabaseVendor vendor = parseVendor(request.vendor());
         validateEditionConstraint(vendor, request.edition());
+        prepareFilePath(vendor, request);
         String url = buildJdbcUrl(vendor, request);
         DriverManager.setLoginTimeout(LOGIN_TIMEOUT_SECONDS);
         try (Connection conn = openConnection(vendor, url, request)) {
@@ -113,10 +114,10 @@ public class DatasourceConfigService {
         Map<String, Object> jpaProps = child(jpa, "properties");
         Map<String, Object> hibernate = child(jpaProps, "hibernate");
         hibernate.put("default_schema", defaultSchemaFor(vendor, request.schema()));
+        hibernate.remove("globally_quoted_identifiers");
+        hibernate.put("dialect", dialectClass(vendor));
         if (vendor == DatabaseVendor.DM) {
-            // 达梦使用本项目 DM 方言（Oracle 兼容 + DM IDENTITY 语法）；
             // context 为 DM 保留字，需全局引用标识符
-            hibernate.put("dialect", "io.github.matrixlane.metadataregistry.web.config.DmOracleDialect");
             hibernate.put("globally_quoted_identifiers", true);
         }
 
@@ -154,6 +155,28 @@ public class DatasourceConfigService {
     }
 
     // ── JDBC URL 与驱动 ─────────────────────────────────────────
+
+    /**
+     * SQLite 场景下预先创建数据库文件所在目录，避免 JDBC 驱动因目录不存在而报
+     * "path to db: dir does not exist"。
+     */
+    private void prepareFilePath(DatabaseVendor vendor, DatasourceConfigRequest request) {
+        if (vendor != DatabaseVendor.SQLITE) {
+            return;
+        }
+        if (!hasText(request.filePath())) {
+            return;
+        }
+        Path file = Paths.get(request.filePath()).toAbsolutePath().normalize();
+        Path parent = file.getParent();
+        if (parent != null && !Files.exists(parent)) {
+            try {
+                Files.createDirectories(parent);
+            } catch (IOException e) {
+                throw new BusinessException(ApiCodes.VALIDATION_FAILED, "无法创建 SQLite 数据库目录: " + e.getMessage());
+            }
+        }
+    }
 
     private String buildJdbcUrl(DatabaseVendor vendor, DatasourceConfigRequest request) {
         return switch (vendor) {
@@ -210,6 +233,14 @@ public class DatasourceConfigService {
             case SQLITE -> "";
             case SQLSERVER -> "mdr";
             case DM -> "MDR";
+        };
+    }
+
+    private String dialectClass(DatabaseVendor vendor) {
+        return switch (vendor) {
+            case SQLITE -> "org.hibernate.community.dialect.SQLiteDialect";
+            case SQLSERVER -> "org.hibernate.dialect.SQLServerDialect";
+            case DM -> "io.github.matrixlane.metadataregistry.web.config.DmOracleDialect";
         };
     }
 

@@ -16,6 +16,7 @@ import io.github.matrixlane.metadataregistry.web.repository.LanguageIdentificati
 import io.github.matrixlane.metadataregistry.web.repository.NamespaceRepository;
 import io.github.matrixlane.metadataregistry.web.repository.NamingConventionRepository;
 import io.github.matrixlane.metadataregistry.web.repository.ReferenceDocumentRepository;
+import io.github.matrixlane.metadataregistry.web.repository.RegistrySpecificationRepository;
 import io.github.matrixlane.metadataregistry.web.service.namingconvention.NamingConflictDetector;
 import io.github.matrixlane.metadataregistry.web.service.namingconvention.NamingConventionEngine;
 import io.github.matrixlane.metadataregistry.web.service.namespace.NamespaceConstraintValidator;
@@ -48,6 +49,7 @@ class DesignationServiceTest {
     @Mock private NamingConflictDetector namingConflictDetector;
     @Mock private NamespaceConstraintValidator namespaceConstraintValidator;
     @Mock private NamingConventionRepository namingConventionRepository;
+    @Mock private RegistrySpecificationRepository registrySpecificationRepository;
 
     @InjectMocks
     private DesignationService designationService;
@@ -70,6 +72,7 @@ class DesignationServiceTest {
         lang = new LanguageIdentification();
         lang.setId(languageId);
         lang.setLanguageIdentifier("zh-CN");
+        lenient().when(registrySpecificationRepository.findAll()).thenReturn(List.of());
     }
 
     @Test
@@ -123,6 +126,7 @@ class DesignationServiceTest {
                 io.github.matrixlane.metadataregistry.web.service.namingconvention.NamingConventionRuleResult.fail(
                         "length", "名称不能为空")
         ));
+        when(languageRepository.findById(languageId)).thenReturn(Optional.of(lang));
 
         DesignationRequest request = new DesignationRequest(
                 itemId, languageId, "", null, null, null, null);
@@ -138,6 +142,7 @@ class DesignationServiceTest {
         when(itemRepository.findById(itemId)).thenReturn(Optional.of(item));
         when(namingConventionEngine.validate(any())).thenReturn(List.of());
         when(namingConflictDetector.hasConflict(eq(namespaceId), any(), any())).thenReturn(true);
+        when(languageRepository.findById(languageId)).thenReturn(Optional.of(lang));
 
         DesignationRequest request = new DesignationRequest(
                 itemId, languageId, "患者姓名", null, namespaceId, null, null);
@@ -153,6 +158,7 @@ class DesignationServiceTest {
         when(namingConventionEngine.validate(any())).thenReturn(List.of());
         when(designationRepository.findPreferredByItemIdAndLanguageId(itemId, languageId))
                 .thenReturn(List.of(createDesignation("现有首选")));
+        when(languageRepository.findById(languageId)).thenReturn(Optional.of(lang));
 
         DesignationRequest request = new DesignationRequest(
                 itemId, languageId, "新名称", null, null,
@@ -196,6 +202,7 @@ class DesignationServiceTest {
     void create_shouldThrowWhenDuplicatePreferredInSameRequest() {
         when(itemRepository.findById(itemId)).thenReturn(Optional.of(item));
         when(namingConventionEngine.validate(any())).thenReturn(List.of());
+        when(languageRepository.findById(languageId)).thenReturn(Optional.of(lang));
 
         UUID ctxId1 = UUID.randomUUID();
         UUID ctxId2 = UUID.randomUUID();
@@ -255,6 +262,44 @@ class DesignationServiceTest {
         return d;
     }
 
+    @Test
+    void create_shouldResolveDefaultLanguageWhenLanguageIdOmitted() {
+        when(registrySpecificationRepository.findAll()).thenReturn(List.of(defaultRegistrySpecification()));
+        when(itemRepository.findById(itemId)).thenReturn(Optional.of(item));
+        when(namingConventionEngine.validate(any())).thenReturn(List.of());
+        when(designationRepository.save(any(Designation.class))).thenAnswer(i -> {
+            Designation d = i.getArgument(0);
+            d.setId(UUID.randomUUID());
+            return d;
+        });
+
+        DesignationRequest request = new DesignationRequest(
+                itemId, null, "默认语言指称", null, null, null, null);
+
+        DesignationResponse result = designationService.create(request);
+        assertThat(result.value()).isEqualTo("默认语言指称");
+        assertThat(result.languageId()).isEqualTo(languageId);
+    }
+
+    @Test
+    void create_shouldRejectWhenNoDefaultLanguageConfigured() {
+        when(itemRepository.findById(itemId)).thenReturn(Optional.of(item));
+
+        DesignationRequest request = new DesignationRequest(
+                itemId, null, "无默认语言指称", null, null, null, null);
+
+        assertThatThrownBy(() -> designationService.create(request))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("未配置注册表默认语言");
+    }
+
+    private io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrySpecification defaultRegistrySpecification() {
+        io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrySpecification rs =
+                new io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrySpecification();
+        rs.setId(UUID.randomUUID());
+        rs.setDefaultLanguage(lang);
+        return rs;
+    }
     @jakarta.persistence.Entity
     static class TestItem extends Item {}
 }

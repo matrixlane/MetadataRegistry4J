@@ -24,6 +24,8 @@ import io.github.matrixlane.metadataregistry.web.service.identifier.IdentifierIn
 import io.github.matrixlane.metadataregistry.web.service.namingconvention.NamingConventionEngine;
 import io.github.matrixlane.metadataregistry.web.service.namespace.NamespaceConstraintValidator;
 import io.github.matrixlane.metadataregistry.web.seed.SystemDefaultNamespaceInitializer;
+import io.github.matrixlane.metadataregistry.web.repository.RegistrySpecificationRepository;
+import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrySpecification;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -57,6 +59,7 @@ class ItemAdministrationServiceTest {
     @Mock private io.github.matrixlane.metadataregistry.web.repository.ScopedIdentifierRepository scopedIdentifierRepository;
     @Mock private io.github.matrixlane.metadataregistry.web.repository.AdministeredItemRepository administeredItemRepository;
     @Mock private ActiveRegistrarService activeRegistrarService;
+    @Mock private RegistrySpecificationRepository registrySpecificationRepository;
 
     @InjectMocks
     private ItemAdministrationService itemAdministrationService;
@@ -88,6 +91,8 @@ class ItemAdministrationServiceTest {
                     String v = i.getArgument(1);
                     return v == null || v.isBlank() ? "1.0.0" : v;
                 });
+        // 默认注册规范无默认语言；需要默认语言的用例单独覆盖
+        lenient().when(registrySpecificationRepository.findAll()).thenReturn(List.of());
     }
 
     @Test
@@ -125,6 +130,7 @@ class ItemAdministrationServiceTest {
     @Test
     void applyDesignations_shouldRejectDuplicatePreferred() {
         when(namingConventionEngine.validate(any())).thenReturn(List.of());
+        when(languageRepository.findById(languageId)).thenReturn(Optional.of(lang));
 
         TextLine line1 = new TextLine(languageId, "首选名称1", null,
                 List.of(new TextLineContextEntry(contextId, Acceptability.PREFERRED)));
@@ -372,6 +378,71 @@ class ItemAdministrationServiceTest {
     static class TestItem extends Item {}
 
     // ===== active-registrar-ownership：注册权限与所有权归属 =====
+
+
+    @Test
+    void applyDesignations_shouldResolveDefaultLanguageWhenLanguageIdOmitted() {
+        when(namingConventionEngine.validate(any())).thenReturn(List.of());
+        when(registrySpecificationRepository.findAll()).thenReturn(List.of(defaultRegistrySpecification()));
+        Context ctx = new Context();
+        ctx.setId(contextId);
+        when(contextRepository.findById(contextId)).thenReturn(Optional.of(ctx));
+
+        TextLine line = new TextLine(null, "default-language-designation", null,
+                List.of(new TextLineContextEntry(contextId, Acceptability.PREFERRED)));
+
+        itemAdministrationService.applyDesignations(item, List.of(line));
+
+        assertThat(item.getDesignations()).hasSize(1);
+        assertThat(item.getDesignations().get(0).getLanguage()).isSameAs(lang);
+        assertThat(item.getDesignations().get(0).getSign().getValue()).isEqualTo("default-language-designation");
+    }
+
+    @Test
+    void applyDefinitions_shouldResolveDefaultLanguageWhenLanguageIdOmitted() {
+        when(registrySpecificationRepository.findAll()).thenReturn(List.of(defaultRegistrySpecification()));
+        Context ctx = new Context();
+        ctx.setId(contextId);
+        when(contextRepository.findById(contextId)).thenReturn(Optional.of(ctx));
+
+        TextLine line = new TextLine(null, "default-language-definition", null,
+                List.of(new TextLineContextEntry(contextId, Acceptability.PREFERRED)));
+
+        itemAdministrationService.applyDefinitions(item, List.of(line));
+
+        assertThat(item.getDefinitions()).hasSize(1);
+        assertThat(item.getDefinitions().get(0).getLanguage()).isSameAs(lang);
+        assertThat(item.getDefinitions().get(0).getText().getValue()).isEqualTo("default-language-definition");
+    }
+
+    @Test
+    void applyDesignations_shouldRejectWhenNoDefaultLanguageConfigured() {
+        when(namingConventionEngine.validate(any())).thenReturn(List.of());
+
+        TextLine line = new TextLine(null, "无默认语言指称", null,
+                List.of(new TextLineContextEntry(contextId, Acceptability.PREFERRED)));
+
+        assertThatThrownBy(() -> itemAdministrationService.applyDesignations(item, List.of(line)))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("未配置注册表默认语言");
+    }
+
+    @Test
+    void applyDefinitions_shouldRejectWhenNoDefaultLanguageConfigured() {
+        TextLine line = new TextLine(null, "无默认语言定义", null,
+                List.of(new TextLineContextEntry(contextId, Acceptability.PREFERRED)));
+
+        assertThatThrownBy(() -> itemAdministrationService.applyDefinitions(item, List.of(line)))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("未配置注册表默认语言");
+    }
+
+    private RegistrySpecification defaultRegistrySpecification() {
+        RegistrySpecification rs = new RegistrySpecification();
+        rs.setId(UUID.randomUUID());
+        rs.setDefaultLanguage(lang);
+        return rs;
+    }
 
     private RegistrationAuthority newRa() {
         RegistrationAuthority ra = new RegistrationAuthority();
