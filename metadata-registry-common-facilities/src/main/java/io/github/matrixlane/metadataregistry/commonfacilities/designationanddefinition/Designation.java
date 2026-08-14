@@ -43,7 +43,10 @@ public class Designation extends Entity {
     @JoinColumn(name = "source_id")
     private ReferenceDocument source;
 
-    @ManyToOne
+    // LAZY：item 为 JOINED 继承的层级根，默认 EAGER 会让 Designation 的单行加载
+    // 多态连接全部 Item 子类表，超出 SQLite 的 64 表 join 上限（配对/校验等
+    // 流程只需读取外键 id，代理解析即可，无需初始化）。
+    @ManyToOne(fetch = jakarta.persistence.FetchType.LAZY)
     @JoinColumn(name = "item_id")
     private Item item;
 

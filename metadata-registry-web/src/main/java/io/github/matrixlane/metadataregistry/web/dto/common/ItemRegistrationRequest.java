@@ -1,7 +1,6 @@
 package io.github.matrixlane.metadataregistry.web.dto.common;
 
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotEmpty;
 
 import java.util.List;
 import java.util.Map;
@@ -11,7 +10,8 @@ public record ItemRegistrationRequest(
         UUID namespaceId,
         String identifier,
         String version,
-        @NotEmpty(message = "designations 不能为空") @Valid
+        // 顶层请求体已携带指称并各自校验；此处保留字段仅为兼容旧调用方，不再强制非空。
+        @Valid
         List<TextLine> designations,
         @Valid
         List<TextLine> definitions,

@@ -34,7 +34,7 @@
       @success="tableRef?.fetchData()"
     >
       <template #fields="{ form }">
-        <el-form-item label="数据元概念" prop="dataElementConceptId" required>
+        <el-form-item label="数据元概念" prop="dataElementConceptId">
           <el-select
             v-model="form.dataElementConceptId"
             placeholder="选择数据元概念"
@@ -50,7 +50,7 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="值域" prop="valueDomainId" required>
+        <el-form-item label="值域" prop="valueDomainId">
           <el-select
             v-model="form.valueDomainId"
             placeholder="选择值域"

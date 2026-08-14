@@ -208,9 +208,10 @@ const expanded = ref<Record<number, boolean>>({});
 function isIsolated(index: number): boolean {
   const row = props.modelValue[index];
   if (!row) return false;
+  if (!row.value?.trim()) return false;
   if (row.contexts && row.contexts.length > 0) return false;
-  if (!row.id) return false;
-  return !(props.pairings || []).some((p) => p.designationId === row.id || p.definitionId === row.id);
+  const key = row.id || row.clientKey;
+  return !(props.pairings || []).some((p) => p.designationId === key || p.definitionId === key);
 }
 
 function preferredConflicts() {
@@ -294,8 +295,20 @@ function toggleExpand(index: number) {
   expanded.value[index] = !expanded.value[index];
 }
 
+/** 新建行的前端临时键：未持久化行没有后端 id，配对功能以此引用该行。 */
+function newClientKey(): string {
+  return typeof crypto !== 'undefined' && crypto.randomUUID
+    ? crypto.randomUUID()
+    : `ck-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
 function addRow() {
-  const next = [...props.modelValue, { languageId: props.defaultLanguageId || '', value: '', isolatedException: false }];
+  const next = [...props.modelValue, {
+    clientKey: newClientKey(),
+    languageId: props.defaultLanguageId || '',
+    value: '',
+    isolatedException: false,
+  }];
   emit('update:modelValue', next);
   updateConflicts();
 }

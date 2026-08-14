@@ -43,7 +43,8 @@ public class Definition extends Entity {
     @JoinColumn(name = "source_id")
     private ReferenceDocument source;
 
-    @ManyToOne
+    // 与 Designation.item 同理：LAZY 避免 JOINED 继承层级根的全子类表多态连接。
+    @ManyToOne(fetch = jakarta.persistence.FetchType.LAZY)
     @JoinColumn(name = "item_id")
     private Item item;
 

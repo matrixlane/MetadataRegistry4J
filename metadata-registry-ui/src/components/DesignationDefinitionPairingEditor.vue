@@ -184,8 +184,11 @@ function markTouched(index: number) {
 
 function validate(): boolean {
   touched.value = new Set(props.modelValue.map((_, i) => i));
+  const designationIds = new Set(props.designations.map((d) => d.id));
+  const definitionIds = new Set(props.definitions.map((d) => d.id));
   return props.modelValue.every((row, index) =>
     row.designationId && row.definitionId && row.contextId && !isDuplicate(index)
+    && designationIds.has(row.designationId) && definitionIds.has(row.definitionId)
   );
 }
 

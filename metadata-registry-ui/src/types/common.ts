@@ -63,6 +63,8 @@ export interface TextLineContextForm {
 
 export interface TextLineForm {
   id?: string;
+  /** 新建（未持久化）行的前端临时键，供指称-定义配对在保存前引用；保存后映射为真实 id。 */
+  clientKey?: string;
   languageId: string;
   value: string;
   sourceId?: string;

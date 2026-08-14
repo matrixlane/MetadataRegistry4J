@@ -143,8 +143,8 @@
           </el-form-item>
         </el-tab-pane>
 
-        <!-- Pairings Tab -->
-        <el-tab-pane v-if="form.id" label="指称-定义配对" name="pairings">
+        <!-- Pairings Tab（新建时也可配对：未保存行以 clientKey 临时引用，保存后映射为真实 id） -->
+        <el-tab-pane label="指称-定义配对" name="pairings">
         <DesignationDefinitionPairingEditor
           ref="pairingEditorRef"
           v-model="form.pairings"
@@ -524,9 +524,9 @@ watch(() => form.registration.namespaceId, (namespaceId) => {
 
 const designationOptions = computed(() =>
   form.designations
-    .filter((d) => d.id && d.value)
+    .filter((d) => d.value?.trim())
     .map((d) => ({
-      id: d.id!,
+      id: (d.id || d.clientKey)!,
       value: d.value,
       languageCode: languageCodeById(d.languageId),
       contexts: (d.contexts || []).map((c) => ({ contextId: c.contextId, acceptability: c.acceptability })),
@@ -535,9 +535,9 @@ const designationOptions = computed(() =>
 
 const definitionOptions = computed(() =>
   form.definitions
-    .filter((d) => d.id && d.value)
+    .filter((d) => d.value?.trim())
     .map((d) => ({
-      id: d.id!,
+      id: (d.id || d.clientKey)!,
       value: d.value,
       languageCode: languageCodeById(d.languageId),
       contexts: (d.contexts || []).map((c) => ({ contextId: c.contextId, acceptability: c.acceptability })),
@@ -731,10 +731,18 @@ function reset() {
   formRef.value?.resetFields();
 }
 
+/** 与 MultilingualTextEditor 中 newClientKey 同规则：为未持久化行生成前端临时键。 */
+function newTextLineClientKey(): string {
+  return typeof crypto !== 'undefined' && crypto.randomUUID
+    ? crypto.randomUUID()
+    : `ck-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
 function normalizeTextLines(raw: unknown): TextLineForm[] {
   if (!Array.isArray(raw)) return [];
   return raw.map((r: any) => ({
     id: r.id || undefined,
+    clientKey: r.id ? undefined : (r.clientKey || newTextLineClientKey()),
     languageId: r.languageId || r.language_id || r.languageID || '',
     value: r.value || r.sign || r.text || '',
     sourceId: r.sourceId || r.source_id || r.sourceID || undefined,
@@ -827,6 +835,14 @@ async function handleSubmitInternal() {
           payload[k] = (form as any)[k];
         }
       });
+      // 被配对引用的行在前端口径下不算孤立行；但配对在条目保存之后才创建，
+      // 后端 validateIsolatedLines 又只认上下文或例外标记，因此这里给被配对行
+      // 置瞬态 isolatedException（该字段不持久化，仅用于本次提交放行）。
+      const pairedLineKeys = new Set<string>();
+      form.pairings.forEach((p) => {
+        if (p.designationId) pairedLineKeys.add(p.designationId);
+        if (p.definitionId) pairedLineKeys.add(p.definitionId);
+      });
       // Normalize designations/definitions for API
       payload.designations = form.designations
         .filter((d) => d.value?.trim())
@@ -835,7 +851,7 @@ async function handleSubmitInternal() {
           value: d.value.trim(),
           sourceId: d.sourceId || null,
           namingConventionIds: d.namingConventionIds || [],
-          isolatedException: d.isolatedException || null,
+          isolatedException: d.isolatedException || pairedLineKeys.has(d.id || d.clientKey || '') || null,
           contexts: (d.contexts || []).map((c) => ({
             contextId: c.contextId,
             acceptability: c.acceptability,
@@ -848,7 +864,7 @@ async function handleSubmitInternal() {
           value: d.value.trim(),
           sourceId: d.sourceId || null,
           namingConventionIds: d.namingConventionIds || [],
-          isolatedException: d.isolatedException || null,
+          isolatedException: d.isolatedException || pairedLineKeys.has(d.id || d.clientKey || '') || null,
           contexts: (d.contexts || []).map((c) => ({
             contextId: c.contextId,
             acceptability: c.acceptability,
@@ -874,10 +890,10 @@ async function handleSubmitInternal() {
       const result = await props.submitFn(payload);
       submitAfterConfirm = null;
 
-      // Sync pairings if editing
+      // 保存后同步配对（新建模式下用保存响应把 clientKey 映射为真实 id）
       const itemId = form.id || (result as any)?.id;
       if (itemId) {
-        await syncPairings(itemId as string);
+        await syncPairings(itemId as string, result);
       }
 
       ElMessage.success('保存成功');
@@ -893,7 +909,35 @@ async function handleSubmitInternal() {
   });
 }
 
-async function syncPairings(itemId: string) {
+/** 后端按 payload 顺序重建指称/定义（见 ItemAdministrationService.applyDesignations），
+ *  因此可按下标把表单行（含 clientKey 的新建行、id 已过期的编辑行）映射到保存响应中的真实 id。 */
+function buildSavedLineIdMap(result: any): Map<string, string> {
+  const map = new Map<string, string>();
+  const fill = (rows: TextLineForm[], saved: any[] | undefined) => {
+    if (!Array.isArray(saved)) return;
+    const nonEmpty = rows.filter((r) => r.value?.trim());
+    nonEmpty.forEach((r, i) => {
+      const savedId = saved[i]?.id;
+      if (!savedId) return;
+      if (r.clientKey) map.set(r.clientKey, savedId);
+      if (r.id) map.set(r.id, savedId);
+    });
+  };
+  fill(form.designations, result?.designations);
+  fill(form.definitions, result?.definitions);
+  return map;
+}
+
+const UUID_LIKE = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+
+async function syncPairings(itemId: string, result?: unknown) {
+  const idMap = buildSavedLineIdMap(result);
+  const resolveLineId = (key: string | undefined): string => {
+    if (!key) return '';
+    const resolved = idMap.get(key) || key;
+    // 行已被删除等场景下 clientKey 无法解析为真实 id，跳过该配对
+    return UUID_LIKE.test(resolved) ? resolved : '';
+  };
   try {
     const existing = await pairingApi.list(itemId) as any[];
     // Delete all existing pairings
@@ -902,10 +946,12 @@ async function syncPairings(itemId: string) {
     }
     // Recreate all current pairings
     for (const p of form.pairings) {
-      if (p.designationId && p.definitionId) {
+      const designationId = resolveLineId(p.designationId);
+      const definitionId = resolveLineId(p.definitionId);
+      if (designationId && definitionId) {
         await pairingApi.create(itemId, {
-          designationId: p.designationId,
-          definitionId: p.definitionId,
+          designationId,
+          definitionId,
           contextId: p.contextId || null,
           acceptability: p.acceptability,
         });

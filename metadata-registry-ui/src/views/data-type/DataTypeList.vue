@@ -40,7 +40,7 @@
         <el-form-item label="英文名称">
           <el-input v-model="form.titleEn" />
         </el-form-item>
-        <el-form-item label="数据类型方案" required>
+        <el-form-item label="数据类型方案">
           <el-input v-model="form.dataTypeSchemeId" placeholder="UUID" />
         </el-form-item>
       </template>

@@ -88,4 +88,23 @@ describe('MultilingualTextEditor', () => {
     expect(events).toBeTruthy();
     expect((events![events!.length - 1] as any[])[0][0].isolatedException).toBe(true);
   });
+
+  // 回归：新建行（无 id）与后端 validateIsolatedLines 口径一致，应被判定为孤立行
+  it('flags newly added rows without id as isolated', async () => {
+    const wrapper = mountComponent({
+      modelValue: [{ languageId: 'lang-1', value: 'Test', contexts: [] }],
+    });
+    await new Promise(r => setTimeout(r, 0));
+    const exposed = wrapper.vm as any;
+    expect(exposed.isolatedWarnings()).toHaveLength(1);
+  });
+
+  it('does not flag rows with blank value', async () => {
+    const wrapper = mountComponent({
+      modelValue: [{ languageId: 'lang-1', value: '  ', contexts: [] }],
+    });
+    await new Promise(r => setTimeout(r, 0));
+    const exposed = wrapper.vm as any;
+    expect(exposed.isolatedWarnings()).toHaveLength(0);
+  });
 });

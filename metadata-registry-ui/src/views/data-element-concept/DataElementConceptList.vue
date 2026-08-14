@@ -41,10 +41,10 @@
         <el-form-item label="英文名称">
           <el-input v-model="form.titleEn" />
         </el-form-item>
-        <el-form-item label="对象类" required>
+        <el-form-item label="对象类">
           <el-input v-model="form.objectClassId" placeholder="UUID" />
         </el-form-item>
-        <el-form-item label="特性" required>
+        <el-form-item label="特性">
           <el-input v-model="form.propertyId" placeholder="UUID" />
         </el-form-item>
       </template>
