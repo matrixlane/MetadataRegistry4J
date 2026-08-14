@@ -14,6 +14,7 @@ Thumbs.db
 
 # 本地运行/测试生成的 SQLite 数据库文件
 metadata_registry.db
+data/
 
 # Runtime logs
 *.log
