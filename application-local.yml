@@ -1,27 +1,29 @@
 spring:
   datasource:
-    url: jdbc:sqlite:./metadata_registry.db
+    url: jdbc:sqlite:./data/metadata-registry.db
     driver-class-name: org.sqlite.JDBC
     hikari:
       connection-timeout: 5000
       auto-commit: false
-
+      maximum-pool-size: 1
+      minimum-idle: 1
+    username: admin
+    password: REMOVED-LOCAL-DB-PASSWORD
   jpa:
     properties:
       hibernate:
         dialect: org.hibernate.community.dialect.SQLiteDialect
+        default_schema: ''
     hibernate:
       ddl-auto: update
     show-sql: true
-
   flyway:
     enabled: false
-
+    locations: classpath:db/migration/sqlite
 logging:
   level:
     com.zaxxer.hikari: DEBUG
     org.springframework.jdbc: DEBUG
-
 app:
   jwt:
     secret: please-replace-with-a-long-random-string-of-at-least-32-bytes-XYZ
@@ -29,4 +31,4 @@ app:
   cors:
     allowed-origins: http://localhost:5173
   seed:
-    enabled: true
+    enabled: false
