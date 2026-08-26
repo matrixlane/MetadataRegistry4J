@@ -93,6 +93,16 @@ public class ActiveRegistrarService {
     }
 
     /**
+     * 解析活动 Registrar 身份并在事务内映射为视图对象。供控制器使用：
+     * {@link #toIdentity(Registrar)} 需要访问注册机构的名称集合（懒加载），
+     * 必须在会话存活期间完成映射，否则控制器层会抛 LazyInitializationException。
+     */
+    @Transactional(readOnly = true)
+    public Optional<RegistrarIdentity> resolveActiveIdentity(UUID accountId) {
+        return resolveActiveRegistrar(accountId).map(ActiveRegistrarService::toIdentity);
+    }
+
+    /**
      * 当前登录用户的活动 Registrar；无认证或无身份时返回空。
      */
     @Transactional(readOnly = true)

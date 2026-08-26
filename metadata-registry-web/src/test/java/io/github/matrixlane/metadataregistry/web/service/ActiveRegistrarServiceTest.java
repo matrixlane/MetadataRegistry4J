@@ -95,6 +95,29 @@ class ActiveRegistrarServiceTest {
     }
 
     @Test
+    void resolveActiveIdentity_returnsMappedIdentityView() {
+        UUID accountId = UUID.randomUUID();
+        Registrar registrar = newRegistrar(newRa());
+        when(registrarRepository.findByAccount_Id(accountId)).thenReturn(List.of(registrar));
+        when(accountRepository.findById(accountId)).thenReturn(Optional.empty());
+
+        Optional<ActiveRegistrarService.RegistrarIdentity> identity = service.resolveActiveIdentity(accountId);
+
+        assertThat(identity).isPresent();
+        assertThat(identity.get().registrarId()).isEqualTo(registrar.getId());
+        assertThat(identity.get().registrationAuthorityId())
+                .isEqualTo(registrar.getRegistrationAuthority().getId());
+    }
+
+    @Test
+    void resolveActiveIdentity_emptyWhenNoIdentity() {
+        UUID accountId = UUID.randomUUID();
+        when(registrarRepository.findByAccount_Id(accountId)).thenReturn(List.of());
+
+        assertThat(service.resolveActiveIdentity(accountId)).isEmpty();
+    }
+
+    @Test
     void select_persistsSelection() {
         UUID accountId = UUID.randomUUID();
         Registrar registrar = newRegistrar(newRa());

@@ -29,9 +29,7 @@ public class ActiveRegistrarController {
     @Operation(summary = "查询当前账号的活动 Registrar 身份与全部身份")
     public ApiResponse<ActiveRegistrarResponse> current() {
         UUID accountId = requireAccountId();
-        var active = activeRegistrarService.resolveActiveRegistrar(accountId)
-                .map(ActiveRegistrarService::toIdentity)
-                .orElse(null);
+        var active = activeRegistrarService.resolveActiveIdentity(accountId).orElse(null);
         return ApiResponse.ok(new ActiveRegistrarResponse(active,
                 activeRegistrarService.listIdentities(accountId)));
     }
