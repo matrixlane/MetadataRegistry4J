@@ -88,6 +88,13 @@
         <el-form-item label="英文定义">
           <el-input v-model="form.enDefinition" type="textarea" :rows="2" />
         </el-form-item>
+        <el-divider content-position="left">注册标识</el-divider>
+        <ItemRegistrationSection
+          ref="regSection"
+          v-model="form.registration"
+          :is-editing="isEdit"
+          :registration-authority-name="editingRaName"
+        />
       </el-form>
       <template #footer>
         <el-button @click="visible = false">取消</el-button>
@@ -101,6 +108,7 @@
 import { ref, reactive, onMounted } from 'vue';
 import { registrySpecificationApi, languageApi } from '@/api/resources';
 import DataTablePage from '@/components/DataTablePage.vue';
+import ItemRegistrationSection from '@/components/ItemRegistrationSection.vue';
 import type { FormInstance, FormRules } from 'element-plus';
 import { ElMessage } from 'element-plus';
 import type { TextLineForm } from '@/types/common';
@@ -110,6 +118,8 @@ const formRef = ref<FormInstance>();
 const visible = ref(false);
 const saving = ref(false);
 const isEdit = ref(false);
+const regSection = ref<InstanceType<typeof ItemRegistrationSection>>();
+const editingRaName = ref<string | null>(null);
 const languages = ref<Record<string, string>>({});
 const languageOptions = ref<{ id: string; languageIdentifier: string }[]>([]);
 
@@ -130,6 +140,7 @@ const form = reactive<Record<string, any>>({
   enName: '',
   zhDefinition: '',
   enDefinition: '',
+  registration: {},
 });
 
 const rules: FormRules = {
@@ -155,7 +166,13 @@ onMounted(async () => {
 
 function resetForm() {
   Object.keys(form).forEach((k) => {
-    form[k] = k === 'degreeOfConformance' ? undefined : '';
+    if (k === 'degreeOfConformance') {
+      form[k] = undefined;
+    } else if (k === 'registration') {
+      form[k] = {};
+    } else {
+      form[k] = '';
+    }
   });
   form.defaultLanguageId = '';
   formRef.value?.resetFields();
@@ -164,8 +181,14 @@ function resetForm() {
 function openDialog(row?: Record<string, any>) {
   resetForm();
   isEdit.value = !!row?.id;
+  editingRaName.value = row?.meta?.registrationAuthorityName || null;
   if (row) {
     Object.assign(form, row);
+    form.registration = {
+      namespaceId: row.meta?.namespaceId || undefined,
+      identifier: row.meta?.identifier || undefined,
+      version: row.meta?.version || undefined,
+    };
     form.defaultLanguageId = row.defaultLanguageId || '';
     const zh = row.designations?.find((d: any) => d.languageCode === 'zh-CN' || d.languageIdentifier === 'zh-CN')?.value || '';
     const en = row.designations?.find((d: any) => d.languageCode === 'en-US' || d.languageIdentifier === 'en-US')?.value || '';
@@ -194,6 +217,11 @@ async function submit() {
   if (!formRef.value) return;
   await formRef.value.validate(async (valid) => {
     if (!valid) return;
+    const varError = regSection.value?.validateTemplateVariables() ?? null;
+    if (varError) {
+      ElMessage.error(varError);
+      return;
+    }
     saving.value = true;
     try {
       const payload: Record<string, any> = {
@@ -211,6 +239,7 @@ async function submit() {
         defaultLanguageId: form.defaultLanguageId || undefined,
         designations: buildTextLines(form.zhName, form.enName),
         definitions: buildTextLines(form.zhDefinition, form.enDefinition),
+        registration: regSection.value?.buildPayload(),
       };
       if (isEdit.value && form.id) {
         await registrySpecificationApi.update(form.id, payload);

@@ -24,27 +24,18 @@
       </template>
     </DataTablePage>
 
-    <ResourceFormDialog
+    <ItemFormDialog
       ref="dialog"
       title="数据类型"
       :submit-fn="submitFn"
       @success="tableRef?.fetchData()"
     >
       <template #fields="{ form }">
-        <el-form-item label="标识符" prop="identifier" required>
-          <el-input v-model="form.identifier" />
-        </el-form-item>
-        <el-form-item label="中文名称">
-          <el-input v-model="form.titleZh" />
-        </el-form-item>
-        <el-form-item label="英文名称">
-          <el-input v-model="form.titleEn" />
-        </el-form-item>
         <el-form-item label="数据类型方案">
           <el-input v-model="form.dataTypeSchemeId" placeholder="UUID" />
         </el-form-item>
       </template>
-    </ResourceFormDialog>
+    </ItemFormDialog>
   </div>
 </template>
 
@@ -52,10 +43,10 @@
 import { ref } from 'vue';
 import { dataTypeApi } from '@/api/resources';
 import DataTablePage from '@/components/DataTablePage.vue';
-import ResourceFormDialog from '@/components/ResourceFormDialog.vue';
+import ItemFormDialog from '@/components/ItemFormDialog.vue';
 
 const tableRef = ref<InstanceType<typeof DataTablePage>>();
-const dialog = ref<InstanceType<typeof ResourceFormDialog>>();
+const dialog = ref<InstanceType<typeof ItemFormDialog>>();
 
 function submitFn(data: Record<string, unknown>) {
   if (data.id) return dataTypeApi.update(data.id as string, data);

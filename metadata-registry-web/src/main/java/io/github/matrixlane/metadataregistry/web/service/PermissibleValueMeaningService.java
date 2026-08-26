@@ -28,6 +28,7 @@ public class PermissibleValueMeaningService {
     private final PermissibleValueMeaningRepository repository;
     private final PermissibleValueRepository permissibleValueRepository;
     private final ValueMeaningRepository valueMeaningRepository;
+    private final ItemAdministrationService itemAdministrationService;
 
     @Transactional(readOnly = true)
     public List<PermissibleValueMeaningResponse> listByPermissibleValue(UUID permissibleValueId) {
@@ -55,6 +56,7 @@ public class PermissibleValueMeaningService {
         period.setStartDateTime(request.validPeriodStart());
         period.setEndDateTime(request.validPeriodEnd());
         pvm.setValidPeriod(period);
+        itemAdministrationService.ensureAdministeredItem(pvm, request.registration());
 
         pvm = repository.save(pvm);
 
@@ -86,6 +88,7 @@ public class PermissibleValueMeaningService {
         if (pvId != null) {
             checkOverlap(pvId, id, request.validPeriodStart(), request.validPeriodEnd());
         }
+        itemAdministrationService.ensureAdministeredItem(pvm, request.registration());
 
         return toResponse(repository.save(pvm));
     }

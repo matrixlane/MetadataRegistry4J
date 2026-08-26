@@ -48,6 +48,13 @@
       @success="tableRef?.fetchData()"
     >
       <template #fields="{ form }">
+        <ItemRegistrationSection
+          ref="regSection"
+          v-model="form.registration"
+          :is-editing="!!editingId"
+          :registration-authority-name="editingRaName"
+        />
+        <el-divider content-position="left">{{ $t('namingConvention.scopeRule') }}</el-divider>
         <el-form-item :label="$t('namingConvention.scopeRule')" required>
           <template #label>
             <span>{{ $t('namingConvention.scopeRule') }}</span>
@@ -101,13 +108,15 @@ import type {
 import DataTablePage from '@/components/DataTablePage.vue';
 import ResourceFormDialog from '@/components/ResourceFormDialog.vue';
 import DesignationDefinitionSection from '@/components/DesignationDefinitionSection.vue';
+import ItemRegistrationSection from '@/components/ItemRegistrationSection.vue';
 import { useRegistryDefaultLanguage } from '@/composables/useRegistryDefaultLanguage';
 
 const tableRef = ref<InstanceType<typeof DataTablePage>>();
 const dialog = ref<InstanceType<typeof ResourceFormDialog>>();
+const regSection = ref<InstanceType<typeof ItemRegistrationSection>>();
 
 const editingId = ref<string | null>(null);
-const editingIdentifier = ref<string | undefined>(undefined);
+const editingRaName = ref<string | null>(null);
 
 function truncate(text: string, max: number): string {
   if (!text) return '';
@@ -124,12 +133,13 @@ function preferredDesignation(row: NamingConventionResponse): string {
 
 function handleCreate() {
   editingId.value = null;
-  editingIdentifier.value = undefined;
+  editingRaName.value = null;
   dialog.value?.open({
     scopeRule: '',
     authorityRule: '',
     designations: [],
     definitions: [],
+    registration: {},
   });
 }
 
@@ -137,7 +147,7 @@ async function handleEdit(row: NamingConventionResponse) {
   try {
     const detail = await namingConventionApi.get(row.id);
     editingId.value = detail.id;
-    editingIdentifier.value = detail.meta?.identifier;
+    editingRaName.value = (detail.meta as any)?.registrationAuthorityName || null;
     dialog.value?.open({
       scopeRule: detail.scopeRule || '',
       authorityRule: detail.authorityRule || '',
@@ -151,6 +161,11 @@ async function handleEdit(row: NamingConventionResponse) {
         value: d.value,
         contexts: d.contexts,
       })) as TextLineForm[],
+      registration: {
+        namespaceId: (detail.meta as any)?.namespaceId || undefined,
+        identifier: detail.meta?.identifier || undefined,
+        version: (detail.meta as any)?.version || undefined,
+      },
     });
   } catch {
     ElMessage.error('加载命名规范详情失败');
@@ -167,15 +182,17 @@ async function submitFn(data: Record<string, unknown>) {
     ElMessage.error('designations 不能为空');
     throw new Error('designations required');
   }
+  const varError = regSection.value?.validateTemplateVariables() ?? null;
+  if (varError) {
+    ElMessage.error(varError);
+    throw new Error(varError);
+  }
   const payload: NamingConventionRequest = {
     scopeRule: (data.scopeRule as string).trim(),
     authorityRule: (data.authorityRule as string) || undefined,
     designations,
     definitions: (data.definitions as TextLineForm[]) || [],
-    registration: {
-      identifier: editingIdentifier.value,
-      version: '1.0',
-    },
+    registration: regSection.value?.buildPayload() as any,
   };
   if (editingId.value) {
     return namingConventionApi.update(editingId.value, payload);

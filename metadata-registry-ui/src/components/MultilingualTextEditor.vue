@@ -5,12 +5,53 @@
       :key="index"
       class="multilingual-card"
     >
-      <div class="multilingual-row">
+      <!-- 正文内容为主区域：占满整行、字号更大，便于阅读与编辑 -->
+      <div class="multilingual-row value-row">
+        <el-input
+          v-model="row.value"
+          :type="multiline ? 'textarea' : 'text'"
+          :autosize="multiline ? { minRows: 2, maxRows: 8 } : undefined"
+          :placeholder="$t('multilingual.valuePlaceholder', { label })"
+          class="value-input"
+        />
+        <div class="row-actions">
+          <el-tooltip
+            v-if="isIsolated(index)"
+            :content="row.isolatedException ? '已标记为例外' : '无上下文且未被配对引用，点击标记为例外'"
+            placement="top"
+          >
+            <el-button
+              size="small"
+              text
+              circle
+              :type="row.isolatedException ? 'success' : 'warning'"
+              @click="toggleException(index)"
+              data-testid="isolated-toggle"
+            >
+              <el-icon><Warning /></el-icon>
+            </el-button>
+          </el-tooltip>
+          <el-button
+            type="danger"
+            size="small"
+            text
+            circle
+            @click="removeRow(index)"
+          >
+            <el-icon><Delete /></el-icon>
+          </el-button>
+        </div>
+      </div>
+
+      <!-- 语言与来源文档为次要元数据：置于正文下方，弱化显示 -->
+      <div class="meta-row">
+        <span class="meta-label">{{ $t('multilingual.languagePlaceholder') }}</span>
         <el-select
           v-model="row.languageId"
           :placeholder="$t('multilingual.languagePlaceholder')"
-          style="width: 140px; flex-shrink: 0;"
+          style="width: 130px; flex-shrink: 0;"
           size="small"
+          class="meta-select"
         >
           <el-option
             v-for="lang in languages"
@@ -19,17 +60,14 @@
             :value="lang.id"
           />
         </el-select>
-        <el-input
-          v-model="row.value"
-          :placeholder="$t('multilingual.valuePlaceholder', { label })"
-          size="small"
-        />
+        <span class="meta-label">{{ $t('multilingual.sourcePlaceholder') }}</span>
         <el-select
           v-model="row.sourceId"
           :placeholder="$t('multilingual.sourcePlaceholder')"
           size="small"
-          style="width: 160px; flex-shrink: 0;"
+          style="width: 200px; flex-shrink: 0;"
           clearable
+          class="meta-select"
         >
           <el-option
             v-for="doc in referenceDocuments"
@@ -38,31 +76,6 @@
             :value="doc.id"
           />
         </el-select>
-        <el-button
-          type="danger"
-          size="small"
-          text
-          circle
-          @click="removeRow(index)"
-        >
-          <el-icon><Delete /></el-icon>
-        </el-button>
-        <el-tooltip
-          v-if="isIsolated(index)"
-          :content="row.isolatedException ? '已标记为例外' : '无上下文且未被配对引用，点击标记为例外'"
-          placement="top"
-        >
-          <el-button
-            size="small"
-            text
-            circle
-            :type="row.isolatedException ? 'success' : 'warning'"
-            @click="toggleException(index)"
-            data-testid="isolated-toggle"
-          >
-            <el-icon><Warning /></el-icon>
-          </el-button>
-        </el-tooltip>
       </div>
 
       <div class="context-section">
@@ -187,13 +200,16 @@ import type { TextLineForm, PairingForm, NamingConventionResponse } from '@/type
 interface Props {
   modelValue: TextLineForm[];
   label: string;
+  multiline?: boolean;
   namingConventionOptions?: NamingConventionResponse[];
   requireNamingConventions?: boolean;
   pairings?: PairingForm[];
   defaultLanguageId?: string;
 }
 
-const props = defineProps<Props>();
+const props = withDefaults(defineProps<Props>(), {
+  multiline: false,
+});
 const emit = defineEmits<{
   'update:modelValue': [value: TextLineForm[]];
   conflicts: [conflicts: { type: 'PREFERRED' | 'ISOLATED'; message: string; index: number }[]];
@@ -354,8 +370,38 @@ defineExpose({ isIsolated, preferredConflicts, isolatedWarnings, updateConflicts
 }
 .multilingual-row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
+}
+.value-input {
+  flex: 1;
+  font-size: 14px;
+}
+.value-input :deep(textarea.el-textarea__inner) {
+  line-height: 1.6;
+}
+.row-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+  margin-top: 4px;
+}
+.meta-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed #e2e8f0;
+}
+.meta-label {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  white-space: nowrap;
+}
+.meta-select {
+  opacity: 0.9;
 }
 .context-section {
   margin-top: 8px;
