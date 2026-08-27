@@ -87,11 +87,15 @@ describe('ItemFormDialog 命名空间输入模式联动', () => {
     return wrapper.findAllComponents({ name: 'ElRadioButton' });
   }
 
+  function inlineModeControls(wrapper: any) {
+    return wrapper.findAllComponents({ name: 'ElSegmented' });
+  }
+
   it('AUTO_WITH_OVERRIDE：显示生成方式单选，默认自动，标识符禁用并提示自动生成', async () => {
     const wrapper = await mountAndOpen('ns-awo');
 
-    // 标识符 + 版本各一组 auto/manual 单选
-    expect(radioButtons(wrapper).length).toBe(4);
+    // 标识符 + 版本各一个内嵌切换控件
+    expect(inlineModeControls(wrapper).length).toBe(2);
 
     const [identifierInput, versionInput] = inputs(wrapper);
     expect(identifierInput.props('disabled')).toBe(true);
@@ -104,7 +108,7 @@ describe('ItemFormDialog 命名空间输入模式联动', () => {
   it('AUTO_ONLY：不显示单选，标识符与版本输入框恒禁用', async () => {
     const wrapper = await mountAndOpen('ns-auto-only');
 
-    expect(radioButtons(wrapper).length).toBe(0);
+    expect(inlineModeControls(wrapper).length).toBe(0);
 
     const [identifierInput, versionInput] = inputs(wrapper);
     expect(identifierInput.props('disabled')).toBe(true);
@@ -115,7 +119,7 @@ describe('ItemFormDialog 命名空间输入模式联动', () => {
   it('MANUAL_ONLY：不显示单选，标识符与版本输入框启用可填', async () => {
     const wrapper = await mountAndOpen('ns-manual');
 
-    expect(radioButtons(wrapper).length).toBe(0);
+    expect(inlineModeControls(wrapper).length).toBe(0);
 
     const [identifierInput, versionInput] = inputs(wrapper);
     expect(identifierInput.props('disabled')).toBe(false);

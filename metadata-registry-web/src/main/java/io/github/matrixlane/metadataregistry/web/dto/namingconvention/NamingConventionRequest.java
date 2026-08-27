@@ -4,7 +4,6 @@ import io.github.matrixlane.metadataregistry.web.dto.common.ItemRegistrationRequ
 import io.github.matrixlane.metadataregistry.web.dto.common.TextLine;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotEmpty;
 
 import java.util.List;
 
@@ -16,7 +15,7 @@ public record NamingConventionRequest(
         String syntacticRule,
         String lexicalRule,
         String rulesJson,
-        @NotEmpty(message = "designations 不能为空") @Valid
+        @Valid
         List<TextLine> designations,
         @Valid
         List<TextLine> definitions,

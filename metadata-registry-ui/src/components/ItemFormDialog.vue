@@ -28,6 +28,7 @@
             v-model="form.registration"
             :is-editing="isEditing"
             :registration-authority-name="editingRaName"
+            @mode-change="handleRegistrationModeChange"
           />
         </el-tab-pane>
 
@@ -143,7 +144,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, onMounted, computed } from 'vue';
+import { reactive, ref, onMounted, computed, nextTick } from 'vue';
 import { useI18n } from 'vue-i18n';
 const { t } = useI18n();
 import { ElMessage } from 'element-plus';
@@ -193,6 +194,14 @@ const pairingEditorRef = ref<InstanceType<typeof DesignationDefinitionPairingEdi
 const activeTab = ref('designations');
 const designationEditorRef = ref<InstanceType<typeof MultilingualTextEditor>>();
 const definitionEditorRef = ref<InstanceType<typeof MultilingualTextEditor>>();
+
+/** 注册区段生成方式切换后的处理：切回自动时清除旧字段校验错误，避免残留红色警示框。 */
+async function handleRegistrationModeChange(payload: { field: 'identifier' | 'version'; to: 'auto' | 'manual' }) {
+  if (payload.to === 'auto') {
+    await nextTick();
+    formRef.value?.clearValidate([`registration.${payload.field}`]);
+  }
+}
 
 const invalidFields = ref<Set<string>>(new Set());
 
@@ -342,13 +351,16 @@ const rules = computed<FormRules>(() => ({
   designations: [
     {
       validator: (_rule: any, value: TextLineForm[], callback: any) => {
+        // ISO/IEC 11179-3:2023 §6.4：Item 不强制要求 designation/definition；空集合法。
+        // 仅当用户实际添加了指称行时，校验每行内容与命名规范约束。
         if (!value || value.length === 0) {
-          callback(new Error('至少添加一条指称'));
+          callback();
           return;
         }
-        const valid = value.filter((v) => v.value?.trim()).length > 0;
-        if (!valid) {
-          callback(new Error('至少有一条指称内容'));
+        const nonEmpty = value.filter((v) => v.value?.trim());
+        if (nonEmpty.length === 0) {
+          // 仅添加了空行，不视为有效条目，直接放行（提交时会被 designations 过滤逻辑丢弃）
+          callback();
           return;
         }
         if (namespaceMandatoryNC.value) {

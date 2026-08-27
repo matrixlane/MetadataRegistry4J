@@ -30,18 +30,22 @@
         />
       </el-select>
     </el-form-item>
-    <el-form-item v-if="showIdentifierChoice && !isExternalNamespace" label="标识符生成方式">
-      <el-radio-group v-model="identifierChoice">
-        <el-radio-button value="auto">自动生成</el-radio-button>
-        <el-radio-button value="manual">手动输入</el-radio-button>
-      </el-radio-group>
-    </el-form-item>
     <el-form-item label="标识符" prop="registration.identifier" :rules="identifierRules">
       <el-input
         v-model="model.identifier"
         :disabled="identifierDisabled"
         :placeholder="identifierPlaceholder"
-      />
+      >
+        <template v-if="showIdentifierChoice && !isExternalNamespace" #append>
+          <el-segmented
+            v-model="identifierChoice"
+            :options="generationModeOptions"
+            size="small"
+            role="radiogroup"
+            aria-label="标识符生成方式"
+          />
+        </template>
+      </el-input>
     </el-form-item>
     <!-- 段模板变量段：按已发布模板动态渲染 -->
     <template v-if="identifierAutoInEffect && templateVariables.length > 0">
@@ -58,24 +62,26 @@
         />
       </el-form-item>
     </template>
-    <el-form-item v-if="showVersionChoice" label="版本生成方式">
-      <el-radio-group v-model="versionChoice">
-        <el-radio-button value="auto">自动生成</el-radio-button>
-        <el-radio-button value="manual">手动输入</el-radio-button>
-      </el-radio-group>
-    </el-form-item>
     <el-form-item label="版本" prop="registration.version" :rules="versionRules">
       <el-input
         v-model="model.version"
         :disabled="versionDisabled"
         :placeholder="versionPlaceholder"
-      />
+      >
+        <template v-if="showVersionChoice" #append>
+          <el-segmented
+            v-model="versionChoice"
+            :options="generationModeOptions"
+            size="small"
+            role="radiogroup"
+            aria-label="版本生成方式"
+          />
+        </template>
+      </el-input>
     </el-form-item>
     <el-form-item label="注册机构">
       <el-tag v-if="ownershipLabel" type="primary" effect="plain">{{ ownershipLabel }}</el-tag>
       <el-text v-else-if="activeRegistrarQueryFailed" type="danger">活动 Registrar 身份查询失败，请刷新页面重试或重新登录</el-text>
-      <el-text v-else type="warning">当前账号无活动 Registrar 身份，无法注册条目</el-text>
-      <el-text size="small" type="info" style="margin-left: 8px;">由活动 Registrar 身份决定</el-text>
     </el-form-item>
   </div>
 </template>
@@ -145,6 +151,10 @@ const SYSTEM_DEFAULT_SCHEME = 'urn:metadata-registry:system-default';
 
 const identifierChoice = ref<'auto' | 'manual'>('auto');
 const versionChoice = ref<'auto' | 'manual'>('auto');
+const generationModeOptions = [
+  { label: '自动', value: 'auto' },
+  { label: '手动', value: 'manual' },
+];
 const templateVariables = ref<TemplateVariable[]>([]);
 const variableValues = reactive<Record<string, string>>({});
 
@@ -196,6 +206,7 @@ const namespaceRules = [
 
 const identifierRules = [
   {
+    required: true,
     validator: (_rule: unknown, value: string, callback: (e?: Error) => void) => {
       if (props.isEditing || identifierAutoInEffect.value) {
         callback();
@@ -224,6 +235,7 @@ const identifierRules = [
 
 const versionRules = [
   {
+    required: true,
     validator: (_rule: unknown, value: string, callback: (e?: Error) => void) => {
       if (props.isEditing || versionAutoInEffect.value) {
         callback();
@@ -255,6 +267,45 @@ function handleNamespaceChange() {
   model.value.identifier = undefined;
   model.value.version = undefined;
 }
+
+/** 命名空间级初始版本号预测：与后端 IdentifierInputPolicyService.initialVersion 同步，避免 manual 模式下空串被静默填充为该默认值。 */
+function predictInitialVersion(policy?: string): string {
+  switch (policy) {
+    case 'SEQUENTIAL':
+      return '1';
+    case 'DATE':
+      return new Date().toISOString().slice(0, 10);
+    default:
+      return '1.0.0';
+  }
+}
+
+/** 模式切换事件：通知宿主 dialog 在切回自动时清除对应字段的旧校验错误，
+ *  并在切到手动且 AUTO_WITH_OVERRIDE 时预填版本预测值，让用户即时看到/可改默认版本。 */
+const emit = defineEmits<{
+  'mode-change': [{ field: 'identifier' | 'version'; to: 'auto' | 'manual' }];
+}>();
+
+watch(
+  [identifierChoice, versionChoice],
+  ([newId, newVer], [oldId, oldVer]) => {
+    if (newId !== oldId) {
+      emit('mode-change', { field: 'identifier', to: newId });
+    }
+    if (newVer !== oldVer) {
+      emit('mode-change', { field: 'version', to: newVer });
+      // AUTO_WITH_OVERRIDE + 手动：预填预测的初始版本，避免静默落 1.0.0
+      if (
+        newVer === 'manual'
+        && oldVer === 'auto'
+        && versionMode.value === 'AUTO_WITH_OVERRIDE'
+        && !model.value.version
+      ) {
+        model.value.version = predictInitialVersion(selectedNamespace.value?.versioningPolicy);
+      }
+    }
+  },
+);
 
 async function loadTemplateVariables(namespaceId: string) {
   templateVariables.value = [];

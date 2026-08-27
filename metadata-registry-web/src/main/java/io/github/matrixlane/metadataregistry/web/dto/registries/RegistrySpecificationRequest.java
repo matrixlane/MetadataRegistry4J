@@ -5,7 +5,6 @@ import io.github.matrixlane.metadataregistry.web.dto.common.ItemRegistrationRequ
 import io.github.matrixlane.metadataregistry.web.dto.common.TextLine;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotEmpty;
 
 import java.util.List;
 import java.util.UUID;
@@ -29,7 +28,7 @@ public record RegistrySpecificationRequest(
         String includedFeatures,
         String excludedFeatures,
         String defaultTimeZone,
-        @NotEmpty(message = "designations 不能为空") @Valid
+        @Valid
         List<TextLine> designations,
         @Valid
         List<TextLine> definitions,

@@ -3,7 +3,6 @@ package io.github.matrixlane.metadataregistry.web.dto.dec;
 import io.github.matrixlane.metadataregistry.web.dto.common.ItemRegistrationRequest;
 import io.github.matrixlane.metadataregistry.web.dto.common.TextLine;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotEmpty;
 
 import java.util.List;
 import java.util.UUID;
@@ -12,7 +11,7 @@ public record DataElementConceptRequest(
         UUID objectClassId,
         UUID propertyId,
         String sourceUri,
-        @NotEmpty(message = "designations 不能为空") @Valid
+        @Valid
         List<TextLine> designations,
         @Valid
         List<TextLine> definitions,

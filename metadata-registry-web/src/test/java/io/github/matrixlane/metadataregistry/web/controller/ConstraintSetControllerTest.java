@@ -80,15 +80,16 @@
                  .andExpect(jsonPath("$.data.id").value(CS_ID.toString()));
      }
  
-     @Test
-     void create_shouldRejectEmptyDesignations() throws Exception {
-         ConstraintSetRequest req = new ConstraintSetRequest(List.of(), null, null, true, true, true);
- 
-         mockMvc.perform(post("/api/v1/constraint-sets")
-                         .contentType(MediaType.APPLICATION_JSON)
-                         .content(objectMapper.writeValueAsString(req)))
-                 .andExpect(status().isUnprocessableEntity());
-     }
+    @Test
+    void create_shouldAcceptEmptyDesignations() throws Exception {
+        // ISO/IEC 11179-3:2023 §6.4：Item 不强制要求 designation；空集合法。
+        ConstraintSetRequest req = new ConstraintSetRequest(List.of(), null, null, true, true, true);
+
+        mockMvc.perform(post("/api/v1/constraint-sets")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isOk());
+    }
  
      @Test
      void update_shouldReturnOk() throws Exception {
