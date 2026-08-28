@@ -27,7 +27,7 @@
 
     <ItemFormDialog
       ref="dialog"
-      title="数据元概念"
+      item-type="dataElementConcept"
       :submit-fn="submitFn"
       @success="tableRef?.fetchData()"
     >

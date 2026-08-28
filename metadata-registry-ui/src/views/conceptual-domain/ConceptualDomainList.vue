@@ -30,7 +30,7 @@
 
     <ItemFormDialog
       ref="dialog"
-      title="概念域"
+      item-type="conceptualDomain"
       :submit-fn="submitFn"
       @success="tableRef?.fetchData()"
     >

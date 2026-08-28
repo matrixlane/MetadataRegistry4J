@@ -20,7 +20,7 @@
 
     <ItemFormDialog
       ref="dialog"
-      title="计量单位"
+      item-type="unitOfMeasure"
       :submit-fn="submitFn"
       @success="tableRef?.fetchData()"
     >

@@ -25,7 +25,7 @@
 
     <ItemFormDialog
       ref="dialog"
-      title="特性"
+      item-type="property"
       :submit-fn="submitFn"
       @success="tableRef?.fetchData()"
     >

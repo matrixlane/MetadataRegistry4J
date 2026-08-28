@@ -20,7 +20,7 @@
 
     <ItemFormDialog
       ref="dialog"
-      title="计量类"
+      item-type="measureClass"
       :submit-fn="submitFn"
       @success="tableRef?.fetchData()"
     >

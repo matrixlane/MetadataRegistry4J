@@ -3,6 +3,22 @@
     "name": "元数据注册中心",
     "subtitle": "Metadata Registry"
   },
+  "meta": {
+    "itemType": {
+      "dataElement": "数据元",
+      "objectClass": "对象类",
+      "property": "特性",
+      "dataElementConcept": "数据元概念",
+      "conceptualDomain": "概念域",
+      "valueDomain": "值域",
+      "dataType": "数据类型",
+      "dataTypeScheme": "数据类型方案",
+      "unitOfMeasure": "计量单位",
+      "measureClass": "计量类",
+      "valueMeaning": "值含义",
+      "context": "上下文"
+    }
+  },
   "nav": {
     "dashboard": "概览",
     "dictionary": "数据字典",
@@ -362,6 +378,10 @@
     "namingConventionRequired": "该命名空间要求强制命名规范，请为每条指称至少选择一个命名规范",
     "designationRequired": "至少添加一条指称",
     "designationIncomplete": "至少有一条完整的指称（语言+内容）",
-    "pairingTab": "指称-定义配对"
+    "pairingTab": "指称-定义配对",
+    "emptyConfirmTitle": "未填写指称或定义",
+    "emptyConfirmMessage": "当前新增的{itemType}未包含任何指称或定义，可能导致后续问题，确认要保存吗？",
+    "emptyConfirmCancel": "取消",
+    "emptyConfirmSubmitAnyway": "仍然保存"
   }
 }

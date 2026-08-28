@@ -25,7 +25,7 @@
 
     <ItemFormDialog
       ref="dialog"
-      title="值含义"
+      item-type="valueMeaning"
       :submit-fn="submitFn"
       @success="tableRef?.fetchData()"
     >

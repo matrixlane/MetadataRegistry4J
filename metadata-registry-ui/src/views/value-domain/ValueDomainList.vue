@@ -31,7 +31,7 @@
 
     <ItemFormDialog
       ref="dialog"
-      title="值域"
+      item-type="valueDomain"
       :submit-fn="submitFn"
       @success="tableRef?.fetchData()"
     >

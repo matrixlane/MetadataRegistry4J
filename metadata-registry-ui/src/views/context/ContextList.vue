@@ -43,7 +43,7 @@
 
     <ItemFormDialog
       ref="dialog"
-      title="上下文"
+      item-type="context"
       :submit-fn="submitFn"
       @success="tableRef?.fetchData()"
     >

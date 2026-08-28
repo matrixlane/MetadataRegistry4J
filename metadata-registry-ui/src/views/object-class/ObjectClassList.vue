@@ -25,7 +25,7 @@
 
     <ItemFormDialog
       ref="dialog"
-      title="对象类"
+      item-type="objectClass"
       :submit-fn="submitFn"
       @success="tableRef?.fetchData()"
     >

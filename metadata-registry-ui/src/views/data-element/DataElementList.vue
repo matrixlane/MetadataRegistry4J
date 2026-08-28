@@ -29,7 +29,7 @@
 
     <ItemFormDialog
       ref="dialog"
-      title="数据元"
+      item-type="dataElement"
       :submit-fn="submitFn"
       @success="tableRef?.fetchData()"
     >

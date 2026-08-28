@@ -1,7 +1,7 @@
 <template>
   <el-dialog
     v-model="visible"
-    :title="title"
+    :title="resolvedTitle"
     width="760px"
     :close-on-click-modal="false"
     destroy-on-close
@@ -138,6 +138,20 @@
       </template>
     </el-dialog>
 
+    <el-dialog
+      v-model="emptyConfirmVisible"
+      :title="t('itemForm.emptyConfirmTitle')"
+      width="520px"
+      :close-on-click-modal="false"
+      append-to-body
+    >
+      <p>{{ t('itemForm.emptyConfirmMessage', { itemType: resolvedTitle }) }}</p>
+      <template #footer>
+        <el-button @click="emptyConfirmVisible = false">{{ t('itemForm.emptyConfirmCancel') }}</el-button>
+        <el-button type="primary" @click="confirmSubmitDespiteEmpty">{{ t('itemForm.emptyConfirmSubmitAnyway') }}</el-button>
+      </template>
+    </el-dialog>
+
     <template #footer>
       <el-button @click="visible = false">取消</el-button>
       <el-button type="primary" :loading="saving" :disabled="gateBlocksSave" @click="handleSubmit">保存</el-button>
@@ -177,7 +191,12 @@ interface ItemForm {
 }
 
 interface Props {
-  title: string;
+  /**
+   * 元数据对象类型标识符（如 'dataElement'、'valueDomain'）。
+   * 显示名称由 i18n 资源 meta.itemType.<itemType> 在启动时加载到内存，
+   * 此处仅按 key 索引即可。
+   */
+  itemType: string;
   submitFn: (data: Record<string, unknown>) => Promise<unknown>;
   showRegistration?: boolean;
 }
@@ -189,6 +208,9 @@ const emit = defineEmits<{ success: [] }>();
 
 const visible = ref(false);
 const saving = ref(false);
+
+/** 从 i18n 资源中按 itemType 索引该元数据对象类型的本地化显示名。 */
+const resolvedTitle = computed(() => t(`meta.itemType.${props.itemType}`, props.itemType));
 const { defaultLanguageId } = useRegistryDefaultLanguage();
 const formRef = ref<FormInstance>();
 const registrationSectionRef = ref<InstanceType<typeof ItemRegistrationSection>>();
@@ -257,6 +279,7 @@ const namespaceMandatoryNC = ref(false);
 const designationConflicts = ref<{ type: 'PREFERRED' | 'ISOLATED'; message: string; index: number }[]>([]);
 const definitionConflicts = ref<{ type: 'PREFERRED' | 'ISOLATED'; message: string; index: number }[]>([]);
 const isolatedConfirmVisible = ref(false);
+const emptyConfirmVisible = ref(false);
 
 const allConflicts = computed(() => {
   const list = [
@@ -304,6 +327,11 @@ function markAllIsolatedExceptions() {
 
 function confirmSubmitAnyway() {
   isolatedConfirmVisible.value = false;
+  if (submitAfterConfirm) submitAfterConfirm();
+}
+
+function confirmSubmitDespiteEmpty() {
+  emptyConfirmVisible.value = false;
   if (submitAfterConfirm) submitAfterConfirm();
 }
 
@@ -545,12 +573,30 @@ async function handleSubmit() {
     ElMessage.warning('存在 PREFERRED 冲突，请先修正');
     return;
   }
+  // ISO/IEC 11179-3:2023 §6.4 允许 Item 不带指称/定义，但空集不利于后续检索与可读性。
+  // 这里在两类皆为空时仅做一次确认放行，不阻塞保存。
+  const hasAnyDesignation = form.designations.some((d) => d.value?.trim());
+  const hasAnyDefinition = form.definitions.some((d) => d.value?.trim());
+  if (!hasAnyDesignation && !hasAnyDefinition) {
+    submitAfterConfirm = () => proceedToIsolatedOrSubmit();
+    emptyConfirmVisible.value = true;
+    return;
+  }
   const hasIsolated = pendingIsolatedRows.value.length > 0;
   if (hasIsolated) {
     requestIsolatedConfirmation(() => handleSubmitInternal());
     return;
   }
   await handleSubmitInternal();
+}
+
+/** 跳过"指称/定义为空"确认后，复用孤立行判定与提交入口。 */
+function proceedToIsolatedOrSubmit() {
+  if (pendingIsolatedRows.value.length > 0) {
+    requestIsolatedConfirmation(() => handleSubmitInternal());
+    return;
+  }
+  handleSubmitInternal();
 }
 
 async function handleSubmitInternal() {

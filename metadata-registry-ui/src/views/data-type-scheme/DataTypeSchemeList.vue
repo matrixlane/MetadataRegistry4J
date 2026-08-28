@@ -25,7 +25,7 @@
 
     <ItemFormDialog
       ref="dialog"
-      title="数据类型方案"
+      item-type="dataTypeScheme"
       :submit-fn="submitFn"
       @success="tableRef?.fetchData()"
     >
