@@ -11,6 +11,7 @@ public record DataElementConceptRequest(
         UUID objectClassId,
         UUID propertyId,
         String sourceUri,
+        List<UUID> conceptualDomainIds,
         @Valid
         List<TextLine> designations,
         @Valid

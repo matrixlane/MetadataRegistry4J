@@ -1,5 +1,6 @@
 import { ref, computed } from 'vue';
 import { registrySpecificationApi } from '@/api/resources';
+import type { RegistrySpecification } from '@/api/system';
 
 interface RegistryDefaultLanguageState {
   defaultLanguageId: string | null;
@@ -24,9 +25,10 @@ export function useRegistryDefaultLanguage() {
     state.value.error = null;
     try {
       const res = await registrySpecificationApi.list({ size: 1 });
-      const first = (res.content || res.data || [])[0];
-      state.value.defaultLanguageId = first?.defaultLanguageId || null;
-      state.value.defaultLanguageIdentifier = first?.defaultLanguageIdentifier || null;
+      const list: RegistrySpecification[] = (res.content || []) as RegistrySpecification[];
+      const first: RegistrySpecification | undefined = list[0];
+      state.value.defaultLanguageId = first?.defaultLanguageId ?? null;
+      state.value.defaultLanguageIdentifier = first?.defaultLanguageIdentifier ?? null;
       loaded = true;
     } catch (err: any) {
       state.value.error = err?.response?.data?.message || err?.message || '加载注册规范失败';

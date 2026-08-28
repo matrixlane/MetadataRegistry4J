@@ -14,6 +14,8 @@ public record DataElementConceptResponse(
         UUID propertyId,
         String propertyLabel,
         String sourceUri,
+        List<UUID> conceptualDomainIds,
+        List<ConceptualDomainKindLabel> conceptualDomainLabels,
         List<TextLineResponse> designations,
         List<TextLineResponse> definitions,
         ItemMetaResponse meta) {

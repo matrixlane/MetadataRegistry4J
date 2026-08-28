@@ -1,11 +1,17 @@
+<!--
+  ConceptList —— ISO/IEC 11179-31 §7.4.2 三层 UI：
+  - 一级 `kind`（DESCRIBED / ENUMERATED）；二级 `enumKind`（仅 ENUMERATED 时显示：LOCAL / REFERENCE）
+  - 三分支互斥卡片：DESCRIBED（来源 URI + 定义）/ LOCAL_ENUMERATED（值含义）/ REFERENCE_ENUMERATED（外部源）
+  - 与 value-domain-kind-and-enum-kind change 配套
+-->
 <template>
   <div>
     <h2 style="margin-top: 0;">概念域</h2>
     <DataTablePage
       ref="tableRef"
       :fetch-fn="conceptualDomainApi.list"
-      @create="dialog?.open()"
-      @edit="(r) => dialog?.open(r)"
+      @create="handleCreate"
+      @edit="handleEdit"
       @delete="handleDelete"
     >
       <template #columns>
@@ -17,7 +23,7 @@
         </el-table-column>
         <el-table-column prop="type" label="类型" width="140">
           <template #default="{ row }">
-            <el-tag size="small">{{ row.type === 'LOCAL_ENUMERATED' ? '局部枚举' : '描述型' }}</el-tag>
+            <el-tag size="small" :type="typeTagType(row.type)">{{ typeLabel(row.type) }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="meta.registrationStatus" label="状态" width="120">
@@ -36,19 +42,44 @@
     >
       <template #fields="{ form }">
         <el-form-item label="类型" prop="type" required>
-          <el-select v-model="form.type" placeholder="选择类型" style="width: 100%;">
-            <el-option label="描述型" value="DESCRIBED" />
-            <el-option label="局部枚举" value="LOCAL_ENUMERATED" />
-          </el-select>
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <el-select
+              v-model="form.kind"
+              placeholder="一级"
+              style="width: 160px;"
+              @change="() => onKindChange(form)"
+            >
+              <el-option label="描述型" value="DESCRIBED" />
+              <el-option label="枚举型" value="ENUMERATED" />
+            </el-select>
+            <el-select
+              v-if="form.kind === 'ENUMERATED'"
+              v-model="form.enumKind"
+              placeholder="二级"
+              style="width: 160px;"
+              @change="() => onEnumKindChange(form)"
+            >
+              <el-option label="本地枚举型" value="LOCAL" />
+              <el-option label="引用枚举型" value="REFERENCE" />
+            </el-select>
+            <span style="color: var(--el-text-color-secondary); font-size: 12px;">
+              提交 type: <code>{{ form.type || '(未设置)' }}</code>
+            </span>
+          </div>
         </el-form-item>
-        <el-form-item label="来源 URI">
+
+        <!-- DESCRIBED 描述型：来源 URI + 定义 -->
+        <el-form-item v-if="form.kind === 'DESCRIBED'" label="来源 URI">
           <el-input v-model="form.sourceUri" placeholder="可选" />
         </el-form-item>
-        <!-- ValueMeanings editor for LOCAL_ENUMERATED -->
-        <el-card v-if="form.type === 'LOCAL_ENUMERATED'" shadow="never" style="margin-top: 8px;">
-          <template #header>
-            <span>值含义</span>
-          </template>
+
+        <!-- LOCAL_ENUMERATED 本地枚举型：值含义编辑卡片 -->
+        <el-card
+          v-if="form.kind === 'ENUMERATED' && form.enumKind === 'LOCAL'"
+          shadow="never"
+          style="margin-top: 8px;"
+        >
+          <template #header><span>值含义</span></template>
           <div
             v-for="(vm, idx) in form.valueMeanings || []"
             :key="idx"
@@ -56,7 +87,7 @@
           >
             <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
               <span>值含义 #{{ idx + 1 }}</span>
-              <el-button type="danger" size="small" text circle @click="removeValueMeaning(idx)">
+              <el-button type="danger" size="small" text circle @click="removeValueMeaning(form, idx)">
                 <el-icon><Delete /></el-icon>
               </el-button>
             </div>
@@ -92,6 +123,21 @@
             添加值含义
           </el-button>
         </el-card>
+
+        <!-- REFERENCE_ENUMERATED 引用枚举型：外部源卡片 -->
+        <el-card
+          v-if="form.kind === 'ENUMERATED' && form.enumKind === 'REFERENCE'"
+          shadow="never"
+          style="margin-top: 8px;"
+        >
+          <template #header><span>外部源</span></template>
+          <el-form-item label="外部源字段名" required>
+            <el-input
+              v-model="form.permittedValuesFieldname"
+              placeholder="如 code / alpha2"
+            />
+          </el-form-item>
+        </el-card>
       </template>
     </ItemFormDialog>
   </div>
@@ -101,24 +147,78 @@
 import { useRegistryDefaultLanguage } from '@/composables/useRegistryDefaultLanguage';
 
 const { defaultLanguageId } = useRegistryDefaultLanguage();
-import { ref } from 'vue';
+
+import { ref, watch } from 'vue';
 import { Plus, Delete } from '@element-plus/icons-vue';
 import { conceptualDomainApi } from '@/api/resources';
 import DataTablePage from '@/components/DataTablePage.vue';
 import ItemFormDialog from '@/components/ItemFormDialog.vue';
 import DesignationDefinitionSection from '@/components/DesignationDefinitionSection.vue';
 
+type ConceptKind = 'DESCRIBED' | 'ENUMERATED';
+type EnumKind = 'LOCAL' | 'REFERENCE';
+
+const TYPE_LABEL: Record<string, string> = {
+  DESCRIBED: '描述型',
+  LOCAL_ENUMERATED: '本地枚举型',
+  REFERENCE_ENUMERATED: '引用枚举型',
+};
+
+const TYPE_TAG_TYPE: Record<string, 'primary' | 'success' | 'warning' | 'info' | 'danger'> = {
+  DESCRIBED: 'info',
+  LOCAL_ENUMERATED: 'success',
+  REFERENCE_ENUMERATED: 'warning',
+};
+
+function typeLabel(t?: string): string {
+  return (t && TYPE_LABEL[t]) || '描述型';
+}
+function typeTagType(t?: string): 'primary' | 'success' | 'warning' | 'info' | 'danger' {
+  return (t && TYPE_TAG_TYPE[t]) || 'info';
+}
+
 const tableRef = ref<InstanceType<typeof DataTablePage>>();
 const dialog = ref<InstanceType<typeof ItemFormDialog>>();
 
-function submitFn(data: Record<string, unknown>) {
-  if (data.id) return conceptualDomainApi.update(data.id as string, data);
-  return conceptualDomainApi.create(data);
+function kindFromType(t?: string): ConceptKind {
+  if (t === 'LOCAL_ENUMERATED' || t === 'REFERENCE_ENUMERATED') return 'ENUMERATED';
+  return 'DESCRIBED';
 }
 
-async function handleDelete(row: Record<string, unknown>) {
-  await conceptualDomainApi.delete(row.id as string);
-  tableRef.value?.fetchData();
+function enumKindFromType(t?: string): EnumKind {
+  if (t === 'REFERENCE_ENUMERATED') return 'REFERENCE';
+  return 'LOCAL';
+}
+
+function computeType(kind?: ConceptKind, enumKind?: EnumKind): string {
+  if (kind === 'DESCRIBED') return 'DESCRIBED';
+  if (kind === 'ENUMERATED') {
+    return enumKind === 'REFERENCE' ? 'REFERENCE_ENUMERATED' : 'LOCAL_ENUMERATED';
+  }
+  return 'DESCRIBED';
+}
+
+function onKindChange(form: Record<string, any>) {
+  // 一级切换：清理类型专属字段
+  if (form.kind === 'DESCRIBED') {
+    form.valueMeanings = [];
+    form.permittedValuesFieldname = null;
+    form.sourceUri = form.sourceUri || '';
+  } else if (form.kind === 'ENUMERATED') {
+    if (!form.enumKind) form.enumKind = 'LOCAL';
+    form.sourceUri = '';
+  }
+  form.type = computeType(form.kind, form.enumKind);
+}
+
+function onEnumKindChange(form: Record<string, any>) {
+  // 二级切换：清理对方专属字段
+  if (form.enumKind === 'LOCAL') {
+    form.permittedValuesFieldname = null;
+  } else if (form.enumKind === 'REFERENCE') {
+    form.valueMeanings = [];
+  }
+  form.type = computeType(form.kind, form.enumKind);
 }
 
 function addValueMeaning(form: Record<string, unknown>) {
@@ -127,12 +227,50 @@ function addValueMeaning(form: Record<string, unknown>) {
   form.valueMeanings = list;
 }
 
-function removeValueMeaning(idx: number) {
-  const dialogRef = dialog.value as any;
-  if (!dialogRef) return;
-  const form = dialogRef.form as Record<string, unknown>;
+function removeValueMeaning(form: Record<string, unknown>, idx: number) {
   const list = (form.valueMeanings || []) as any[];
   list.splice(idx, 1);
   form.valueMeanings = list;
+}
+
+async function handleCreate() {
+  await dialog.value?.open();
+  const form = (dialog.value as any)?.form as Record<string, any> | undefined;
+  if (form) {
+    form.kind = 'DESCRIBED';
+    form.enumKind = undefined;
+    form.type = 'DESCRIBED';
+  }
+}
+
+async function handleEdit(row: Record<string, any>) {
+  await dialog.value?.open(row);
+  const form = (dialog.value as any)?.form as Record<string, any> | undefined;
+  if (form) {
+    form.kind = kindFromType(form.type);
+    form.enumKind = form.kind === 'ENUMERATED' ? enumKindFromType(form.type) : undefined;
+  }
+}
+
+function submitFn(data: Record<string, unknown>) {
+  // 提交前清理不适用的字段
+  if (data.kind === 'DESCRIBED') {
+    data.valueMeanings = [];
+    data.permittedValuesFieldname = null;
+  } else if (data.kind === 'ENUMERATED' && data.enumKind === 'LOCAL') {
+    data.permittedValuesFieldname = null;
+  } else if (data.kind === 'ENUMERATED' && data.enumKind === 'REFERENCE') {
+    data.valueMeanings = [];
+  }
+  // 删除虚拟字段
+  delete data.kind;
+  delete data.enumKind;
+  if (data.id) return conceptualDomainApi.update(data.id as string, data);
+  return conceptualDomainApi.create(data);
+}
+
+async function handleDelete(row: Record<string, unknown>) {
+  await conceptualDomainApi.delete(row.id as string);
+  tableRef.value?.fetchData();
 }
 </script>

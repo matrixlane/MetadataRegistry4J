@@ -432,6 +432,8 @@ const tableRef = ref<InstanceType<typeof DataTablePage>>();
 const dialog = ref<InstanceType<typeof ResourceFormDialog>>();
 const activeTab = ref('basic');
 
+const { defaultLanguageId } = useRegistryDefaultLanguage();
+
 const editingId = ref<string | null>(null);
 
 const formKind = ref<'OWN' | 'EXTERNAL' | ''>('');

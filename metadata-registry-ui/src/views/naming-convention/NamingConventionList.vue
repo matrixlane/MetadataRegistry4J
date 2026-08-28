@@ -114,6 +114,7 @@ import { useRegistryDefaultLanguage } from '@/composables/useRegistryDefaultLang
 const tableRef = ref<InstanceType<typeof DataTablePage>>();
 const dialog = ref<InstanceType<typeof ResourceFormDialog>>();
 const regSection = ref<InstanceType<typeof ItemRegistrationSection>>();
+const { defaultLanguageId } = useRegistryDefaultLanguage();
 
 const editingId = ref<string | null>(null);
 const editingRaName = ref<string | null>(null);

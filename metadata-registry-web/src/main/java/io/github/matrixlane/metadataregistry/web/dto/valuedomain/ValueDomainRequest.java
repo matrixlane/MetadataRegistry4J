@@ -17,6 +17,8 @@ public record ValueDomainRequest(
         LocalDateTime validPeriodStart,
         LocalDateTime validPeriodEnd,
         UUID describedConceptualDomainId,
+        String permittedValuesFieldname,
+        UUID referencedConceptualDomainId,
         @Valid
         List<PermissibleValueEntry> permissibleValues,
         @Valid

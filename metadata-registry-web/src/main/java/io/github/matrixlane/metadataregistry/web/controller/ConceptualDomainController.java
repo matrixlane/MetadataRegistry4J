@@ -25,16 +25,18 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/v1/conceptual-domains")
 @RequiredArgsConstructor
-@Tag(name = "6. 域 - 概念域", description = "ConceptualDomain 实体的 CRUD（含 Described / LocalEnumerated 子类型）")
+@Tag(name = "6. 域 - 概念域", description = "ConceptualDomain 实体的 CRUD（含 Described / LocalEnumerated / ReferenceEnumerated 子类型）")
 public class ConceptualDomainController {
 
     private final ConceptualDomainService service;
 
     @GetMapping
-    @Operation(summary = "分页列出概念域")
+    @Operation(summary = "分页列出概念域",
+            description = "可选 type 过滤：DESCRIBED / LOCAL_ENUMERATED / REFERENCE_ENUMERATED / ENUMERATED（=Local+Reference 任一）")
     public ApiResponse<PageResponse<ConceptualDomainResponse>> list(@RequestParam(required = false) String q,
+                                                                    @RequestParam(required = false) String type,
                                                                     Pageable pageable) {
-        return ApiResponse.ok(PageResponse.of(service.list(q, pageable)));
+        return ApiResponse.ok(PageResponse.of(service.list(q, type, pageable)));
     }
 
     @GetMapping("/{id}")
@@ -44,13 +46,15 @@ public class ConceptualDomainController {
     }
 
     @PostMapping
-    @Operation(summary = "新增概念域", description = "type 字段决定子类型，缺省为 DESCRIBED")
+    @Operation(summary = "新增概念域",
+            description = "type 字段决定子类型，缺省为 DESCRIBED；type=REFERENCE_ENUMERATED 时 permittedValuesFieldname 必填")
     public ApiResponse<ConceptualDomainResponse> create(@Valid @RequestBody ConceptualDomainRequest request) {
         return ApiResponse.ok(service.create(request));
     }
 
     @PutMapping("/{id}")
-    @Operation(summary = "更新概念域", description = "类型在创建后不可变更")
+    @Operation(summary = "更新概念域",
+            description = "type 与现有实体不一致时按新 type 重建；切换到 REFERENCE_ENUMERATED 时 permittedValuesFieldname 必填；切换到其他类型时清理旧类型专属字段")
     public ApiResponse<ConceptualDomainResponse> update(@PathVariable UUID id,
                                                         @Valid @RequestBody ConceptualDomainRequest request) {
         return ApiResponse.ok(service.update(id, request));

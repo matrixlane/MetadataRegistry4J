@@ -4,9 +4,12 @@ import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basic
 import io.github.matrixlane.metadataregistry.dataspecification.DataType;
 import io.github.matrixlane.metadataregistry.dataspecification.DescribedConceptualDomain;
 import io.github.matrixlane.metadataregistry.dataspecification.DescribedValueDomain;
+import io.github.matrixlane.metadataregistry.dataspecification.EnumeratedValueDomain;
 import io.github.matrixlane.metadataregistry.dataspecification.LocalEnumeratedValueDomain;
 import io.github.matrixlane.metadataregistry.dataspecification.PermissibleValue;
 import io.github.matrixlane.metadataregistry.dataspecification.PermissibleValueSet;
+import io.github.matrixlane.metadataregistry.dataspecification.ReferenceEnumeratedConceptualDomain;
+import io.github.matrixlane.metadataregistry.dataspecification.ReferenceEnumeratedValueDomain;
 import io.github.matrixlane.metadataregistry.dataspecification.UnitOfMeasure;
 import io.github.matrixlane.metadataregistry.dataspecification.ValueDomain;
 import io.github.matrixlane.metadataregistry.web.common.BusinessException;
@@ -34,6 +37,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 
 @Service
@@ -51,8 +55,12 @@ public class ValueDomainService {
     private final VersionHistoryService versionHistoryService;
 
     @Transactional(readOnly = true)
-    public Page<ValueDomainResponse> list(String keyword, Pageable pageable) {
+    public Page<ValueDomainResponse> list(String keyword, String type, Pageable pageable) {
         Specification<ValueDomain> spec = ObjectClassService.byKeyword(keyword);
+        Specification<ValueDomain> typeSpec = byType(type);
+        if (typeSpec != null) {
+            spec = (spec == null) ? typeSpec : spec.and(typeSpec);
+        }
         return repository.findAll(spec, pageable).map(this::toResponse);
     }
 
@@ -62,11 +70,10 @@ public class ValueDomainService {
     }
 
     public ValueDomainResponse create(ValueDomainRequest request) {
-        ValueDomainType type = request.type() == null ? ValueDomainType.DESCRIBED : request.type();
-        ValueDomain entity = switch (type) {
-            case LOCAL_ENUMERATED -> new LocalEnumeratedValueDomain();
-            case DESCRIBED -> new DescribedValueDomain();
-        };
+        ValueDomainType targetType = request.type() == null ? ValueDomainType.DESCRIBED : request.type();
+        validateReferenceEnumerated(request.permittedValuesFieldname(),
+                request.referencedConceptualDomainId(), targetType);
+        ValueDomain entity = instantiate(targetType);
         applyCommon(entity, request);
         applyTypeSpecific(entity, request);
         ValueDomain saved = repository.save(entity);
@@ -79,14 +86,78 @@ public class ValueDomainService {
 
     public ValueDomainResponse update(UUID id, ValueDomainRequest request) {
         ValueDomain entity = loadOrThrow(id);
-        applyCommon(entity, request);
-        applyTypeSpecific(entity, request);
-        ValueDomain saved = repository.save(entity);
+        ValueDomainType fromType = inferType(entity);
+        ValueDomainType toType = request.type() == null ? fromType : request.type();
+        validateReferenceEnumerated(request.permittedValuesFieldname(),
+                request.referencedConceptualDomainId(), toType);
+        cleanupCrossTypeFields(entity, fromType, toType);
+        ValueDomain mutable = (fromType == toType) ? entity : rehydrate(entity, toType);
+        applyCommon(mutable, request);
+        applyTypeSpecific(mutable, request);
+        ValueDomain saved = repository.save(mutable);
         if (saved instanceof LocalEnumeratedValueDomain levd) {
             applyPermissibleValues(levd, request.permissibleValues());
         }
         versionHistoryService.recordSnapshot(saved, "UPDATE");
         return toResponse(saved);
+    }
+
+    private ValueDomainType inferType(ValueDomain entity) {
+        if (entity instanceof ReferenceEnumeratedValueDomain) return ValueDomainType.REFERENCE_ENUMERATED;
+        if (entity instanceof LocalEnumeratedValueDomain) return ValueDomainType.LOCAL_ENUMERATED;
+        return ValueDomainType.DESCRIBED;
+    }
+
+    private ValueDomain instantiate(ValueDomainType type) {
+        return switch (type) {
+            case DESCRIBED -> new DescribedValueDomain();
+            case LOCAL_ENUMERATED -> new LocalEnumeratedValueDomain();
+            case REFERENCE_ENUMERATED -> new ReferenceEnumeratedValueDomain();
+        };
+    }
+
+    private ValueDomain rehydrate(ValueDomain source, ValueDomainType toType) {
+        ValueDomain target = instantiate(toType);
+        target.setId(source.getId());
+        target.setDataType(source.getDataType());
+        target.setUnitOfMeasure(source.getUnitOfMeasure());
+        target.setMaximumCharacterQuantity(source.getMaximumCharacterQuantity());
+        target.setFormat(source.getFormat());
+        target.setValidPeriod(source.getValidPeriod());
+        target.setDesignations(source.getDesignations());
+        target.setDefinitions(source.getDefinitions());
+        return target;
+    }
+
+    private void validateReferenceEnumerated(String permittedValuesFieldname,
+                                             UUID referencedConceptualDomainId,
+                                             ValueDomainType type) {
+        if (type != ValueDomainType.REFERENCE_ENUMERATED) {
+            return;
+        }
+        if (permittedValuesFieldname == null || permittedValuesFieldname.isBlank()) {
+            throw new BusinessException("引用枚举值域必须填写外部源字段名（permittedValuesFieldname）");
+        }
+        if (referencedConceptualDomainId != null) {
+            ConceptualDomainKindChecker.requireReferenceEnumeratedConceptualDomain(
+                    conceptualDomainRepository, referencedConceptualDomainId);
+        }
+    }
+
+    private void cleanupCrossTypeFields(ValueDomain entity, ValueDomainType fromType, ValueDomainType toType) {
+        if (fromType == toType) {
+            return;
+        }
+        if (entity instanceof LocalEnumeratedValueDomain levd && toType != ValueDomainType.LOCAL_ENUMERATED) {
+            cleanupPermissibleValues(levd);
+        }
+        if (entity instanceof ReferenceEnumeratedValueDomain revd) {
+            revd.setPermittedValuesFieldname(null);
+            revd.setReferencedConceptualDomain(null);
+        }
+        if (entity instanceof DescribedValueDomain dvd && toType != ValueDomainType.DESCRIBED) {
+            dvd.setDescribedConceptualDomain(null);
+        }
     }
 
     public void delete(UUID id) {
@@ -119,8 +190,14 @@ public class ValueDomainService {
         } else {
             entity.setUnitOfMeasure(null);
         }
-        entity.setMaximumCharacterQuantity(request.maximumCharacterQuantity());
-        entity.setFormat(request.format());
+        // 引用枚举值域（ISO/IEC 11179-31:2023 §7.4.2.13）：maximumCharacterQuantity / format 不在外部源收集
+        if (!(entity instanceof ReferenceEnumeratedValueDomain)) {
+            entity.setMaximumCharacterQuantity(request.maximumCharacterQuantity());
+            entity.setFormat(request.format());
+        } else {
+            entity.setMaximumCharacterQuantity(null);
+            entity.setFormat(null);
+        }
         if (request.validPeriodStart() != null || request.validPeriodEnd() != null) {
             DataTimePeriod period = new DataTimePeriod();
             period.setStartDateTime(request.validPeriodStart());
@@ -150,6 +227,21 @@ public class ValueDomainService {
             } else {
                 dvd.setDescribedConceptualDomain(null);
             }
+        } else if (entity instanceof ReferenceEnumeratedValueDomain revd) {
+            if (request.permittedValuesFieldname() != null) {
+                revd.setPermittedValuesFieldname(request.permittedValuesFieldname());
+            }
+            if (request.referencedConceptualDomainId() != null) {
+                ReferenceEnumeratedConceptualDomain recd = conceptualDomainRepository
+                        .findById(request.referencedConceptualDomainId())
+                        .filter(cd -> cd instanceof ReferenceEnumeratedConceptualDomain)
+                        .map(cd -> (ReferenceEnumeratedConceptualDomain) cd)
+                        .orElseThrow(() -> new BusinessException(
+                                "referencedConceptualDomainId must point to ReferenceEnumeratedConceptualDomain"));
+                revd.setReferencedConceptualDomain(recd);
+            } else {
+                revd.setReferencedConceptualDomain(null);
+            }
         }
     }
 
@@ -158,7 +250,6 @@ public class ValueDomainService {
         if (entries == null || entries.isEmpty()) {
             return;
         }
-        // Overlap detection
         List<DataTimePeriod> periods = new ArrayList<>();
         for (PermissibleValueEntry entry : entries) {
             DataTimePeriod p = new DataTimePeriod();
@@ -198,18 +289,27 @@ public class ValueDomainService {
     }
 
     private ValueDomainResponse toResponse(ValueDomain entity) {
-        ValueDomainType type = ValueDomainType.DESCRIBED;
+        ValueDomainType type = inferType(entity);
         UUID dcdId = null;
         String dcdLabel = null;
+        String permittedValuesFieldname = null;
+        UUID refCdId = null;
+        String refCdLabel = null;
         List<PermissibleValueResponse> pvResponses = Collections.emptyList();
         if (entity instanceof LocalEnumeratedValueDomain levd) {
-            type = ValueDomainType.LOCAL_ENUMERATED;
             pvResponses = mapPermissibleValues(levd);
         } else if (entity instanceof DescribedValueDomain dvd) {
             DescribedConceptualDomain dcd = dvd.getDescribedConceptualDomain();
             if (dcd != null) {
                 dcdId = dcd.getId();
                 dcdLabel = ItemNamingHelper.preferredDesignation(dcd);
+            }
+        } else if (entity instanceof ReferenceEnumeratedValueDomain revd) {
+            permittedValuesFieldname = revd.getPermittedValuesFieldname();
+            ReferenceEnumeratedConceptualDomain recd = revd.getReferencedConceptualDomain();
+            if (recd != null) {
+                refCdId = recd.getId();
+                refCdLabel = ItemNamingHelper.preferredDesignation(recd);
             }
         }
         DataType dt = entity.getDataType();
@@ -229,10 +329,33 @@ public class ValueDomainService {
                 period == null ? null : period.getEndDateTime(),
                 dcdId,
                 dcdLabel,
+                permittedValuesFieldname,
+                refCdId,
+                refCdLabel,
                 pvResponses,
                 itemAdministrationService.mapDesignations(entity),
                 itemAdministrationService.mapDefinitions(entity),
                 itemAdministrationService.buildItemMeta(entity));
+    }
+
+    /**
+     * 按 ValueDomainType 过滤的 JPA Specification。
+     * - DESCRIBED / LOCAL_ENUMERATED / REFERENCE_ENUMERATED：按实体类型精确匹配
+     * - ENUMERATED：等价于"任何枚举子类型"（Local + Reference）
+     * - 未指定或无法识别：返回 null（不过滤）
+     */
+    public static Specification<ValueDomain> byType(String type) {
+        if (type == null || type.isBlank()) {
+            return null;
+        }
+        String normalized = type.trim().toUpperCase(Locale.ROOT);
+        return switch (normalized) {
+            case "DESCRIBED" -> (root, query, cb) -> cb.equal(root.type(), DescribedValueDomain.class);
+            case "LOCAL_ENUMERATED" -> (root, query, cb) -> cb.equal(root.type(), LocalEnumeratedValueDomain.class);
+            case "REFERENCE_ENUMERATED" -> (root, query, cb) -> cb.equal(root.type(), ReferenceEnumeratedValueDomain.class);
+            case "ENUMERATED" -> (root, query, cb) -> root.type().in(LocalEnumeratedValueDomain.class, ReferenceEnumeratedValueDomain.class);
+            default -> null;
+        };
     }
 
     private List<PermissibleValueResponse> mapPermissibleValues(LocalEnumeratedValueDomain levd) {

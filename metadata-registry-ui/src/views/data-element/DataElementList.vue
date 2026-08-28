@@ -1,3 +1,7 @@
+<!--
+  DataElementList —— ISO/IEC 11179-31 §7.6：值域 picker 候选按 kind 标签化
+  并支持按 kind 多选过滤；kind 含义来自后端响应的 row.type（描述型/本地枚举/引用枚举）
+-->
 <template>
   <div>
     <h2 style="margin-top: 0;">数据元</h2>
@@ -57,13 +61,29 @@
             filterable
             clearable
             style="width: 100%;"
+            @visible-change="(v: boolean) => { if (v) loadFormOptions() }"
           >
+            <template #header>
+              <div style="padding: 4px 8px;">
+                <span style="font-size: 12px; color: var(--el-text-color-secondary);">按 kind 过滤：</span>
+                <el-checkbox-group v-model="vdKindFilter" size="small">
+                  <el-checkbox-button value="DESCRIBED">描述型</el-checkbox-button>
+                  <el-checkbox-button value="LOCAL_ENUMERATED">本地枚举型</el-checkbox-button>
+                  <el-checkbox-button value="REFERENCE_ENUMERATED">引用枚举型</el-checkbox-button>
+                </el-checkbox-group>
+              </div>
+            </template>
             <el-option
-              v-for="vd in vdOptions"
+              v-for="vd in filteredVdOptions"
               :key="vd.id"
               :label="vd.label"
               :value="vd.id"
-            />
+            >
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <span>{{ vd.label }}</span>
+                <el-tag size="small" :type="typeTagType(vd.type)">{{ typeLabel(vd.type) }}</el-tag>
+              </div>
+            </el-option>
           </el-select>
         </el-form-item>
       </template>
@@ -72,17 +92,42 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { dataElementApi, dataElementConceptApi, valueDomainApi } from '@/api/resources';
 import DataTablePage from '@/components/DataTablePage.vue';
 import ItemFormDialog from '@/components/ItemFormDialog.vue';
+
+type ValueDomainKind = 'DESCRIBED' | 'LOCAL_ENUMERATED' | 'REFERENCE_ENUMERATED';
+
+const TYPE_LABEL: Record<string, string> = {
+  DESCRIBED: '描述型',
+  LOCAL_ENUMERATED: '本地枚举型',
+  REFERENCE_ENUMERATED: '引用枚举型',
+};
+const TYPE_TAG_TYPE: Record<string, 'primary' | 'success' | 'warning' | 'info' | 'danger'> = {
+  DESCRIBED: 'info',
+  LOCAL_ENUMERATED: 'success',
+  REFERENCE_ENUMERATED: 'warning',
+};
+function typeLabel(t?: string): string {
+  return (t && TYPE_LABEL[t]) || '描述型';
+}
+function typeTagType(t?: string): 'primary' | 'success' | 'warning' | 'info' | 'danger' {
+  return (t && TYPE_TAG_TYPE[t]) || 'info';
+}
 
 const tableRef = ref<InstanceType<typeof DataTablePage>>();
 const dialog = ref<InstanceType<typeof ItemFormDialog>>();
 
 const decOptions = ref<{ id: string; label: string }[]>([]);
-const vdOptions = ref<{ id: string; label: string }[]>([]);
+const vdOptions = ref<{ id: string; label: string; type?: string }[]>([]);
+const vdKindFilter = ref<ValueDomainKind[]>([]);
 const optionsLoaded = ref(false);
+
+const filteredVdOptions = computed(() => {
+  if (!vdKindFilter.value || vdKindFilter.value.length === 0) return vdOptions.value;
+  return vdOptions.value.filter((v) => v.type && vdKindFilter.value.includes(v.type as ValueDomainKind));
+});
 
 async function loadFormOptions() {
   if (optionsLoaded.value) return;
@@ -98,6 +143,7 @@ async function loadFormOptions() {
     vdOptions.value = (vdRes.content || []).map((r: any) => ({
       id: r.id,
       label: r.label || r.identifier || r.id,
+      type: r.type,
     }));
     optionsLoaded.value = true;
   } catch {
@@ -107,11 +153,13 @@ async function loadFormOptions() {
 
 async function handleCreate() {
   await loadFormOptions();
+  vdKindFilter.value = [];
   dialog.value?.open();
 }
 
 async function handleEdit(row: any) {
   await loadFormOptions();
+  vdKindFilter.value = [];
   dialog.value?.open(row);
 }
 

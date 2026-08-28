@@ -3,9 +3,12 @@ package io.github.matrixlane.metadataregistry.web.service;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.DataTimePeriod;
 import io.github.matrixlane.metadataregistry.dataspecification.ConceptualDomain;
 import io.github.matrixlane.metadataregistry.dataspecification.DescribedConceptualDomain;
+import io.github.matrixlane.metadataregistry.dataspecification.EnumeratedConceptualDomain;
 import io.github.matrixlane.metadataregistry.dataspecification.LocalEnumeratedConceptualDomain;
+import io.github.matrixlane.metadataregistry.dataspecification.ReferenceEnumeratedConceptualDomain;
 import io.github.matrixlane.metadataregistry.dataspecification.ValueMeaning;
 import io.github.matrixlane.metadataregistry.dataspecification.ValueMeaningSet;
+import io.github.matrixlane.metadataregistry.web.common.BusinessException;
 import io.github.matrixlane.metadataregistry.web.common.ResourceNotFoundException;
 import io.github.matrixlane.metadataregistry.web.dto.conceptualdomain.ConceptualDomainRequest;
 import io.github.matrixlane.metadataregistry.web.dto.conceptualdomain.ConceptualDomainResponse;
@@ -27,6 +30,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 
 @Service
@@ -42,8 +46,12 @@ public class ConceptualDomainService {
     private final VersionHistoryService versionHistoryService;
 
     @Transactional(readOnly = true)
-    public Page<ConceptualDomainResponse> list(String keyword, Pageable pageable) {
+    public Page<ConceptualDomainResponse> list(String keyword, String type, Pageable pageable) {
         Specification<ConceptualDomain> spec = ObjectClassService.byKeyword(keyword);
+        Specification<ConceptualDomain> typeSpec = byType(type);
+        if (typeSpec != null) {
+            spec = (spec == null) ? typeSpec : spec.and(typeSpec);
+        }
         return repository.findAll(spec, pageable).map(this::toResponse);
     }
 
@@ -53,13 +61,15 @@ public class ConceptualDomainService {
     }
 
     public ConceptualDomainResponse create(ConceptualDomainRequest request) {
-        ConceptualDomainType type = request.type() == null ? ConceptualDomainType.DESCRIBED : request.type();
-        ConceptualDomain entity = switch (type) {
-            case LOCAL_ENUMERATED -> new LocalEnumeratedConceptualDomain();
-            case DESCRIBED -> new DescribedConceptualDomain();
-        };
+        ConceptualDomainType targetType = request.type() == null ? ConceptualDomainType.DESCRIBED : request.type();
+        if (targetType == ConceptualDomainType.REFERENCE_ENUMERATED
+                && (request.permittedValuesFieldname() == null || request.permittedValuesFieldname().isBlank())) {
+            throw new BusinessException("引用枚举概念域必须填写外部源字段名（permittedValuesFieldname）");
+        }
+        ConceptualDomain entity = instantiate(targetType);
         conceptContentApplier.applyConcept(entity, request.sourceUri(),
                 request.designations(), request.definitions(), request.registration());
+        applyTypeSpecific(entity, request);
         ConceptualDomain saved = repository.save(entity);
         if (saved instanceof LocalEnumeratedConceptualDomain lecd) {
             applyValueMeanings(lecd, request.valueMeanings());
@@ -70,14 +80,76 @@ public class ConceptualDomainService {
 
     public ConceptualDomainResponse update(UUID id, ConceptualDomainRequest request) {
         ConceptualDomain entity = loadOrThrow(id);
-        conceptContentApplier.applyConcept(entity, request.sourceUri(),
+        ConceptualDomainType fromType = inferType(entity);
+        ConceptualDomainType toType = request.type() == null ? fromType : request.type();
+        cleanupCrossTypeFields(entity, fromType, toType);
+        if (toType == ConceptualDomainType.REFERENCE_ENUMERATED
+                && (request.permittedValuesFieldname() == null || request.permittedValuesFieldname().isBlank())) {
+            throw new BusinessException("引用枚举概念域必须填写外部源字段名（permittedValuesFieldname）");
+        }
+        // 当请求方传入的 type 与实体实际类型不一致时，重建实体为新类型
+        // （切换类型在 ISO/IEC 11179-31 §7.4.2 下语义上等价于"重新实例化"，保留 designations / definitions / sourceUri 由 conceptContentApplier 写入）
+        ConceptualDomain mutable = (fromType == toType) ? entity : rehydrate(entity, toType);
+        conceptContentApplier.applyConcept(mutable, request.sourceUri(),
                 request.designations(), request.definitions(), request.registration());
-        ConceptualDomain saved = repository.save(entity);
+        applyTypeSpecific(mutable, request);
+        ConceptualDomain saved = repository.save(mutable);
         if (saved instanceof LocalEnumeratedConceptualDomain lecd) {
             applyValueMeanings(lecd, request.valueMeanings());
+        } else if (saved instanceof ReferenceEnumeratedConceptualDomain) {
+            // 不论 fromType 是什么（尤其从 LOCAL_ENUMERATED 切来），都要清空既有 VM
+            // 注意 cleanupCrossTypeFields 已处理 fromType==LOCAL_ENUMERATED 的情形
         }
         versionHistoryService.recordSnapshot(saved, "UPDATE");
         return toResponse(saved);
+    }
+
+    private ConceptualDomain instantiate(ConceptualDomainType type) {
+        return switch (type) {
+            case DESCRIBED -> new DescribedConceptualDomain();
+            case LOCAL_ENUMERATED -> new LocalEnumeratedConceptualDomain();
+            case REFERENCE_ENUMERATED -> new ReferenceEnumeratedConceptualDomain();
+        };
+    }
+
+    private ConceptualDomainType inferType(ConceptualDomain entity) {
+        if (entity instanceof ReferenceEnumeratedConceptualDomain) return ConceptualDomainType.REFERENCE_ENUMERATED;
+        if (entity instanceof LocalEnumeratedConceptualDomain) return ConceptualDomainType.LOCAL_ENUMERATED;
+        return ConceptualDomainType.DESCRIBED;
+    }
+
+    /**
+     * 把 entity 上的核心元数据（designations / definitions / sourceUri / 注册）拷贝到新类型实例上。
+     * 新类型独有的字段由后续 applyTypeSpecific 写入。
+     */
+    private ConceptualDomain rehydrate(ConceptualDomain source, ConceptualDomainType toType) {
+        ConceptualDomain target = instantiate(toType);
+        target.setId(source.getId());
+        target.setSourceUri(source.getSourceUri());
+        target.setDesignations(source.getDesignations());
+        target.setDefinitions(source.getDefinitions());
+        return target;
+    }
+
+    private void cleanupCrossTypeFields(ConceptualDomain entity, ConceptualDomainType fromType, ConceptualDomainType toType) {
+        if (fromType == toType) {
+            return;
+        }
+        if (entity instanceof LocalEnumeratedConceptualDomain lecd && toType != ConceptualDomainType.LOCAL_ENUMERATED) {
+            cleanupValueMeanings(lecd);
+        }
+        if (entity instanceof ReferenceEnumeratedConceptualDomain recd) {
+            recd.setPermittedValuesFieldname(null);
+        }
+        if (toType == ConceptualDomainType.DESCRIBED) {
+            entity.setSourceUri(null);
+        }
+    }
+
+    private void applyTypeSpecific(ConceptualDomain entity, ConceptualDomainRequest request) {
+        if (entity instanceof ReferenceEnumeratedConceptualDomain recd && request.permittedValuesFieldname() != null) {
+            recd.setPermittedValuesFieldname(request.permittedValuesFieldname());
+        }
     }
 
     public void delete(UUID id) {
@@ -95,12 +167,75 @@ public class ConceptualDomainService {
                 .orElseThrow(() -> new ResourceNotFoundException("ConceptualDomain", id));
     }
 
+    private ConceptualDomainResponse toResponse(ConceptualDomain entity) {
+        ConceptualDomainType type = inferType(entity);
+        String permittedValuesFieldname = null;
+        List<ValueMeaningResponse> vmResponses = Collections.emptyList();
+        if (entity instanceof LocalEnumeratedConceptualDomain lecd) {
+            vmResponses = mapValueMeanings(lecd);
+        } else if (entity instanceof ReferenceEnumeratedConceptualDomain recd) {
+            permittedValuesFieldname = recd.getPermittedValuesFieldname();
+        }
+        return new ConceptualDomainResponse(
+                entity.getId(),
+                ItemNamingHelper.preferredDesignation(entity),
+                type,
+                entity.getSourceUri(),
+                permittedValuesFieldname,
+                itemAdministrationService.mapDesignations(entity),
+                itemAdministrationService.mapDefinitions(entity),
+                vmResponses,
+                itemAdministrationService.buildItemMeta(entity));
+    }
+
+    /**
+     * 按 ConceptualDomainType 过滤的 JPA Specification。
+     * - DESCRIBED / LOCAL_ENUMERATED / REFERENCE_ENUMERATED：按实体类型精确匹配
+     * - ENUMERATED：等价于"任何枚举子类型"（Local + Reference）
+     * - 未指定或无法识别：返回 null（不过滤）
+     */
+    public static Specification<ConceptualDomain> byType(String type) {
+        if (type == null || type.isBlank()) {
+            return null;
+        }
+        String normalized = type.trim().toUpperCase(Locale.ROOT);
+        return switch (normalized) {
+            case "DESCRIBED" -> (root, query, cb) -> cb.equal(root.type(), DescribedConceptualDomain.class);
+            case "LOCAL_ENUMERATED" -> (root, query, cb) -> cb.equal(root.type(), LocalEnumeratedConceptualDomain.class);
+            case "REFERENCE_ENUMERATED" -> (root, query, cb) -> cb.equal(root.type(), ReferenceEnumeratedConceptualDomain.class);
+            case "ENUMERATED" -> (root, query, cb) -> root.type().in(LocalEnumeratedConceptualDomain.class, ReferenceEnumeratedConceptualDomain.class);
+            default -> null;
+        };
+    }
+
+    private List<ValueMeaningResponse> mapValueMeanings(LocalEnumeratedConceptualDomain lecd) {
+        List<ValueMeaningSet> sets = valueMeaningSetRepository
+                .findByLocalEnumeratedConceptualDomainId(lecd.getId());
+        if (sets.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<ValueMeaningResponse> out = new ArrayList<>(sets.size());
+        for (ValueMeaningSet vms : sets) {
+            ValueMeaning vm = vms.getValueMeaning();
+            if (vm == null) continue;
+            DataTimePeriod period = vms.getValidPeriod();
+            out.add(new ValueMeaningResponse(
+                    vm.getId(),
+                    ItemNamingHelper.preferredDesignation(vm),
+                    itemAdministrationService.mapDesignations(vm),
+                    itemAdministrationService.mapDefinitions(vm),
+                    period == null ? null : period.getStartDateTime(),
+                    period == null ? null : period.getEndDateTime(),
+                    itemAdministrationService.buildItemMeta(vm)));
+        }
+        return out;
+    }
+
     private void applyValueMeanings(LocalEnumeratedConceptualDomain lecd, List<ValueMeaningEntry> entries) {
         cleanupValueMeanings(lecd);
         if (entries == null || entries.isEmpty()) {
             return;
         }
-        // Overlap detection
         List<DataTimePeriod> periods = new ArrayList<>();
         for (ValueMeaningEntry entry : entries) {
             DataTimePeriod p = new DataTimePeriod();
@@ -137,46 +272,5 @@ public class ConceptualDomainService {
                 valueMeaningRepository.delete(vm);
             }
         }
-    }
-
-    private ConceptualDomainResponse toResponse(ConceptualDomain entity) {
-        ConceptualDomainType type = ConceptualDomainType.DESCRIBED;
-        List<ValueMeaningResponse> vmResponses = Collections.emptyList();
-        if (entity instanceof LocalEnumeratedConceptualDomain lecd) {
-            type = ConceptualDomainType.LOCAL_ENUMERATED;
-            vmResponses = mapValueMeanings(lecd);
-        }
-        return new ConceptualDomainResponse(
-                entity.getId(),
-                ItemNamingHelper.preferredDesignation(entity),
-                type,
-                entity.getSourceUri(),
-                itemAdministrationService.mapDesignations(entity),
-                itemAdministrationService.mapDefinitions(entity),
-                vmResponses,
-                itemAdministrationService.buildItemMeta(entity));
-    }
-
-    private List<ValueMeaningResponse> mapValueMeanings(LocalEnumeratedConceptualDomain lecd) {
-        List<ValueMeaningSet> sets = valueMeaningSetRepository
-                .findByLocalEnumeratedConceptualDomainId(lecd.getId());
-        if (sets.isEmpty()) {
-            return Collections.emptyList();
-        }
-        List<ValueMeaningResponse> out = new ArrayList<>(sets.size());
-        for (ValueMeaningSet vms : sets) {
-            ValueMeaning vm = vms.getValueMeaning();
-            if (vm == null) continue;
-            DataTimePeriod period = vms.getValidPeriod();
-            out.add(new ValueMeaningResponse(
-                    vm.getId(),
-                    ItemNamingHelper.preferredDesignation(vm),
-                    itemAdministrationService.mapDesignations(vm),
-                    itemAdministrationService.mapDefinitions(vm),
-                    period == null ? null : period.getStartDateTime(),
-                    period == null ? null : period.getEndDateTime(),
-                    itemAdministrationService.buildItemMeta(vm)));
-        }
-        return out;
     }
 }

@@ -1,4 +1,5 @@
 import request from '@/utils/request';
+import type { PageResponse } from '@/types/common';
 
 export interface RegistrySpecification {
   id?: string;
@@ -10,6 +11,11 @@ export interface RegistrySpecification {
   mandatoryClassification: boolean;
   defaultLanguage: string;
   description?: string;
+  /** 默认语言 ID（与 RegistrySpecificationResponse 对齐）；用于 DesignationEditor 预选。 */
+  defaultLanguageId?: string | null;
+  /** 默认语言 identifier 字符串（如 zh-CN）。 */
+  defaultLanguageIdentifier?: string | null;
+  alternativeLanguageIds?: string[];
 }
 
 export const systemApi = {
@@ -57,6 +63,12 @@ export const registrySpecificationApi = {
   hasMetadata: () => request.get<boolean>('/registry-specifications/has-metadata'),
 
   /**
+   * 分页列出注册规范（用于 useRegistryDefaultLanguage 等需要查列表的场景）
+   */
+  list: (params?: { size?: number; page?: number; q?: string }) =>
+    request.get<PageResponse<RegistrySpecification>>('/registry-specifications', { params }),
+
+  /**
    * 创建注册规范
    */
   create: (data: RegistrySpecification) => request.post<RegistrySpecification>('/registry-specifications', data),
@@ -84,4 +96,3 @@ export const dashboardApi = {
    */
   getStats: () => request.get<DashboardStats>('/dashboard'),
 };
-

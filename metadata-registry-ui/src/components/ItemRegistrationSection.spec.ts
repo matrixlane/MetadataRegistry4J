@@ -385,7 +385,6 @@ describe('ItemRegistrationSection 默认命名空间按活动 Registrar 预选',
       versionInputMode: 'AUTO_WITH_OVERRIDE',
       versioningPolicy: 'SEMVER',
       namespaceKind: 'EXTERNAL',
-      registrationAuthorityId: 'ra-awo',
     };
     const originalLen = namespaces.length;
     namespaces.push(tempNs);

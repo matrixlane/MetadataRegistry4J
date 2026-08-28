@@ -9,6 +9,7 @@ import java.util.List;
 public record ConceptualDomainRequest(
         ConceptualDomainType type,
         String sourceUri,
+        String permittedValuesFieldname,
         @Valid
         List<TextLine> designations,
         @Valid
