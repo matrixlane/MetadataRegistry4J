@@ -292,6 +292,13 @@ public class ItemAdministrationService {
                 : namespaceRepository.findById(req.namespaceId())
                 .orElseThrow(() -> new ResourceNotFoundException("Namespace", req.namespaceId()));
 
+        // 默认命名空间推导（default-namespace-by-active-registrar）：
+        // 调用方未携带 namespaceId 时按活动 Registrar 所属 RA 的自有命名空间推导。
+        // 联邦/合并（explicitAuthority != null）路径继续以外部权威字段为准。
+        if (ns == null && explicitAuthority == null) {
+            ns = resolveDefaultNamespace().orElse(null);
+        }
+
         enforceRaNamespacePrecondition(ns);
 
         if (ai.getScopedIdentifiers() == null || ai.getScopedIdentifiers().isEmpty()) {
@@ -448,6 +455,25 @@ public class ItemAdministrationService {
             throw new BusinessException(ApiCodes.VALIDATION_FAILED,
                     "创建自有数据标准前，请先创建基于注册机构的命名空间");
         }
+    }
+
+    /**
+     * 默认命名空间推导（default-namespace-by-active-registrar）：
+     * 按当前活动 Registrar 所属 Registration_Authority 的自有命名空间返回；
+     * 无活动身份或对应 RA 尚未建立自有命名空间时返回空，交由
+     * {@link #enforceRaNamespacePrecondition(Namespace)} 在前置校验中拒绝。
+     * System-default 命名空间永远不参与默认推导。
+     */
+    private java.util.Optional<Namespace> resolveDefaultNamespace() {
+        if (activeRegistrarService.currentAccountIdOrNull() == null) {
+            return java.util.Optional.empty();
+        }
+        return activeRegistrarService.resolveForCurrentUser()
+                .flatMap(active -> active.getRegistrationAuthority() == null
+                        ? java.util.Optional.empty()
+                        : namespaceRepository.findFirstByRegistrationAuthority_IdAndSchemeReferenceNot(
+                                active.getRegistrationAuthority().getId(),
+                                SystemDefaultNamespaceInitializer.SYSTEM_DEFAULT_SCHEME));
     }
 
     public ItemMetaResponse buildItemMeta(Item item) {
