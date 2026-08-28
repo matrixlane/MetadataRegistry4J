@@ -88,6 +88,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue';
+import { onBeforeUnmount } from 'vue';
 import { useRouter } from 'vue-router';
 import { identifierStrategyApi } from '@/api/identifierStrategy';
 import { activeRegistrarApi, namespaceApi, readinessApi } from '@/api/resources';
@@ -109,6 +110,8 @@ interface NamespaceOption {
   manualIdentifierPattern?: string;
   namespaceKind?: string;
   schemeReference?: string;
+  /** 关联的 Registration_Authority id，用于按活动 Registrar 匹配默认命名空间 */
+  registrationAuthorityId?: string;
 }
 
 interface TemplateVariable {
@@ -143,6 +146,7 @@ const namespaces = ref<NamespaceOption[]>([]);
 const loaded = ref(false);
 const raNamespaceExists = ref(true);
 const activeRaName = ref<string | null>(null);
+const activeRaRegistrationAuthorityId = ref<string | null>(null);
 /** 活动 Registrar 身份查询本身失败（接口异常），与"无活动身份"区分提示 */
 const activeRegistrarQueryFailed = ref(false);
 
@@ -352,7 +356,6 @@ async function loadOptions() {
   try {
     const nsRes = await namespaceApi.list({ size: 100 });
     namespaces.value = (nsRes.content || []) as any;
-    loaded.value = true;
   } catch {
     // ignore
   }
@@ -360,8 +363,10 @@ async function loadOptions() {
   try {
     const ar = await activeRegistrarApi.current();
     activeRaName.value = ar.active?.registrationAuthorityName || null;
+    activeRaRegistrationAuthorityId.value = ar.active?.registrationAuthorityId || null;
   } catch {
     activeRaName.value = null;
+    activeRaRegistrationAuthorityId.value = null;
     activeRegistrarQueryFailed.value = true;
   }
   // 命名空间前置门槛查询失败时默认放行（后端仍会强制校验），不阻塞对话框使用。
@@ -371,7 +376,77 @@ async function loadOptions() {
   } catch {
     raNamespaceExists.value = true;
   }
+  // 默认命名空间预选（default-namespace-by-active-registrar）。置于最末，
+  // 仅当 active RA / namespaces / readiness 三路全部就位后再写入 model。
+  // 此后才上报 loaded=true（外层以 gateBlocked 可读作为 loadOptions 完成的信号），
+  // 避免宿主/测试在默认推导前写入并被异步覆盖。
+  applyDefaultNamespace();
+  loaded.value = true;
 }
+
+/**
+ * 活动 Registrar 身份变更时重新应用默认命名空间（一切上下文随之切换）。
+ * 仅创建态生效；活动身份未改变时不覆盖用户已显式选择的命名空间。
+ */
+function applyDefaultNamespace() {
+  if (props.isEditing) return;
+  // 无活动身份：不预选；保留用户此前可能的选择（新建场景下通常未选）
+  const targetRaId = activeRaRegistrationAuthorityId.value;
+  if (!targetRaId) return;
+  // 不覆盖用户的显式选择；若用户已选定了同名同 RA 的命名空间则视为一致
+  // 用户已选定任意命名空间：不覆写。处理顺序在这里很关键——
+  // loadOptions 尾部与 watcher 重推导先后发生，需保证用户选择不被覆盖。
+  const current = namespaces.value.find((ns) => ns.id === model.value.namespaceId);
+  if (current) {
+    return;
+  }
+  // 自有命名空间 = 注册机构关联 + 非外部 + 非 system-default
+  const own = namespaces.value.find(
+    (ns) =>
+      ns.registrationAuthorityId === targetRaId
+      && ns.namespaceKind !== 'EXTERNAL'
+      && ns.schemeReference !== SYSTEM_DEFAULT_SCHEME,
+  );
+  if (own) {
+    model.value.namespaceId = own.id;
+  }
+}
+
+// 监听会话级活动 Registrar 变化（顶栏切换器广播的事件，default-namespace-by-active-registrar）。
+// 接收事件后重新拉取活动身份并重应用默认；不变更用户已编辑的标识/版本值。
+function handleActiveRegistrarChanged() {
+  if (props.isEditing) return;
+  void (async () => {
+    try {
+      const ar = await activeRegistrarApi.current();
+      activeRaName.value = ar.active?.registrationAuthorityName || null;
+      activeRaRegistrationAuthorityId.value = ar.active?.registrationAuthorityId || null;
+      activeRegistrarQueryFailed.value = false;
+      // 身份切换后清理用户已选的命名空间，重新推导默认
+      model.value.namespaceId = undefined;
+      applyDefaultNamespace();
+    } catch {
+      activeRegistrarQueryFailed.value = true;
+    }
+  })();
+}
+
+onMounted(() => {
+  window.addEventListener('mdregistry:active-registrar-changed', handleActiveRegistrarChanged);
+});
+onBeforeUnmount(() => {
+  window.removeEventListener('mdregistry:active-registrar-changed', handleActiveRegistrarChanged);
+});
+
+// 兜底：本组件内部 activeRaRegistrationAuthorityId 变化时也重应用默认（不由顶栏事件触发也会经过此 watcher）。
+// 监听活动 Registrar 变化后重应用默认。loaded 守卫：初始 loadOptions 中 activeAuid
+// 首次赋值不该覆盖用户已选的命名空间；只有 loaded=true 之后发生的身份变更才清空重选。
+watch(activeRaRegistrationAuthorityId, () => {
+  if (props.isEditing) return;
+  if (!loaded.value) return;
+  model.value.namespaceId = undefined;
+  applyDefaultNamespace();
+});
 
 /** 提交前校验变量段：必填非空 + 段级 pattern。返回 null 表示通过。 */
 function validateTemplateVariables(): string | null {
@@ -417,6 +492,11 @@ function reset() {
 
 defineExpose({
   loadOptions,
+  applyDefaultNamespace,
+  refreshActiveRegistrar: async () => {
+    // 供测试与上层宿主调用：主动重拉活动 RA 并重应用默认。
+    await handleActiveRegistrarChanged();
+  },
   reset,
   buildPayload,
   validateTemplateVariables,

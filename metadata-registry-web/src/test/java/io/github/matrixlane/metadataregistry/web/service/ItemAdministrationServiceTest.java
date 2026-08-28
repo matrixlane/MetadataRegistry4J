@@ -588,6 +588,134 @@ class ItemAdministrationServiceTest {
         verify(activeRegistrarService, never()).assertCanModify(any());
     }
 
+    // ===== default-namespace-by-active-registrar：默认命名空间推导 =====
+
+    @Test
+    void ensureAdministeredItem_defaultNamespace_usesActiveRaOwnNamespace() {
+        // 未传 namespaceId → 按活动 Registrar 所属 RA 的自有命名空间推导
+        RegistrationAuthority ra = newRa();
+        Namespace ownNs = raNamespace(ra);
+        when(activeRegistrarService.currentAccountIdOrNull()).thenReturn(UUID.randomUUID());
+        when(activeRegistrarService.resolveForCurrentUser())
+                .thenReturn(Optional.of(new Registrar(ra)));
+        when(namespaceRepository.findFirstByRegistrationAuthority_IdAndSchemeReferenceNot(
+                ra.getId(), SystemDefaultNamespaceInitializer.SYSTEM_DEFAULT_SCHEME))
+                .thenReturn(Optional.of(ownNs));
+        when(namespaceRepository.existsByRegistrationAuthorityIsNotNull()).thenReturn(true);
+
+        ItemRegistrationRequest req = new ItemRegistrationRequest(
+                null, "AUTO-1", "1.0.0", List.of(), List.of());
+
+        AdministeredItem ai = itemAdministrationService.ensureAdministeredItem(item, req);
+
+        assertThat(ai).isNotNull();
+        assertThat(ai.getScopedIdentifiers()).hasSize(1);
+        assertThat(ai.getScopedIdentifiers().get(0).getNamespace()).isSameAs(ownNs);
+        assertThat(ai.getRegistrationAuthority()).isSameAs(ra);
+    }
+
+    @Test
+    void ensureAdministeredItem_defaultNamespace_skippedWhenExplicitId() {
+        // 显式传入 namespaceId → 默认推导不被调用
+        RegistrationAuthority ra = newRa();
+        Namespace explicitNs = raNamespace(ra);
+        when(namespaceRepository.findById(explicitNs.getId())).thenReturn(Optional.of(explicitNs));
+        when(namespaceRepository.existsByRegistrationAuthorityIsNotNull()).thenReturn(true);
+        when(activeRegistrarService.currentAccountIdOrNull()).thenReturn(UUID.randomUUID());
+        when(activeRegistrarService.resolveForCurrentUser())
+                .thenReturn(Optional.of(new Registrar(ra)));
+
+        ItemRegistrationRequest req = new ItemRegistrationRequest(
+                explicitNs.getId(), "EXP-1", "1.0.0", List.of(), List.of());
+
+        itemAdministrationService.ensureAdministeredItem(item, req);
+
+        verify(namespaceRepository, never())
+                .findFirstByRegistrationAuthority_IdAndSchemeReferenceNot(any(), any());
+    }
+
+    @Test
+    void ensureAdministeredItem_defaultNamespace_skippedOnFederationPath() {
+        // 联邦/合并（explicitAuthority != null）路径不进行默认推导
+        RegistrationAuthority targetRa = newRa();
+        when(namespaceRepository.existsByRegistrationAuthorityIsNotNull()).thenReturn(true);
+
+        ItemRegistrationRequest req = new ItemRegistrationRequest(
+                null, "FED-1", "1.0.0", List.of(), List.of());
+
+        AdministeredItem ai = itemAdministrationService.ensureAdministeredItem(item, req, targetRa);
+
+        assertThat(ai.getRegistrationAuthority()).isSameAs(targetRa);
+        verify(namespaceRepository, never())
+                .findFirstByRegistrationAuthority_IdAndSchemeReferenceNot(any(), any());
+    }
+
+    @Test
+    void ensureAdministeredItem_defaultNamespace_unauthenticatedNoDefault() {
+        // 未登录（种子/系统路径）→ 不做默认推导；自有数据标准缺少前置命名空间时拒绝
+        when(namespaceRepository.existsByRegistrationAuthorityIsNotNull()).thenReturn(false);
+
+        ItemRegistrationRequest req = new ItemRegistrationRequest(
+                null, "X-1", "1.0.0", List.of(), List.of());
+
+        assertThatThrownBy(() -> itemAdministrationService.ensureAdministeredItem(item, req))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("命名空间");
+        verify(namespaceRepository, never())
+                .findFirstByRegistrationAuthority_IdAndSchemeReferenceNot(any(), any());
+    }
+
+    @Test
+    void ensureAdministeredItem_defaultNamespace_noActiveRegistrarNoDefault() {
+        // 当前账号无 Registrar 身份 → 默认推导不出，由 enforceRaNamespacePrecondition 拒绝
+        // （spec：明确要求该分支由 enforceRaNamespacePrecondition 接管）
+        when(activeRegistrarService.currentAccountIdOrNull()).thenReturn(UUID.randomUUID());
+        when(activeRegistrarService.resolveForCurrentUser()).thenReturn(Optional.empty());
+        when(namespaceRepository.existsByRegistrationAuthorityIsNotNull()).thenReturn(false);
+
+        ItemRegistrationRequest req = new ItemRegistrationRequest(
+                null, "X-1", "1.0.0", List.of(), List.of());
+
+        assertThatThrownBy(() -> itemAdministrationService.ensureAdministeredItem(item, req))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("命名空间");
+    }
+
+    @Test
+    void ensureAdministeredItem_defaultNamespace_noActiveRegistrarButRaNamespaceExists_fallsToOwnershipCheck() {
+        // 系统中有 RA 命名空间但当前账号无 Registrar → precondition 放行，registration 身份检查报错
+        when(activeRegistrarService.currentAccountIdOrNull()).thenReturn(UUID.randomUUID());
+        when(activeRegistrarService.resolveForCurrentUser()).thenReturn(Optional.empty());
+        when(namespaceRepository.existsByRegistrationAuthorityIsNotNull()).thenReturn(true);
+
+        ItemRegistrationRequest req = new ItemRegistrationRequest(
+                null, "X-1", "1.0.0", List.of(), List.of());
+
+        assertThatThrownBy(() -> itemAdministrationService.ensureAdministeredItem(item, req))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("Registrar");
+    }
+
+    @Test
+    void ensureAdministeredItem_defaultNamespace_noOwnNamespaceRejected() {
+        // 活动 Registrar 所属 RA 尚未建自有命名空间 → 默认推导返回空，由前置条件拒绝
+        RegistrationAuthority ra = newRa();
+        when(activeRegistrarService.currentAccountIdOrNull()).thenReturn(UUID.randomUUID());
+        when(activeRegistrarService.resolveForCurrentUser())
+                .thenReturn(Optional.of(new Registrar(ra)));
+        when(namespaceRepository.findFirstByRegistrationAuthority_IdAndSchemeReferenceNot(
+                ra.getId(), SystemDefaultNamespaceInitializer.SYSTEM_DEFAULT_SCHEME))
+                .thenReturn(Optional.empty());
+        when(namespaceRepository.existsByRegistrationAuthorityIsNotNull()).thenReturn(false);
+
+        ItemRegistrationRequest req = new ItemRegistrationRequest(
+                null, "X-1", "1.0.0", List.of(), List.of());
+
+        assertThatThrownBy(() -> itemAdministrationService.ensureAdministeredItem(item, req))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("命名空间");
+    }
+
     // ===== registry-merge-strategy：本地编辑版本递增（D4/D5）=====
 
     private AdministeredItem attachExistingIdentifier(Namespace ns, String identifier, String version) {

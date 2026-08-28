@@ -20,4 +20,12 @@ public interface NamespaceRepository
 
     @Query("SELECT ns FROM Namespace ns WHERE ns.schemeReference = :schemeReference")
     Optional<Namespace> findBySchemeReference(@Param("schemeReference") String schemeReference);
+
+    /**
+     * 取与给定 Registration_Authority 直接关联、且 schemeReference 非 system-default
+     * 的自有命名空间。1:1 不变量由 active-registrar-ownership 能力保障。
+     * 用于 ItemAdministrationService 默认命名空间推导。
+     */
+    Optional<Namespace> findFirstByRegistrationAuthority_IdAndSchemeReferenceNot(
+            UUID registrationAuthorityId, String schemeReference);
 }

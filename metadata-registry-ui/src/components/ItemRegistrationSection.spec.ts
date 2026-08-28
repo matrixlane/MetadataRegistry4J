@@ -12,6 +12,7 @@ const namespaces = vi.hoisted(() => [
     identifierInputMode: 'AUTO_ONLY',
     versionInputMode: 'AUTO_ONLY',
     versioningPolicy: 'SEMVER',
+    registrationAuthorityId: 'ra-auto-only',
   },
   {
     id: 'ns-awo',
@@ -19,6 +20,7 @@ const namespaces = vi.hoisted(() => [
     identifierInputMode: 'AUTO_WITH_OVERRIDE',
     versionInputMode: 'AUTO_WITH_OVERRIDE',
     versioningPolicy: 'SEQUENTIAL',
+    registrationAuthorityId: 'ra-awo',
   },
   {
     id: 'ns-manual',
@@ -26,6 +28,7 @@ const namespaces = vi.hoisted(() => [
     identifierInputMode: 'MANUAL_ONLY',
     versionInputMode: 'MANUAL_ONLY',
     versioningPolicy: 'DATE',
+    registrationAuthorityId: 'ra-manual',
   },
   {
     id: 'ns-external',
@@ -47,7 +50,7 @@ vi.mock('@/api/resources', () => ({
     detail: vi.fn().mockResolvedValue({ namingConventionIds: [] }),
   },
   activeRegistrarApi: {
-    current: vi.fn().mockResolvedValue({ active: { registrationAuthorityName: '测试注册机构' } }),
+    current: vi.fn().mockResolvedValue({ active: { registrationAuthorityName: '测试注册机构', registrationAuthorityId: 'ra-awo' } }),
   },
   readinessApi: { raNamespaceExists: vi.fn().mockResolvedValue({ exists: true }) },
 }));
@@ -286,5 +289,126 @@ describe('ItemRegistrationSection 注册机构归属提示', () => {
       expect(section.text()).toContain('活动 Registrar 身份查询失败，请刷新页面重试或重新登录');
     });
     expect(section.text()).not.toContain('无活动 Registrar 身份');
+  });
+});
+
+describe('ItemRegistrationSection 默认命名空间按活动 Registrar 预选', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    strategyView.value = null;
+    // 默认 activeRegistrarApi.current：名称与 id 都设 ra-awo，使原有测试不受影响
+    (activeRegistrarApi.current as any).mockResolvedValue({
+      active: { registrationAuthorityName: '测试注册机构', registrationAuthorityId: 'ra-awo' },
+    });
+  });
+
+  async function mountForCreate() {
+    const wrapper = mount(Host, {
+      props: { isEditing: false },
+      global: { plugins: [ElementPlus] },
+    });
+    const section = wrapper.findComponent(ItemRegistrationSection);
+    // 等到 gateBlocked 可读 = loadOptions 完成 = applyDefaultNamespace 已运行
+    await vi.waitFor(() => {
+      expect((section.vm as any).gateBlocked).toBeDefined();
+    });
+    // 多让一拍让异步 setup 都跑完
+    await new Promise((r) => setTimeout(r, 0));
+    return { wrapper, section };
+  }
+
+  it('默认按活动 RA ra-awo 预选自有命名空间 ns-awo', async () => {
+    const { wrapper } = await mountForCreate();
+    expect((wrapper.vm as any).form.registration.namespaceId).toBe('ns-awo');
+    wrapper.unmount();
+  });
+
+  it('EXTERNAL 命名空间不参与默认推导', async () => {
+    const tempNs = {
+      id: 'ns-external-with-ra',
+      identifier: 'ns-ext-ra',
+      identifierInputMode: 'AUTO_WITH_OVERRIDE',
+      versionInputMode: 'AUTO_WITH_OVERRIDE',
+      versioningPolicy: 'SEMVER',
+      namespaceKind: 'EXTERNAL',
+      registrationAuthorityId: 'ra-awo',
+    };
+    const originalLen = namespaces.length;
+    namespaces.push(tempNs);
+    try {
+      const { wrapper } = await mountForCreate();
+      // 不能选 EXTERNAL；唯一自有候选是 ns-awo
+      expect((wrapper.vm as any).form.registration.namespaceId).toBe('ns-awo');
+      wrapper.unmount();
+    } finally {
+      namespaces.length = originalLen;
+    }
+  });
+
+  it('system-default 命名空间不参与默认推导', async () => {
+    const tempNs = {
+      id: 'ns-system-default-with-ra',
+      identifier: 'ns-system-default',
+      identifierInputMode: 'AUTO_WITH_OVERRIDE',
+      versionInputMode: 'AUTO_WITH_OVERRIDE',
+      versioningPolicy: 'SEMVER',
+      schemeReference: 'urn:metadata-registry:system-default',
+      registrationAuthorityId: 'ra-awo',
+    };
+    const originalLen = namespaces.length;
+    namespaces.push(tempNs);
+    try {
+      const { wrapper } = await mountForCreate();
+      expect((wrapper.vm as any).form.registration.namespaceId).toBe('ns-awo');
+      wrapper.unmount();
+    } finally {
+      namespaces.length = originalLen;
+    }
+  });
+
+  it('活动 RA 不存在自有命名空间时不预选', async () => {
+    (activeRegistrarApi.current as any).mockResolvedValueOnce({
+      active: { registrationAuthorityName: '未知机构', registrationAuthorityId: 'ra-unknown' },
+    });
+    const wrapper = mount(Host, {
+      props: { isEditing: false },
+      global: { plugins: [ElementPlus] },
+    });
+    const section = wrapper.findComponent(ItemRegistrationSection);
+    await vi.waitFor(() => {
+      expect((section.vm as any).gateBlocked).toBeDefined();
+    });
+    await new Promise((r) => setTimeout(r, 0));
+    expect((wrapper.vm as any).form.registration.namespaceId).toBeUndefined();
+    wrapper.unmount();
+  });
+
+  it('无活动 Registrar 身份时不预选', async () => {
+    (activeRegistrarApi.current as any).mockResolvedValueOnce({ active: null });
+    const wrapper = mount(Host, {
+      props: { isEditing: false },
+      global: { plugins: [ElementPlus] },
+    });
+    const section = wrapper.findComponent(ItemRegistrationSection);
+    await vi.waitFor(() => {
+      expect((section.vm as any).gateBlocked).toBeDefined();
+    });
+    await new Promise((r) => setTimeout(r, 0));
+    expect((wrapper.vm as any).form.registration.namespaceId).toBeUndefined();
+    wrapper.unmount();
+  });
+
+  it('编辑态不应用默认推导（用户已选）', async () => {
+    const wrapper = mount(Host, {
+      props: { isEditing: true },
+      global: { plugins: [ElementPlus] },
+    });
+    const section = wrapper.findComponent(ItemRegistrationSection);
+    await vi.waitFor(() => {
+      expect((section.vm as any).gateBlocked).toBeDefined();
+    });
+    await new Promise((r) => setTimeout(r, 0));
+    expect((wrapper.vm as any).form.registration.namespaceId).toBeUndefined();
+    wrapper.unmount();
   });
 });

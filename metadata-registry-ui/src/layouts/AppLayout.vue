@@ -356,6 +356,8 @@ async function loadActiveRegistrar() {
     const res = await activeRegistrarApi.current();
     activeRegistrar.value = res;
     identitySelection.value = res.active?.registrarId || '';
+    // 通知依赖活动 Registrar 身份的对话框/页面重新拉取（default-namespace-by-active-registrar）
+    window.dispatchEvent(new CustomEvent('mdregistry:active-registrar-changed'));
     // 多身份用户登录后需选择一个活动身份方可进行注册工作
     if (res.identities.length > 1) {
       showIdentityDialog.value = true;
@@ -370,6 +372,8 @@ async function switchActiveRegistrar(registrarId: string) {
     const res = await activeRegistrarApi.select(registrarId);
     activeRegistrar.value = res;
     identitySelection.value = res.active?.registrarId || '';
+    // 通知依赖活动 Registrar 身份的对话框/页面重新拉取（default-namespace-by-active-registrar）
+    window.dispatchEvent(new CustomEvent('mdregistry:active-registrar-changed'));
     ElMessage.success('已切换活动 Registrar 身份');
   } catch (err: any) {
     ElMessage.error(err?.response?.data?.message || '切换失败');
