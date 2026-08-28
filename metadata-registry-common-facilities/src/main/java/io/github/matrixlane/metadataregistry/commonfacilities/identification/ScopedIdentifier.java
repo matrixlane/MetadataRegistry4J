@@ -54,6 +54,23 @@ public class ScopedIdentifier {
     @Column(name = "identifier", nullable = false, length = 255)
     private String identifier;
 
+    /**
+     * 创建时用户选择的标识符生成方式。
+     * AUTO = 创建时按命名空间策略自动生成（编辑态 MUST 锁定）；
+     * MANUAL = 创建时由用户手动录入（编辑态 MUST 可编辑）；
+     * NULL = 迁移前既存记录或外部命名空间下的 SI（按 MANUAL 等价处理）。
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "identifier_creation_mode", length = 16)
+    private IdentifierCreationMode identifierCreationMode;
+
+    /**
+     * 创建时用户选择的版本生成方式。语义与 {@link #identifierCreationMode} 对称。
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "version_creation_mode", length = 16)
+    private IdentifierCreationMode versionCreationMode;
+
     @Column(name = "version", length = 32)
     private String version;
 
@@ -91,4 +108,3 @@ public class ScopedIdentifier {
         this.identifiedItem = identifiedItem;
     }
 }
-

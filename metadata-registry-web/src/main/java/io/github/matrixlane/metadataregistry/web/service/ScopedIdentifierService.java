@@ -1,5 +1,6 @@
 package io.github.matrixlane.metadataregistry.web.service;
 
+import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifierCreationMode;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifierVersionHistory;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifiedItem;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace;
@@ -101,6 +102,13 @@ public class ScopedIdentifierService {
             entity.setNamespace(namespace);
             entity.setIdentifiedItem(identifiedItem);
             entity.setCreatedAt(LocalDateTime.now());
+            // 持久化创建选择（AUTO/MANUAL）：外部 SI 始终 MANUAL，null；自有名下按输入推导。
+            entity.setIdentifierCreationMode(autoGenerate
+                    ? IdentifierCreationMode.AUTO
+                    : IdentifierCreationMode.MANUAL);
+            entity.setVersionCreationMode((request.version() == null || request.version().isBlank())
+                    ? IdentifierCreationMode.AUTO
+                    : IdentifierCreationMode.MANUAL);
 
             namespaceConstraintValidator.validateScopedIdentifier(namespace.getId(), entity, null);
 
@@ -120,11 +128,26 @@ public class ScopedIdentifierService {
     public ScopedIdentifierResponse update(UUID id, ScopedIdentifierCreateRequest request) {
         ScopedIdentifier entity = loadOrThrow(id);
 
-        // identifier is immutable
+        // identifier 变更遵循 SI 持久化的 creation_mode：AUTO 拒绝；MANUAL / NULL 接受
+        if (request.identifier() != null && !request.identifier().isBlank()
+                && !request.identifier().equals(entity.getIdentifier())) {
+            if (entity.getIdentifierCreationMode() == IdentifierCreationMode.AUTO) {
+                throw new BusinessException("该标识符创建时选择自动生成，不允许手动修改");
+            }
+            entity.setIdentifier(request.identifier());
+        }
+
+        // 版本变更遵循 creation_mode：AUTO 忽略显式值；MANUAL / NULL 接受并校验
         if (request.version() != null && !request.version().isBlank()
                 && !request.version().equals(entity.getVersion())) {
-            identifierInputPolicyService.validateManualVersion(entity.getNamespace(), request.version());
-            entity.setVersion(request.version());
+            if (entity.getVersionCreationMode() == IdentifierCreationMode.AUTO) {
+                // 编辑 AUTO 时 MUST 忽略显式 version；保持原值不变（由调用方按策略 bump）
+                // 此处不写值即可，由 ItemAdministrationService 负责按策略递增；
+                // 本路径仅在 SI 独立更新接口被调用时触发。
+            } else {
+                identifierInputPolicyService.validateManualVersion(entity.getNamespace(), request.version());
+                entity.setVersion(request.version());
+            }
         }
 
         if (request.namespaceId() != null
@@ -231,7 +254,9 @@ public class ScopedIdentifierService {
                 si.getCreatedAt(),
                 si.getPublishedAt(),
                 si.getDeprecatedAt(),
-                si.getObsoleteAt()
+                si.getObsoleteAt(),
+                si.getIdentifierCreationMode(),
+                si.getVersionCreationMode()
         );
     }
 
@@ -264,7 +289,9 @@ public class ScopedIdentifierService {
                 si.getCreatedAt(),
                 si.getPublishedAt(),
                 si.getDeprecatedAt(),
-                si.getObsoleteAt()
+                si.getObsoleteAt(),
+                si.getIdentifierCreationMode(),
+                si.getVersionCreationMode()
         );
     }
 

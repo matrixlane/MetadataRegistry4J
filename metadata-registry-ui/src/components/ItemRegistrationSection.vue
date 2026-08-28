@@ -120,16 +120,24 @@ interface TemplateVariable {
   required?: boolean;
 }
 
+type GenerationMode = 'auto' | 'manual';
+type PersistedCreationMode = 'AUTO' | 'MANUAL';
+
 interface Props {
   /** 编辑态时为 true：标识符禁用、版本可编辑 */
   isEditing?: boolean;
   /** 编辑既有条目时其后端归属注册机构名（优先于活动 Registrar 显示） */
   registrationAuthorityName?: string | null;
+  /** 后端持久化的创建方式：编辑态锁定/开放的依据。NULL 等价 MANUAL（兼容既存记录）。 */
+  identifierCreationMode?: PersistedCreationMode | null;
+  versionCreationMode?: PersistedCreationMode | null;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   isEditing: false,
   registrationAuthorityName: null,
+  identifierCreationMode: null,
+  versionCreationMode: null,
 });
 
 /** 宿主表单中的 registration 对象，直接双向共享（宿主 el-form 负责 prop 路径校验） */
@@ -149,8 +157,8 @@ const activeRegistrarQueryFailed = ref(false);
 /** system-default 命名空间的 URN 方案引用（与后端 SystemDefaultNamespaceInitializer 一致） */
 const SYSTEM_DEFAULT_SCHEME = 'urn:metadata-registry:system-default';
 
-const identifierChoice = ref<'auto' | 'manual'>('auto');
-const versionChoice = ref<'auto' | 'manual'>('auto');
+const identifierChoice = ref<GenerationMode>('auto');
+const versionChoice = ref<GenerationMode>('auto');
 const generationModeOptions = [
   { label: '自动', value: 'auto' },
   { label: '手动', value: 'manual' },
@@ -167,6 +175,20 @@ const selectedNamespace = computed(() =>
 const identifierMode = computed(() => selectedNamespace.value?.identifierInputMode || 'AUTO_WITH_OVERRIDE');
 const versionMode = computed(() => selectedNamespace.value?.versionInputMode || 'AUTO_WITH_OVERRIDE');
 
+/** 编辑态下创建时被持久化的 AUTO/MANUAL；非编辑态回退到 UI 选择的模式。 */
+const effectiveIdentifierMode = computed<GenerationMode | 'AUTO' | 'MANUAL'>(() => {
+  if (props.isEditing) {
+    return props.identifierCreationMode ?? 'MANUAL';
+  }
+  return identifierChoice.value;
+});
+const effectiveVersionMode = computed<GenerationMode | 'AUTO' | 'MANUAL'>(() => {
+  if (props.isEditing) {
+    return props.versionCreationMode ?? 'MANUAL';
+  }
+  return versionChoice.value;
+});
+
 const showIdentifierChoice = computed(() => !props.isEditing && identifierMode.value === 'AUTO_WITH_OVERRIDE');
 const showVersionChoice = computed(() => !props.isEditing && versionMode.value === 'AUTO_WITH_OVERRIDE');
 
@@ -181,17 +203,25 @@ const versionAutoInEffect = computed(
   () => !props.isEditing && (versionMode.value === 'AUTO_ONLY' || (versionMode.value === 'AUTO_WITH_OVERRIDE' && versionChoice.value === 'auto')),
 );
 
-const identifierDisabled = computed(() => props.isEditing || identifierAutoInEffect.value);
-// 版本在编辑态可修改：显式指定则采用，留空保存按命名空间版本策略递增
-const versionDisabled = computed(() => versionAutoInEffect.value);
+/** 编辑态下，原始创建模式为 AUTO 时输入框 MUST 禁用（M5 编辑语义统一）。 */
+const wasIdentifierAuto = computed(() => props.isEditing && props.identifierCreationMode === 'AUTO');
+const wasVersionAuto = computed(() => props.isEditing && props.versionCreationMode === 'AUTO');
+
+const identifierDisabled = computed(() => identifierAutoInEffect.value || wasIdentifierAuto.value);
+// 编辑态若原始 mode 为 AUTO，则 MUST 禁用并由后端按策略递增。
+const versionDisabled = computed(() => versionAutoInEffect.value || wasVersionAuto.value);
 
 const identifierPlaceholder = computed(() => {
-  if (props.isEditing) return '';
+  if (props.isEditing) {
+    return wasIdentifierAuto.value ? '自动生成，不可编辑' : '';
+  }
   return identifierAutoInEffect.value ? '保存后自动生成' : '唯一标识符';
 });
 
 const versionPlaceholder = computed(() => {
-  if (props.isEditing) return '留空则按命名空间策略自动递增';
+  if (props.isEditing) {
+    return wasVersionAuto.value ? '自动生成，不可编辑' : '留空则按命名空间策略自动递增';
+  }
   if (versionAutoInEffect.value) return '保存后自动生成';
   switch (selectedNamespace.value?.versioningPolicy) {
     case 'SEQUENTIAL': return '如 1';
@@ -208,6 +238,11 @@ const identifierRules = [
   {
     required: true,
     validator: (_rule: unknown, value: string, callback: (e?: Error) => void) => {
+      // 编辑 AUTO 创建的标识符 MUST 跳过必填校验（后端拒绝任何修改）
+      if (wasIdentifierAuto.value) {
+        callback();
+        return;
+      }
       if (props.isEditing || identifierAutoInEffect.value) {
         callback();
         return;
@@ -237,6 +272,11 @@ const versionRules = [
   {
     required: true,
     validator: (_rule: unknown, value: string, callback: (e?: Error) => void) => {
+      // 编辑 AUTO 创建的版本 MUST 跳过必填校验（后端忽略任何显式值）
+      if (wasVersionAuto.value) {
+        callback();
+        return;
+      }
       if (props.isEditing || versionAutoInEffect.value) {
         callback();
         return;
@@ -400,11 +440,17 @@ function validateTemplateVariables(): string | null {
 function buildPayload() {
   return {
     namespaceId: model.value.namespaceId || null,
-    identifier: identifierAutoInEffect.value ? null : model.value.identifier || '',
-    version: versionAutoInEffect.value ? null : model.value.version || '',
+    identifier: (identifierAutoInEffect.value || wasIdentifierAuto.value) ? null : (model.value.identifier ?? ''),
+    version: (versionAutoInEffect.value || wasVersionAuto.value) ? null : (model.value.version ?? ''),
     variables: identifierAutoInEffect.value && templateVariables.value.length > 0
       ? { ...variableValues }
       : undefined,
+    identifierMode: (identifierAutoInEffect.value || wasIdentifierAuto.value)
+      ? 'AUTO'
+      : (model.value.identifier ? 'MANUAL' : null),
+    versionMode: (versionAutoInEffect.value || wasVersionAuto.value)
+      ? 'AUTO'
+      : (model.value.version ? 'MANUAL' : null),
   };
 }
 
@@ -423,5 +469,7 @@ defineExpose({
   gateBlocked,
   identifierAutoInEffect,
   versionAutoInEffect,
+  wasIdentifierAuto,
+  wasVersionAuto,
 });
 </script>

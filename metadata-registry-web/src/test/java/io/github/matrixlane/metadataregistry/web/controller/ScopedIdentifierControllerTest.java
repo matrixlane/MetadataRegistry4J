@@ -1,6 +1,7 @@
 package io.github.matrixlane.metadataregistry.web.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifierCreationMode;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.VersionStatus;
 import io.github.matrixlane.metadataregistry.web.auth.JwtService;
 import io.github.matrixlane.metadataregistry.web.config.AppProperties;
@@ -136,6 +137,7 @@ class ScopedIdentifierControllerTest {
         return new ScopedIdentifierResponse(
                 TEST_ID, NS_ID, "test-ns", "id-1", "1.0.0",
                 VersionStatus.DRAFT, II_ID, "AdministeredItem", "Item Label",
-                LocalDateTime.now(), null, null, null);
+                LocalDateTime.now(), null, null, null,
+                null, null);
     }
 }

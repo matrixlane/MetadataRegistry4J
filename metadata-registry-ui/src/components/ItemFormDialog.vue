@@ -28,6 +28,8 @@
             v-model="form.registration"
             :is-editing="isEditing"
             :registration-authority-name="editingRaName"
+            :identifier-creation-mode="editingIdentifierCreationMode"
+            :version-creation-mode="editingVersionCreationMode"
             @mode-change="handleRegistrationModeChange"
           />
         </el-tab-pane>
@@ -245,6 +247,10 @@ const form = reactive<ItemForm>({
 
 /** 编辑既有条目时其后端归属注册机构名 */
 const editingRaName = ref<string | null>(null);
+/** 编辑既有条目时持久化的标识符创建方式（AUTO / MANUAL / null） */
+const editingIdentifierCreationMode = ref<'AUTO' | 'MANUAL' | null>(null);
+/** 编辑既有条目时持久化的版本创建方式（AUTO / MANUAL / null） */
+const editingVersionCreationMode = ref<'AUTO' | 'MANUAL' | null>(null);
 const languages = ref<{ id: string; languageIdentifier?: string; languageCode?: string }[]>([]);
 const namespaceNamingConventions = ref<{ id: string; label?: string; scopeRule?: string }[]>([]);
 const namespaceMandatoryNC = ref(false);
@@ -429,6 +435,8 @@ async function open(initial?: Record<string, unknown>) {
   reset();
   await loadOptions();
   editingRaName.value = (initial?.meta as any)?.registrationAuthorityName || null;
+  editingIdentifierCreationMode.value = (initial?.meta as any)?.identifierCreationMode ?? null;
+  editingVersionCreationMode.value = (initial?.meta as any)?.versionCreationMode ?? null;
   if (initial) {
     Object.assign(form, {
       ...initial,
@@ -462,6 +470,8 @@ function reset() {
   form.pairings = [];
   form.registration = {};
   invalidFields.value.clear();
+  editingIdentifierCreationMode.value = null;
+  editingVersionCreationMode.value = null;
   registrationSectionRef.value?.reset();
   formRef.value?.resetFields();
 }

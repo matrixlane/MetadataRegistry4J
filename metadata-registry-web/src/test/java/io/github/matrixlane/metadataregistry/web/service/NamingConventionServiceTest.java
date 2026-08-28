@@ -148,6 +148,7 @@ class NamingConventionServiceTest {
         return new ItemMetaResponse(
                 ncId, null, null, null,
                 null, null, null, null,
-                null, null, null, null);
+                null, null, null, null,
+                null, null);
     }
 }

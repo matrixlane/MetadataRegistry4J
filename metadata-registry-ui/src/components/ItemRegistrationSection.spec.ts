@@ -64,7 +64,11 @@ vi.mock('vue-router', () => ({
 
 const Host = defineComponent({
   components: { ItemRegistrationSection },
-  props: ['isEditing'],
+  props: {
+    isEditing: { type: Boolean, default: false },
+    identifierCreationMode: { type: String as () => string | null, default: null },
+    versionCreationMode: { type: String as () => string | null, default: null },
+  },
   setup(props) {
     const form = reactive({ registration: {} as Record<string, any> });
     return { form, props };
@@ -75,14 +79,21 @@ const Host = defineComponent({
         ref="section"
         v-model="form.registration"
         :is-editing="props.isEditing"
+        :identifier-creation-mode="props.identifierCreationMode"
+        :version-creation-mode="props.versionCreationMode"
       />
     </el-form>
   `,
 });
 
-async function mountSection(namespaceId: string, isEditing = false) {
+async function mountSection(
+  namespaceId: string,
+  isEditing = false,
+  identifierCreationMode: 'AUTO' | 'MANUAL' | null = null,
+  versionCreationMode: 'AUTO' | 'MANUAL' | null = null,
+) {
   const wrapper = mount(Host, {
-    props: { isEditing },
+    props: { isEditing, identifierCreationMode, versionCreationMode },
     global: { plugins: [ElementPlus] },
   });
   const section = wrapper.findComponent(ItemRegistrationSection);
@@ -122,6 +133,8 @@ describe('ItemRegistrationSection 命名空间输入模式', () => {
       identifier: null,
       version: null,
       variables: undefined,
+      identifierMode: 'AUTO',
+      versionMode: 'AUTO',
     });
     wrapper.unmount();
   });
@@ -171,6 +184,8 @@ describe('ItemRegistrationSection 命名空间输入模式', () => {
       identifier: '',
       version: null,
       variables: undefined,
+      identifierMode: null,
+      versionMode: 'AUTO',
     });
   });
 
@@ -182,11 +197,13 @@ describe('ItemRegistrationSection 命名空间输入模式', () => {
     expect(labels).toEqual(expect.arrayContaining(['标识符生成方式', '版本生成方式']));
   });
 
-  it('编辑态：内嵌切换控件整体隐藏，输入框禁用且回显当前值', async () => {
-    const { wrapper, section } = await mountSection('ns-awo', true);
+  it('编辑态（mode 为 null，legacy）：内嵌切换控件整体隐藏、标识符与版本均启用', async () => {
+    // 迁移前既存 SI：mode 为 NULL 等价 MANUAL；identifier / version 在编辑态应均启用，
+    // inline 切换控件不显示（编辑态不展示 AUTO/MANUAL 切换 UI）。
+    const { wrapper, section } = await mountSection('ns-awo', true, null, null);
     expect(inlineModeControls(section).length).toBe(0);
     const [identifierInput, versionInput] = inputs(section);
-    expect(identifierInput.props('disabled')).toBe(true);
+    expect(identifierInput.props('disabled')).toBe(false);
     expect(versionInput.props('disabled')).toBe(false);
     // 通过宿主写入 version，确认编辑态可保留
     (wrapper.vm as any).form.registration.version = '1.2.3';
@@ -224,12 +241,49 @@ describe('ItemRegistrationSection 命名空间输入模式', () => {
     expect((section.vm as any).buildPayload().version).toBe('2');
   });
 
-  it('编辑态：标识符禁用，版本可编辑（留空则按策略递增）', async () => {
-    const { section } = await mountSection('ns-awo', true);
+  it('编辑既存记录（mode 为 null）：标识符启用、版本启用', async () => {
+    // 兼容场景：迁移前既存 SI 的 creation_mode 为 NULL，等价 MANUAL；现有测试与该场景一致。
+    const { section } = await mountSection('ns-awo', true, null, null);
     const [identifierInput, versionInput] = inputs(section);
-    expect(identifierInput.props('disabled')).toBe(true);
+    expect(identifierInput.props('disabled')).toBe(false);
     expect(versionInput.props('disabled')).toBe(false);
     expect(versionInput.props('placeholder')).toBe('留空则按命名空间策略自动递增');
+  });
+
+  it('编辑 AUTO 模式：标识符 / 版本输入框禁用、inline 控件不显示', async () => {
+    const { section } = await mountSection('ns-awo', true, 'AUTO', 'AUTO');
+    // inline 切换控件在编辑态不显示
+    expect(inlineModeControls(section).length).toBe(0);
+    const [identifierInput, versionInput] = inputs(section);
+    expect(identifierInput.props('disabled')).toBe(true);
+    expect(versionInput.props('disabled')).toBe(true);
+    expect(identifierInput.props('placeholder')).toBe('自动生成，不可编辑');
+    expect(versionInput.props('placeholder')).toBe('自动生成，不可编辑');
+  });
+
+  it('编辑 MANUAL 模式：标识符 / 版本输入框启用', async () => {
+    const { section } = await mountSection('ns-awo', true, 'MANUAL', 'MANUAL');
+    expect(inlineModeControls(section).length).toBe(0);
+    const [identifierInput, versionInput] = inputs(section);
+    expect(identifierInput.props('disabled')).toBe(false);
+    expect(versionInput.props('disabled')).toBe(false);
+    expect(versionInput.props('placeholder')).toBe('留空则按命名空间策略自动递增');
+  });
+
+  it('编辑既存记录（mode 为 null）：等价 MANUAL，标识符与版本均启用', async () => {
+    const { section } = await mountSection('ns-awo', true, null, null);
+    const [identifierInput, versionInput] = inputs(section);
+    expect(identifierInput.props('disabled')).toBe(false);
+    expect(versionInput.props('disabled')).toBe(false);
+  });
+
+  it('编辑 AUTO 模式：buildPayload 携带 identifierMode / versionMode 并清空 identifier / version', async () => {
+    const { section } = await mountSection('ns-awo', true, 'AUTO', 'AUTO');
+    const payload = (section.vm as any).buildPayload();
+    expect(payload.identifierMode).toBe('AUTO');
+    expect(payload.versionMode).toBe('AUTO');
+    expect(payload.identifier).toBeNull();
+    expect(payload.version).toBeNull();
   });
 
   it('段模板：自动模式下渲染变量输入并随负载提交', async () => {

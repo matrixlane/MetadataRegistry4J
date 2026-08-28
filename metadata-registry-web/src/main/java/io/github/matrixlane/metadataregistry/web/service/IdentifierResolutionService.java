@@ -112,7 +112,9 @@ public class IdentifierResolutionService {
                 si.getCreatedAt(),
                 si.getPublishedAt(),
                 si.getDeprecatedAt(),
-                si.getObsoleteAt()
+                si.getObsoleteAt(),
+                si.getIdentifierCreationMode(),
+                si.getVersionCreationMode()
         );
     }
 }

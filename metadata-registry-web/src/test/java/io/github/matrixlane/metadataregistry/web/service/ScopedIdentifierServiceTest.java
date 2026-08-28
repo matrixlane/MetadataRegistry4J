@@ -253,7 +253,8 @@ class ScopedIdentifierServiceTest {
     }
 
     @Test
-    void update_shouldNotChangeIdentifier() {
+    void update_nullMode_allowsIdentifierChange() {
+        // identifierCreationMode 为 NULL（兼容既存记录）→ 等价 MANUAL，应允许 identifier 修改。
         ScopedIdentifier si = createScopedIdentifier("id-1", "1.0.0");
         si.setNamespace(namespace);
         si.setIdentifiedItem(identifiedItem);
@@ -265,7 +266,24 @@ class ScopedIdentifierServiceTest {
 
         ScopedIdentifierResponse result = service.update(scopedIdentifierId, request);
 
-        assertThat(result.identifier()).isEqualTo("id-1"); // immutable
+        assertThat(result.identifier()).isEqualTo("new-id");
+    }
+
+    @Test
+    void update_autoMode_rejectsIdentifierChange() {
+        // identifierCreationMode 为 AUTO → 后端 MUST 拒绝 identifier 修改。
+        ScopedIdentifier si = createScopedIdentifier("id-1", "1.0.0");
+        si.setIdentifierCreationMode(io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifierCreationMode.AUTO);
+        si.setNamespace(namespace);
+        si.setIdentifiedItem(identifiedItem);
+        when(scopedIdentifierRepository.findById(scopedIdentifierId)).thenReturn(Optional.of(si));
+
+        ScopedIdentifierCreateRequest request = new ScopedIdentifierCreateRequest(
+                namespaceId, "new-id", "1.0.0", identifiedItemId, null);
+
+        assertThatThrownBy(() -> service.update(scopedIdentifierId, request))
+                .isInstanceOf(io.github.matrixlane.metadataregistry.web.common.BusinessException.class)
+                .hasMessageContaining("自动生成，不允许手动修改");
     }
 
     @Test

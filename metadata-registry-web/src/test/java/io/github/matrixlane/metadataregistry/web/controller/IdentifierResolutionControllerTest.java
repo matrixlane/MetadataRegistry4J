@@ -1,5 +1,6 @@
 package io.github.matrixlane.metadataregistry.web.controller;
 
+import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifierCreationMode;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.VersionStatus;
 import io.github.matrixlane.metadataregistry.web.auth.JwtService;
 import io.github.matrixlane.metadataregistry.web.config.AppProperties;
@@ -90,6 +91,7 @@ class IdentifierResolutionControllerTest {
         return new ScopedIdentifierResponse(
                 SI_ID, NS_ID, "test-ns", "urn:test:123", "1.0.0",
                 VersionStatus.PUBLISHED, II_ID, "AdministeredItem", "Item Label",
-                LocalDateTime.now(), LocalDateTime.now(), null, null);
+                LocalDateTime.now(), LocalDateTime.now(), null, null,
+                null, null);
     }
 }

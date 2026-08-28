@@ -11,6 +11,7 @@ import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefi
 import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.DesignationContext;
 import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.NamingConvention;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifiedItem;
+import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifierCreationMode;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.ScopedIdentifier;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.Versions;
@@ -54,6 +55,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 
 @Slf4j
@@ -303,22 +305,40 @@ public class ItemAdministrationService {
             }
             si.setIdentifier(identifier);
             si.setVersion(identifierInputPolicyService.resolveVersion(ns, req.version()));
+            // 持久化创建时用户选择的 AUTO/MANUAL：请求未携带 mode 时按 identifier / version
+            // 是否有显式值反推（空 → AUTO，非空 → MANUAL）。mode 创建即固化，后续编辑不变更。
+            si.setIdentifierCreationMode(req.identifierMode() != null
+                    ? req.identifierMode()
+                    : ItemRegistrationRequest.resolveMode(req.identifier()));
+            si.setVersionCreationMode(req.versionMode() != null
+                    ? req.versionMode()
+                    : ItemRegistrationRequest.resolveMode(req.version()));
             si.setNamespace(ns);
             si.setIdentifiedItem(ai);
             ai.getScopedIdentifiers().add(si);
         } else {
             ScopedIdentifier si = selectEditableIdentifier(ai, ns);
-            String identifier = req.identifier();
-            if (identifier != null && !identifier.isBlank() && ai.getScopedIdentifiers().size() == 1) {
-                si.setIdentifier(identifier);
+
+            // 标识符：AUTO 时 MUST 拒绝任何手动修改；MANUAL / NULL 时沿用单 SI 可改逻辑
+            String requestedIdentifier = req.identifier();
+            if (requestedIdentifier != null && !requestedIdentifier.isBlank()
+                    && !Objects.equals(requestedIdentifier, si.getIdentifier())) {
+                if (si.getIdentifierCreationMode() == IdentifierCreationMode.AUTO) {
+                    throw new BusinessException(ApiCodes.VALIDATION_FAILED,
+                            "该标识符创建时选择自动生成，不允许手动修改");
+                }
+                if (ai.getScopedIdentifiers().size() == 1) {
+                    si.setIdentifier(requestedIdentifier);
+                }
             }
-            // 版本（registry-merge-strategy D4/D5）：本地编辑使目的方命名空间标识
-            // 版本递增，合并冲突检测依赖该机制。请求显式携带不同版本时尊重用户
-            // 指定（经命名空间输入模式与版本策略校验，namespace-identifier-strategy）；
-            // 未携带或与现行版本相同（前端回显）时按命名空间版本策略递增。
+
+            // 版本：AUTO 时 MUST 忽略请求体显式值并按命名空间版本策略递增；MANUAL / NULL 时
+            // 接受显式值并按策略校验，空则递增（registry-merge-strategy D4/D5）。
             // 联邦合并路径不经由此处，版本由合并执行器显式维护。
             String requestedVersion = req.version();
-            if (requestedVersion != null && !requestedVersion.isBlank()
+            if (si.getVersionCreationMode() == IdentifierCreationMode.AUTO) {
+                si.setVersion(Versions.bump(si.getVersion(), ns != null ? ns.getVersioningPolicy() : null));
+            } else if (requestedVersion != null && !requestedVersion.isBlank()
                     && !requestedVersion.equals(si.getVersion())) {
                 identifierInputPolicyService.validateManualVersion(ns, requestedVersion);
                 si.setVersion(requestedVersion);
@@ -404,7 +424,7 @@ public class ItemAdministrationService {
         if (ns != null && ns.getRegistrationAuthority() != null
                 && !ns.getRegistrationAuthority().getId().equals(activeRa.getId())) {
             throw new BusinessException(ApiCodes.VALIDATION_FAILED,
-                    "目标命名空间属于其他注册机构，请先将活动 Registrar 身份切换为该机构的身份");
+                    "目标命名空间属于其他注册机构，请先将活动 registrar身份切换为该机构的身份");
         }
         return activeRa;
     }
@@ -444,6 +464,8 @@ public class ItemAdministrationService {
         String identifier = null;
         String version = null;
         String scopedIdentifierStr = null;
+        IdentifierCreationMode identifierCreationMode = null;
+        IdentifierCreationMode versionCreationMode = null;
 
         // Try to query AdministeredItem by itemId
         List<Object[]> metaList = administeredItemRepository.findMetaByItemId(item.getId());
@@ -466,6 +488,8 @@ public class ItemAdministrationService {
             ScopedIdentifier si = preferPrimaryIdentifier(siList);
             identifier = si.getIdentifier();
             version = si.getVersion();
+            identifierCreationMode = si.getIdentifierCreationMode();
+            versionCreationMode = si.getVersionCreationMode();
             if (si.getNamespace() != null) {
                 nsId = si.getNamespace().getId();
                 nsLabel = ItemNamingHelper.preferredDesignation(si.getNamespace());
@@ -493,7 +517,9 @@ public class ItemAdministrationService {
                 registrationStatus,
                 administeredItemId,
                 registrationAuthorityId,
-                registrationAuthorityName);
+                registrationAuthorityName,
+                identifierCreationMode,
+                versionCreationMode);
     }
 
     /**
