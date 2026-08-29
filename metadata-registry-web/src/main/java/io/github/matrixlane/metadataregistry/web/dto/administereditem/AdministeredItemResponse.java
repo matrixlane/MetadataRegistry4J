@@ -6,6 +6,12 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
+/**
+ * 跨实体统一元数据搜索结果行（smart-item-picker 消费）。
+ *
+ * @param matchType 精确匹配度（仅 MetadataSearchService 填充）：
+ *                  EXACT 精确命中；PARTIAL 模糊回退；null 既有调用方不感知
+ */
 public record AdministeredItemResponse(
         UUID id,
         UUID itemId,
@@ -26,5 +32,6 @@ public record AdministeredItemResponse(
         Boolean hasPreferred,
         LocalDateTime creationDateTime,
         LocalDateTime lastChangeDateTime,
-        String changeDescription) {
+        String changeDescription,
+        String matchType) {
 }

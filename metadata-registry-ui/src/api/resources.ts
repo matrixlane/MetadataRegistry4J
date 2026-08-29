@@ -167,7 +167,16 @@ export const classificationSchemeApi = {
 
 /** Unified metadata search (WI-015a) */
 export const metadataSearchApi = {
-  search: (params?: PageQuery & { type?: string; status?: string; contextId?: string; acceptability?: string[] }) =>
+  search: (params?: PageQuery & {
+    type?: string;
+    status?: string;
+    contextId?: string;
+    acceptability?: string[];
+    namespaceId?: string;
+    exactMatch?: boolean;
+    identifier?: string;
+    namespaceShorthand?: string;
+  }) =>
     request.get<PageResponse<any>>('/metadata/search', { params }),
 };
 

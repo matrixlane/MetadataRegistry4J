@@ -276,3 +276,40 @@ export interface AppUserDto {
   role?: 'ADMIN' | 'REGISTRAR' | 'VIEWER';
   roleAssignments?: UserRoleAssignmentDto[];
 }
+
+// ─── smart-item-picker ────────────────────────────────────────────────
+
+/**
+ * 跨实体统一元数据搜索结果行（SmartItemPicker 消费）。
+ *
+ * 后端 GET /api/v1/metadata/search 返回的 AdministeredItemResponse 经前端
+ * 精简成 picker 关心的字段；type / matchType / namespaceLabel 用于 UI 渲染。
+ */
+export interface AdministeredItemSearchHit {
+  /** AdministeredItem.id（PK，作为 picker value） */
+  id: string;
+  /** Item.id（用于 fetchById 反查与关联关系展示） */
+  itemId: string;
+  /** 实体类型枚举（后端通过 EXISTS 子查询推导）；常见值：DataElement / DataElementConcept / ConceptualDomain / ValueDomain / ObjectClass / Property / DataType / UnitOfMeasure / Namespace / ... */
+  itemType: string | null;
+  /** 偏好名称（designation 中 zh-CN 或第一个 designation） */
+  itemLabel: string | null;
+  /** 业务标识符（如 VD.00001 / MD.VD.00001）— picker 主显示 */
+  identifier: string | null;
+  /** 版本号（如 1.0） */
+  version: string | null;
+  /** 命名空间 UUID */
+  namespaceId: string | null;
+  /** 命名空间偏好名称（picker 次要显示） */
+  namespaceLabel: string | null;
+  /** 匹配度：EXACT（精确命中）/ PARTIAL（模糊回退）/ undefined（既有调用方） */
+  matchType?: string;
+}
+
+/**
+ * SmartItemPicker 的可选过滤配置。
+ */
+export interface SmartItemPickerTypesFilter {
+  /** 实体类型枚举列表；空表示全部 */
+  types: string[];
+}

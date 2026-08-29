@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -46,7 +47,7 @@ class DataDictionaryBrowserControllerTest {
     void browse_withPageAndSize_shouldReturnOk() throws Exception {
         AdministeredItemResponse resp = createResponse();
         Page<AdministeredItemResponse> page = new PageImpl<>(List.of(resp));
-        when(searchService.search(any(), any(), any(), any(), any(), any())).thenReturn(page);
+        when(searchService.search(any(), any(), any(), any(), any(), any(), anyBoolean(), any(), any(), any())).thenReturn(page);
 
         mockMvc.perform(get("/api/v1/data-dictionary/browser")
                         .param("page", "0")
@@ -60,7 +61,7 @@ class DataDictionaryBrowserControllerTest {
     void browse_withNoParams_shouldReturnOk() throws Exception {
         AdministeredItemResponse resp = createResponse();
         Page<AdministeredItemResponse> page = new PageImpl<>(List.of(resp));
-        when(searchService.search(any(), any(), any(), any(), any(), any())).thenReturn(page);
+        when(searchService.search(any(), any(), any(), any(), any(), any(), anyBoolean(), any(), any(), any())).thenReturn(page);
 
         mockMvc.perform(get("/api/v1/data-dictionary/browser"))
                 .andExpect(status().isOk())
@@ -71,7 +72,7 @@ class DataDictionaryBrowserControllerTest {
     void browse_withKeyword_shouldReturnOk() throws Exception {
         AdministeredItemResponse resp = createResponse();
         Page<AdministeredItemResponse> page = new PageImpl<>(List.of(resp));
-        when(searchService.search(anyString(), any(), any(), any(), any(), any())).thenReturn(page);
+        when(searchService.search(anyString(), any(), any(), any(), any(), any(), anyBoolean(), any(), any(), any())).thenReturn(page);
 
         mockMvc.perform(get("/api/v1/data-dictionary/browser")
                         .param("q", "患者"))
@@ -83,7 +84,7 @@ class DataDictionaryBrowserControllerTest {
     void browse_withTypeFilter_shouldReturnOk() throws Exception {
         AdministeredItemResponse resp = createResponse();
         Page<AdministeredItemResponse> page = new PageImpl<>(List.of(resp));
-        when(searchService.search(any(), anyString(), any(), any(), any(), any())).thenReturn(page);
+        when(searchService.search(any(), anyString(), any(), any(), any(), any(), anyBoolean(), any(), any(), any())).thenReturn(page);
 
         mockMvc.perform(get("/api/v1/data-dictionary/browser")
                         .param("type", "DataElement"))
@@ -95,7 +96,7 @@ class DataDictionaryBrowserControllerTest {
     void browse_withStatusFilter_shouldReturnOk() throws Exception {
         AdministeredItemResponse resp = createResponse();
         Page<AdministeredItemResponse> page = new PageImpl<>(List.of(resp));
-        when(searchService.search(any(), any(), any(RegistrationStatus.class), any(), any(), any())).thenReturn(page);
+        when(searchService.search(any(), any(), any(RegistrationStatus.class), any(), any(), any(), anyBoolean(), any(), any(), any())).thenReturn(page);
 
         mockMvc.perform(get("/api/v1/data-dictionary/browser")
                         .param("status", "STANDARD"))
@@ -119,7 +120,7 @@ class DataDictionaryBrowserControllerTest {
                 null,
                 LocalDateTime.now(),
                 LocalDateTime.now(),
-                "初始版本"
-        );
+                "初始版本",
+                null);
     }
 }

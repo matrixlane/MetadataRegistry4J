@@ -1,8 +1,7 @@
 <!--
-  DataElementConceptList —— ISO/IEC 11179-31 §7.3.2：
-  - "对象类" / "特性" 改用 picker（fallback UUID 输入框）
-  - "概念域" 多选 picker（kind 标签化 + kind 过滤；与值域同构）
-  - 编辑态从 row.conceptualDomainIds 回填
+  DataElementConceptList —— ISO/IEC 11179-31 §7.3.2。
+  关联 picker（对象类 / 特性 / 概念域）统一替换为 SmartItemPicker
+  （smart-item-picker），支持 intellisense 搜索 + 业务标识符显示 + 类型过滤。
 -->
 <template>
   <div>
@@ -39,75 +38,30 @@
     >
       <template #fields="{ form }">
         <el-form-item label="对象类">
-          <el-select
-            v-if="pickersReady"
+          <SmartItemPicker
             v-model="form.objectClassId"
-            placeholder="选择对象类"
-            filterable
-            clearable
-            style="width: 100%;"
-          >
-            <el-option
-              v-for="oc in ocOptions"
-              :key="oc.id"
-              :label="oc.label"
-              :value="oc.id"
-            />
-          </el-select>
-          <el-input v-else v-model="form.objectClassId" placeholder="UUID" />
+            :item-types="['ObjectClass']"
+            :show-advanced-filter="false"
+            placeholder="搜索对象类（输入业务标识符或名称）"
+          />
+          <el-input v-model="form.objectClassId" placeholder="UUID" style="display: none;" />
         </el-form-item>
         <el-form-item label="特性">
-          <el-select
-            v-if="pickersReady"
+          <SmartItemPicker
             v-model="form.propertyId"
-            placeholder="选择特性"
-            filterable
-            clearable
-            style="width: 100%;"
-          >
-            <el-option
-              v-for="p in propOptions"
-              :key="p.id"
-              :label="p.label"
-              :value="p.id"
-            />
-          </el-select>
-          <el-input v-else v-model="form.propertyId" placeholder="UUID" />
+            :item-types="['Property']"
+            :show-advanced-filter="false"
+            placeholder="搜索特性（输入业务标识符或名称）"
+          />
         </el-form-item>
         <el-form-item label="概念域">
-          <el-select
+          <SmartItemPicker
             v-model="form.conceptualDomainIds"
-            multiple
-            collapse-tags
-            collapse-tags-tooltip
-            placeholder="选择概念域（可多选）"
-            filterable
-            clearable
-            style="width: 100%;"
-            @visible-change="(v: boolean) => { if (v) loadFormOptions() }"
-          >
-            <template #header>
-              <div style="padding: 4px 8px;">
-                <span style="font-size: 12px; color: var(--el-text-color-secondary);">按 kind 过滤：</span>
-                <el-checkbox-group v-model="cdKindFilter" size="small">
-                  <el-checkbox-button value="DESCRIBED">描述型</el-checkbox-button>
-                  <el-checkbox-button value="LOCAL_ENUMERATED">本地枚举型</el-checkbox-button>
-                  <el-checkbox-button value="REFERENCE_ENUMERATED">引用枚举型</el-checkbox-button>
-                </el-checkbox-group>
-              </div>
-            </template>
-            <el-option
-              v-for="cd in filteredCdOptions"
-              :key="cd.id"
-              :label="cd.label"
-              :value="cd.id"
-            >
-              <div style="display: flex; align-items: center; gap: 6px;">
-                <span>{{ cd.label }}</span>
-                <el-tag size="small" :type="typeTagType(cd.type)">{{ typeLabel(cd.type) }}</el-tag>
-              </div>
-            </el-option>
-          </el-select>
+            :item-types="['ConceptualDomain']"
+            :show-advanced-filter="false"
+            :allow-multiple="true"
+            placeholder="搜索概念域（可多选）"
+          />
         </el-form-item>
       </template>
     </ItemFormDialog>
@@ -115,88 +69,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
-import { dataElementConceptApi, objectClassApi, propertyApi, conceptualDomainApi } from '@/api/resources';
+import { ref } from 'vue';
+import { dataElementConceptApi } from '@/api/resources';
 import DataTablePage from '@/components/DataTablePage.vue';
 import ItemFormDialog from '@/components/ItemFormDialog.vue';
-
-type ConceptDomainKind = 'DESCRIBED' | 'LOCAL_ENUMERATED' | 'REFERENCE_ENUMERATED';
-
-const TYPE_LABEL: Record<string, string> = {
-  DESCRIBED: '描述型',
-  LOCAL_ENUMERATED: '本地枚举型',
-  REFERENCE_ENUMERATED: '引用枚举型',
-};
-const TYPE_TAG_TYPE: Record<string, 'primary' | 'success' | 'warning' | 'info' | 'danger'> = {
-  DESCRIBED: 'info',
-  LOCAL_ENUMERATED: 'success',
-  REFERENCE_ENUMERATED: 'warning',
-};
-function typeLabel(t?: string): string {
-  return (t && TYPE_LABEL[t]) || '描述型';
-}
-function typeTagType(t?: string): 'primary' | 'success' | 'warning' | 'info' | 'danger' {
-  return (t && TYPE_TAG_TYPE[t]) || 'info';
-}
+import SmartItemPicker from '@/components/SmartItemPicker.vue';
 
 const tableRef = ref<InstanceType<typeof DataTablePage>>();
 const dialog = ref<InstanceType<typeof ItemFormDialog>>();
-
-const ocOptions = ref<{ id: string; label: string }[]>([]);
-const propOptions = ref<{ id: string; label: string }[]>([]);
-const cdOptions = ref<{ id: string; label: string; type?: string }[]>([]);
-const cdKindFilter = ref<ConceptDomainKind[]>([]);
-const pickersReady = ref(false);
-
-const filteredCdOptions = computed(() => {
-  if (!cdKindFilter.value || cdKindFilter.value.length === 0) return cdOptions.value;
-  return cdOptions.value.filter((cd) => cd.type && cdKindFilter.value.includes(cd.type as ConceptDomainKind));
-});
-
-async function loadFormOptions() {
-  if (pickersReady.value) return;
-  try {
-    const [ocRes, pRes, cdRes] = await Promise.all([
-      objectClassApi.list({ size: 1000 } as any),
-      propertyApi.list({ size: 1000 } as any),
-      conceptualDomainApi.list({ size: 1000 }),
-    ]);
-    ocOptions.value = (ocRes.content || []).map((r: any) => ({
-      id: r.id, label: r.label || r.identifier || r.id,
-    }));
-    propOptions.value = (pRes.content || []).map((r: any) => ({
-      id: r.id, label: r.label || r.identifier || r.id,
-    }));
-    cdOptions.value = (cdRes.content || []).map((r: any) => ({
-      id: r.id, label: r.label || r.identifier || r.id, type: r.type,
-    }));
-    pickersReady.value = true;
-  } catch {
-    // pickersReady stays false → 输入框 fallback 仍生效
-  }
-}
-
-async function handleCreate() {
-  await loadFormOptions();
-  cdKindFilter.value = [];
-  await dialog.value?.open();
-  const form = (dialog.value as any)?.form as Record<string, any> | undefined;
-  if (form) {
-    // 多选 picker 默认空数组，避免 undefined 与 v-model 多选不兼容
-    if (form.conceptualDomainIds === undefined) form.conceptualDomainIds = [];
-  }
-}
-
-async function handleEdit(row: Record<string, any>) {
-  await loadFormOptions();
-  cdKindFilter.value = [];
-  await dialog.value?.open(row);
-  const form = (dialog.value as any)?.form as Record<string, any> | undefined;
-  if (form) {
-    // 后端 response 用 conceptualDomainIds 字段回填（已在 DEC service 中映射）
-    if (form.conceptualDomainIds === undefined) form.conceptualDomainIds = [];
-  }
-}
 
 function submitFn(data: Record<string, unknown>) {
   if (data.id) return dataElementConceptApi.update(data.id as string, data);
@@ -206,5 +86,14 @@ function submitFn(data: Record<string, unknown>) {
 async function handleDelete(row: Record<string, unknown>) {
   await dataElementConceptApi.delete(row.id as string);
   tableRef.value?.fetchData();
+}
+
+// 编辑态：open 后清理未被 SmartItemPicker 控制的 fields（向后兼容）。
+// SmartItemPicker 直接写到 form.*Id；此处不再需要 loadFormOptions / loadReference 等。
+async function handleCreate() {
+  await dialog.value?.open();
+}
+async function handleEdit(row: Record<string, unknown>) {
+  await dialog.value?.open(row);
 }
 </script>

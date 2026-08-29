@@ -223,4 +223,25 @@
     "emptyConfirmCancel": "Cancel",
     "emptyConfirmSubmitAnyway": "Save anyway"
   }
+
+  ,
+  "smartPicker": {
+    "placeholder": {
+      "default": "Search items (identifier / name / definition)",
+      "dataElement": "Search DataElement",
+      "dataElementConcept": "Search DataElementConcept",
+      "conceptualDomain": "Search ConceptualDomain",
+      "valueDomain": "Search ValueDomain",
+      "objectClass": "Search ObjectClass",
+      "property": "Search Property",
+      "dataType": "Search DataType",
+      "unitOfMeasure": "Search UnitOfMeasure"
+    },
+    "empty": "No matches — try an identifier (e.g. VD.00001) or adjust filters",
+    "loading": "Searching…",
+    "error": "Search failed; please retry",
+    "typeFilter": {
+      "label": "Type filter"
+    }
+  }
 }

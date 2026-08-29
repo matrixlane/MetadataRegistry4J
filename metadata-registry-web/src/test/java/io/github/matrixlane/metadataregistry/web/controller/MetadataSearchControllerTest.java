@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -46,7 +47,7 @@ class MetadataSearchControllerTest {
     void search_withKeyword_shouldReturnOk() throws Exception {
         AdministeredItemResponse resp = createResponse();
         Page<AdministeredItemResponse> page = new PageImpl<>(List.of(resp));
-        when(searchService.search(anyString(), any(), any(), any(), any(), any())).thenReturn(page);
+        when(searchService.search(anyString(), any(), any(), any(), any(), any(), anyBoolean(), any(), any(), any())).thenReturn(page);
 
         mockMvc.perform(get("/api/v1/metadata/search")
                         .param("q", "患者"))
@@ -59,7 +60,7 @@ class MetadataSearchControllerTest {
     void search_withTypeFilter_shouldReturnOk() throws Exception {
         AdministeredItemResponse resp = createResponse();
         Page<AdministeredItemResponse> page = new PageImpl<>(List.of(resp));
-        when(searchService.search(any(), anyString(), any(), any(), any(), any())).thenReturn(page);
+        when(searchService.search(any(), anyString(), any(), any(), any(), any(), anyBoolean(), any(), any(), any())).thenReturn(page);
 
         mockMvc.perform(get("/api/v1/metadata/search")
                         .param("type", "DataElement"))
@@ -71,7 +72,7 @@ class MetadataSearchControllerTest {
     void search_withStatusFilter_shouldReturnOk() throws Exception {
         AdministeredItemResponse resp = createResponse();
         Page<AdministeredItemResponse> page = new PageImpl<>(List.of(resp));
-        when(searchService.search(any(), any(), any(RegistrationStatus.class), any(), any(), any())).thenReturn(page);
+        when(searchService.search(any(), any(), any(RegistrationStatus.class), any(), any(), any(), anyBoolean(), any(), any(), any())).thenReturn(page);
 
         mockMvc.perform(get("/api/v1/metadata/search")
                         .param("status", "STANDARD"))
@@ -83,7 +84,7 @@ class MetadataSearchControllerTest {
     void search_withAcceptabilityAndContextFilters_shouldReturnOk() throws Exception {
         AdministeredItemResponse resp = createResponse();
         Page<AdministeredItemResponse> page = new PageImpl<>(List.of(resp));
-        when(searchService.search(any(), any(), any(), any(), any(), any())).thenReturn(page);
+        when(searchService.search(any(), any(), any(), any(), any(), any(), anyBoolean(), any(), any(), any())).thenReturn(page);
 
         mockMvc.perform(get("/api/v1/metadata/search")
                         .param("contextId", TEST_ID.toString())
@@ -96,7 +97,7 @@ class MetadataSearchControllerTest {
     void search_withCombinedFilters_shouldReturnOk() throws Exception {
         AdministeredItemResponse resp = createResponse();
         Page<AdministeredItemResponse> page = new PageImpl<>(List.of(resp));
-        when(searchService.search(anyString(), anyString(), any(RegistrationStatus.class), any(), any(), any()))
+        when(searchService.search(anyString(), anyString(), any(RegistrationStatus.class), any(), any(), any(), anyBoolean(), any(), any(), any()))
                 .thenReturn(page);
 
         mockMvc.perform(get("/api/v1/metadata/search")
@@ -111,7 +112,7 @@ class MetadataSearchControllerTest {
     void search_withNoParams_shouldReturnAll() throws Exception {
         AdministeredItemResponse resp = createResponse();
         Page<AdministeredItemResponse> page = new PageImpl<>(List.of(resp));
-        when(searchService.search(any(), any(), any(), any(), any(), any())).thenReturn(page);
+        when(searchService.search(any(), any(), any(), any(), any(), any(), anyBoolean(), any(), any(), any())).thenReturn(page);
 
         mockMvc.perform(get("/api/v1/metadata/search"))
                 .andExpect(status().isOk())
@@ -122,7 +123,7 @@ class MetadataSearchControllerTest {
     void search_withEmptyKeyword_shouldStillReturnOk() throws Exception {
         AdministeredItemResponse resp = createResponse();
         Page<AdministeredItemResponse> page = new PageImpl<>(List.of(resp));
-        when(searchService.search(any(), any(), any(), any(), any(), any())).thenReturn(page);
+        when(searchService.search(any(), any(), any(), any(), any(), any(), anyBoolean(), any(), any(), any())).thenReturn(page);
 
         mockMvc.perform(get("/api/v1/metadata/search")
                         .param("q", ""))
@@ -133,7 +134,7 @@ class MetadataSearchControllerTest {
     void search_withPaddingParam_shouldReturnOk() throws Exception {
         AdministeredItemResponse resp = createResponse();
         Page<AdministeredItemResponse> page = new PageImpl<>(List.of(resp));
-        when(searchService.search(any(), any(), any(), any(), any(), any())).thenReturn(page);
+        when(searchService.search(any(), any(), any(), any(), any(), any(), anyBoolean(), any(), any(), any())).thenReturn(page);
 
         mockMvc.perform(get("/api/v1/metadata/search")
                         .param("page", "0")
@@ -146,7 +147,7 @@ class MetadataSearchControllerTest {
     void search_withDefaultPagination_shouldWork() throws Exception {
         AdministeredItemResponse resp = createResponse();
         Page<AdministeredItemResponse> page = new PageImpl<>(List.of(resp));
-        when(searchService.search(any(), any(), any(), any(), any(), any())).thenReturn(page);
+        when(searchService.search(any(), any(), any(), any(), any(), any(), anyBoolean(), any(), any(), any())).thenReturn(page);
 
         mockMvc.perform(get("/api/v1/metadata/search")
                         .param("page", "0")
@@ -170,7 +171,7 @@ class MetadataSearchControllerTest {
                 null,
                 LocalDateTime.now(),
                 LocalDateTime.now(),
-                "初始版本"
-        );
+                "初始版本",
+                null);
     }
 }

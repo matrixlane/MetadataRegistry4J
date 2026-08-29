@@ -162,6 +162,7 @@ public class AdministeredItemService {
                 null,
                 ai.getCreationDateTime(),
                 ai.getLastChangeDateTime(),
-                ai.getChangeDescription());
+                ai.getChangeDescription(),
+                null);
     }
 }

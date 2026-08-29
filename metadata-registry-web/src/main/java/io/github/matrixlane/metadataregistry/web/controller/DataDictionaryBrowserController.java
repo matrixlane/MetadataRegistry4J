@@ -46,10 +46,15 @@ public class DataDictionaryBrowserController {
             @RequestParam(required = false) RegistrationStatus status,
             @RequestParam(required = false) UUID contextId,
             @RequestParam(required = false) List<Acceptability> acceptability,
+            @RequestParam(required = false) UUID namespaceId,
+            @RequestParam(required = false, defaultValue = "false") boolean exactMatch,
+            @RequestParam(required = false) String identifier,
+            @RequestParam(required = false) String namespaceShorthand,
             @ParameterObject
             @PageableDefault(size = 20, sort = "creationDateTime", direction = Sort.Direction.DESC)
             Pageable pageable) {
         return ApiResponse.ok(
-                PageResponse.of(searchService.search(q, type, status, contextId, acceptability, pageable)));
+                PageResponse.of(searchService.search(q, type, status, contextId, acceptability,
+                        namespaceId, exactMatch, identifier, namespaceShorthand, pageable)));
     }
 }

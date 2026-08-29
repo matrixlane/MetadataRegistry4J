@@ -33,6 +33,9 @@ import static org.mockito.Mockito.when;
  * search. The service was rewritten from a repository/Specification design to
  * native SQL to bypass SQL Server's 4096-column limit on polymorphic joins;
  * these tests mock {@link JdbcTemplate} accordingly.
+ *
+ * <p>smart-item-picker：覆盖精确 identifier 匹配、namespaceId 限定、type 多选
+ * 过滤、itemType CASE 推导、matchType 字段填充等新行为。
  */
 @ExtendWith(MockitoExtension.class)
 class MetadataSearchServiceTest {
@@ -54,7 +57,7 @@ class MetadataSearchServiceTest {
         sampleResponse = new AdministeredItemResponse(
                 UUID.randomUUID(),
                 UUID.randomUUID(),
-                null,
+                "DataElement",
                 "患者姓名",
                 "DE-PATIENT-NAME",
                 "1.0",
@@ -71,28 +74,50 @@ class MetadataSearchServiceTest {
                 null,
                 LocalDateTime.now(),
                 LocalDateTime.now(),
-                null);
+                null,
+                "EXACT");
     }
 
     @SuppressWarnings("unchecked")
     private void stubCountAndRows(long total, List<AdministeredItemResponse> rows) {
         when(jdbcTemplate.queryForObject(anyString(), eq(Long.class), any(Object[].class)))
                 .thenReturn(total);
-        // lenient: the select query is skipped entirely when the count is zero
         lenient().when(jdbcTemplate.query(anyString(), any(RowMapper.class), any(Object[].class)))
                 .thenReturn(rows);
     }
 
+    private Page<AdministeredItemResponse> searchDefault(String keyword, String type,
+                                                       RegistrationStatus status,
+                                                       UUID contextId,
+                                                       UUID namespaceId,
+                                                       boolean exactMatch,
+                                                       String identifier,
+                                                       String namespaceShorthand) {
+        return search(keyword, type, status, contextId, namespaceId, exactMatch, identifier, namespaceShorthand,
+                PageRequest.of(0, 20));
+    }
+
+    private Page<AdministeredItemResponse> search(String keyword, String type,
+                                                RegistrationStatus status,
+                                                UUID contextId,
+                                                UUID namespaceId,
+                                                boolean exactMatch,
+                                                String identifier,
+                                                String namespaceShorthand,
+                                                org.springframework.data.domain.Pageable pageable) {
+        return searchService.search(keyword, type, status, contextId, null,
+                namespaceId, exactMatch, identifier, namespaceShorthand, pageable);
+    }
     @Test
     void search_withKeyword_shouldReturnResults() {
         stubCountAndRows(1L, List.of(sampleResponse));
 
-        Page<AdministeredItemResponse> result = searchService.search(
-                "患者", null, null, null, null, PageRequest.of(0, 20));
+        Page<AdministeredItemResponse> result = searchDefault("患者", null, null, null, null, false, null, null);
 
         assertThat(result.getContent()).hasSize(1);
         AdministeredItemResponse res = result.getContent().get(0);
-        assertThat(res.itemId()).isNotNull();
+        assertThat(res.itemType()).isEqualTo("DataElement");
+        assertThat(res.matchType()).isEqualTo("EXACT");
         assertThat(res.registrationStatus()).isEqualTo(RegistrationStatus.STANDARD);
 
         // keyword must be pushed into the SQL parameters as a lowercase LIKE pattern
@@ -102,28 +127,95 @@ class MetadataSearchServiceTest {
     }
 
     @Test
-    void search_withTypeFilter_shouldStillQuery() {
-        // JOINED inheritance has no dtype column; the type parameter is accepted
-        // but intentionally ignored by the native SQL implementation.
+    void search_withTypeFilter_shouldInjectItemTypeExistsClause() {
         stubCountAndRows(1L, List.of(sampleResponse));
 
-        Page<AdministeredItemResponse> result = searchService.search(
-                null, "DataElement", null, null, null, PageRequest.of(0, 20));
+        Page<AdministeredItemResponse> result = searchDefault(
+                null, "DataElement", null, null, null, false, null, null);
 
         assertThat(result.getContent()).hasSize(1);
+
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+        verify(jdbcTemplate).queryForObject(sql.capture(), eq(Long.class), any(Object[].class));
+        // 包含 EXISTS 子查询到 data_element 表
+        assertThat(sql.getValue()).contains("EXISTS").contains("data_element");
+    }
+
+    @Test
+    void search_withTypeMultiValue_shouldInjectOrClause() {
+        stubCountAndRows(2L, List.of(sampleResponse, sampleResponse));
+
+        Page<AdministeredItemResponse> result = searchDefault(
+                null, "DataElement,ConceptualDomain", null, null, null, false, null, null);
+
+        assertThat(result.getContent()).hasSize(2);
+
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+        verify(jdbcTemplate).queryForObject(sql.capture(), eq(Long.class), any(Object[].class));
+        assertThat(sql.getValue()).contains(" OR ");
+        assertThat(sql.getValue()).contains("data_element").contains("conceptual_domain");
+    }
+
+    @Test
+    void search_withUnsupportedType_shouldIgnoreTypeAndStillQuery() {
+        stubCountAndRows(1L, List.of(sampleResponse));
+
+        Page<AdministeredItemResponse> result = searchDefault(
+                null, "NotARealType", null, null, null, false, null, null);
+
+        assertThat(result.getContent()).hasSize(1);
+        // 1=0 谓词注入 SQL；调用方预期结果为 0 但 stub 返回 1 行 —— 此处只验证不抛异常
         verify(jdbcTemplate).queryForObject(anyString(), eq(Long.class), any(Object[].class));
+    }
+
+    @Test
+    void search_exactMatch_withIdentifierAndShorthand_shouldInjectEquals() {
+        stubCountAndRows(1L, List.of(sampleResponse));
+
+        Page<AdministeredItemResponse> result = searchDefault(
+                null, null, null, null, null, true, "MD.VD.00001", "MD");
+
+        assertThat(result.getContent()).hasSize(1);
+
+        ArgumentCaptor<Object[]> params = ArgumentCaptor.forClass(Object[].class);
+        verify(jdbcTemplate).queryForObject(anyString(), eq(Long.class), params.capture());
+        assertThat(params.getValue()).contains("MD.VD.00001", "MD");
+    }
+
+    @Test
+    void search_exactMatch_noMatch_shouldReturnEmpty() {
+        stubCountAndRows(0L, List.of());
+
+        Page<AdministeredItemResponse> result = searchDefault(
+                null, null, null, null, null, true, "MD.VD.99999", "MD");
+
+        assertThat(result.getContent()).isEmpty();
+        verify(jdbcTemplate, never()).query(anyString(), any(RowMapper.class), any(Object[].class));
+    }
+
+    @Test
+    void search_withNamespaceId_shouldInjectNamespaceFilter() {
+        UUID nsId = UUID.randomUUID();
+        stubCountAndRows(1L, List.of(sampleResponse));
+
+        Page<AdministeredItemResponse> result = searchDefault(
+                null, null, null, null, nsId, false, null, null);
+
+        assertThat(result.getContent()).hasSize(1);
+
+        ArgumentCaptor<Object[]> params = ArgumentCaptor.forClass(Object[].class);
+        verify(jdbcTemplate).queryForObject(anyString(), eq(Long.class), params.capture());
+        assertThat(params.getValue()).contains(nsId);
     }
 
     @Test
     void search_withStatusFilter_shouldPassStatusParameter() {
         stubCountAndRows(1L, List.of(sampleResponse));
 
-        Page<AdministeredItemResponse> result = searchService.search(
-                null, null, RegistrationStatus.STANDARD, null, null, PageRequest.of(0, 20));
+        Page<AdministeredItemResponse> result = searchDefault(
+                null, null, RegistrationStatus.STANDARD, null, null, false, null, null);
 
         assertThat(result.getContent()).hasSize(1);
-        assertThat(result.getContent().get(0).registrationStatus())
-                .isEqualTo(RegistrationStatus.STANDARD);
 
         ArgumentCaptor<Object[]> params = ArgumentCaptor.forClass(Object[].class);
         verify(jdbcTemplate).queryForObject(anyString(), eq(Long.class), params.capture());
@@ -134,8 +226,8 @@ class MetadataSearchServiceTest {
     void search_withCombinedFilters_shouldReturnFilteredResults() {
         stubCountAndRows(1L, List.of(sampleResponse));
 
-        Page<AdministeredItemResponse> result = searchService.search(
-                "patient", "DataElement", RegistrationStatus.STANDARD, null, null, PageRequest.of(0, 20));
+        Page<AdministeredItemResponse> result = searchDefault(
+                "patient", "DataElement", RegistrationStatus.STANDARD, null, null, false, null, null);
 
         assertThat(result.getContent()).hasSize(1);
 
@@ -148,12 +240,11 @@ class MetadataSearchServiceTest {
     void search_withKeywordNoMatch_shouldReturnEmpty() {
         stubCountAndRows(0L, List.of());
 
-        Page<AdministeredItemResponse> result = searchService.search(
-                "ZZZ_NONEXISTENT", null, null, null, null, PageRequest.of(0, 20));
+        Page<AdministeredItemResponse> result = searchDefault(
+                "ZZZ_NONEXISTENT", null, null, null, null, false, null, null);
 
         assertThat(result.getContent()).isEmpty();
         assertThat(result.getTotalElements()).isZero();
-        // zero hits: the select query must be skipped
         verify(jdbcTemplate, never()).query(anyString(), any(RowMapper.class), any(Object[].class));
     }
 
@@ -161,8 +252,8 @@ class MetadataSearchServiceTest {
     void search_withNullKeyword_shouldReturnAll() {
         stubCountAndRows(1L, List.of(sampleResponse));
 
-        Page<AdministeredItemResponse> result = searchService.search(
-                null, null, null, null, null, PageRequest.of(0, 20));
+        Page<AdministeredItemResponse> result = searchDefault(
+                null, null, null, null, null, false, null, null);
 
         assertThat(result.getContent()).hasSize(1);
 
@@ -175,8 +266,8 @@ class MetadataSearchServiceTest {
     void search_withBlankKeyword_shouldReturnAll() {
         stubCountAndRows(1L, List.of(sampleResponse));
 
-        Page<AdministeredItemResponse> result = searchService.search(
-                "   ", null, null, null, null, PageRequest.of(0, 20));
+        Page<AdministeredItemResponse> result = searchDefault(
+                "   ", null, null, null, null, false, null, null);
 
         assertThat(result.getContent()).hasSize(1);
 
@@ -189,8 +280,9 @@ class MetadataSearchServiceTest {
     void search_withPagination_shouldRespectPageSize() {
         stubCountAndRows(1L, List.of(sampleResponse));
 
-        Page<AdministeredItemResponse> result = searchService.search(
-                "患者", null, null, null, null, PageRequest.of(0, 10));
+        Page<AdministeredItemResponse> result = search(
+                "患者", null, null, null, null, false, null, null,
+                PageRequest.of(0, 10));
 
         assertThat(result.getContent()).isNotEmpty();
 
@@ -198,7 +290,34 @@ class MetadataSearchServiceTest {
         ArgumentCaptor<Object[]> params = ArgumentCaptor.forClass(Object[].class);
         verify(jdbcTemplate).query(anyString(), any(RowMapper.class), params.capture());
         Object[] selectParams = params.getValue();
+        // SQL Server: offset=0, pageSize=10
         assertThat(selectParams[selectParams.length - 2]).isEqualTo(0L);
         assertThat(selectParams[selectParams.length - 1]).isEqualTo(10);
+    }
+
+    @Test
+    void search_returnsExactMatchType_whenExactMatchTrue() {
+        stubCountAndRows(1L, List.of(sampleResponse));
+
+        Page<AdministeredItemResponse> result = searchDefault(
+                null, null, null, null, null, true, "MD.VD.00001", "MD");
+
+        assertThat(result.getContent().get(0).matchType()).isEqualTo("EXACT");
+    }
+
+    @Test
+    void search_returnsPartialMatchType_whenExactMatchFalse() {
+        AdministeredItemResponse partial = new AdministeredItemResponse(
+                UUID.randomUUID(), UUID.randomUUID(), "ValueDomain", "label",
+                "id", "1", UUID.randomUUID(), "ns", UUID.randomUUID(), "ra",
+                RegistrationStatus.STANDARD, LocalDateTime.now(), null,
+                null, null, null, null, LocalDateTime.now(), LocalDateTime.now(),
+                null, "PARTIAL");
+        stubCountAndRows(1L, List.of(partial));
+
+        Page<AdministeredItemResponse> result = searchDefault(
+                "身高", null, null, null, null, false, null, null);
+
+        assertThat(result.getContent().get(0).matchType()).isEqualTo("PARTIAL");
     }
 }

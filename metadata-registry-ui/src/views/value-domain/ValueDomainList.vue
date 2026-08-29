@@ -1,8 +1,6 @@
 <!--
-  ValueDomainList —— ISO/IEC 11179-31 §7.4.2 三层 UI（与概念域同构）：
-  - 一级 `kind`（DESCRIBED / ENUMERATED）；二级 `enumKind`（仅 ENUMERATED：LOCAL / REFERENCE）
-  - 三分支互斥卡片：DESCRIBED（概念域选择器 + 公共字段）/ LOCAL_ENUMERATED（许可值）/ REFERENCE_ENUMERATED（外部源 + 引用 CD）
-  - 与 conceptual-domain 三层 UI 同构
+  ValueDomainList —— ISO/IEC 11179-31 §7.4.2 三层 UI（与概念域同构）。
+  关联 picker 全部替换为 SmartItemPicker（smart-item-picker）。
 -->
 <template>
   <div>
@@ -69,54 +67,41 @@
           </div>
         </el-form-item>
 
-        <el-form-item label="数据类型">
-          <el-select
-            v-model="form.dataTypeId"
-            placeholder="选择数据类型"
-            filterable
-            clearable
-            style="width: 100%;"
-          >
-            <el-option v-for="dt in dataTypeOptions" :key="dt.id" :label="dt.label" :value="dt.id" />
-          </el-select>
-        </el-form-item>
-
-        <el-form-item label="计量单位">
-          <el-select
-            v-model="form.unitOfMeasureId"
-            placeholder="选择计量单位"
-            filterable
-            clearable
-            style="width: 100%;"
-          >
-            <el-option v-for="uom in uomOptions" :key="uom.id" :label="uom.label" :value="uom.id" />
-          </el-select>
-        </el-form-item>
-
-        <!-- DESCRIBED：仅最大字符数 / 格式 -->
+        <!-- DESCRIBED -->
         <template v-if="form.kind === 'DESCRIBED'">
+          <el-form-item label="数据类型">
+            <SmartItemPicker
+              v-model="form.dataTypeId"
+              :item-types="['DataType']"
+              :show-advanced-filter="false"
+              placeholder="搜索数据类型"
+            />
+          </el-form-item>
+          <el-form-item label="计量单位">
+            <SmartItemPicker
+              v-model="form.unitOfMeasureId"
+              :item-types="['UnitOfMeasure']"
+              :show-advanced-filter="false"
+              placeholder="搜索计量单位"
+            />
+          </el-form-item>
           <el-form-item label="最大字符数">
             <el-input-number v-model="form.maximumCharacterQuantity" :min="0" style="width: 100%;" />
           </el-form-item>
           <el-form-item label="格式">
             <el-input v-model="form.format" placeholder="如 yyyy-MM-dd" />
           </el-form-item>
+          <el-form-item label="概念域">
+            <SmartItemPicker
+              v-model="form.describedConceptualDomainId"
+              :item-types="['ConceptualDomain']"
+              :show-advanced-filter="false"
+              placeholder="搜索描述型概念域"
+            />
+          </el-form-item>
         </template>
 
-        <!-- DESCRIBED：概念域选择器 -->
-        <el-form-item v-if="form.kind === 'DESCRIBED'" label="概念域">
-          <el-select
-            v-model="form.describedConceptualDomainId"
-            placeholder="选择描述型概念域"
-            filterable
-            clearable
-            style="width: 100%;"
-          >
-            <el-option v-for="cd in cdOptions" :key="cd.id" :label="cd.label" :value="cd.id" />
-          </el-select>
-        </el-form-item>
-
-        <!-- LOCAL_ENUMERATED：许可值编辑卡片 -->
+        <!-- LOCAL_ENUMERATED -->
         <el-card
           v-if="form.kind === 'ENUMERATED' && form.enumKind === 'LOCAL'"
           shadow="never"
@@ -167,7 +152,7 @@
           </el-button>
         </el-card>
 
-        <!-- REFERENCE_ENUMERATED：外部源卡片 -->
+        <!-- REFERENCE_ENUMERATED -->
         <el-card
           v-if="form.kind === 'ENUMERATED' && form.enumKind === 'REFERENCE'"
           shadow="never"
@@ -178,20 +163,12 @@
             <el-input v-model="form.permittedValuesFieldname" placeholder="如 code / alpha2" />
           </el-form-item>
           <el-form-item label="引用概念域">
-            <el-select
+            <SmartItemPicker
               v-model="form.referencedConceptualDomainId"
-              placeholder="选择引用枚举概念域（可空）"
-              filterable
-              clearable
-              style="width: 100%;"
-            >
-              <el-option
-                v-for="cd in refCdOptions"
-                :key="cd.id"
-                :label="cd.label"
-                :value="cd.id"
-              />
-            </el-select>
+              :item-types="['ConceptualDomain']"
+              :show-advanced-filter="false"
+              placeholder="搜索引用枚举概念域（可空）"
+            />
           </el-form-item>
         </el-card>
       </template>
@@ -206,13 +183,11 @@ const { defaultLanguageId } = useRegistryDefaultLanguage();
 
 import { ref } from 'vue';
 import { Plus, Delete } from '@element-plus/icons-vue';
-import { valueDomainApi, dataTypeApi, unitOfMeasureApi, conceptualDomainApi } from '@/api/resources';
+import { valueDomainApi } from '@/api/resources';
 import DataTablePage from '@/components/DataTablePage.vue';
 import ItemFormDialog from '@/components/ItemFormDialog.vue';
+import SmartItemPicker from '@/components/SmartItemPicker.vue';
 import DesignationDefinitionSection from '@/components/DesignationDefinitionSection.vue';
-
-type ConceptKind = 'DESCRIBED' | 'ENUMERATED';
-type EnumKind = 'LOCAL' | 'REFERENCE';
 
 const TYPE_LABEL: Record<string, string> = {
   DESCRIBED: '描述型',
@@ -234,55 +209,15 @@ function typeTagType(t?: string): 'primary' | 'success' | 'warning' | 'info' | '
 const tableRef = ref<InstanceType<typeof DataTablePage>>();
 const dialog = ref<InstanceType<typeof ItemFormDialog>>();
 
-const dataTypeOptions = ref<{ id: string; label: string }[]>([]);
-const uomOptions = ref<{ id: string; label: string }[]>([]);
-const cdOptions = ref<{ id: string; label: string }[]>([]);
-const refCdOptions = ref<{ id: string; label: string }[]>([]);
-const optionsLoaded = ref(false);
-
-async function loadFormOptions() {
-  if (optionsLoaded.value) return;
-  try {
-    const [dtRes, uomRes, cdRes] = await Promise.all([
-      dataTypeApi.list({ size: 1000 }),
-      unitOfMeasureApi.list({ size: 1000 }),
-      conceptualDomainApi.list({ size: 1000 }),
-    ]);
-    dataTypeOptions.value = (dtRes.content || []).map((r: any) => ({
-      id: r.id, label: r.label || r.identifier || r.id,
-    }));
-    uomOptions.value = (uomRes.content || []).map((r: any) => ({
-      id: r.id, label: r.label || r.identifier || r.id,
-    }));
-    cdOptions.value = (cdRes.content || []).map((r: any) => ({
-      id: r.id, label: r.label || r.identifier || r.id,
-    }));
-    optionsLoaded.value = true;
-  } catch {
-    // ignore
-  }
-}
-
-async function loadReferenceConceptualDomains() {
-  try {
-    const res = await conceptualDomainApi.list({ size: 1000, type: 'REFERENCE_ENUMERATED' } as any);
-    refCdOptions.value = (res.content || []).map((r: any) => ({
-      id: r.id, label: r.label || r.identifier || r.id,
-    }));
-  } catch {
-    refCdOptions.value = [];
-  }
-}
-
-function kindFromType(t?: string): ConceptKind {
+function kindFromType(t?: string): 'DESCRIBED' | 'ENUMERATED' {
   if (t === 'LOCAL_ENUMERATED' || t === 'REFERENCE_ENUMERATED') return 'ENUMERATED';
   return 'DESCRIBED';
 }
-function enumKindFromType(t?: string): EnumKind {
+function enumKindFromType(t?: string): 'LOCAL' | 'REFERENCE' {
   if (t === 'REFERENCE_ENUMERATED') return 'REFERENCE';
   return 'LOCAL';
 }
-function computeType(kind?: ConceptKind, enumKind?: EnumKind): string {
+function computeType(kind?: string, enumKind?: string): string {
   if (kind === 'DESCRIBED') return 'DESCRIBED';
   if (kind === 'ENUMERATED') {
     return enumKind === 'REFERENCE' ? 'REFERENCE_ENUMERATED' : 'LOCAL_ENUMERATED';
@@ -325,8 +260,6 @@ function removePermissibleValue(form: Record<string, unknown>, idx: number) {
 }
 
 async function handleCreate() {
-  await loadFormOptions();
-  await loadReferenceConceptualDomains();
   await dialog.value?.open();
   const form = (dialog.value as any)?.form as Record<string, any> | undefined;
   if (form) {
@@ -337,8 +270,6 @@ async function handleCreate() {
 }
 
 async function handleEdit(row: Record<string, any>) {
-  await loadFormOptions();
-  await loadReferenceConceptualDomains();
   await dialog.value?.open(row);
   const form = (dialog.value as any)?.form as Record<string, any> | undefined;
   if (form) {
@@ -348,7 +279,6 @@ async function handleEdit(row: Record<string, any>) {
 }
 
 function submitFn(data: Record<string, unknown>) {
-  // 提交前清理不适用的字段
   if (data.kind === 'DESCRIBED') {
     data.permissibleValues = [];
     data.permittedValuesFieldname = null;
@@ -359,7 +289,6 @@ function submitFn(data: Record<string, unknown>) {
   } else if (data.kind === 'ENUMERATED' && data.enumKind === 'REFERENCE') {
     data.permissibleValues = [];
   }
-  // 引用枚举不应提交 maximumCharacterQuantity / format（后端会自动置空）
   if (data.enumKind === 'REFERENCE') {
     data.maximumCharacterQuantity = null;
     data.format = null;

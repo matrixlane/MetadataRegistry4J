@@ -384,4 +384,25 @@
     "emptyConfirmCancel": "取消",
     "emptyConfirmSubmitAnyway": "仍然保存"
   }
+
+  ,
+  "smartPicker": {
+    "placeholder": {
+      "default": "搜索项目（业务标识符 / 名称 / 定义）",
+      "dataElement": "搜索数据元",
+      "dataElementConcept": "搜索数据元概念",
+      "conceptualDomain": "搜索概念域",
+      "valueDomain": "搜索值域",
+      "objectClass": "搜索对象类",
+      "property": "搜索特性",
+      "dataType": "搜索数据类型",
+      "unitOfMeasure": "搜索计量单位"
+    },
+    "empty": "无匹配项 — 试试输入业务标识符（如 VD.00001）或调整过滤",
+    "loading": "正在搜索…",
+    "error": "搜索失败，请稍后再试",
+    "typeFilter": {
+      "label": "类型过滤"
+    }
+  }
 }

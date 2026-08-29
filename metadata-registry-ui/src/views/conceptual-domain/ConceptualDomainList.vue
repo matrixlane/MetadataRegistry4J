@@ -1,8 +1,8 @@
 <!--
-  ConceptList —— ISO/IEC 11179-31 §7.4.2 三层 UI：
-  - 一级 `kind`（DESCRIBED / ENUMERATED）；二级 `enumKind`（仅 ENUMERATED 时显示：LOCAL / REFERENCE）
-  - 三分支互斥卡片：DESCRIBED（来源 URI + 定义）/ LOCAL_ENUMERATED（值含义）/ REFERENCE_ENUMERATED（外部源）
-  - 与 value-domain-kind-and-enum-kind change 配套
+  ConceptualDomainList —— ISO/IEC 11179-31 §7.4.2 三层 UI。
+  - 一级 kind（DESCRIBED / ENUMERATED）；二级 enumKind（仅 ENUMERATED：LOCAL / REFERENCE）
+  - 三分支互斥卡片：描述型（来源 URI + 概念域 picker）/ 本地枚举型（值含义）/ 引用枚举型（外部源字段）
+  - 概念域 picker 替换为 SmartItemPicker（smart-item-picker）
 -->
 <template>
   <div>
@@ -68,10 +68,20 @@
           </div>
         </el-form-item>
 
-        <!-- DESCRIBED 描述型：来源 URI + 定义 -->
-        <el-form-item v-if="form.kind === 'DESCRIBED'" label="来源 URI">
-          <el-input v-model="form.sourceUri" placeholder="可选" />
-        </el-form-item>
+        <!-- DESCRIBED 描述型：来源 URI + 概念域 picker -->
+        <template v-if="form.kind === 'DESCRIBED'">
+          <el-form-item label="来源 URI">
+            <el-input v-model="form.sourceUri" placeholder="可选" />
+          </el-form-item>
+          <el-form-item label="概念域">
+            <SmartItemPicker
+              v-model="form.describedConceptualDomainId"
+              :item-types="['ConceptualDomain']"
+              :show-advanced-filter="false"
+              placeholder="搜索描述型概念域"
+            />
+          </el-form-item>
+        </template>
 
         <!-- LOCAL_ENUMERATED 本地枚举型：值含义编辑卡片 -->
         <el-card
@@ -132,10 +142,7 @@
         >
           <template #header><span>外部源</span></template>
           <el-form-item label="外部源字段名" required>
-            <el-input
-              v-model="form.permittedValuesFieldname"
-              placeholder="如 code / alpha2"
-            />
+            <el-input v-model="form.permittedValuesFieldname" placeholder="如 code / alpha2" />
           </el-form-item>
         </el-card>
       </template>
@@ -148,28 +155,24 @@ import { useRegistryDefaultLanguage } from '@/composables/useRegistryDefaultLang
 
 const { defaultLanguageId } = useRegistryDefaultLanguage();
 
-import { ref, watch } from 'vue';
+import { ref } from 'vue';
 import { Plus, Delete } from '@element-plus/icons-vue';
 import { conceptualDomainApi } from '@/api/resources';
 import DataTablePage from '@/components/DataTablePage.vue';
 import ItemFormDialog from '@/components/ItemFormDialog.vue';
+import SmartItemPicker from '@/components/SmartItemPicker.vue';
 import DesignationDefinitionSection from '@/components/DesignationDefinitionSection.vue';
-
-type ConceptKind = 'DESCRIBED' | 'ENUMERATED';
-type EnumKind = 'LOCAL' | 'REFERENCE';
 
 const TYPE_LABEL: Record<string, string> = {
   DESCRIBED: '描述型',
   LOCAL_ENUMERATED: '本地枚举型',
   REFERENCE_ENUMERATED: '引用枚举型',
 };
-
 const TYPE_TAG_TYPE: Record<string, 'primary' | 'success' | 'warning' | 'info' | 'danger'> = {
   DESCRIBED: 'info',
   LOCAL_ENUMERATED: 'success',
   REFERENCE_ENUMERATED: 'warning',
 };
-
 function typeLabel(t?: string): string {
   return (t && TYPE_LABEL[t]) || '描述型';
 }
@@ -180,17 +183,15 @@ function typeTagType(t?: string): 'primary' | 'success' | 'warning' | 'info' | '
 const tableRef = ref<InstanceType<typeof DataTablePage>>();
 const dialog = ref<InstanceType<typeof ItemFormDialog>>();
 
-function kindFromType(t?: string): ConceptKind {
+function kindFromType(t?: string): 'DESCRIBED' | 'ENUMERATED' {
   if (t === 'LOCAL_ENUMERATED' || t === 'REFERENCE_ENUMERATED') return 'ENUMERATED';
   return 'DESCRIBED';
 }
-
-function enumKindFromType(t?: string): EnumKind {
+function enumKindFromType(t?: string): 'LOCAL' | 'REFERENCE' {
   if (t === 'REFERENCE_ENUMERATED') return 'REFERENCE';
   return 'LOCAL';
 }
-
-function computeType(kind?: ConceptKind, enumKind?: EnumKind): string {
+function computeType(kind?: string, enumKind?: string): string {
   if (kind === 'DESCRIBED') return 'DESCRIBED';
   if (kind === 'ENUMERATED') {
     return enumKind === 'REFERENCE' ? 'REFERENCE_ENUMERATED' : 'LOCAL_ENUMERATED';
@@ -199,11 +200,9 @@ function computeType(kind?: ConceptKind, enumKind?: EnumKind): string {
 }
 
 function onKindChange(form: Record<string, any>) {
-  // 一级切换：清理类型专属字段
   if (form.kind === 'DESCRIBED') {
     form.valueMeanings = [];
     form.permittedValuesFieldname = null;
-    form.sourceUri = form.sourceUri || '';
   } else if (form.kind === 'ENUMERATED') {
     if (!form.enumKind) form.enumKind = 'LOCAL';
     form.sourceUri = '';
@@ -212,7 +211,6 @@ function onKindChange(form: Record<string, any>) {
 }
 
 function onEnumKindChange(form: Record<string, any>) {
-  // 二级切换：清理对方专属字段
   if (form.enumKind === 'LOCAL') {
     form.permittedValuesFieldname = null;
   } else if (form.enumKind === 'REFERENCE') {
@@ -253,7 +251,6 @@ async function handleEdit(row: Record<string, any>) {
 }
 
 function submitFn(data: Record<string, unknown>) {
-  // 提交前清理不适用的字段
   if (data.kind === 'DESCRIBED') {
     data.valueMeanings = [];
     data.permittedValuesFieldname = null;
@@ -262,7 +259,6 @@ function submitFn(data: Record<string, unknown>) {
   } else if (data.kind === 'ENUMERATED' && data.enumKind === 'REFERENCE') {
     data.valueMeanings = [];
   }
-  // 删除虚拟字段
   delete data.kind;
   delete data.enumKind;
   if (data.id) return conceptualDomainApi.update(data.id as string, data);
