@@ -3,6 +3,8 @@ package io.github.matrixlane.metadataregistry.web.service;
 import io.github.matrixlane.metadataregistry.dataspecification.DataElement;
 import io.github.matrixlane.metadataregistry.dataspecification.DataElementConcept;
 import io.github.matrixlane.metadataregistry.dataspecification.ValueDomain;
+import io.github.matrixlane.metadataregistry.dataspecification.association.AssociationType;
+import io.github.matrixlane.metadataregistry.dataspecification.association.MetadataObjectAssociationService;
 import io.github.matrixlane.metadataregistry.web.common.ResourceNotFoundException;
 import io.github.matrixlane.metadataregistry.web.dto.dataelement.DataElementRequest;
 import io.github.matrixlane.metadataregistry.web.dto.dataelement.DataElementResponse;
@@ -29,6 +31,7 @@ public class DataElementService {
     private final ValueDomainRepository valueDomainRepository;
     private final ItemAdministrationService itemAdministrationService;
     private final VersionHistoryService versionHistoryService;
+    private final MetadataObjectAssociationService associationService = MetadataObjectAssociationService.withDefaults();
 
     @Transactional(readOnly = true)
     public Page<DataElementResponse> list(String keyword, Pageable pageable) {
@@ -70,27 +73,41 @@ public class DataElementService {
     }
 
     private void applyRequest(DataElement entity, DataElementRequest request) {
-        if (request.dataElementConceptId() != null) {
-            DataElementConcept dec = dataElementConceptRepository.findById(request.dataElementConceptId())
-                    .orElseThrow(() -> new ResourceNotFoundException(
-                            "DataElementConcept", request.dataElementConceptId()));
-            entity.setDataElementConcept(dec);
-        } else {
-            entity.setDataElementConcept(null);
-        }
-        if (request.valueDomainId() != null) {
-            ValueDomain vd = valueDomainRepository.findById(request.valueDomainId())
-                    .orElseThrow(() -> new ResourceNotFoundException("ValueDomain", request.valueDomainId()));
-            entity.setValueDomain(vd);
-        } else {
-            entity.setValueDomain(null);
-        }
+        applyDataElementConcept(entity, request.dataElementConceptId());
+        applyValueDomain(entity, request.valueDomainId());
         itemAdministrationService.applyDesignations(
                 entity, request.designations(),
                 request.registration() == null ? null : request.registration().namespaceId());
         itemAdministrationService.applyDefinitions(entity, request.definitions());
         if (request.registration() != null) {
             itemAdministrationService.ensureAdministeredItem(entity, request.registration());
+        }
+        associationService.validateCompleteness(entity);
+    }
+
+    private void applyDataElementConcept(DataElement entity, UUID dataElementConceptId) {
+        if (dataElementConceptId != null) {
+            DataElementConcept dec = dataElementConceptRepository.findById(dataElementConceptId)
+                    .orElseThrow(() -> new ResourceNotFoundException("DataElementConcept", dataElementConceptId));
+            associationService.associate(AssociationType.DATA_ELEMENT_TO_DATA_ELEMENT_CONCEPT, entity, dec);
+        } else {
+            DataElementConcept current = entity.getDataElementConcept();
+            if (current != null) {
+                associationService.dissociate(AssociationType.DATA_ELEMENT_TO_DATA_ELEMENT_CONCEPT, entity, current);
+            }
+        }
+    }
+
+    private void applyValueDomain(DataElement entity, UUID valueDomainId) {
+        if (valueDomainId != null) {
+            ValueDomain vd = valueDomainRepository.findById(valueDomainId)
+                    .orElseThrow(() -> new ResourceNotFoundException("ValueDomain", valueDomainId));
+            associationService.associate(AssociationType.DATA_ELEMENT_TO_VALUE_DOMAIN, entity, vd);
+        } else {
+            ValueDomain current = entity.getValueDomain();
+            if (current != null) {
+                associationService.dissociate(AssociationType.DATA_ELEMENT_TO_VALUE_DOMAIN, entity, current);
+            }
         }
     }
 
