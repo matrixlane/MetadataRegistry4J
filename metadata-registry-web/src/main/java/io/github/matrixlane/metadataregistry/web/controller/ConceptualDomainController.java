@@ -47,14 +47,14 @@ public class ConceptualDomainController {
 
     @PostMapping
     @Operation(summary = "新增概念域",
-            description = "type 字段决定子类型，缺省为 DESCRIBED；type=REFERENCE_ENUMERATED 时 permittedValuesFieldname 必填")
+            description = "type 字段决定子类型，缺省为 DESCRIBED")
     public ApiResponse<ConceptualDomainResponse> create(@Valid @RequestBody ConceptualDomainRequest request) {
         return ApiResponse.ok(service.create(request));
     }
 
     @PutMapping("/{id}")
     @Operation(summary = "更新概念域",
-            description = "type 与现有实体不一致时按新 type 重建；切换到 REFERENCE_ENUMERATED 时 permittedValuesFieldname 必填；切换到其他类型时清理旧类型专属字段")
+            description = "type 与现有实体不一致时按新 type 重建；切换类型时清理旧类型专属字段")
     public ApiResponse<ConceptualDomainResponse> update(@PathVariable UUID id,
                                                         @Valid @RequestBody ConceptualDomainRequest request) {
         return ApiResponse.ok(service.update(id, request));

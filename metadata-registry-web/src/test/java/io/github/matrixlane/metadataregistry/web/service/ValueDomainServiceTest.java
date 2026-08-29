@@ -104,7 +104,7 @@ class ValueDomainServiceTest {
 
         ValueDomainRequest request = new ValueDomainRequest(
                 ValueDomainType.REFERENCE_ENUMERATED,
-                null, null, null, null, null, null,
+                null, null, 2, "AA", null, null,
                 null, "code", refCdId,
                 List.<PermissibleValueEntry>of(),
                 List.of(), List.of(), null);
@@ -114,9 +114,9 @@ class ValueDomainServiceTest {
         assertThat(response.type()).isEqualTo(ValueDomainType.REFERENCE_ENUMERATED);
         assertThat(response.permittedValuesFieldname()).isEqualTo("code");
         assertThat(response.referencedConceptualDomainId()).isEqualTo(refCdId);
-        // 引用枚举不应设置 max character / format
-        assertThat(response.maximumCharacterQuantity()).isNull();
-        assertThat(response.format()).isNull();
+        // Table 5 的属性由所有 Value_Domain 子类继承，引用枚举同样保留 max character / format
+        assertThat(response.maximumCharacterQuantity()).isEqualTo(2);
+        assertThat(response.format()).isEqualTo("AA");
 
         ArgumentCaptor<ValueDomain> captor = ArgumentCaptor.forClass(ValueDomain.class);
         verify(repository).save(captor.capture());

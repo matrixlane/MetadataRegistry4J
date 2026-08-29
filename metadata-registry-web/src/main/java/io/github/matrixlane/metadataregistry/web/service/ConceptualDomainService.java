@@ -8,7 +8,6 @@ import io.github.matrixlane.metadataregistry.dataspecification.LocalEnumeratedCo
 import io.github.matrixlane.metadataregistry.dataspecification.ReferenceEnumeratedConceptualDomain;
 import io.github.matrixlane.metadataregistry.dataspecification.ValueMeaning;
 import io.github.matrixlane.metadataregistry.dataspecification.ValueMeaningSet;
-import io.github.matrixlane.metadataregistry.web.common.BusinessException;
 import io.github.matrixlane.metadataregistry.web.common.ResourceNotFoundException;
 import io.github.matrixlane.metadataregistry.web.dto.conceptualdomain.ConceptualDomainRequest;
 import io.github.matrixlane.metadataregistry.web.dto.conceptualdomain.ConceptualDomainResponse;
@@ -62,14 +61,9 @@ public class ConceptualDomainService {
 
     public ConceptualDomainResponse create(ConceptualDomainRequest request) {
         ConceptualDomainType targetType = request.type() == null ? ConceptualDomainType.DESCRIBED : request.type();
-        if (targetType == ConceptualDomainType.REFERENCE_ENUMERATED
-                && (request.permittedValuesFieldname() == null || request.permittedValuesFieldname().isBlank())) {
-            throw new BusinessException("引用枚举概念域必须填写外部源字段名（permittedValuesFieldname）");
-        }
         ConceptualDomain entity = instantiate(targetType);
         conceptContentApplier.applyConcept(entity, request.sourceUri(),
                 request.designations(), request.definitions(), request.registration());
-        applyTypeSpecific(entity, request);
         ConceptualDomain saved = repository.save(entity);
         if (saved instanceof LocalEnumeratedConceptualDomain lecd) {
             applyValueMeanings(lecd, request.valueMeanings());
@@ -83,16 +77,11 @@ public class ConceptualDomainService {
         ConceptualDomainType fromType = inferType(entity);
         ConceptualDomainType toType = request.type() == null ? fromType : request.type();
         cleanupCrossTypeFields(entity, fromType, toType);
-        if (toType == ConceptualDomainType.REFERENCE_ENUMERATED
-                && (request.permittedValuesFieldname() == null || request.permittedValuesFieldname().isBlank())) {
-            throw new BusinessException("引用枚举概念域必须填写外部源字段名（permittedValuesFieldname）");
-        }
         // 当请求方传入的 type 与实体实际类型不一致时，重建实体为新类型
-        // （切换类型在 ISO/IEC 11179-31 §7.4.2 下语义上等价于"重新实例化"，保留 designations / definitions / sourceUri 由 conceptContentApplier 写入）
+        // （保留 designations / definitions / sourceUri 由 conceptContentApplier 写入）
         ConceptualDomain mutable = (fromType == toType) ? entity : rehydrate(entity, toType);
         conceptContentApplier.applyConcept(mutable, request.sourceUri(),
                 request.designations(), request.definitions(), request.registration());
-        applyTypeSpecific(mutable, request);
         ConceptualDomain saved = repository.save(mutable);
         if (saved instanceof LocalEnumeratedConceptualDomain lecd) {
             applyValueMeanings(lecd, request.valueMeanings());
@@ -138,17 +127,8 @@ public class ConceptualDomainService {
         if (entity instanceof LocalEnumeratedConceptualDomain lecd && toType != ConceptualDomainType.LOCAL_ENUMERATED) {
             cleanupValueMeanings(lecd);
         }
-        if (entity instanceof ReferenceEnumeratedConceptualDomain recd) {
-            recd.setPermittedValuesFieldname(null);
-        }
         if (toType == ConceptualDomainType.DESCRIBED) {
             entity.setSourceUri(null);
-        }
-    }
-
-    private void applyTypeSpecific(ConceptualDomain entity, ConceptualDomainRequest request) {
-        if (entity instanceof ReferenceEnumeratedConceptualDomain recd && request.permittedValuesFieldname() != null) {
-            recd.setPermittedValuesFieldname(request.permittedValuesFieldname());
         }
     }
 
@@ -169,19 +149,15 @@ public class ConceptualDomainService {
 
     private ConceptualDomainResponse toResponse(ConceptualDomain entity) {
         ConceptualDomainType type = inferType(entity);
-        String permittedValuesFieldname = null;
         List<ValueMeaningResponse> vmResponses = Collections.emptyList();
         if (entity instanceof LocalEnumeratedConceptualDomain lecd) {
             vmResponses = mapValueMeanings(lecd);
-        } else if (entity instanceof ReferenceEnumeratedConceptualDomain recd) {
-            permittedValuesFieldname = recd.getPermittedValuesFieldname();
         }
         return new ConceptualDomainResponse(
                 entity.getId(),
                 ItemNamingHelper.preferredDesignation(entity),
                 type,
                 entity.getSourceUri(),
-                permittedValuesFieldname,
                 itemAdministrationService.mapDesignations(entity),
                 itemAdministrationService.mapDefinitions(entity),
                 vmResponses,

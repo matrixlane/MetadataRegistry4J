@@ -1,7 +1,7 @@
 <!--
   ConceptualDomainList —— ISO/IEC 11179-31 §7.4.2 三层 UI。
   - 一级 kind（DESCRIBED / ENUMERATED）；二级 enumKind（仅 ENUMERATED：LOCAL / REFERENCE）
-  - 三分支互斥卡片：描述型（来源 URI + 概念域 picker）/ 本地枚举型（值含义）/ 引用枚举型（外部源字段）
+  - 三分支互斥卡片：描述型（来源 URI + 概念域 picker）/ 本地枚举型（值含义）/ 引用枚举型（无专属字段，§7.4.2.6.4）
   - 概念域 picker 替换为 SmartItemPicker（smart-item-picker）
 -->
 <template>
@@ -45,7 +45,6 @@
           <div style="display: flex; gap: 8px; align-items: center;">
             <el-select
               v-model="form.kind"
-              placeholder="一级"
               style="width: 160px;"
               @change="() => onKindChange(form)"
             >
@@ -55,16 +54,12 @@
             <el-select
               v-if="form.kind === 'ENUMERATED'"
               v-model="form.enumKind"
-              placeholder="二级"
               style="width: 160px;"
               @change="() => onEnumKindChange(form)"
             >
               <el-option label="本地枚举型" value="LOCAL" />
               <el-option label="引用枚举型" value="REFERENCE" />
             </el-select>
-            <span style="color: var(--el-text-color-secondary); font-size: 12px;">
-              提交 type: <code>{{ form.type || '(未设置)' }}</code>
-            </span>
           </div>
         </el-form-item>
 
@@ -134,17 +129,6 @@
           </el-button>
         </el-card>
 
-        <!-- REFERENCE_ENUMERATED 引用枚举型：外部源卡片 -->
-        <el-card
-          v-if="form.kind === 'ENUMERATED' && form.enumKind === 'REFERENCE'"
-          shadow="never"
-          style="margin-top: 8px;"
-        >
-          <template #header><span>外部源</span></template>
-          <el-form-item label="外部源字段名" required>
-            <el-input v-model="form.permittedValuesFieldname" placeholder="如 code / alpha2" />
-          </el-form-item>
-        </el-card>
       </template>
     </ItemFormDialog>
   </div>
@@ -202,7 +186,6 @@ function computeType(kind?: string, enumKind?: string): string {
 function onKindChange(form: Record<string, any>) {
   if (form.kind === 'DESCRIBED') {
     form.valueMeanings = [];
-    form.permittedValuesFieldname = null;
   } else if (form.kind === 'ENUMERATED') {
     if (!form.enumKind) form.enumKind = 'LOCAL';
     form.sourceUri = '';
@@ -211,9 +194,7 @@ function onKindChange(form: Record<string, any>) {
 }
 
 function onEnumKindChange(form: Record<string, any>) {
-  if (form.enumKind === 'LOCAL') {
-    form.permittedValuesFieldname = null;
-  } else if (form.enumKind === 'REFERENCE') {
+  if (form.enumKind === 'REFERENCE') {
     form.valueMeanings = [];
   }
   form.type = computeType(form.kind, form.enumKind);
@@ -253,9 +234,6 @@ async function handleEdit(row: Record<string, any>) {
 function submitFn(data: Record<string, unknown>) {
   if (data.kind === 'DESCRIBED') {
     data.valueMeanings = [];
-    data.permittedValuesFieldname = null;
-  } else if (data.kind === 'ENUMERATED' && data.enumKind === 'LOCAL') {
-    data.permittedValuesFieldname = null;
   } else if (data.kind === 'ENUMERATED' && data.enumKind === 'REFERENCE') {
     data.valueMeanings = [];
   }

@@ -4,7 +4,6 @@ import io.github.matrixlane.metadataregistry.dataspecification.ConceptualDomain;
 import io.github.matrixlane.metadataregistry.dataspecification.DescribedConceptualDomain;
 import io.github.matrixlane.metadataregistry.dataspecification.LocalEnumeratedConceptualDomain;
 import io.github.matrixlane.metadataregistry.dataspecification.ReferenceEnumeratedConceptualDomain;
-import io.github.matrixlane.metadataregistry.web.common.BusinessException;
 import io.github.matrixlane.metadataregistry.web.dto.conceptualdomain.ConceptualDomainRequest;
 import io.github.matrixlane.metadataregistry.web.dto.conceptualdomain.ConceptualDomainResponse;
 import io.github.matrixlane.metadataregistry.web.dto.conceptualdomain.ConceptualDomainType;
@@ -24,15 +23,14 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 覆盖 ISO/IEC 11179-31:2023 §7.4.2 Reference_Enumerated_Conceptual_Domain 必填 permitted_values_fieldname
- * 以及 ConceptualDomainService 对 REFERENCE_ENUMERATED 的创建 / 更新 / 响应映射路径。
+ * 覆盖 ConceptualDomainService 对 REFERENCE_ENUMERATED 的创建 / 更新 / 响应映射路径。
+ * 依据 ISO/IEC 11179-31:2023 §7.4.2.6.4，Reference_Enumerated_Conceptual_Domain
+ * 无附加属性（"has no additional attributes"）。
  */
 @ExtendWith(MockitoExtension.class)
 class ConceptualDomainServiceTest {
@@ -48,25 +46,7 @@ class ConceptualDomainServiceTest {
     private ConceptualDomainService service;
 
     @Test
-    void create_referenceEnumerated_missingFieldname_throwsBusinessException() {
-        ConceptualDomainRequest request = new ConceptualDomainRequest(
-                ConceptualDomainType.REFERENCE_ENUMERATED,
-                null,
-                "  ",
-                List.of(),
-                List.of(),
-                List.of(),
-                null);
-
-        assertThatThrownBy(() -> service.create(request))
-                .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("permittedValuesFieldname");
-
-        verify(repository, never()).save(any());
-    }
-
-    @Test
-    void create_referenceEnumerated_withFieldname_persistsEntity() {
+    void create_referenceEnumerated_persistsEntity() {
         UUID id = UUID.randomUUID();
         when(repository.save(any(ConceptualDomain.class))).thenAnswer(inv -> {
             ConceptualDomain e = inv.getArgument(0);
@@ -77,7 +57,6 @@ class ConceptualDomainServiceTest {
         ConceptualDomainRequest request = new ConceptualDomainRequest(
                 ConceptualDomainType.REFERENCE_ENUMERATED,
                 "https://example.org/external",
-                "code",
                 List.of(),
                 List.of(),
                 List.of(),
@@ -89,11 +68,10 @@ class ConceptualDomainServiceTest {
         verify(repository).save(captor.capture());
         ConceptualDomain saved = captor.getValue();
         assertThat(saved).isInstanceOf(ReferenceEnumeratedConceptualDomain.class);
-        assertThat(((ReferenceEnumeratedConceptualDomain) saved).getPermittedValuesFieldname()).isEqualTo("code");
     }
 
     @Test
-    void update_localToReference_clearsValueMeaningLinksAndSetsFieldname() {
+    void update_localToReference_recreatesAsReferenceEnumerated() {
         UUID id = UUID.randomUUID();
         LocalEnumeratedConceptualDomain existing = new LocalEnumeratedConceptualDomain();
         existing.setId(id);
@@ -103,7 +81,6 @@ class ConceptualDomainServiceTest {
         ConceptualDomainRequest request = new ConceptualDomainRequest(
                 ConceptualDomainType.REFERENCE_ENUMERATED,
                 null,
-                "code",
                 List.of(),
                 List.of(),
                 List.of(),
@@ -115,21 +92,18 @@ class ConceptualDomainServiceTest {
         verify(repository).save(captor.capture());
         ConceptualDomain saved = captor.getValue();
         assertThat(saved).isInstanceOf(ReferenceEnumeratedConceptualDomain.class);
-        assertThat(((ReferenceEnumeratedConceptualDomain) saved).getPermittedValuesFieldname()).isEqualTo("code");
     }
 
     @Test
-    void update_referenceToLocal_clearsFieldname() {
+    void update_referenceToLocal_recreatesAsLocalEnumerated() {
         UUID id = UUID.randomUUID();
         ReferenceEnumeratedConceptualDomain existing = new ReferenceEnumeratedConceptualDomain();
         existing.setId(id);
-        existing.setPermittedValuesFieldname("code");
         when(repository.findById(id)).thenReturn(Optional.of(existing));
         when(repository.save(any(ConceptualDomain.class))).thenAnswer(inv -> inv.getArgument(0));
 
         ConceptualDomainRequest request = new ConceptualDomainRequest(
                 ConceptualDomainType.LOCAL_ENUMERATED,
-                null,
                 null,
                 List.of(),
                 List.of(),
@@ -142,7 +116,6 @@ class ConceptualDomainServiceTest {
         verify(repository).save(captor.capture());
         ConceptualDomain saved = captor.getValue();
         assertThat(saved).isInstanceOf(LocalEnumeratedConceptualDomain.class);
-        assertThat(((ReferenceEnumeratedConceptualDomain) existing).getPermittedValuesFieldname()).isNull();
     }
 
     @Test
@@ -156,7 +129,6 @@ class ConceptualDomainServiceTest {
         service.create(new ConceptualDomainRequest(
                 null,
                 "https://example.org",
-                null,
                 List.of(),
                 List.of(),
                 List.of(),

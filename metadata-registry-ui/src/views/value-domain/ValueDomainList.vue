@@ -44,7 +44,6 @@
           <div style="display: flex; gap: 8px; align-items: center;">
             <el-select
               v-model="form.kind"
-              placeholder="一级"
               style="width: 160px;"
               @change="() => onKindChange(form)"
             >
@@ -54,43 +53,41 @@
             <el-select
               v-if="form.kind === 'ENUMERATED'"
               v-model="form.enumKind"
-              placeholder="二级"
               style="width: 160px;"
               @change="() => onEnumKindChange(form)"
             >
               <el-option label="本地枚举型" value="LOCAL" />
               <el-option label="引用枚举型" value="REFERENCE" />
             </el-select>
-            <span style="color: var(--el-text-color-secondary); font-size: 12px;">
-              提交 type: <code>{{ form.type || '(未设置)' }}</code>
-            </span>
           </div>
+        </el-form-item>
+
+        <!-- 公共属性：ISO/IEC 11179-31:2023 §7.4.2.8.4 Table 5 定义于 Value_Domain，所有子类继承 -->
+        <el-form-item label="数据类型">
+          <SmartItemPicker
+            v-model="form.dataTypeId"
+            :item-types="['DataType']"
+            :show-advanced-filter="false"
+            placeholder="搜索数据类型"
+          />
+        </el-form-item>
+        <el-form-item label="计量单位">
+          <SmartItemPicker
+            v-model="form.unitOfMeasureId"
+            :item-types="['UnitOfMeasure']"
+            :show-advanced-filter="false"
+            placeholder="搜索计量单位"
+          />
+        </el-form-item>
+        <el-form-item label="最大字符数">
+          <el-input-number v-model="form.maximumCharacterQuantity" :min="0" style="width: 100%;" />
+        </el-form-item>
+        <el-form-item label="格式">
+          <el-input v-model="form.format" placeholder="如 yyyy-MM-dd" />
         </el-form-item>
 
         <!-- DESCRIBED -->
         <template v-if="form.kind === 'DESCRIBED'">
-          <el-form-item label="数据类型">
-            <SmartItemPicker
-              v-model="form.dataTypeId"
-              :item-types="['DataType']"
-              :show-advanced-filter="false"
-              placeholder="搜索数据类型"
-            />
-          </el-form-item>
-          <el-form-item label="计量单位">
-            <SmartItemPicker
-              v-model="form.unitOfMeasureId"
-              :item-types="['UnitOfMeasure']"
-              :show-advanced-filter="false"
-              placeholder="搜索计量单位"
-            />
-          </el-form-item>
-          <el-form-item label="最大字符数">
-            <el-input-number v-model="form.maximumCharacterQuantity" :min="0" style="width: 100%;" />
-          </el-form-item>
-          <el-form-item label="格式">
-            <el-input v-model="form.format" placeholder="如 yyyy-MM-dd" />
-          </el-form-item>
           <el-form-item label="概念域">
             <SmartItemPicker
               v-model="form.describedConceptualDomainId"
@@ -288,10 +285,6 @@ function submitFn(data: Record<string, unknown>) {
     data.referencedConceptualDomainId = null;
   } else if (data.kind === 'ENUMERATED' && data.enumKind === 'REFERENCE') {
     data.permissibleValues = [];
-  }
-  if (data.enumKind === 'REFERENCE') {
-    data.maximumCharacterQuantity = null;
-    data.format = null;
   }
   delete data.kind;
   delete data.enumKind;

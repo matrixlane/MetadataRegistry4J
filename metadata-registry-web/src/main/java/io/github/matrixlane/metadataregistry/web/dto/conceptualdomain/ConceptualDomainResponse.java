@@ -11,7 +11,6 @@ public record ConceptualDomainResponse(
         String label,
         ConceptualDomainType type,
         String sourceUri,
-        String permittedValuesFieldname,
         List<TextLineResponse> designations,
         List<TextLineResponse> definitions,
         List<ValueMeaningResponse> valueMeanings,

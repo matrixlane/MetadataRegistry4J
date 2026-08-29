@@ -41,15 +41,15 @@ TBD - created by archiving change domain-three-tier-ui. Update Purpose after arc
 - **WHEN** 用户组合为 `LOCAL_ENUMERATED`
 - **THEN** 表单 MUST 显示"值含义"编辑卡片（含增删 VM、有效期、设计/定义多语行）；其他卡片 MUST 不可见
 
-#### Scenario: 引用枚举型分支渲染外部源卡片
+#### Scenario: 引用枚举型分支无专属字段
 
 - **WHEN** 用户组合为 `REFERENCE_ENUMERATED`
-- **THEN** 表单 MUST 显示"外部源"卡片，包含 `permittedValuesFieldname` 必填输入框；来源 URI 与值含义卡片 MUST 不可见
+- **THEN** 表单 MUST NOT 渲染任何引用枚举专属卡片或字段（ISO/IEC 11179-31:2023 §7.4.2.6.4：Reference_Enumerated_Conceptual_Domain "has no additional attributes"）；值含义卡片 MUST 不可见
 
 #### Scenario: 编辑既有引用枚举概念域反查两级初值
 
 - **WHEN** 用户点击列表中类型为 `REFERENCE_ENUMERATED` 的概念域行打开编辑对话框
-- **THEN** 第一级选择器 MUST 自动设为 `ENUMERATED`，第二级选择器 MUST 自动设为 `REFERENCE`，外部源卡片 MUST 渲染并回填 `permittedValuesFieldname`
+- **THEN** 第一级选择器 MUST 自动设为 `ENUMERATED`，第二级选择器 MUST 自动设为 `REFERENCE`
 
 ### Requirement: 概念域与值域 list 接口接受 `type` 过滤参数
 
@@ -108,33 +108,9 @@ TBD - created by archiving change domain-three-tier-ui. Update Purpose after arc
 - **WHEN** 用户点击列表中具有 2 个关联概念域的 DEC 行打开编辑对话框
 - **THEN** "概念域"picker MUST 自动勾选这两条概念域（label 与 kind 标签均回显）
 
-### Requirement: 引用枚举概念域数据模型承载外部源字段
-
-`ReferenceEnumeratedConceptualDomain` 实体 MUST 新增 `permittedValuesFieldname`（`@Column(name="permitted_values_fieldname", nullable=false, length=255)`）。字段 MUST 由 Hibernate `ddl-auto:update` 在 `reference_enumerated_conceptual_domain` 表自动落库。本变更 MUST NOT 引入 Flyway 迁移。
-
-#### Scenario: 引用枚举 CD 自动落库新增字段
-
-- **WHEN** 部署本期变更后 Hibernate `ddl-auto=update` 在空 `reference_enumerated_conceptual_domain` 表上运行
-- **THEN** 表 MUST 自动新增列 `permitted_values_fieldname VARCHAR(255) NOT NULL`
-
-#### Scenario: 老数据无破坏性迁移
-
-- **WHEN** 既有 `reference_enumerated_conceptual_domain` 表存在但无新列
-- **THEN** Hibernate `ddl-auto=update` MUST 仅加列、不丢失既有 0 行数据
-
 ### Requirement: 概念域后端枚举与请求响应字段扩展
 
-`ConceptualDomainType` MUST 包含 `DESCRIBED` / `LOCAL_ENUMERATED` / `REFERENCE_ENUMERATED` 三值；`ConceptualDomainRequest` MUST 新增 `permittedValuesFieldname`（String，`@Size(max=255)`）字段；`ConceptualDomainResponse` MUST 同步新增 `permittedValuesFieldname` 以回显。后端 MUST 在 `type=REFERENCE_ENUMERATED` 时校验 `permittedValuesFieldname` 非空。
-
-#### Scenario: 引用枚举 CD 创建缺少 permittedValuesFieldname 被拒绝
-
-- **WHEN** 调用方以 `type=REFERENCE_ENUMERATED` 但 `permittedValuesFieldname` 为 null / 空字符串提交创建请求
-- **THEN** 后端 MUST 抛 `BusinessException(400)`，message 包含字段名语义提示，且 MUST NOT 写入持久层
-
-#### Scenario: 引用枚举 CD 更新成功并回填响应字段
-
-- **WHEN** 调用方以既有 `REFERENCE_ENUMERATED` 概念域 ID 与新 `permittedValuesFieldname="code"` 提交更新请求
-- **THEN** 后端 MUST 更新字段并返回 `ConceptualDomainResponse`；响应 MUST 回显 `permittedValuesFieldname="code"`
+`ConceptualDomainType` MUST 包含 `DESCRIBED` / `LOCAL_ENUMERATED` / `REFERENCE_ENUMERATED` 三值。`ConceptualDomainRequest` / `ConceptualDomainResponse` MUST NOT 携带任何 Reference_Enumerated_Conceptual_Domain 专属字段（依据 §7.4.2.6.4，该子类无附加属性）；`permitted_values_fieldname` 仅属于 Reference_Enumerated_Value_Domain（§7.4.2.13.4 Table 7）。
 
 #### Scenario: ConceptualDomainType 枚举响应包含三个值
 
