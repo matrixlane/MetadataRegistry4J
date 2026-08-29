@@ -97,7 +97,8 @@ public class DatasourceConfigService {
         Map<String, Object> datasource = child(spring, "datasource");
         datasource.put("url", url);
         datasource.put("driver-class-name", driverClass(vendor));
-        if (hasText(request.username())) {
+        // SQLite 无认证概念：凭据一律不落盘（浏览器自动填充/表单残留也会随请求提交）
+        if (vendor != DatabaseVendor.SQLITE && hasText(request.username())) {
             datasource.put("username", request.username());
             datasource.put("password", request.password() == null ? "" : request.password());
         } else {
@@ -211,7 +212,7 @@ public class DatasourceConfigService {
     }
 
     private Connection openConnection(DatabaseVendor vendor, String url, DatasourceConfigRequest request) throws SQLException {
-        if (hasText(request.username())) {
+        if (vendor != DatabaseVendor.SQLITE && hasText(request.username())) {
             return DriverManager.getConnection(url, request.username(), request.password() == null ? "" : request.password());
         }
         return DriverManager.getConnection(url);

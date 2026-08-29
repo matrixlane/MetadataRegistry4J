@@ -118,10 +118,10 @@
                   <el-input v-model="dbForm.database" placeholder="metadata_registry" />
                 </el-form-item>
                 <el-form-item label="用户名（留空表示 Windows 集成认证/默认）">
-                  <el-input v-model="dbForm.username" />
+                  <el-input v-model="dbForm.username" autocomplete="off" />
                 </el-form-item>
                 <el-form-item label="密码">
-                  <el-input v-model="dbForm.password" type="password" show-password />
+                  <el-input v-model="dbForm.password" type="password" show-password autocomplete="new-password" />
                 </el-form-item>
               </template>
 
@@ -495,6 +495,13 @@ const dbTesting = ref(false);
 const dbSaving = ref(false);
 const dbTestResult = ref<DbTestResult | null>(null);
 const restartRequired = ref(false);
+
+// SQLite 模式下凭据输入框只是隐藏不渲染，残留值（如浏览器自动填充）仍会随保存请求提交
+watch(() => dbForm.vendor, () => {
+  dbForm.username = '';
+  dbForm.password = '';
+  dbTestResult.value = null;
+});
 
 const formStep2Ref = ref<FormInstance>();
 const formStep3Ref = ref<FormInstance>();

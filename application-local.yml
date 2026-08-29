@@ -7,8 +7,6 @@ spring:
       auto-commit: false
       maximum-pool-size: 1
       minimum-idle: 1
-    username: admin
-    password: REMOVED-LOCAL-DB-PASSWORD
   jpa:
     properties:
       hibernate:
