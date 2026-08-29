@@ -4,6 +4,8 @@ import io.github.matrixlane.metadataregistry.dataspecification.ConceptualDomain;
 import io.github.matrixlane.metadataregistry.dataspecification.DataElementConcept;
 import io.github.matrixlane.metadataregistry.dataspecification.ObjectClass;
 import io.github.matrixlane.metadataregistry.dataspecification.Property;
+import io.github.matrixlane.metadataregistry.dataspecification.association.AssociationType;
+import io.github.matrixlane.metadataregistry.dataspecification.association.MetadataObjectAssociationService;
 import io.github.matrixlane.metadataregistry.web.common.ResourceNotFoundException;
 import io.github.matrixlane.metadataregistry.web.dto.dec.ConceptualDomainKindLabel;
 import io.github.matrixlane.metadataregistry.web.dto.dec.DataElementConceptRequest;
@@ -39,6 +41,7 @@ public class DataElementConceptService {
     private final ConceptContentApplier conceptContentApplier;
     private final ItemAdministrationService itemAdministrationService;
     private final VersionHistoryService versionHistoryService;
+    private final MetadataObjectAssociationService associationService = MetadataObjectAssociationService.withDefaults();
 
     @Transactional(readOnly = true)
     public Page<DataElementConceptResponse> list(String keyword, Pageable pageable) {
@@ -84,22 +87,37 @@ public class DataElementConceptService {
     }
 
     private void applyRequest(DataElementConcept entity, DataElementConceptRequest request) {
-        if (request.objectClassId() != null) {
-            ObjectClass oc = objectClassRepository.findById(request.objectClassId())
-                    .orElseThrow(() -> new ResourceNotFoundException("ObjectClass", request.objectClassId()));
-            entity.setObjectClass(oc);
-        } else {
-            entity.setObjectClass(null);
-        }
-        if (request.propertyId() != null) {
-            Property p = propertyRepository.findById(request.propertyId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Property", request.propertyId()));
-            entity.setProperty(p);
-        } else {
-            entity.setProperty(null);
-        }
+        applyObjectClass(entity, request.objectClassId());
+        applyProperty(entity, request.propertyId());
         conceptContentApplier.applyConcept(entity, request.sourceUri(),
                 request.designations(), request.definitions(), request.registration());
+        associationService.validateCompleteness(entity);
+    }
+
+    private void applyObjectClass(DataElementConcept entity, UUID objectClassId) {
+        if (objectClassId != null) {
+            ObjectClass oc = objectClassRepository.findById(objectClassId)
+                    .orElseThrow(() -> new ResourceNotFoundException("ObjectClass", objectClassId));
+            associationService.associate(AssociationType.DATA_ELEMENT_CONCEPT_TO_OBJECT_CLASS, entity, oc);
+        } else {
+            ObjectClass current = entity.getObjectClass();
+            if (current != null) {
+                associationService.dissociate(AssociationType.DATA_ELEMENT_CONCEPT_TO_OBJECT_CLASS, entity, current);
+            }
+        }
+    }
+
+    private void applyProperty(DataElementConcept entity, UUID propertyId) {
+        if (propertyId != null) {
+            Property p = propertyRepository.findById(propertyId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Property", propertyId));
+            associationService.associate(AssociationType.DATA_ELEMENT_CONCEPT_TO_PROPERTY, entity, p);
+        } else {
+            Property current = entity.getProperty();
+            if (current != null) {
+                associationService.dissociate(AssociationType.DATA_ELEMENT_CONCEPT_TO_PROPERTY, entity, current);
+            }
+        }
     }
 
     /**
@@ -114,17 +132,12 @@ public class DataElementConceptService {
         }
         // 2. 按新 IDs 加载并挂回
         Set<UUID> uniqueIds = new HashSet<>(conceptualDomainIds);
-        List<ConceptualDomain> domains = new ArrayList<>(uniqueIds.size());
         for (UUID cdId : uniqueIds) {
             ConceptualDomain cd = conceptualDomainRepository.findById(cdId)
                     .orElseThrow(() -> new ResourceNotFoundException("ConceptualDomain", cdId));
-            if (!cd.getDataElementConcepts().contains(dec)) {
-                cd.getDataElementConcepts().add(dec);
-            }
-            domains.add(cd);
+            associationService.associate(AssociationType.DATA_ELEMENT_CONCEPT_TO_CONCEPTUAL_DOMAIN, dec, cd);
         }
-        conceptualDomainRepository.saveAll(domains);
-        dec.setConceptualDomains(domains);
+        conceptualDomainRepository.saveAll(dec.getConceptualDomains());
     }
 
     private void clearConceptualDomainLinks(DataElementConcept dec) {
@@ -132,11 +145,10 @@ public class DataElementConceptService {
         if (existing == null || existing.isEmpty()) {
             return;
         }
-        for (ConceptualDomain cd : existing) {
-            cd.getDataElementConcepts().remove(dec);
+        for (ConceptualDomain cd : new ArrayList<>(existing)) {
+            associationService.dissociate(AssociationType.DATA_ELEMENT_CONCEPT_TO_CONCEPTUAL_DOMAIN, dec, cd);
         }
         conceptualDomainRepository.saveAll(existing);
-        dec.getConceptualDomains().clear();
     }
 
     private DataElementConceptResponse toResponse(DataElementConcept entity) {

@@ -12,6 +12,8 @@ import io.github.matrixlane.metadataregistry.dataspecification.ReferenceEnumerat
 import io.github.matrixlane.metadataregistry.dataspecification.ReferenceEnumeratedValueDomain;
 import io.github.matrixlane.metadataregistry.dataspecification.UnitOfMeasure;
 import io.github.matrixlane.metadataregistry.dataspecification.ValueDomain;
+import io.github.matrixlane.metadataregistry.dataspecification.association.AssociationType;
+import io.github.matrixlane.metadataregistry.dataspecification.association.MetadataObjectAssociationService;
 import io.github.matrixlane.metadataregistry.web.common.BusinessException;
 import io.github.matrixlane.metadataregistry.web.common.ResourceNotFoundException;
 import io.github.matrixlane.metadataregistry.web.dto.valuedomain.PermissibleValueEntry;
@@ -53,6 +55,7 @@ public class ValueDomainService {
     private final PermissibleValueSetRepository permissibleValueSetRepository;
     private final ItemAdministrationService itemAdministrationService;
     private final VersionHistoryService versionHistoryService;
+    private final MetadataObjectAssociationService associationService = MetadataObjectAssociationService.withDefaults();
 
     @Transactional(readOnly = true)
     public Page<ValueDomainResponse> list(String keyword, String type, Pageable pageable) {
@@ -176,20 +179,8 @@ public class ValueDomainService {
     }
 
     private void applyCommon(ValueDomain entity, ValueDomainRequest request) {
-        if (request.dataTypeId() != null) {
-            DataType dt = dataTypeRepository.findById(request.dataTypeId())
-                    .orElseThrow(() -> new ResourceNotFoundException("DataType", request.dataTypeId()));
-            entity.setDataType(dt);
-        } else {
-            entity.setDataType(null);
-        }
-        if (request.unitOfMeasureId() != null) {
-            UnitOfMeasure uom = unitOfMeasureRepository.findById(request.unitOfMeasureId())
-                    .orElseThrow(() -> new ResourceNotFoundException("UnitOfMeasure", request.unitOfMeasureId()));
-            entity.setUnitOfMeasure(uom);
-        } else {
-            entity.setUnitOfMeasure(null);
-        }
+        applyDataType(entity, request.dataTypeId());
+        applyUnitOfMeasure(entity, request.unitOfMeasureId());
         // 引用枚举值域（ISO/IEC 11179-31:2023 §7.4.2.13）：maximumCharacterQuantity / format 不在外部源收集
         if (!(entity instanceof ReferenceEnumeratedValueDomain)) {
             entity.setMaximumCharacterQuantity(request.maximumCharacterQuantity());
@@ -212,6 +203,33 @@ public class ValueDomainService {
         itemAdministrationService.applyDefinitions(entity, request.definitions());
         if (request.registration() != null) {
             itemAdministrationService.ensureAdministeredItem(entity, request.registration());
+        }
+        associationService.validateCompleteness(entity);
+    }
+
+    private void applyDataType(ValueDomain entity, UUID dataTypeId) {
+        if (dataTypeId != null) {
+            DataType dt = dataTypeRepository.findById(dataTypeId)
+                    .orElseThrow(() -> new ResourceNotFoundException("DataType", dataTypeId));
+            associationService.associate(AssociationType.VALUE_DOMAIN_TO_DATA_TYPE, entity, dt);
+        } else {
+            DataType current = entity.getDataType();
+            if (current != null) {
+                associationService.dissociate(AssociationType.VALUE_DOMAIN_TO_DATA_TYPE, entity, current);
+            }
+        }
+    }
+
+    private void applyUnitOfMeasure(ValueDomain entity, UUID unitOfMeasureId) {
+        if (unitOfMeasureId != null) {
+            UnitOfMeasure uom = unitOfMeasureRepository.findById(unitOfMeasureId)
+                    .orElseThrow(() -> new ResourceNotFoundException("UnitOfMeasure", unitOfMeasureId));
+            associationService.associate(AssociationType.VALUE_DOMAIN_TO_UNIT_OF_MEASURE, entity, uom);
+        } else {
+            UnitOfMeasure current = entity.getUnitOfMeasure();
+            if (current != null) {
+                associationService.dissociate(AssociationType.VALUE_DOMAIN_TO_UNIT_OF_MEASURE, entity, current);
+            }
         }
     }
 
