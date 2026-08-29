@@ -181,14 +181,8 @@ public class ValueDomainService {
     private void applyCommon(ValueDomain entity, ValueDomainRequest request) {
         applyDataType(entity, request.dataTypeId());
         applyUnitOfMeasure(entity, request.unitOfMeasureId());
-        // 引用枚举值域（ISO/IEC 11179-31:2023 §7.4.2.13）：maximumCharacterQuantity / format 不在外部源收集
-        if (!(entity instanceof ReferenceEnumeratedValueDomain)) {
-            entity.setMaximumCharacterQuantity(request.maximumCharacterQuantity());
-            entity.setFormat(request.format());
-        } else {
-            entity.setMaximumCharacterQuantity(null);
-            entity.setFormat(null);
-        }
+        entity.setMaximumCharacterQuantity(request.maximumCharacterQuantity());
+        entity.setFormat(request.format());
         if (request.validPeriodStart() != null || request.validPeriodEnd() != null) {
             DataTimePeriod period = new DataTimePeriod();
             period.setStartDateTime(request.validPeriodStart());
