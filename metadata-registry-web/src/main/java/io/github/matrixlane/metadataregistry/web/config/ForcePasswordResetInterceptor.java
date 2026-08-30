@@ -1,15 +1,20 @@
 package io.github.matrixlane.metadataregistry.web.config;
 
 import io.github.matrixlane.metadataregistry.web.auth.AuthenticatedUser;
+import io.github.matrixlane.metadataregistry.web.service.SystemSettingService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
 
 @Component
+@RequiredArgsConstructor
 public class ForcePasswordResetInterceptor implements HandlerInterceptor {
+
+    private final SystemSettingService systemSettingService;
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
@@ -34,7 +39,14 @@ public class ForcePasswordResetInterceptor implements HandlerInterceptor {
                         path.endsWith("/api/v1/init-wizard/wizard-state")) {
                     return true;
                 }
-                
+
+                // 系统未初始化时，初始化向导的数据库步骤需要数据源端点；
+                // 数据库连接参数与管理员账号密码无关，且控制层在未初始化时本就
+                // 允许匿名访问（见 DatasourceConfigController.guardWhenInitialized）。
+                if (!systemSettingService.isInitialized() && path.startsWith("/api/v1/datasource/")) {
+                    return true;
+                }
+
                 // Throw exception to be handled by GlobalExceptionHandler and mapped to 498 status
                 throw new io.github.matrixlane.metadataregistry.web.common.ForcePasswordResetException("安全提示：请先修改默认密码或临时密码");
             }
