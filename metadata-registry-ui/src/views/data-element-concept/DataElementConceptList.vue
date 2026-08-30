@@ -54,6 +54,10 @@
             placeholder="搜索特性（输入业务标识符或名称）"
           />
         </el-form-item>
+      </template>
+
+      <!-- 关联 tab：data_element_concept_domain（§7.2.3.4，↔ CD 0..*）+ data_element_meaning（§7.6.3.2） -->
+      <template #associations="{ form }">
         <el-form-item label="概念域">
           <SmartItemPicker
             v-model="form.conceptualDomainIds"
@@ -63,6 +67,11 @@
             placeholder="搜索概念域（可多选）"
           />
         </el-form-item>
+        <ItemAssociationsPanel
+          :item-id="form.id || null"
+          :sections="panelSections"
+          @changed="tableRef?.fetchData()"
+        />
       </template>
     </ItemFormDialog>
   </div>
@@ -74,8 +83,22 @@ import { dataElementConceptApi } from '@/api/resources';
 import DataTablePage from '@/components/DataTablePage.vue';
 import ItemFormDialog from '@/components/ItemFormDialog.vue';
 import SmartItemPicker from '@/components/SmartItemPicker.vue';
+import ItemAssociationsPanel, { type AssociationPanelSection } from '@/components/ItemAssociationsPanel.vue';
 
 const tableRef = ref<InstanceType<typeof DataTablePage>>();
+
+/** data_element_meaning（§7.6.3.2）：关联到本数据元概念的数据元（0..*）。 */
+const panelSections: AssociationPanelSection[] = [
+  {
+    relationType: 'DATA_ELEMENT_MEANING',
+    pathType: 'data-element-meaning',
+    direction: 'INCOMING',
+    focusRole: 'target',
+    title: '数据元',
+    targetItemTypes: ['DataElement'],
+    addPlaceholder: '搜索要关联的数据元（输入业务标识符或名称）',
+  },
+];
 const dialog = ref<InstanceType<typeof ItemFormDialog>>();
 
 function submitFn(data: Record<string, unknown>) {

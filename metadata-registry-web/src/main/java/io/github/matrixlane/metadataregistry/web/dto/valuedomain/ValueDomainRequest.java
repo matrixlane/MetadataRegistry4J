@@ -17,6 +17,7 @@ public record ValueDomainRequest(
         LocalDateTime validPeriodStart,
         LocalDateTime validPeriodEnd,
         UUID describedConceptualDomainId,
+        UUID localEnumeratedConceptualDomainId,
         String permittedValuesFieldname,
         UUID referencedConceptualDomainId,
         @Valid

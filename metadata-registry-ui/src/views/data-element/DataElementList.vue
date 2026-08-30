@@ -38,7 +38,20 @@
       :submit-fn="submitFn"
       @success="tableRef?.fetchData()"
     >
+      <!-- 属性 tab：precision（ISO/IEC 11179-31:2023 §7.6.2.1.4 Table 23，0..1 Integer） -->
       <template #fields="{ form }">
+        <el-form-item label="精度">
+          <el-input-number
+            v-model="form.precision"
+            :min="0"
+            style="width: 100%;"
+            placeholder="关联数据元值允许的小数位数"
+          />
+        </el-form-item>
+      </template>
+
+      <!-- 关联 tab：data_element_meaning（§7.6.3.2，→ DEC 0..1）+ data_element_domain（§7.6.3.1，→ VD 0..1） -->
+      <template #associations="{ form }">
         <el-form-item label="数据元概念" prop="dataElementConceptId">
           <SmartItemPicker
             v-model="form.dataElementConceptId"

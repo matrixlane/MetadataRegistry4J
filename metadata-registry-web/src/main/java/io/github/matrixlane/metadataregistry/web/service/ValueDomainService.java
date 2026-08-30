@@ -5,6 +5,7 @@ import io.github.matrixlane.metadataregistry.dataspecification.DataType;
 import io.github.matrixlane.metadataregistry.dataspecification.DescribedConceptualDomain;
 import io.github.matrixlane.metadataregistry.dataspecification.DescribedValueDomain;
 import io.github.matrixlane.metadataregistry.dataspecification.EnumeratedValueDomain;
+import io.github.matrixlane.metadataregistry.dataspecification.LocalEnumeratedConceptualDomain;
 import io.github.matrixlane.metadataregistry.dataspecification.LocalEnumeratedValueDomain;
 import io.github.matrixlane.metadataregistry.dataspecification.PermissibleValue;
 import io.github.matrixlane.metadataregistry.dataspecification.PermissibleValueSet;
@@ -14,6 +15,7 @@ import io.github.matrixlane.metadataregistry.dataspecification.UnitOfMeasure;
 import io.github.matrixlane.metadataregistry.dataspecification.ValueDomain;
 import io.github.matrixlane.metadataregistry.dataspecification.association.AssociationType;
 import io.github.matrixlane.metadataregistry.dataspecification.association.MetadataObjectAssociationService;
+import io.github.matrixlane.metadataregistry.dataspecification.association.ValueDomainConceptualDomains;
 import io.github.matrixlane.metadataregistry.web.common.BusinessException;
 import io.github.matrixlane.metadataregistry.web.common.ResourceNotFoundException;
 import io.github.matrixlane.metadataregistry.web.dto.valuedomain.PermissibleValueEntry;
@@ -153,6 +155,7 @@ public class ValueDomainService {
         }
         if (entity instanceof LocalEnumeratedValueDomain levd && toType != ValueDomainType.LOCAL_ENUMERATED) {
             cleanupPermissibleValues(levd);
+            levd.setLocalEnumeratedConceptualDomain(null);
         }
         if (entity instanceof ReferenceEnumeratedValueDomain revd) {
             revd.setPermittedValuesFieldname(null);
@@ -239,6 +242,19 @@ public class ValueDomainService {
             } else {
                 dvd.setDescribedConceptualDomain(null);
             }
+        } else if (entity instanceof LocalEnumeratedValueDomain levd) {
+            // value_domain_meaning（ISO/IEC 11179-31:2023 §7.4.4.1）本地枚举实现，§7.4.5.2.1(a) 子类型一致
+            if (request.localEnumeratedConceptualDomainId() != null) {
+                LocalEnumeratedConceptualDomain lecd = conceptualDomainRepository
+                        .findById(request.localEnumeratedConceptualDomainId())
+                        .filter(cd -> cd instanceof LocalEnumeratedConceptualDomain)
+                        .map(cd -> (LocalEnumeratedConceptualDomain) cd)
+                        .orElseThrow(() -> new BusinessException(
+                                "localEnumeratedConceptualDomainId must point to LocalEnumeratedConceptualDomain"));
+                levd.setLocalEnumeratedConceptualDomain(lecd);
+            } else {
+                levd.setLocalEnumeratedConceptualDomain(null);
+            }
         } else if (entity instanceof ReferenceEnumeratedValueDomain revd) {
             if (request.permittedValuesFieldname() != null) {
                 revd.setPermittedValuesFieldname(request.permittedValuesFieldname());
@@ -304,12 +320,19 @@ public class ValueDomainService {
         ValueDomainType type = inferType(entity);
         UUID dcdId = null;
         String dcdLabel = null;
+        UUID lecdId = null;
+        String lecdLabel = null;
         String permittedValuesFieldname = null;
         UUID refCdId = null;
         String refCdLabel = null;
         List<PermissibleValueResponse> pvResponses = Collections.emptyList();
         if (entity instanceof LocalEnumeratedValueDomain levd) {
             pvResponses = mapPermissibleValues(levd);
+            LocalEnumeratedConceptualDomain lecd = levd.getLocalEnumeratedConceptualDomain();
+            if (lecd != null) {
+                lecdId = lecd.getId();
+                lecdLabel = ItemNamingHelper.preferredDesignation(lecd);
+            }
         } else if (entity instanceof DescribedValueDomain dvd) {
             DescribedConceptualDomain dcd = dvd.getDescribedConceptualDomain();
             if (dcd != null) {
@@ -327,6 +350,8 @@ public class ValueDomainService {
         DataType dt = entity.getDataType();
         UnitOfMeasure uom = entity.getUnitOfMeasure();
         DataTimePeriod period = entity.getValidPeriod();
+        io.github.matrixlane.metadataregistry.dataspecification.ConceptualDomain unifiedCd =
+                ValueDomainConceptualDomains.get(entity);
         return new ValueDomainResponse(
                 entity.getId(),
                 ItemNamingHelper.preferredDesignation(entity),
@@ -341,9 +366,13 @@ public class ValueDomainService {
                 period == null ? null : period.getEndDateTime(),
                 dcdId,
                 dcdLabel,
+                lecdId,
+                lecdLabel,
                 permittedValuesFieldname,
                 refCdId,
                 refCdLabel,
+                unifiedCd == null ? null : unifiedCd.getId(),
+                unifiedCd == null ? null : ItemNamingHelper.preferredDesignation(unifiedCd),
                 pvResponses,
                 itemAdministrationService.mapDesignations(entity),
                 itemAdministrationService.mapDefinitions(entity),

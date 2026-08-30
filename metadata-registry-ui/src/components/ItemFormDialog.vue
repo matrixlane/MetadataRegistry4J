@@ -88,7 +88,7 @@
         </el-tab-pane>
 
         <!-- Resource-specific fields Tab -->
-        <el-tab-pane name="fields">
+        <el-tab-pane v-if="$slots.fields" name="fields">
           <template #label>
             <span class="tab-label-container">
               <span>属性</span>
@@ -96,6 +96,17 @@
             </span>
           </template>
           <slot name="fields" :form="form" />
+        </el-tab-pane>
+
+        <!-- Associations Tab：四实体（数据元/数据元概念/概念域/值域）标准双向关联 -->
+        <el-tab-pane v-if="$slots.associations" name="associations">
+          <template #label>
+            <span class="tab-label-container">
+              <span>关联</span>
+              <el-icon v-if="hasTabError('associations')" class="tab-error-icon"><Warning /></el-icon>
+            </span>
+          </template>
+          <slot name="associations" :form="form" />
         </el-tab-pane>
       </el-tabs>
     </el-form>

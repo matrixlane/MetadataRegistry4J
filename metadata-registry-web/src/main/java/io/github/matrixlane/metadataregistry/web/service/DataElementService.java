@@ -75,6 +75,7 @@ public class DataElementService {
     private void applyRequest(DataElement entity, DataElementRequest request) {
         applyDataElementConcept(entity, request.dataElementConceptId());
         applyValueDomain(entity, request.valueDomainId());
+        entity.setPrecision(request.precision());
         itemAdministrationService.applyDesignations(
                 entity, request.designations(),
                 request.registration() == null ? null : request.registration().namespaceId());
@@ -121,6 +122,7 @@ public class DataElementService {
                 dec == null ? null : ItemNamingHelper.preferredDesignation(dec),
                 vd == null ? null : vd.getId(),
                 vd == null ? null : ItemNamingHelper.preferredDesignation(vd),
+                entity.getPrecision(),
                 itemAdministrationService.mapDesignations(entity),
                 itemAdministrationService.mapDefinitions(entity),
                 itemAdministrationService.buildItemMeta(entity));

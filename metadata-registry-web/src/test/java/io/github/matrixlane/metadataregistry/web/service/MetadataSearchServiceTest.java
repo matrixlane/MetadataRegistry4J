@@ -17,6 +17,7 @@ import org.springframework.jdbc.core.RowMapper;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.regex.Pattern;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -39,6 +40,9 @@ import static org.mockito.Mockito.when;
  */
 @ExtendWith(MockitoExtension.class)
 class MetadataSearchServiceTest {
+
+    private static final Pattern SQL_GLUE =
+            Pattern.compile("[A-Za-z0-9_](LEFT|RIGHT|INNER|JOIN|WHERE|ORDER)\\b");
 
     @Mock
     private JdbcTemplate jdbcTemplate;
@@ -108,6 +112,130 @@ class MetadataSearchServiceTest {
         return searchService.search(keyword, type, status, contextId, null,
                 namespaceId, exactMatch, identifier, namespaceShorthand, pageable);
     }
+    @Test
+    void search_countAndSelectSql_joinFragmentsHaveSpaceBoundaries() {
+        // 回归：count SQL 曾因 "rs.id" + "LEFT JOIN" 缺少空格拼接出 rs.idLEFT 导致
+        // SQLite/SQL Server 全部搜索请求 500（no such column: rs.idLEFT）。
+        stubCountAndRows(1L, List.of(sampleResponse));
+
+        Page<AdministeredItemResponse> result = searchDefault(
+                null, "ValueDomain", null, null, null, true, "VD.00001", "MD");
+
+        assertThat(result.getContent()).hasSize(1);
+
+        ArgumentCaptor<String> countSql = ArgumentCaptor.forClass(String.class);
+        verify(jdbcTemplate).queryForObject(countSql.capture(), eq(Long.class), any(Object[].class));
+        String count = countSql.getValue();
+        assertThat(count).contains("rs.id LEFT JOIN");
+        assertThat(count).doesNotContain("rs.idLEFT");
+
+        ArgumentCaptor<String> selectSql = ArgumentCaptor.forClass(String.class);
+        verify(jdbcTemplate).query(selectSql.capture(), any(RowMapper.class), any(Object[].class));
+        String select = selectSql.getValue();
+        // 所有字符串片段拼接边界：标识符/关键字与 SQL 关键字之间必须有空格
+        assertThat(SQL_GLUE.matcher(select).find()).isFalse();
+        assertThat(SQL_GLUE.matcher(count).find()).isFalse();
+    }
+
+    @Test
+    void search_withKeywordAndType_placeholderCountMatchesParamCount() {
+        // 回归：type 筛选的 EXISTS 子查询不含占位符，此前却向参数列表多加了占位参数，
+        // 超出 PreparedStatement 参数上限，sqlite-jdbc 抛 ArrayIndexOutOfBoundsException，
+        // 模糊搜索（如 q=测试用&type=ValueDomain）全部 500。
+        stubCountAndRows(1L, List.of(sampleResponse));
+
+        Page<AdministeredItemResponse> result = searchDefault(
+                "测试用", "ValueDomain", null, null, null, false, null, null);
+
+        assertThat(result.getContent()).hasSize(1);
+
+        ArgumentCaptor<String> countSql = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<Object[]> countArgs = ArgumentCaptor.forClass(Object[].class);
+        verify(jdbcTemplate).queryForObject(countSql.capture(), eq(Long.class), countArgs.capture());
+        assertPlaceholderParamMatch(countSql.getValue(), countArgs.getValue());
+        assertKnownTables(countSql.getValue());
+
+        ArgumentCaptor<String> selectSql = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<Object[]> selectArgs = ArgumentCaptor.forClass(Object[].class);
+        verify(jdbcTemplate).query(selectSql.capture(), any(RowMapper.class), selectArgs.capture());
+        assertPlaceholderParamMatch(selectSql.getValue(), selectArgs.getValue());
+        assertKnownTables(selectSql.getValue());
+    }
+
+    /** 已知物理表名白名单：回归 registration_specification（实际表名 registry_specification）导致的 no such table。 */
+    private static final java.util.Set<String> KNOWN_TABLES = java.util.Set.of(
+            "administered_item", "identified_item", "item", "scoped_identifier", "namespace",
+            "registration_authority", "registration_state", "registered_item", "designation", "definition",
+            "designation_context", "definition_context", "organization_name", "constraint_set",
+            "registry_specification", "reference_document", "data_element", "data_element_concept",
+            "conceptual_domain", "value_domain", "object_class", "property", "data_type",
+            "data_type_scheme", "unit_of_measure", "measure_class", "dimensionality",
+            "classification_scheme", "context", "organization", "individual", "contact", "document_type");
+
+    private static final Pattern TABLE_REF = Pattern.compile("mdr\\.(\\w+)");
+
+    private static void assertKnownTables(String sql) {
+        java.util.regex.Matcher m = TABLE_REF.matcher(sql);
+        while (m.find()) {
+            assertThat(KNOWN_TABLES).as("SQL 引用了未知表: %s", m.group(1)).contains(m.group(1));
+        }
+    }
+
+    /** SQL 中 "?" 占位符数量必须与绑定参数数量一致（SQLite 方言含 LIMIT/OFFSET 占位符）。 */
+    private static void assertPlaceholderParamMatch(String sql, Object[] params) {
+        long placeholders = sql.chars().filter(c -> c == '?').count();
+        assertThat(placeholders)
+                .as("SQL 占位符数与参数数不一致：%d 个占位符 vs %d 个参数%n%s", placeholders, params.length, sql)
+                .isEqualTo(params.length);
+    }
+
+    @Test
+    void search_withSingleType_skipsFullCaseProbe() {
+        // 优化：带单值类型筛选时，结果集类型已被 WHERE 的 EXISTS 锁定，
+        // item_type 直接返回常量，不再对每行执行 21 个全表探测 EXISTS。
+        stubCountAndRows(1L, List.of(sampleResponse));
+
+        searchDefault("测试", "ValueDomain", null, null, null, false, null, null);
+
+        ArgumentCaptor<String> selectSql = ArgumentCaptor.forClass(String.class);
+        verify(jdbcTemplate).query(selectSql.capture(), any(RowMapper.class), any(Object[].class));
+        String select = selectSql.getValue();
+        assertThat(select).contains("'ValueDomain' AS item_type");
+        assertThat(select).doesNotContain("CASE WHEN EXISTS");
+    }
+
+    @Test
+    void search_withMultipleTypes_probesOnlyRequestedSubset() {
+        // 多值类型筛选：CASE 只探测传入的类型子集，而非全部 21 张表
+        stubCountAndRows(1L, List.of(sampleResponse));
+
+        searchDefault("测试", "DataElement,ValueDomain", null, null, null, false, null, null);
+
+        ArgumentCaptor<String> selectSql = ArgumentCaptor.forClass(String.class);
+        verify(jdbcTemplate).query(selectSql.capture(), any(RowMapper.class), any(Object[].class));
+        String select = selectSql.getValue();
+        assertThat(select).contains("CASE WHEN EXISTS");
+        assertThat(select).contains("THEN 'DataElement'");
+        assertThat(select).contains("THEN 'ValueDomain'");
+        assertThat(select).doesNotContain("THEN 'Namespace'");
+        assertThat(select).doesNotContain("THEN 'ConceptualDomain'");
+    }
+
+    @Test
+    void search_withoutType_keepsFullCaseProbe() {
+        // 无类型筛选：结果可来自任意实体类型，保留全量 CASE 探测
+        stubCountAndRows(1L, List.of(sampleResponse));
+
+        searchDefault("测试", null, null, null, null, false, null, null);
+
+        ArgumentCaptor<String> selectSql = ArgumentCaptor.forClass(String.class);
+        verify(jdbcTemplate).query(selectSql.capture(), any(RowMapper.class), any(Object[].class));
+        String select = selectSql.getValue();
+        assertThat(select).contains("CASE WHEN EXISTS");
+        assertThat(select).contains("THEN 'Namespace'");
+        assertThat(select).contains("THEN 'DocumentType'");
+    }
+
     @Test
     void search_withKeyword_shouldReturnResults() {
         stubCountAndRows(1L, List.of(sampleResponse));

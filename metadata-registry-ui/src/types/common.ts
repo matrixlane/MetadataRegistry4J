@@ -302,8 +302,40 @@ export interface AdministeredItemSearchHit {
   namespaceId: string | null;
   /** 命名空间偏好名称（picker 次要显示） */
   namespaceLabel: string | null;
+  /** 创建时间（AdministeredItem.creationDateTime） */
+  creationDateTime?: string | null;
+  /** 最后编辑时间（AdministeredItem.lastChangeDateTime） */
+  lastChangeDateTime?: string | null;
   /** 匹配度：EXACT（精确命中）/ PARTIAL（模糊回退）/ undefined（既有调用方） */
   matchType?: string;
+}
+
+/**
+ * 四实体标准关联条目（GET /api/v1/items/{itemId}/associations 返回元素）。
+ */
+export interface ItemAssociationEntry {
+  /** 标准关联类型：DATA_ELEMENT_MEANING / DATA_ELEMENT_DOMAIN / VALUE_DOMAIN_MEANING / DATA_ELEMENT_CONCEPT_DOMAIN */
+  relationType: string;
+  /** 相对焦点实体的方向：OUTGOING / INCOMING */
+  direction: 'OUTGOING' | 'INCOMING';
+  /** 对方实体 Item.id */
+  itemId: string;
+  /** 对方实体类型 */
+  itemType: string | null;
+  /** 对方偏好指称 */
+  label: string | null;
+  /** 对方业务标识符 */
+  identifier: string | null;
+  /** 对方版本号 */
+  version: string | null;
+  creationDateTime: string | null;
+  lastChangeDateTime: string | null;
+}
+
+export interface ItemAssociationsResponse {
+  itemId: string;
+  itemType: string;
+  associations: ItemAssociationEntry[];
 }
 
 /**

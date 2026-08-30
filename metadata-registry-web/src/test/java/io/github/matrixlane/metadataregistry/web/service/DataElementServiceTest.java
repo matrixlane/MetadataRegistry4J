@@ -46,7 +46,7 @@ class DataElementServiceTest {
 
     @Test
     void create_withoutConceptAndValueDomain_succeedsWithNullAssociations() {
-        DataElementRequest request = new DataElementRequest(null, null, List.of(), null, null);
+        DataElementRequest request = new DataElementRequest(null, null, null, List.of(), null, null);
         when(repository.save(any(DataElement.class))).thenAnswer(inv -> inv.getArgument(0));
 
         DataElementResponse response = service.create(request);
@@ -66,8 +66,38 @@ class DataElementServiceTest {
         when(dataElementConceptRepository.findById(decId)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.create(
-                new DataElementRequest(decId, null, List.of(), null, null)))
+                new DataElementRequest(decId, null, null, List.of(), null, null)))
                 .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    void create_withPrecision_roundTripsValue() {
+        // ISO/IEC 11179-31:2023 §7.6.2.1.4 Table 23：precision，0..1，Integer，
+        // 关联数据元值允许的小数位数
+        DataElementRequest request = new DataElementRequest(null, null, 2, List.of(), null, null);
+        when(repository.save(any(DataElement.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        DataElementResponse response = service.create(request);
+
+        ArgumentCaptor<DataElement> captor = ArgumentCaptor.forClass(DataElement.class);
+        verify(repository).save(captor.capture());
+        assertThat(captor.getValue().getPrecision()).isEqualTo(2);
+        assertThat(response.precision()).isEqualTo(2);
+    }
+
+    @Test
+    void update_withNullPrecision_clearsExistingValue() {
+        UUID id = UUID.randomUUID();
+        DataElement entity = new DataElement();
+        entity.setPrecision(4);
+        when(repository.findById(id)).thenReturn(Optional.of(entity));
+        when(repository.save(any(DataElement.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        DataElementResponse response = service.update(id,
+                new DataElementRequest(null, null, null, List.of(), null, null));
+
+        assertThat(entity.getPrecision()).isNull();
+        assertThat(response.precision()).isNull();
     }
 
     @Test
@@ -80,7 +110,7 @@ class DataElementServiceTest {
         when(repository.save(any(DataElement.class))).thenAnswer(inv -> inv.getArgument(0));
 
         DataElementResponse response = service.update(id,
-                new DataElementRequest(null, null, List.of(), null, null));
+                new DataElementRequest(null, null, null, List.of(), null, null));
 
         assertThat(entity.getDataElementConcept()).isNull();
         assertThat(entity.getValueDomain()).isNull();

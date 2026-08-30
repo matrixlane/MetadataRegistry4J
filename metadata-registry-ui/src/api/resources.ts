@@ -10,6 +10,7 @@ import type {
   ItemRelationshipResponse,
   ContextUsageResponse,
   ActiveRegistrarResponse,
+  ItemAssociationsResponse,
 } from '@/types/common';
 
 function crud<T>(base: string) {
@@ -178,6 +179,23 @@ export const metadataSearchApi = {
     namespaceShorthand?: string;
   }) =>
     request.get<PageResponse<any>>('/metadata/search', { params }),
+};
+
+/**
+ * 四实体标准关联（ISO/IEC 11179-31:2023 §7.2.3 / §7.4.4.1 / §7.6.3）。
+ * relationType 路径值：data-element-meaning / data-element-domain /
+ * value-domain-meaning / data-element-concept-domain；
+ * source/target 角色由关联类型固定（见后端 StandardAssociationType）。
+ */
+export const itemAssociationApi = {
+  list: (itemId: string) =>
+    request.get<ItemAssociationsResponse>(`/items/${itemId}/associations`),
+  associate: (relationType: string, sourceItemId: string, targetItemId: string) =>
+    request.post<ItemAssociationsResponse>(`/associations/${relationType}`, { sourceItemId, targetItemId }),
+  dissociate: (relationType: string, sourceItemId: string, targetItemId: string) =>
+    request.delete<ItemAssociationsResponse>(`/associations/${relationType}`, {
+      data: { sourceItemId, targetItemId },
+    }),
 };
 
 /** Mapping scheme CRUD + version lifecycle (WI-011-2-3-1) */

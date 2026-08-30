@@ -18,6 +18,7 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 
@@ -65,11 +66,46 @@ public class MetadataSearchService {
      * itemType 推导 CASE 表达式：JOINED 继承无 discriminator 列；用 EXISTS 子查询
      * 探测具体子类表，按从派生最深到最浅的顺序短路（先 DataElement，再 DataElementConcept…）。
      */
+    /**
+     * SELECT 列表的 item_type 表达式。
+     * <p>
+     * 带类型筛选时结果集已被 WHERE 的 EXISTS 限定为这些类型，无需对每行全量探测 21 张表：
+     * 单值直接返回常量，多值只探测传入的类型子集；不带筛选时才退回全量 CASE 探测。
+     * 类型名经 {@link #typeToTable} 白名单校验，未知类型不会拼进 SQL。
+     */
+    private String itemTypeExprFor(String typeFilter) {
+        if (typeFilter == null) {
+            return itemTypeCaseExpr();
+        }
+        List<String> known = Arrays.stream(typeFilter.split(","))
+                .map(String::trim)
+                .filter(s -> typeToTable(s) != null)
+                .toList();
+        if (known.isEmpty()) {
+            // 未知类型：WHERE 已用 1=0 保证无命中，表达式形态无关紧要
+            return itemTypeCaseExpr();
+        }
+        if (known.size() == 1) {
+            return "'" + known.get(0) + "'";
+        }
+        StringBuilder sb = new StringBuilder("CASE ");
+        int alias = 0;
+        for (String type : known) {
+            sb.append("WHEN EXISTS (SELECT 1 FROM ").append(t(typeToTable(type)))
+                    .append(" sub").append(alias)
+                    .append(" WHERE sub").append(alias).append(".id = i.id) THEN '")
+                    .append(type).append("' ");
+            alias++;
+        }
+        sb.append("ELSE NULL END");
+        return sb.toString();
+    }
+
     private String itemTypeCaseExpr() {
         StringBuilder sb = new StringBuilder("CASE ");
         // 注册类（Owner 类型）
         sb.append("WHEN EXISTS (SELECT 1 FROM ").append(t("namespace")).append(" n WHERE n.id = i.id) THEN 'Namespace' ");
-        sb.append("WHEN EXISTS (SELECT 1 FROM ").append(t("registration_specification")).append(" rs WHERE rs.id = i.id) THEN 'RegistrySpecification' ");
+        sb.append("WHEN EXISTS (SELECT 1 FROM ").append(t("registry_specification")).append(" rs WHERE rs.id = i.id) THEN 'RegistrySpecification' ");
         sb.append("WHEN EXISTS (SELECT 1 FROM ").append(t("constraint_set")).append(" cs WHERE cs.id = i.id) THEN 'ConstraintSet' ");
         sb.append("WHEN EXISTS (SELECT 1 FROM ").append(t("reference_document")).append(" rd WHERE rd.id = i.id) THEN 'ReferenceDocument' ");
         // 数据规范类
@@ -160,12 +196,11 @@ public class MetadataSearchService {
 
         // 类型筛选（D5 决议）：itemType 由 CASE 表达式推导，故 SQL 用 EXISTS 多类型短路
         // （调用方传入的 type 支持英文逗号分隔多值；本期单值实现，扩展预留）
+        // 注意：itemTypeExistsClause 生成的 EXISTS 子查询无 "?" 占位符，不得向参数列表加参数
         if (typeFilter != null) {
             String[] types = typeFilter.split(",");
             if (types.length == 1) {
                 where.append(" AND " + itemTypeExistsClause(types[0].trim()));
-                countParams.add(1);
-                selectParams.add(1);
             } else {
                 StringBuilder or = new StringBuilder(" AND (");
                 for (int i = 0; i < types.length; i++) {
@@ -174,10 +209,6 @@ public class MetadataSearchService {
                 }
                 or.append(")");
                 where.append(or);
-                for (int i = 0; i < types.length; i++) {
-                    countParams.add(1);
-                    selectParams.add(1);
-                }
             }
         }
 
@@ -208,11 +239,9 @@ public class MetadataSearchService {
                 placeholders.append("?");
             }
             String acceptabilityFilter = " AND (EXISTS (SELECT 1 FROM " + t("designation") + " d_acc " +
-                    "JOIN " + t("designation_context") + " dc_acc ON dc_acc.designation_id = d_acc.id " +
-                    "WHERE d_acc.item_id = i.id AND dc_acc.acceptability IN (" + placeholders + "))" +
+                    "WHERE d_acc.item_id = i.id AND d_acc.acceptability IN (" + placeholders + "))" +
                     " OR EXISTS (SELECT 1 FROM " + t("definition") + " df_acc " +
-                    "JOIN " + t("definition_context") + " dfc_acc ON dfc_acc.definition_id = df_acc.id " +
-                    "WHERE df_acc.item_id = i.id AND dfc_acc.acceptability IN (" + placeholders + ")))";
+                    "WHERE df_acc.item_id = i.id AND df_acc.acceptability IN (" + placeholders + ")))";
             where.append(acceptabilityFilter);
             for (Acceptability acc : acceptabilities) {
                 countParams.add(acc.name());
@@ -224,12 +253,11 @@ public class MetadataSearchService {
             }
         }
 
-        // namespaceId 限定（D1 决议）
+        // namespaceId 限定（D1 决议）：administered item 的命名空间由 scoped_identifier 承载，
+        // administered_item/registered_item 表均无 namespace_id 列
         if (namespaceId != null) {
-            where.append(" AND (ns.id = ? OR (ns.id IS NULL AND ai.namespace_id = ?))");
+            where.append(" AND ns.id = ? ");
             countParams.add(namespaceId);
-            countParams.add(namespaceId);
-            selectParams.add(namespaceId);
             selectParams.add(namespaceId);
         }
 
@@ -237,7 +265,7 @@ public class MetadataSearchService {
         String countSql = "SELECT COUNT(DISTINCT ai.id) FROM " + t("administered_item") + " ai " +
                 "JOIN " + t("identified_item") + " ii ON ai.id = ii.id " +
                 "JOIN " + t("item") + " i ON ii.item_id = i.id " +
-                "LEFT JOIN " + t("registration_state") + " rs ON ai.registration_state_id = rs.id" +
+                "LEFT JOIN " + t("registration_state") + " rs ON ai.registration_state_id = rs.id " +
                 "LEFT JOIN " + t("scoped_identifier") + " si ON si.identified_item_id = ai.id " +
                 "LEFT JOIN " + t("namespace") + " ns ON si.namespace_id = ns.id" +
                 where;
@@ -250,13 +278,11 @@ public class MetadataSearchService {
         }
 
         String hasPreferred = "EXISTS (SELECT 1 FROM " + t("designation") + " d_pref " +
-                "JOIN " + t("designation_context") + " dc_pref ON dc_pref.designation_id = d_pref.id " +
-                "WHERE d_pref.item_id = i.id AND dc_pref.acceptability = 'PREFERRED')" +
+                "WHERE d_pref.item_id = i.id AND d_pref.acceptability = 'PREFERRED')" +
                 " OR EXISTS (SELECT 1 FROM " + t("definition") + " df_pref " +
-                "JOIN " + t("definition_context") + " dfc_pref ON dfc_pref.definition_id = df_pref.id " +
-                "WHERE df_pref.item_id = i.id AND dfc_pref.acceptability = 'PREFERRED')";
+                "WHERE df_pref.item_id = i.id AND df_pref.acceptability = 'PREFERRED')";
 
-        String itemTypeExpr = itemTypeCaseExpr();
+        String itemTypeExpr = itemTypeExprFor(typeFilter);
         String matchTypeLiteral = exactMatch ? "'EXACT'" : "'PARTIAL'";
 
         // 排序：精确匹配时按匹配度（精确 > 前缀 > 模糊）；其它按创建时间倒序
@@ -286,7 +312,7 @@ public class MetadataSearchService {
                 "rs.registration_status, " +
                 "rs.effective_date, " +
                 "rs.administrative_note, " +
-                "ai.constraint_set_id AS cs_id, " +
+                "ri.constraint_set_id AS cs_id, " +
                 "(" + hasPreferred + ") AS has_preferred, " +
                 "ai.creation_date_time, " +
                 "ai.last_change_date_time, " +
@@ -298,7 +324,9 @@ public class MetadataSearchService {
                 "LEFT JOIN " + t("scoped_identifier") + " si ON si.identified_item_id = ai.id " +
                 "LEFT JOIN " + t("namespace") + " ns ON si.namespace_id = ns.id " +
                 "LEFT JOIN " + t("registration_authority") + " ra ON ai.registration_authority_id = ra.id " +
-                "LEFT JOIN " + t("registration_state") + " rs ON ai.registration_state_id = rs.id" +
+                "LEFT JOIN " + t("registration_state") + " rs ON ai.registration_state_id = rs.id " +
+                // constraint_set_id 位于继承链中间表 registered_item（JOINED 继承），不在 administered_item
+                "LEFT JOIN " + t("registered_item") + " ri ON ri.id = ai.id " +
                 where +
                 orderBy +
                 pagingClause();
@@ -347,7 +375,7 @@ public class MetadataSearchService {
             case "MeasureClass" -> "measure_class";
             case "Dimensionality" -> "dimensionality";
             case "Namespace" -> "namespace";
-            case "RegistrySpecification" -> "registration_specification";
+            case "RegistrySpecification" -> "registry_specification";
             case "ConstraintSet" -> "constraint_set";
             case "ReferenceDocument" -> "reference_document";
             case "ClassificationScheme" -> "classification_scheme";

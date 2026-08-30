@@ -2,7 +2,7 @@
   ConceptualDomainList —— ISO/IEC 11179-31 §7.4.2 三层 UI。
   - 一级 kind（DESCRIBED / ENUMERATED）；二级 enumKind（仅 ENUMERATED：LOCAL / REFERENCE）
   - 三分支互斥卡片：描述型（来源 URI + 概念域 picker）/ 本地枚举型（值含义）/ 引用枚举型（无专属字段，§7.4.2.6.4）
-  - 概念域 picker 替换为 SmartItemPicker（smart-item-picker）
+  - 四实体双向关联由「关联」tab 的 ItemAssociationsPanel 管理（data_element_concept_domain / value_domain_meaning 反向）
 -->
 <template>
   <div>
@@ -63,18 +63,10 @@
           </div>
         </el-form-item>
 
-        <!-- DESCRIBED 描述型：来源 URI + 概念域 picker -->
+        <!-- DESCRIBED 描述型：来源 URI -->
         <template v-if="form.kind === 'DESCRIBED'">
           <el-form-item label="来源 URI">
             <el-input v-model="form.sourceUri" placeholder="可选" />
-          </el-form-item>
-          <el-form-item label="概念域">
-            <SmartItemPicker
-              v-model="form.describedConceptualDomainId"
-              :item-types="['ConceptualDomain']"
-              :show-advanced-filter="false"
-              placeholder="搜索描述型概念域"
-            />
           </el-form-item>
         </template>
 
@@ -130,6 +122,15 @@
         </el-card>
 
       </template>
+
+      <!-- 关联 tab：data_element_concept_domain（§7.2.3.4，↔ DEC 0..*）+ value_domain_meaning（§7.4.4.1） -->
+      <template #associations="{ form }">
+        <ItemAssociationsPanel
+          :item-id="form.id || null"
+          :sections="panelSections"
+          @changed="tableRef?.fetchData()"
+        />
+      </template>
     </ItemFormDialog>
   </div>
 </template>
@@ -144,8 +145,34 @@ import { Plus, Delete } from '@element-plus/icons-vue';
 import { conceptualDomainApi } from '@/api/resources';
 import DataTablePage from '@/components/DataTablePage.vue';
 import ItemFormDialog from '@/components/ItemFormDialog.vue';
-import SmartItemPicker from '@/components/SmartItemPicker.vue';
 import DesignationDefinitionSection from '@/components/DesignationDefinitionSection.vue';
+import ItemAssociationsPanel, { type AssociationPanelSection } from '@/components/ItemAssociationsPanel.vue';
+
+/**
+ * 概念域视角的双向关联：
+ * - data_element_concept_domain（§7.2.3.4）：本概念域关联的数据元概念（0..*，多对多，ConceptualDomain 为拥有方）；
+ * - value_domain_meaning（§7.4.4.1）：以本概念域为 meaning 的值域（0..*，§7.4.5.2.1 要求子类型一致）。
+ */
+const panelSections: AssociationPanelSection[] = [
+  {
+    relationType: 'DATA_ELEMENT_CONCEPT_DOMAIN',
+    pathType: 'data-element-concept-domain',
+    direction: 'OUTGOING',
+    focusRole: 'target',
+    title: '数据元概念',
+    targetItemTypes: ['DataElementConcept'],
+    addPlaceholder: '搜索要关联的数据元概念（输入业务标识符或名称）',
+  },
+  {
+    relationType: 'VALUE_DOMAIN_MEANING',
+    pathType: 'value-domain-meaning',
+    direction: 'INCOMING',
+    focusRole: 'target',
+    title: '值域',
+    targetItemTypes: ['ValueDomain'],
+    addPlaceholder: '搜索要关联的值域（子类型须与本概念域一致）',
+  },
+];
 
 const TYPE_LABEL: Record<string, string> = {
   DESCRIBED: '描述型',

@@ -67,6 +67,7 @@
           class="smart-picker-partial"
         >近似</el-tag>
         <span class="smart-picker-namespace" v-if="hit.namespaceLabel">{{ hit.namespaceLabel }}</span>
+        <span class="smart-picker-meta" v-if="metaLine(hit)">{{ metaLine(hit) }}</span>
       </div>
     </el-option>
 
@@ -90,6 +91,7 @@ import { Loading } from '@element-plus/icons-vue';
 import { useSmartPicker, type SmartPickerScope } from '@/composables/useSmartPicker';
 import type { AdministeredItemSearchHit } from '@/types/common';
 import { useI18n } from 'vue-i18n';
+import dayjs from 'dayjs';
 
 const { t } = useI18n();
 
@@ -218,11 +220,46 @@ function typeTagType(t?: string | null): 'primary' | 'success' | 'warning' | 'in
   return 'info';
 }
 
+/**
+ * 创建时间与最后修改时间取最晚者显示：
+ * 修改晚于创建 → 最后修改于：…；否则 → 创建于：…。
+ */
+function latestTimeLabel(hit: AdministeredItemSearchHit): string {
+  const created = hit.creationDateTime ? dayjs(hit.creationDateTime) : null;
+  const changed = hit.lastChangeDateTime ? dayjs(hit.lastChangeDateTime) : null;
+  const cValid = created?.isValid() ?? false;
+  const mValid = changed?.isValid() ?? false;
+  if (mValid && (!cValid || changed!.isAfter(created!))) {
+    return `最后修改于：${changed!.format('YYYY-MM-DD HH:mm')}`;
+  }
+  if (cValid) {
+    return `创建于：${created!.format('YYYY-MM-DD HH:mm')}`;
+  }
+  return '';
+}
+
+/**
+ * 关联对象的次要信息行：版本号 + 最近时间（创建/最后修改取最晚）。
+ */
+function metaLine(hit: AdministeredItemSearchHit): string {
+  const parts: string[] = [];
+  if (hit.version) parts.push(`v${hit.version}`);
+  const time = latestTimeLabel(hit);
+  if (time) parts.push(time);
+  return parts.join(' | ');
+}
+
+/**
+ * 选中态与选项标签：标识符 | 版本号 | 指称 | 最近时间（创建/最后修改取最晚）。
+ */
 function formatLabel(hit: AdministeredItemSearchHit): string {
   const parts: string[] = [];
   if (hit.identifier) parts.push(hit.identifier);
-  if (hit.itemLabel && hit.itemLabel !== hit.identifier) parts.push(`(${hit.itemLabel})`);
-  return parts.length > 0 ? parts.join(' ') : (hit.itemLabel || hit.id.slice(0, 8));
+  if (hit.version) parts.push(`(v${hit.version})`);
+  if (hit.itemLabel && hit.itemLabel !== hit.identifier) parts.push(hit.itemLabel);
+  const time = latestTimeLabel(hit);
+  if (time) parts.push(time);
+  return parts.length > 0 ? parts.join(' | ') : (hit.itemLabel || hit.id.slice(0, 8));
 }
 
 function doSearch(q: string) {
@@ -315,6 +352,7 @@ onMounted(() => {
 .smart-picker-option {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 6px;
   font-size: 13px;
 }
@@ -335,6 +373,12 @@ onMounted(() => {
 }
 .smart-picker-partial {
   margin-left: 4px;
+}
+.smart-picker-meta {
+  flex-basis: 100%;
+  margin-left: 28px;
+  font-size: 11px;
+  color: var(--el-text-color-secondary);
 }
 .smart-picker-empty {
   display: flex;

@@ -147,6 +147,13 @@ public class MetadataObjectAssociationService {
                             "ValueDomain 当前未关联到指定的 UnitOfMeasure");
                 }
             }
+            case VALUE_DOMAIN_TO_CONCEPTUAL_DOMAIN -> {
+                ValueDomain vd = (ValueDomain) source;
+                if (ValueDomainConceptualDomains.get(vd) != target) {
+                    throw new MetadataAssociationValidationException(
+                            "ValueDomain 当前未关联到指定的 ConceptualDomain");
+                }
+            }
         }
     }
 
@@ -174,6 +181,8 @@ public class MetadataObjectAssociationService {
                     ((ValueDomain) source).setDataType((DataType) target);
             case VALUE_DOMAIN_TO_UNIT_OF_MEASURE ->
                     ((ValueDomain) source).setUnitOfMeasure((UnitOfMeasure) target);
+            case VALUE_DOMAIN_TO_CONCEPTUAL_DOMAIN ->
+                    ValueDomainConceptualDomains.set((ValueDomain) source, (ConceptualDomain) target);
         }
     }
 
@@ -197,6 +206,8 @@ public class MetadataObjectAssociationService {
                     ((ValueDomain) source).setDataType(null);
             case VALUE_DOMAIN_TO_UNIT_OF_MEASURE ->
                     ((ValueDomain) source).setUnitOfMeasure(null);
+            case VALUE_DOMAIN_TO_CONCEPTUAL_DOMAIN ->
+                    ValueDomainConceptualDomains.clear((ValueDomain) source);
         }
     }
 }

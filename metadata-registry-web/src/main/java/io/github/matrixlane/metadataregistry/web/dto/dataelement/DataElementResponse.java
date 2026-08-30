@@ -13,6 +13,8 @@ public record DataElementResponse(
         String dataElementConceptLabel,
         UUID valueDomainId,
         String valueDomainLabel,
+        /** 精度：关联数据元值允许的小数位数（ISO/IEC 11179-31:2023 §7.6.2.1.4 Table 23） */
+        Integer precision,
         List<TextLineResponse> designations,
         List<TextLineResponse> definitions,
         ItemMetaResponse meta) {

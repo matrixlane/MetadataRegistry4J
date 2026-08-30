@@ -59,7 +59,7 @@ class ValueDomainServiceTest {
         ValueDomainRequest request = new ValueDomainRequest(
                 ValueDomainType.REFERENCE_ENUMERATED,
                 null, null, null, null, null, null,
-                null, null, null,
+                null, null, null, null,
                 List.<PermissibleValueEntry>of(),
                 List.of(), List.of(), null);
 
@@ -79,7 +79,7 @@ class ValueDomainServiceTest {
         ValueDomainRequest request = new ValueDomainRequest(
                 ValueDomainType.REFERENCE_ENUMERATED,
                 null, null, null, null, null, null,
-                null, "code", wrongId,
+                null, null, "code", wrongId,
                 List.<PermissibleValueEntry>of(),
                 List.of(), List.of(), null);
 
@@ -105,7 +105,7 @@ class ValueDomainServiceTest {
         ValueDomainRequest request = new ValueDomainRequest(
                 ValueDomainType.REFERENCE_ENUMERATED,
                 null, null, 2, "AA", null, null,
-                null, "code", refCdId,
+                null, null, "code", refCdId,
                 List.<PermissibleValueEntry>of(),
                 List.of(), List.of(), null);
 
@@ -137,7 +137,7 @@ class ValueDomainServiceTest {
         ValueDomainRequest request = new ValueDomainRequest(
                 ValueDomainType.REFERENCE_ENUMERATED,
                 null, null, null, null, null, null,
-                null, "code", null,
+                null, null, "code", null,
                 List.<PermissibleValueEntry>of(),
                 List.of(), List.of(), null);
 
@@ -160,7 +160,7 @@ class ValueDomainServiceTest {
         service.create(new ValueDomainRequest(
                 null,
                 null, null, null, null, null, null,
-                null, null, null,
+                null, null, null, null,
                 List.<PermissibleValueEntry>of(),
                 List.of(), List.of(), null));
 

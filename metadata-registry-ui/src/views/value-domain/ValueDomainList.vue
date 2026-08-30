@@ -86,18 +86,6 @@
           <el-input v-model="form.format" placeholder="如 yyyy-MM-dd" />
         </el-form-item>
 
-        <!-- DESCRIBED -->
-        <template v-if="form.kind === 'DESCRIBED'">
-          <el-form-item label="概念域">
-            <SmartItemPicker
-              v-model="form.describedConceptualDomainId"
-              :item-types="['ConceptualDomain']"
-              :show-advanced-filter="false"
-              placeholder="搜索描述型概念域"
-            />
-          </el-form-item>
-        </template>
-
         <!-- LOCAL_ENUMERATED -->
         <el-card
           v-if="form.kind === 'ENUMERATED' && form.enumKind === 'LOCAL'"
@@ -159,15 +147,28 @@
           <el-form-item label="外部源字段名" required>
             <el-input v-model="form.permittedValuesFieldname" placeholder="如 code / alpha2" />
           </el-form-item>
-          <el-form-item label="引用概念域">
-            <SmartItemPicker
-              v-model="form.referencedConceptualDomainId"
-              :item-types="['ConceptualDomain']"
-              :show-advanced-filter="false"
-              placeholder="搜索引用枚举概念域（可空）"
-            />
-          </el-form-item>
         </el-card>
+      </template>
+
+      <!-- 关联 tab：value_domain_meaning（§7.4.4.1，→ CD 0..1，§7.4.5.2.1 子类型一致）+ data_element_domain（§7.6.3.1） -->
+      <template #associations="{ form }">
+        <el-form-item label="概念域">
+          <SmartItemPicker
+            :model-value="form[cdField(form)]"
+            :item-types="['ConceptualDomain']"
+            :show-advanced-filter="false"
+            placeholder="搜索概念域（须与值域类型一致）"
+            @update:model-value="(v: string | string[] | null) => { form[cdField(form)] = v; }"
+          />
+          <div class="assoc-hint">
+            ISO/IEC 11179-31:2023 §7.4.5.2.1：值域与概念域子类型须一致（描述 ↔ 描述 / 本地枚举 ↔ 本地枚举 / 引用枚举 ↔ 引用枚举）
+          </div>
+        </el-form-item>
+        <ItemAssociationsPanel
+          :item-id="form.id || null"
+          :sections="panelSections"
+          @changed="tableRef?.fetchData()"
+        />
       </template>
     </ItemFormDialog>
   </div>
@@ -185,6 +186,27 @@ import DataTablePage from '@/components/DataTablePage.vue';
 import ItemFormDialog from '@/components/ItemFormDialog.vue';
 import SmartItemPicker from '@/components/SmartItemPicker.vue';
 import DesignationDefinitionSection from '@/components/DesignationDefinitionSection.vue';
+import ItemAssociationsPanel, { type AssociationPanelSection } from '@/components/ItemAssociationsPanel.vue';
+
+/** data_element_domain（§7.6.3.1）：关联到本值域的数据元（0..*，标准允许值域被多个数据元复用）。 */
+const panelSections: AssociationPanelSection[] = [
+  {
+    relationType: 'DATA_ELEMENT_DOMAIN',
+    pathType: 'data-element-domain',
+    direction: 'INCOMING',
+    focusRole: 'target',
+    title: '数据元',
+    targetItemTypes: ['DataElement'],
+    addPlaceholder: '搜索要关联的数据元（输入业务标识符或名称）',
+  },
+];
+
+/** value_domain_meaning（§7.4.4.1）统一入口：按值域类型落到对应子类字段。 */
+function cdField(form: Record<string, any>): string {
+  if (form.kind === 'DESCRIBED') return 'describedConceptualDomainId';
+  if (form.kind === 'ENUMERATED' && form.enumKind === 'REFERENCE') return 'referencedConceptualDomainId';
+  return 'localEnumeratedConceptualDomainId';
+}
 
 const TYPE_LABEL: Record<string, string> = {
   DESCRIBED: '描述型',
@@ -227,6 +249,7 @@ function onKindChange(form: Record<string, any>) {
     form.permissibleValues = [];
     form.permittedValuesFieldname = null;
     form.referencedConceptualDomainId = null;
+    form.localEnumeratedConceptualDomainId = null;
   } else if (form.kind === 'ENUMERATED') {
     if (!form.enumKind) form.enumKind = 'LOCAL';
     form.describedConceptualDomainId = null;
@@ -240,6 +263,7 @@ function onEnumKindChange(form: Record<string, any>) {
     form.referencedConceptualDomainId = null;
   } else if (form.enumKind === 'REFERENCE') {
     form.permissibleValues = [];
+    form.localEnumeratedConceptualDomainId = null;
   }
   form.type = computeType(form.kind, form.enumKind);
 }
@@ -280,11 +304,15 @@ function submitFn(data: Record<string, unknown>) {
     data.permissibleValues = [];
     data.permittedValuesFieldname = null;
     data.referencedConceptualDomainId = null;
+    data.localEnumeratedConceptualDomainId = null;
   } else if (data.kind === 'ENUMERATED' && data.enumKind === 'LOCAL') {
     data.permittedValuesFieldname = null;
     data.referencedConceptualDomainId = null;
+    data.describedConceptualDomainId = null;
   } else if (data.kind === 'ENUMERATED' && data.enumKind === 'REFERENCE') {
     data.permissibleValues = [];
+    data.localEnumeratedConceptualDomainId = null;
+    data.describedConceptualDomainId = null;
   }
   delete data.kind;
   delete data.enumKind;
@@ -297,3 +325,11 @@ async function handleDelete(row: Record<string, unknown>) {
   tableRef.value?.fetchData();
 }
 </script>
+
+<style scoped>
+.assoc-hint {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+</style>
