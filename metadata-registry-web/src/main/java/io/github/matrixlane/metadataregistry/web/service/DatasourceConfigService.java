@@ -8,8 +8,8 @@ import io.github.matrixlane.metadataregistry.web.dto.datasource.DatasourceTestRe
 import io.github.matrixlane.metadataregistry.web.edition.DeploymentEdition;
 import io.github.matrixlane.metadataregistry.web.service.database.DatabaseEnvironment;
 import io.github.matrixlane.metadataregistry.web.service.database.DatabaseVendor;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.yaml.snakeyaml.DumperOptions;
@@ -21,6 +21,7 @@ import java.io.Writer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
@@ -31,25 +32,58 @@ import java.util.Map;
  * 数据源配置服务（见 openspec: datasource-configuration）。
  *
  * <p>职责：连接测试（不落地的预检）、配置合法性校验（版本×方言约束）、
- * 将数据源配置合并写入工作目录下的 {@code application-local.yml}（保留文件
- * 中既有其他配置），统一"写配置 + 引导重启"生效。
+ * 将数据源配置合并写入固定位置的 {@code application-local.yml}（保留文件中
+ * 既有其他配置），统一"写配置 + 引导重启"生效。
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class DatasourceConfigService {
 
-    private static final Path LOCAL_CONFIG = Paths.get("application-local.yml");
+    /**
+     * 本地配置文件固定放在用户主目录下，避免依赖 JVM 启动时的工作目录（user.dir）。
+     * 以前使用相对路径 {@code ./application-local.yml} 时，从 IDE、Maven、jar 包等
+     * 不同方式启动会导致保存位置和读取位置不一致，配置重启后无法生效。
+     *
+     * <p>可通过系统属性 {@code metadata.registry.config.file} 覆盖该路径，便于测试。
+     */
+    private static final Path DEFAULT_LOCAL_CONFIG = Paths.get(
+            System.getProperty("user.home"), ".metadata-registry", "application-local.yml");
+
     private static final int LOGIN_TIMEOUT_SECONDS = 5;
 
     private final SystemSettingService systemSettingService;
     private final DatabaseEnvironment databaseEnvironment;
+    private final Path localConfig;
 
     @Value("${spring.datasource.url:}")
     private String currentUrl;
 
     @Value("${spring.datasource.driver-class-name:}")
     private String currentDriver;
+
+    @Autowired
+    public DatasourceConfigService(SystemSettingService systemSettingService,
+                                     DatabaseEnvironment databaseEnvironment) {
+        this(systemSettingService, databaseEnvironment, resolveLocalConfig());
+    }
+
+    /**
+     * 测试专用构造器：避免静态字段初始化顺序导致真实用户配置被测试污染。
+     */
+    DatasourceConfigService(SystemSettingService systemSettingService,
+                            DatabaseEnvironment databaseEnvironment,
+                            Path localConfig) {
+        this.systemSettingService = systemSettingService;
+        this.databaseEnvironment = databaseEnvironment;
+        this.localConfig = localConfig;
+    }
+
+    private static Path resolveLocalConfig() {
+        String override = System.getProperty("metadata.registry.config.file");
+        return override != null && !override.isBlank()
+                ? Paths.get(override)
+                : DEFAULT_LOCAL_CONFIG;
+    }
 
     /**
      * 当前数据源只读视图（不回传口令）。
@@ -126,7 +160,7 @@ public class DatasourceConfigService {
         flyway.put("locations", "classpath:db/migration/" + flywayDir(vendor));
 
         writeBack(root);
-        log.warn("数据源配置已写入 {}（vendor={}），需重启生效", LOCAL_CONFIG.toAbsolutePath(), vendor);
+        log.warn("数据源配置已写入 {}（vendor={}），需重启生效", localConfig.toAbsolutePath(), vendor);
     }
 
     // ── 合法性校验 ──────────────────────────────────────────────
@@ -272,8 +306,9 @@ public class DatasourceConfigService {
 
     @SuppressWarnings("unchecked")
     private Map<String, Object> loadExisting() {
-        if (Files.exists(LOCAL_CONFIG)) {
-            try (InputStream in = Files.newInputStream(LOCAL_CONFIG)) {
+        migrateTo(localConfig);
+        if (Files.exists(localConfig)) {
+            try (InputStream in = Files.newInputStream(localConfig)) {
                 Map<String, Object> loaded = new Yaml().load(in);
                 if (loaded != null) {
                     return new LinkedHashMap<>(loaded);
@@ -283,6 +318,94 @@ public class DatasourceConfigService {
             }
         }
         return new LinkedHashMap<>();
+    }
+
+    /**
+     * 兼容旧部署：以前配置写在 JVM 启动目录下的 {@code application-local.yml}，
+     * 现在固定到用户主目录。若新位置不存在、或新位置配置已损坏（例如指向已不存在的
+     * SQLite 临时目录），而旧位置存在，自动复制一次，避免用户已保存的配置"丢失"。
+     *
+     * <p>该方法在 Spring Boot 启动前由 {@code main} 调用，确保数据源初始化前配置
+     * 已经位于正确位置。
+     */
+    public static void migrateLegacyConfigIfNeeded() {
+        migrateTo(resolveLocalConfig());
+    }
+
+    private static void migrateTo(Path target) {
+        if (!shouldMigrateTo(target)) {
+            return;
+        }
+        Path legacy = findLegacyConfig();
+        if (legacy == null) {
+            return;
+        }
+        try {
+            Path parent = target.getParent();
+            if (parent != null) {
+                Files.createDirectories(parent);
+            }
+            if (Files.exists(target)) {
+                Files.copy(legacy, target, StandardCopyOption.REPLACE_EXISTING);
+            } else {
+                Files.copy(legacy, target);
+            }
+            log.info("已从旧位置 {} 迁移数据源配置到 {}", legacy.toAbsolutePath(), target.toAbsolutePath());
+        } catch (IOException e) {
+            log.warn("迁移旧数据源配置失败: {}", e.getMessage());
+        }
+    }
+
+    private static boolean shouldMigrateTo(Path target) {
+        if (!Files.exists(target)) {
+            return findLegacyConfig() != null;
+        }
+        return isBrokenSqliteConfig(target) && findLegacyConfig() != null;
+    }
+
+    /**
+     * 查找旧版 application-local.yml。旧版放在 JVM 工作目录下，而项目通常从仓库根目录
+     * 或 web 模块目录启动，因此同时检查当前目录及其父目录。
+     */
+    private static Path findLegacyConfig() {
+        Path current = Paths.get("application-local.yml");
+        if (Files.exists(current)) {
+            return current;
+        }
+        Path parent = Paths.get("..", "application-local.yml");
+        if (Files.exists(parent)) {
+            return parent;
+        }
+        return null;
+    }
+
+    private static boolean isBrokenSqliteConfig(Path config) {
+        try (InputStream in = Files.newInputStream(config)) {
+            Map<String, Object> loaded = new Yaml().load(in);
+            if (loaded == null) {
+                return false;
+            }
+            Object url = nestedValue(loaded, "spring", "datasource", "url");
+            if (!(url instanceof String urlStr) || !urlStr.startsWith("jdbc:sqlite:")) {
+                return false;
+            }
+            Path dbFile = Paths.get(urlStr.substring("jdbc:sqlite:".length()));
+            Path dbParent = dbFile.getParent();
+            return dbParent != null && !Files.exists(dbParent);
+        } catch (IOException e) {
+            return false;
+        }
+    }
+
+    private static Object nestedValue(Map<String, Object> root, String... keys) {
+        Object current = root;
+        for (String key : keys) {
+            if (!(current instanceof Map<?, ?> map)) {
+                return null;
+            }
+            current = map.get(key);
+        }
+        return current;
     }
 
     @SuppressWarnings("unchecked")
@@ -301,8 +424,14 @@ public class DatasourceConfigService {
         options.setDefaultFlowStyle(DumperOptions.FlowStyle.BLOCK);
         options.setPrettyFlow(true);
         Yaml yaml = new Yaml(options);
-        try (Writer writer = Files.newBufferedWriter(LOCAL_CONFIG)) {
-            yaml.dump(root, writer);
+        try {
+            Path parent = localConfig.getParent();
+            if (parent != null) {
+                Files.createDirectories(parent);
+            }
+            try (Writer writer = Files.newBufferedWriter(localConfig)) {
+                yaml.dump(root, writer);
+            }
         } catch (IOException e) {
             throw new BusinessException("写入 application-local.yml 失败: " + e.getMessage());
         }

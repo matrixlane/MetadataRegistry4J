@@ -2,7 +2,9 @@ spring:
   application:
     name: metadata-registry
   config:
-    import: optional:application-local.yml
+    # 固定从用户主目录下的 .metadata-registry 加载本地配置，避免依赖 JVM 启动
+    # 工作目录（user.dir）导致保存的配置在重启后无法生效。
+    import: optional:${user.home}/.metadata-registry/application-local.yml
   datasource:
     url: ${DB_URL:jdbc:sqlite:./metadata_registry.db}
     driver-class-name: ${DB_DRIVER:org.sqlite.JDBC}

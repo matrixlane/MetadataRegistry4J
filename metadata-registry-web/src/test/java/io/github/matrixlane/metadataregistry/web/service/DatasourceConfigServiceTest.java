@@ -23,31 +23,33 @@ import static org.mockito.Mockito.mock;
  */
 class DatasourceConfigServiceTest {
 
-    /** 与被测类一致：工作目录下的 application-local.yml。 */
-    private static final Path LOCAL_CONFIG = Paths.get("application-local.yml");
-
     private DatasourceConfigService service;
+    private Path localConfig;
     private String originalConfig;
 
     @BeforeEach
-    void setUp() throws IOException {
-        originalConfig = Files.exists(LOCAL_CONFIG) ? Files.readString(LOCAL_CONFIG) : null;
-        service = new DatasourceConfigService(mock(SystemSettingService.class), mock(DatabaseEnvironment.class));
+    void setUp(@TempDir Path tempDir) throws IOException {
+        // 每个测试使用独立临时文件，通过包级构造器注入，避免静态字段初始化顺序污染真实配置。
+        localConfig = tempDir.resolve("application-local.yml");
+        originalConfig = Files.exists(localConfig) ? Files.readString(localConfig) : null;
+        service = new DatasourceConfigService(
+                mock(SystemSettingService.class), mock(DatabaseEnvironment.class), localConfig);
     }
 
     @AfterEach
     void tearDown() throws IOException {
         if (originalConfig != null) {
-            Files.writeString(LOCAL_CONFIG, originalConfig);
+            Files.writeString(localConfig, originalConfig);
         } else {
-            Files.deleteIfExists(LOCAL_CONFIG);
+            Files.deleteIfExists(localConfig);
         }
     }
 
     @Test
     void saveConfigSqliteMustNotPersistCredentials(@TempDir Path tempDir) throws IOException {
         // 预置已被污染的配置：datasource 下残留旧凭据
-        Files.writeString(LOCAL_CONFIG, """
+        Files.createDirectories(localConfig.getParent());
+        Files.writeString(localConfig, """
                 spring:
                   datasource:
                     url: jdbc:sqlite:./data/metadata-registry.db
@@ -63,7 +65,7 @@ class DatasourceConfigServiceTest {
 
         service.saveConfig(request);
 
-        String written = Files.readString(LOCAL_CONFIG);
+        String written = Files.readString(localConfig);
         assertThat(written).as("SQLite 保存不得写入 username").doesNotContain("username");
         assertThat(written).as("SQLite 保存不得写入 password").doesNotContain("password");
         assertThat(written).contains("jdbc:sqlite:");
