@@ -131,12 +131,6 @@
                   {{ dbTestResult.message }}
                 </span>
               </el-form-item>
-
-              <el-form-item>
-                <el-button type="primary" :loading="dbSaving" :disabled="!dbTestResult?.success" @click="saveDbConfig">
-                  保存数据源配置
-                </el-button>
-              </el-form-item>
             </el-form>
           </template>
 
@@ -503,6 +497,25 @@ watch(() => dbForm.vendor, () => {
   dbTestResult.value = null;
 });
 
+// 连接参数变化后，之前的测试结果即失效——"下一步"保存必须以最新参数的测试结果为准
+watch(
+  () => [dbForm.host, dbForm.port, dbForm.database, dbForm.filePath, dbForm.username, dbForm.password],
+  () => { dbTestResult.value = null; }
+);
+
+// 切到"配置新的数据源"时对表单打快照；"下一步"时若表单与快照一致
+// （没有做过任何修改），等价于"保持当前数据源并继续"，不保存也不重启
+const dbFormSnapshot = ref('');
+watch(dbChoice, (choice) => {
+  if (choice === 'change') {
+    dbFormSnapshot.value = JSON.stringify(dbForm);
+    dbTestResult.value = null;
+  }
+});
+const dbFormModified = computed(
+  () => dbChoice.value === 'change' && JSON.stringify(dbForm) !== dbFormSnapshot.value
+);
+
 const formStep2Ref = ref<FormInstance>();
 const formStep3Ref = ref<FormInstance>();
 const formStep4Ref = ref<FormInstance>();
@@ -700,10 +713,23 @@ async function nextStep() {
   }
 
   if (currentStep.value === 1) {
-    // 数据库步骤：保存待重启则阻止继续；选择"配置新的数据源"但未保存也阻止。
+    // 数据库步骤：保存待重启则阻止继续；选择"配置新的数据源"且修改过参数时，
+    // "下一步"即保存数据源配置（保存后需重启，由 restartRequired 接管界面）；
+    // 未做任何修改时与"保持当前数据源并继续"相同，直接进入下一步。
     if (restartRequired.value) return;
-    if (dbChoice.value === 'change') {
-      ElMessage.error('请先保存新的数据源配置，或选择"保持当前数据源并继续"');
+    if (dbChoice.value === 'change' && dbFormModified.value) {
+      if (!dbTestResult.value?.success) {
+        ElMessage.error('请先测试连接，确认新数据源可用后再继续');
+        return;
+      }
+      loading.value = true;
+      try {
+        await saveDbConfig();
+      } catch {
+        // 拦截器已提示错误，留在本步骤
+      } finally {
+        loading.value = false;
+      }
       return;
     }
     if (form.edition === 'TEAM' && currentDb.value?.vendor === 'sqlite') {
