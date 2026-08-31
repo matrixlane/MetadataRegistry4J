@@ -467,6 +467,11 @@ interface CurrentDb {
   jdbcUrl: string | null;
   schema: string | null;
   driverClassName: string | null;
+  host?: string | null;
+  port?: number | null;
+  database?: string | null;
+  filePath?: string | null;
+  hasCredentials?: boolean;
 }
 interface DbTestResult {
   success: boolean;
@@ -503,15 +508,46 @@ watch(
   () => { dbTestResult.value = null; }
 );
 
-// 切到"配置新的数据源"时对表单打快照；"下一步"时若表单与快照一致
-// （没有做过任何修改），等价于"保持当前数据源并继续"，不保存也不重启
+// 切到"配置新的数据源"时把表单预填为当前数据源配置，再打快照；
+// "下一步"时若表单与快照一致（没有做过任何修改），等价于"保持当前数据源并继续"，
+// 不保存也不重启
 const dbFormSnapshot = ref('');
+
+function prefillDbFormFromCurrent() {
+  const cur = currentDb.value;
+  if (!cur) return;
+  if (cur.vendor === 'sqlite' || cur.vendor === 'sqlserver' || cur.vendor === 'dm') {
+    dbForm.vendor = cur.vendor;
+  }
+  if (cur.vendor === 'sqlite') {
+    if (cur.filePath) dbForm.filePath = cur.filePath;
+  } else {
+    if (cur.host) dbForm.host = cur.host;
+    if (cur.port) dbForm.port = cur.port;
+    if (cur.database) dbForm.database = cur.database;
+  }
+  // 凭据不回传（hasCredentials 仅作标记），统一留空由用户按需填写
+  dbForm.username = '';
+  dbForm.password = '';
+}
+
 watch(dbChoice, (choice) => {
   if (choice === 'change') {
+    prefillDbFormFromCurrent();
     dbFormSnapshot.value = JSON.stringify(dbForm);
     dbTestResult.value = null;
   }
 });
+
+// 当前数据源是异步加载的：若用户先切到"配置新的数据源"后配置才加载完成，
+// 且表单尚未被修改，则补一次预填并刷新快照
+watch(currentDb, (cur) => {
+  if (cur && dbChoice.value === 'change' && !dbFormModified.value) {
+    prefillDbFormFromCurrent();
+    dbFormSnapshot.value = JSON.stringify(dbForm);
+  }
+});
+
 const dbFormModified = computed(
   () => dbChoice.value === 'change' && JSON.stringify(dbForm) !== dbFormSnapshot.value
 );

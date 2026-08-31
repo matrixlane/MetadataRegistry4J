@@ -27,6 +27,7 @@ import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 /**
  * 数据源配置服务（见 openspec: datasource-configuration）。
@@ -89,12 +90,78 @@ public class DatasourceConfigService {
      * 当前数据源只读视图（不回传口令）。
      */
     public DatasourceConfigView currentConfig() {
+        ParsedUrl parsed = parseCurrentUrl();
         return new DatasourceConfigView(
                 databaseEnvironment.vendor().name().toLowerCase(),
                 maskUrl(currentUrl),
                 databaseEnvironment.schema(),
-                currentDriver
+                currentDriver,
+                parsed.host(),
+                parsed.port(),
+                parsed.database(),
+                parsed.filePath(),
+                parsed.hasCredentials()
         );
+    }
+
+    /**
+     * 当前 JDBC URL 的结构化解析结果。URL 各方言的格式由本类 {@link #buildJdbcUrl}
+     * 产生（或手工按同格式编写），因此可以可靠地反向解析。
+     */
+    private record ParsedUrl(String host, Integer port, String database, String filePath, boolean hasCredentials) {
+        static ParsedUrl empty() {
+            return new ParsedUrl(null, null, null, null, false);
+        }
+    }
+
+    private ParsedUrl parseCurrentUrl() {
+        String url = currentUrl;
+        if (url == null || url.isBlank()) {
+            return ParsedUrl.empty();
+        }
+        if (url.startsWith("jdbc:sqlite:")) {
+            return new ParsedUrl(null, null, null, url.substring("jdbc:sqlite:".length()), false);
+        }
+        if (url.startsWith("jdbc:sqlserver://")) {
+            String rest = url.substring("jdbc:sqlserver://".length());
+            int semi = rest.indexOf(';');
+            String hostPort = semi >= 0 ? rest.substring(0, semi) : rest;
+            String host = hostPort;
+            Integer port = null;
+            int colon = hostPort.indexOf(':');
+            if (colon >= 0) {
+                host = hostPort.substring(0, colon);
+                try {
+                    port = Integer.parseInt(hostPort.substring(colon + 1));
+                } catch (NumberFormatException ignored) {
+                    // 端口无法解析时按未提供处理
+                }
+            }
+            String database = null;
+            var matcher = Pattern.compile("(?i)(?:^|;)databaseName=([^;]*)").matcher(url);
+            if (matcher.find()) {
+                database = matcher.group(1);
+            }
+            boolean hasCredentials = !url.toLowerCase().contains("integratedsecurity=true");
+            return new ParsedUrl(host, port, database, null, hasCredentials);
+        }
+        if (url.startsWith("jdbc:dm://")) {
+            String hostPort = url.substring("jdbc:dm://".length());
+            String host = hostPort;
+            Integer port = null;
+            int colon = hostPort.indexOf(':');
+            if (colon >= 0) {
+                host = hostPort.substring(0, colon);
+                try {
+                    port = Integer.parseInt(hostPort.substring(colon + 1));
+                } catch (NumberFormatException ignored) {
+                    // 端口无法解析时按未提供处理
+                }
+            }
+            // DM 的凭据不体现在 URL 中，无法判断，按无凭据处理
+            return new ParsedUrl(host, port, null, null, false);
+        }
+        return ParsedUrl.empty();
     }
 
     /**
