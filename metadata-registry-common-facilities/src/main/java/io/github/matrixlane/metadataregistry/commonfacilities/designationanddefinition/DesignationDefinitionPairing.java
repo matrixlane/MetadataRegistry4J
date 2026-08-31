@@ -1,8 +1,6 @@
 package io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition;
 
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.Context;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -24,7 +22,6 @@ public class DesignationDefinitionPairing {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @Enumerated(EnumType.STRING)
     private Acceptability acceptability;
 
     @ManyToOne
