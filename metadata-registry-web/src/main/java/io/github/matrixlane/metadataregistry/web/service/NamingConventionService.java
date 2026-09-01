@@ -23,6 +23,7 @@ import java.util.UUID;
 public class NamingConventionService {
 
     private final NamingConventionRepository repository;
+    private final NamingConventionRulesService rulesService;
     private final ItemAdministrationService itemAdministrationService;
 
     @Transactional(readOnly = true)
@@ -39,13 +40,17 @@ public class NamingConventionService {
     public NamingConventionResponse create(NamingConventionRequest request) {
         NamingConvention entity = new NamingConvention();
         applyRequest(entity, request);
-        return toResponse(repository.save(entity));
+        NamingConvention saved = repository.save(entity);
+        rulesService.applyRules(saved.getId(), request.rulesJson());
+        return toResponse(saved);
     }
 
     public NamingConventionResponse update(UUID id, NamingConventionRequest request) {
         NamingConvention entity = loadOrThrow(id);
         applyRequest(entity, request);
-        return toResponse(repository.save(entity));
+        NamingConvention saved = repository.save(entity);
+        rulesService.applyRules(saved.getId(), request.rulesJson());
+        return toResponse(saved);
     }
 
     public void delete(UUID id) {
@@ -61,7 +66,6 @@ public class NamingConventionService {
         entity.setSemanticRule(toTextOrNull(request.semanticRule()));
         entity.setSyntacticRule(toTextOrNull(request.syntacticRule()));
         entity.setLexicalRule(toTextOrNull(request.lexicalRule()));
-        entity.setRulesJson(StringUtils.hasText(request.rulesJson()) ? request.rulesJson() : null);
         itemAdministrationService.applyDesignations(entity, request.designations());
         itemAdministrationService.applyDefinitions(entity, request.definitions());
         if (request.registration() != null) {
@@ -105,7 +109,7 @@ public class NamingConventionService {
                 textValue(entity.getSemanticRule()),
                 textValue(entity.getSyntacticRule()),
                 textValue(entity.getLexicalRule()),
-                entity.getRulesJson(),
+                rulesService.getOrDefault(entity.getId()).getRulesJson(),
                 itemAdministrationService.mapDesignations(entity),
                 itemAdministrationService.mapDefinitions(entity),
                 itemAdministrationService.buildItemMeta(entity));

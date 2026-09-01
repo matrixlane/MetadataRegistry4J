@@ -98,14 +98,16 @@ class NamingConventionEngineTest {
     @Test
     void buildRulesFromConvention_shouldParseJsonRules() {
         NamingConvention convention = new NamingConvention();
-        convention.setRulesJson("[{\"type\": \"regex\", \"pattern\": \"^[A-Z]+$\", \"description\": \"全大写\"}]");
+        String rulesJson = "[{\"type\": \"regex\", \"pattern\": \"^[A-Z]+$\", \"description\": \"全大写\"}]";
 
         NamingConventionEngine engine = new NamingConventionEngine();
-        List<NamingConventionRule> rules = engine.buildRulesFromConvention(convention);
+        List<NamingConventionRule> rules = engine.buildRulesFromConvention(convention, rulesJson);
 
         assertThat(rules).hasSize(1);
-        assertThat(engine.isValid(Sign.of("ABC"), convention)).isTrue();
-        assertThat(engine.isValid(Sign.of("abc"), convention)).isFalse();
+        assertThat(engine.validateWithRules(Sign.of("ABC"), rules).stream()
+                .allMatch(NamingConventionRuleResult::isPassed)).isTrue();
+        assertThat(engine.validateWithRules(Sign.of("abc"), rules).stream()
+                .allMatch(NamingConventionRuleResult::isPassed)).isFalse();
     }
 
     @Test

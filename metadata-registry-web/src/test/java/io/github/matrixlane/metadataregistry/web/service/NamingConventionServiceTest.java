@@ -38,6 +38,9 @@ class NamingConventionServiceTest {
     @Mock
     private ItemAdministrationService itemAdministrationService;
 
+    @Mock
+    private NamingConventionRulesService rulesService;
+
     @InjectMocks
     private NamingConventionService service;
 
@@ -53,6 +56,8 @@ class NamingConventionServiceTest {
         namingConvention.setId(ncId);
         namingConvention.setScopeRule(Text.of("必须以 org.example 开头"));
         namingConvention.setAuthorityRule(Text.of("由架构组审批"));
+        org.mockito.Mockito.lenient().when(rulesService.getOrDefault(org.mockito.ArgumentMatchers.any()))
+                .thenAnswer(inv -> new io.github.matrixlane.metadataregistry.ext.designationanddefinition.NamingConventionRules());
     }
 
     @Test

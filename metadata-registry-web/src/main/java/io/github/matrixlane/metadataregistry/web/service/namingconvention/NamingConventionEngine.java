@@ -24,6 +24,13 @@ public class NamingConventionEngine {
 
     private final List<NamingConventionRule> defaultRules;
     private final ObjectMapper objectMapper;
+    private final io.github.matrixlane.metadataregistry.web.service.NamingConventionRulesService rulesService;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public NamingConventionEngine(
+            io.github.matrixlane.metadataregistry.web.service.NamingConventionRulesService rulesService) {
+        this(buildDefaultRules(), new ObjectMapper(), rulesService);
+    }
 
     public NamingConventionEngine() {
         this(buildDefaultRules(), new ObjectMapper());
@@ -34,8 +41,14 @@ public class NamingConventionEngine {
     }
 
     public NamingConventionEngine(List<NamingConventionRule> defaultRules, ObjectMapper objectMapper) {
+        this(defaultRules, objectMapper, null);
+    }
+
+    public NamingConventionEngine(List<NamingConventionRule> defaultRules, ObjectMapper objectMapper,
+            io.github.matrixlane.metadataregistry.web.service.NamingConventionRulesService rulesService) {
         this.defaultRules = defaultRules == null ? Collections.emptyList() : new ArrayList<>(defaultRules);
         this.objectMapper = objectMapper == null ? new ObjectMapper() : objectMapper;
+        this.rulesService = rulesService;
     }
 
     /**
@@ -102,17 +115,32 @@ public class NamingConventionEngine {
      * 根据命名规范实体生成规则列表。
      */
     public List<NamingConventionRule> buildRulesFromConvention(NamingConvention convention) {
+        return buildRulesFromConvention(convention, rulesJsonOf(convention));
+    }
+
+    /**
+     * 根据命名规范实体与显式机器规则 JSON 生成规则列表(卫星模式:rulesJson 由调用方从
+     * NamingConventionRules 卫星实体读入;引擎自身经 rulesService 懒查)。
+     */
+    public List<NamingConventionRule> buildRulesFromConvention(NamingConvention convention, String rulesJson) {
         if (convention == null) {
             return List.copyOf(defaultRules);
         }
-        if (StringUtils.hasText(convention.getRulesJson())) {
+        if (StringUtils.hasText(rulesJson)) {
             try {
-                return parseJsonRules(convention.getRulesJson());
+                return parseJsonRules(rulesJson);
             } catch (RuntimeException e) {
                 // 如果 JSON 规则解析失败，回退到从标准属性生成规则
             }
         }
         return buildRulesFromStandardAttributes(convention);
+    }
+
+    private String rulesJsonOf(NamingConvention convention) {
+        if (rulesService == null || convention == null) {
+            return null;
+        }
+        return rulesService.getOrDefault(convention.getId()).getRulesJson();
     }
 
     private List<NamingConventionRule> parseJsonRules(String rulesJson) {

@@ -8,7 +8,6 @@ import jakarta.persistence.AttributeOverrides;
 import jakarta.persistence.Column;
 import jakarta.persistence.Embedded;
 import jakarta.persistence.Entity;
-import jakarta.persistence.Lob;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -17,6 +16,10 @@ import lombok.Setter;
  * ISO/IEC 11179-3:2023, 8.4.4 — Naming_Convention.
  *
  * <p>A naming convention provides a set of rules for constructing the sign of a designation
+ *
+ * <p>扩展属性 rulesJson(机器可执行规则 JSON)非标准模型,已剥离至卫星实体
+ * {@code ext.designationanddefinition.NamingConventionRules}(表 naming_convention_rules),
+ * 读写经 web 层 NamingConventionRulesService,缺失行等同 rulesJson=null。
  * of a registry item. It is a subclass of Item and can therefore be identified, registered,
  * administered, named, defined and classified.
  */
@@ -71,12 +74,4 @@ public class NamingConvention extends Item {
             @AttributeOverride(name = "value", column = @Column(name = "lexical_rule"))
     })
     private Text lexicalRule;
-
-    /**
-     * Machine-executable rules serialized as JSON. When present, the engine uses these rules
-     * directly; otherwise it falls back to generating rules from the standard attributes above.
-     */
-    @Lob
-    @Column(name = "rules_json")
-    private String rulesJson;
 }
