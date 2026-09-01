@@ -172,6 +172,7 @@ public class RegistrationLifecycleService {
     private final AdministeredItemRepository administeredItemRepository;
     private final AccountRepository accountRepository;
     private final ContactRepository contactRepository;
+    private final ContactAccountBindingService contactAccountBindingService;
 
     /**
      * 执行状态转换。
@@ -377,7 +378,7 @@ public class RegistrationLifecycleService {
             // Check if they are a registrar contact
             Account account = accountRepository.findById(user.id()).orElse(null);
             if (account != null) {
-                List<Contact> contacts = contactRepository.findByAccount(account);
+                List<Contact> contacts = contactAccountBindingService.contactsOfAccount(account);
                 boolean isRegistrar = contacts.stream()
                         .anyMatch(c -> c.getRole() != null && "注册管理员".equals(c.getRole().getRoleName()));
                 if (isRegistrar) {

@@ -34,6 +34,7 @@ import java.util.UUID;
 public class NamespaceOwnershipService {
 
     private final RegistrarRepository registrarRepository;
+    private final io.github.matrixlane.metadataregistry.web.service.ContactAccountBindingService contactAccountBindingService;
     private final RegistrationAuthorityRepository registrationAuthorityRepository;
 
     /**
@@ -74,7 +75,7 @@ public class NamespaceOwnershipService {
         }
         Object principal = auth.getPrincipal();
         if (principal instanceof AuthenticatedUser user) {
-            return registrarRepository.findByAccount_Username(user.username());
+            return contactAccountBindingService.registrarsOfAccount(user.id());
         }
         return List.of();
     }

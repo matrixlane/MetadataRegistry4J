@@ -35,6 +35,7 @@ class NamespacePermissionEvaluatorTest {
 
     @Mock
     private ContactRepository contactRepository;
+    @Mock private ContactAccountBindingService contactAccountBindingService;
 
     @InjectMocks
     private NamespacePermissionEvaluator evaluator;
@@ -114,10 +115,9 @@ class NamespacePermissionEvaluatorTest {
         Organization org = new Organization();
         org.setId(UUID.randomUUID());
         Contact contact = new Contact();
-        contact.setAccount(account);
         contact.setOrganization(org);
 
-        when(contactRepository.findByAccount(account)).thenReturn(List.of(contact));
+        when(contactAccountBindingService.contactsOfAccount(account)).thenReturn(List.of(contact));
         NamespacePermission orgPerm = new NamespacePermission(namespaceId, null, org.getId(), NamespacePermissionType.READ_WRITE);
         when(namespacePermissionRepository.findByNamespaceIdAndOrganizationId(namespaceId, org.getId()))
                 .thenReturn(Optional.of(orgPerm));
@@ -138,10 +138,9 @@ class NamespacePermissionEvaluatorTest {
         Organization org = new Organization();
         org.setId(UUID.randomUUID());
         Contact contact = new Contact();
-        contact.setAccount(account);
         contact.setOrganization(org);
 
-        when(contactRepository.findByAccount(account)).thenReturn(List.of(contact));
+        when(contactAccountBindingService.contactsOfAccount(account)).thenReturn(List.of(contact));
         NamespacePermission orgPerm = new NamespacePermission(namespaceId, null, org.getId(), NamespacePermissionType.NONE);
         when(namespacePermissionRepository.findByNamespaceIdAndOrganizationId(namespaceId, org.getId()))
                 .thenReturn(Optional.of(orgPerm));
@@ -158,7 +157,7 @@ class NamespacePermissionEvaluatorTest {
         when(accountRepository.findById(accountId)).thenReturn(Optional.of(account));
         when(namespacePermissionRepository.findByNamespaceIdAndAccountId(namespaceId, accountId))
                 .thenReturn(Optional.empty());
-        when(contactRepository.findByAccount(account)).thenReturn(Collections.emptyList());
+        when(contactAccountBindingService.contactsOfAccount(account)).thenReturn(Collections.emptyList());
 
         boolean hasRead = evaluator.hasReadPermission(namespaceId, accountId);
         boolean hasWrite = evaluator.hasWritePermission(namespaceId, accountId);

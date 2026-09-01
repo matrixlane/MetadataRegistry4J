@@ -13,6 +13,10 @@ import lombok.Setter;
  *
  * <p>Contact information linking an {@link Individual}, an {@link Organization},
  * and a {@link Role}.
+ *
+ * <p>登录账号绑定(Contact↔Account)为标准外扩展,已剥离至 ext 模块卫星实体
+ * {@code ContactAccountBinding}(表 contact_account_binding,按 contact_id
+ * 一一对应,有意不建 JPA 关联)。
  */
 @StandardReference("ISO/IEC 11179-3:2023, 6.3.5")
 @jakarta.persistence.Entity
@@ -33,10 +37,6 @@ public class Contact extends Entity {
     @ManyToOne
     @JoinColumn(name = "role_id")
     private Role role;
-
-    @ManyToOne
-    @JoinColumn(name = "account_id")
-    private Account account;
 
     public Contact(Organization organization) {
         this.organization = organization;

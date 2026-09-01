@@ -35,6 +35,7 @@ public class RegistrarService {
     private final OrganizationRepository organizationRepository;
     private final IndividualRepository individualRepository;
     private final RoleRepository roleRepository;
+    private final ContactAccountBindingService contactAccountBindingService;
 
     @Transactional(readOnly = true)
     public Page<RegistrarResponse> list(String keyword, Pageable pageable) {
@@ -54,13 +55,17 @@ public class RegistrarService {
     public RegistrarResponse create(RegistrarRequest request) {
         Registrar entity = new Registrar();
         applyRequest(entity, request);
-        return toResponse(registrarRepository.save(entity));
+        Registrar saved = registrarRepository.save(entity);
+        applyAccountBinding(saved.getId(), request.userId());
+        return toResponse(saved);
     }
 
     public RegistrarResponse update(UUID id, RegistrarRequest request) {
         Registrar entity = loadOrThrow(id);
         applyRequest(entity, request);
-        return toResponse(registrarRepository.save(entity));
+        Registrar saved = registrarRepository.save(entity);
+        applyAccountBinding(saved.getId(), request.userId());
+        return toResponse(saved);
     }
 
     public void delete(UUID id) {
@@ -86,13 +91,6 @@ public class RegistrarService {
             entity.setRegistrationAuthority(null);
         }
 
-        if (request.userId() != null) {
-            Account account = accountRepository.findById(request.userId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Account", request.userId()));
-            entity.setAccount(account);
-        } else {
-            entity.setAccount(null);
-        }
 
         if (request.organizationId() != null) {
             Organization org = organizationRepository.findById(request.organizationId())
@@ -111,6 +109,20 @@ public class RegistrarService {
         }
     }
 
+    /**
+     * 账号绑定写入卫星实体(扩展关联已剥离出标准实体 Contact)。
+     * userId 非空时 upsert 绑定,为空时解绑(语义同字段时代 setAccount(null))。
+     */
+    private void applyAccountBinding(UUID registrarId, java.util.UUID userId) {
+        if (userId != null) {
+            Account account = accountRepository.findById(userId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Account", userId));
+            contactAccountBindingService.bind(registrarId, account.getId());
+        } else {
+            contactAccountBindingService.unbind(registrarId);
+        }
+    }
+
     private RegistrarResponse toResponse(Registrar entity) {
         return new RegistrarResponse(
                 entity.getId(),
@@ -119,7 +131,7 @@ public class RegistrarService {
                 entity.getRegistrationAuthority() != null
                         ? entity.getRegistrationAuthority().getName().stream().findFirst().map(n -> n.getValue()).orElse(null)
                         : null,
-                entity.getAccount() != null ? entity.getAccount().getId() : null,
+                contactAccountBindingService.accountIdOfContact(entity.getId()).orElse(null),
                 entity.getOrganization() != null ? entity.getOrganization().getId() : null,
                 entity.getOrganization() != null
                         ? entity.getOrganization().getName().stream().findFirst().map(n -> n.getValue()).orElse(null)
@@ -144,11 +156,13 @@ public class RegistrarService {
         // 3. Create Registrar (no Individual generated yet!)
         Registrar registrar = new Registrar();
         registrar.setIdentifier(username + "-registrar");
-        registrar.setAccount(account);
         registrar.setIndividual(null); // Keep individual empty initially!
         registrar.setRole(role);
         registrar.setRegistrationAuthority(ra);
         registrar.setOrganization(ra); // RegistrationAuthority extends Organization
-        return registrarRepository.save(registrar);
+        Registrar saved = registrarRepository.save(registrar);
+        // 账号绑定写入卫星实体(扩展关联已剥离出标准实体 Contact)
+        contactAccountBindingService.bind(saved.getId(), account.getId());
+        return saved;
     }
 }

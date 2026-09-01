@@ -55,6 +55,9 @@ class AuthServiceTest {
     private ContactRepository contactRepository;
 
     @Mock
+    private io.github.matrixlane.metadataregistry.web.service.ContactAccountBindingService contactAccountBindingService;
+
+    @Mock
     private SystemSettingService systemSettingService;
 
     @InjectMocks

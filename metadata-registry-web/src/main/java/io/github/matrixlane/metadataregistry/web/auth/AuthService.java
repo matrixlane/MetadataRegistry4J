@@ -48,6 +48,7 @@ public class AuthService {
     private final JwtService jwtService;
     private final IndividualRepository individualRepository;
     private final ContactRepository contactRepository;
+    private final io.github.matrixlane.metadataregistry.web.service.ContactAccountBindingService contactAccountBindingService;
     private final SystemSettingService systemSettingService;
 
     private static final String EMERGENCY_CODE_FILE = "emergency-code.txt";
@@ -359,7 +360,7 @@ public class AuthService {
 
         if (isFirstTime) {
             // Task 4.3: Find contacts associated with this Account and update their Individual
-            List<Contact> contacts = contactRepository.findByAccount(user);
+            List<Contact> contacts = contactAccountBindingService.contactsOfAccount(user);
             for (Contact contact : contacts) {
                 if (contact.getIndividual() == null) {
                     contact.setIndividual(entity);
@@ -412,7 +413,7 @@ public class AuthService {
     private AccountProfileResponse toProfile(Account user, boolean forceChangePassword, boolean emergencyLogin, boolean tempPasswordUsed) {
         boolean isRegistrar = user.getSysRole() == SystemRole.SUPER_ADMIN;
         if (!isRegistrar) {
-            List<Contact> contacts = contactRepository.findByAccount(user);
+            List<Contact> contacts = contactAccountBindingService.contactsOfAccount(user);
             isRegistrar = contacts.stream()
                     .anyMatch(c -> c.getRole() != null && "注册管理员".equals(c.getRole().getRoleName()));
         }

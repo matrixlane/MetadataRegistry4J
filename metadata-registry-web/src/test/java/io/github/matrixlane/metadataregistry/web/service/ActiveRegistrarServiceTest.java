@@ -27,6 +27,7 @@ import static org.mockito.Mockito.*;
 class ActiveRegistrarServiceTest {
 
     @Mock private RegistrarRepository registrarRepository;
+    @Mock private ContactAccountBindingService contactAccountBindingService;
     @Mock private AccountRepository accountRepository;
     @Mock private AdministeredItemRepository administeredItemRepository;
 
@@ -49,7 +50,7 @@ class ActiveRegistrarServiceTest {
     void resolve_singleIdentity_activatesAutomatically() {
         UUID accountId = UUID.randomUUID();
         Registrar registrar = newRegistrar(newRa());
-        when(registrarRepository.findByAccount_Id(accountId)).thenReturn(List.of(registrar));
+        when(contactAccountBindingService.registrarsOfAccount(accountId)).thenReturn(List.of(registrar));
         when(accountRepository.findById(accountId)).thenReturn(Optional.empty());
 
         Optional<Registrar> active = service.resolveActiveRegistrar(accountId);
@@ -62,7 +63,7 @@ class ActiveRegistrarServiceTest {
         UUID accountId = UUID.randomUUID();
         Registrar first = newRegistrar(newRa());
         Registrar second = newRegistrar(newRa());
-        when(registrarRepository.findByAccount_Id(accountId)).thenReturn(List.of(first, second));
+        when(contactAccountBindingService.registrarsOfAccount(accountId)).thenReturn(List.of(first, second));
         Account account = new Account();
         account.setActiveRegistrarId(second.getId());
         when(accountRepository.findById(accountId)).thenReturn(Optional.of(account));
@@ -76,7 +77,7 @@ class ActiveRegistrarServiceTest {
     void resolve_fallsBackWhenSelectionRevoked() {
         UUID accountId = UUID.randomUUID();
         Registrar first = newRegistrar(newRa());
-        when(registrarRepository.findByAccount_Id(accountId)).thenReturn(List.of(first));
+        when(contactAccountBindingService.registrarsOfAccount(accountId)).thenReturn(List.of(first));
         Account account = new Account();
         account.setActiveRegistrarId(UUID.randomUUID()); // 已被撤销的身份
         when(accountRepository.findById(accountId)).thenReturn(Optional.of(account));
@@ -89,7 +90,7 @@ class ActiveRegistrarServiceTest {
     @Test
     void resolve_emptyWhenNoIdentity() {
         UUID accountId = UUID.randomUUID();
-        when(registrarRepository.findByAccount_Id(accountId)).thenReturn(List.of());
+        when(contactAccountBindingService.registrarsOfAccount(accountId)).thenReturn(List.of());
 
         assertThat(service.resolveActiveRegistrar(accountId)).isEmpty();
     }
@@ -98,7 +99,7 @@ class ActiveRegistrarServiceTest {
     void resolveActiveIdentity_returnsMappedIdentityView() {
         UUID accountId = UUID.randomUUID();
         Registrar registrar = newRegistrar(newRa());
-        when(registrarRepository.findByAccount_Id(accountId)).thenReturn(List.of(registrar));
+        when(contactAccountBindingService.registrarsOfAccount(accountId)).thenReturn(List.of(registrar));
         when(accountRepository.findById(accountId)).thenReturn(Optional.empty());
 
         Optional<ActiveRegistrarService.RegistrarIdentity> identity = service.resolveActiveIdentity(accountId);
@@ -112,7 +113,7 @@ class ActiveRegistrarServiceTest {
     @Test
     void resolveActiveIdentity_emptyWhenNoIdentity() {
         UUID accountId = UUID.randomUUID();
-        when(registrarRepository.findByAccount_Id(accountId)).thenReturn(List.of());
+        when(contactAccountBindingService.registrarsOfAccount(accountId)).thenReturn(List.of());
 
         assertThat(service.resolveActiveIdentity(accountId)).isEmpty();
     }
@@ -123,7 +124,8 @@ class ActiveRegistrarServiceTest {
         Registrar registrar = newRegistrar(newRa());
         Account owner = new Account();
         owner.setId(accountId);
-        registrar.setAccount(owner);
+        when(contactAccountBindingService.accountIdOfContact(registrar.getId()))
+                .thenReturn(Optional.of(accountId));
         when(registrarRepository.findById(registrar.getId())).thenReturn(Optional.of(registrar));
         when(accountRepository.findById(accountId)).thenReturn(Optional.of(owner));
 
@@ -139,9 +141,8 @@ class ActiveRegistrarServiceTest {
     void select_rejectsIdentityOfAnotherAccount() {
         UUID accountId = UUID.randomUUID();
         Registrar registrar = newRegistrar(newRa());
-        Account another = new Account();
-        another.setId(UUID.randomUUID());
-        registrar.setAccount(another);
+        when(contactAccountBindingService.accountIdOfContact(registrar.getId()))
+                .thenReturn(Optional.of(UUID.randomUUID()));
         when(registrarRepository.findById(registrar.getId())).thenReturn(Optional.of(registrar));
 
         assertThatThrownBy(() -> service.selectActiveRegistrar(accountId, registrar.getId()))

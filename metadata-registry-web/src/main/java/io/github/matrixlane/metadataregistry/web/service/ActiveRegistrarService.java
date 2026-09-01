@@ -37,6 +37,7 @@ import java.util.UUID;
 public class ActiveRegistrarService {
 
     private final RegistrarRepository registrarRepository;
+    private final ContactAccountBindingService contactAccountBindingService;
     private final AccountRepository accountRepository;
     private final AdministeredItemRepository administeredItemRepository;
 
@@ -61,7 +62,7 @@ public class ActiveRegistrarService {
      */
     @Transactional(readOnly = true)
     public List<RegistrarIdentity> listIdentities(UUID accountId) {
-        return registrarRepository.findByAccount_Id(accountId).stream()
+        return contactAccountBindingService.registrarsOfAccount(accountId).stream()
                 .filter(r -> r.getRegistrationAuthority() != null)
                 .map(ActiveRegistrarService::toIdentity)
                 .toList();
@@ -73,7 +74,7 @@ public class ActiveRegistrarService {
      */
     @Transactional(readOnly = true)
     public Optional<Registrar> resolveActiveRegistrar(UUID accountId) {
-        List<Registrar> identities = registrarRepository.findByAccount_Id(accountId).stream()
+        List<Registrar> identities = contactAccountBindingService.registrarsOfAccount(accountId).stream()
                 .filter(r -> r.getRegistrationAuthority() != null)
                 .toList();
         if (identities.isEmpty()) {
@@ -117,7 +118,8 @@ public class ActiveRegistrarService {
     public RegistrarIdentity selectActiveRegistrar(UUID accountId, UUID registrarId) {
         Registrar registrar = registrarRepository.findById(registrarId)
                 .orElseThrow(() -> new ResourceNotFoundException("Registrar", registrarId));
-        if (registrar.getAccount() == null || !accountId.equals(registrar.getAccount().getId())) {
+        java.util.Optional<java.util.UUID> boundAccountId = contactAccountBindingService.accountIdOfContact(registrar.getId());
+        if (boundAccountId.isEmpty() || !accountId.equals(boundAccountId.get())) {
             throw new BusinessException(ApiCodes.VALIDATION_FAILED,
                     "所选 Registrar 身份不属于当前账号");
         }

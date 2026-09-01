@@ -24,6 +24,7 @@ public class NamespacePermissionEvaluator {
     private final NamespacePermissionRepository namespacePermissionRepository;
     private final AccountRepository accountRepository;
     private final ContactRepository contactRepository;
+    private final ContactAccountBindingService contactAccountBindingService;
 
     /**
      * Checks if a user has read access to a namespace.
@@ -49,7 +50,7 @@ public class NamespacePermissionEvaluator {
 
         // 3. Resolve standard Contact and Organizations
         if (account != null) {
-            List<Contact> contacts = contactRepository.findByAccount(account);
+            List<Contact> contacts = contactAccountBindingService.contactsOfAccount(account);
             if (!contacts.isEmpty()) {
                 boolean hasExplicitDeny = false;
                 boolean hasExplicitAllow = false;
@@ -107,7 +108,7 @@ public class NamespacePermissionEvaluator {
 
         // 3. Resolve standard Contact and Organizations
         if (account != null) {
-            List<Contact> contacts = contactRepository.findByAccount(account);
+            List<Contact> contacts = contactAccountBindingService.contactsOfAccount(account);
             if (!contacts.isEmpty()) {
                 for (Contact contact : contacts) {
                     if (contact.getOrganization() != null) {
@@ -135,7 +136,7 @@ public class NamespacePermissionEvaluator {
         if (account.getSysRole() == SystemRole.SUPER_ADMIN) return true;
         
         // Find if this account is associated with a registrar contact in the target registry
-        List<Contact> contacts = contactRepository.findByAccount(account);
+        List<Contact> contacts = contactAccountBindingService.contactsOfAccount(account);
         return contacts.stream()
                 .filter(c -> c.getRole() != null && "注册管理员".equals(c.getRole().getRoleName()))
                 .anyMatch(c -> c.getOrganization() != null && registryId.equals(c.getOrganization().getId()));
@@ -148,7 +149,7 @@ public class NamespacePermissionEvaluator {
         if (account.getSysRole() == SystemRole.SUPER_ADMIN) return true;
         
         // Find if this account is associated with any registrar contact
-        List<Contact> contacts = contactRepository.findByAccount(account);
+        List<Contact> contacts = contactAccountBindingService.contactsOfAccount(account);
         return contacts.stream()
                 .anyMatch(c -> c.getRole() != null && "注册管理员".equals(c.getRole().getRoleName()));
     }

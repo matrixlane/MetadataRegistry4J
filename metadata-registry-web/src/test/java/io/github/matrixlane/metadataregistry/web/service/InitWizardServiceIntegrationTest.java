@@ -61,6 +61,8 @@ class InitWizardServiceIntegrationTest {
 
     @Autowired
     private RegistrarRepository registrarRepository;
+    @Autowired
+    private ContactAccountBindingService contactAccountBindingService;
 
     @Autowired
     private RegistrySpecificationService registrySpecificationService;
@@ -167,7 +169,7 @@ class InitWizardServiceIntegrationTest {
         // 4. Verify Super Admin User is assigned Registrar contact
         List<Registrar> registrars = registrarRepository.findAll();
         boolean hasRegistrarRole = registrars.stream()
-                .anyMatch(r -> r.getAccount() != null && appUserId.equals(r.getAccount().getId()) &&
+                .anyMatch(r -> contactAccountBindingService.accountIdOfContact(r.getId()).map(appUserId::equals).orElse(false) &&
                         r.getRole() != null && "注册管理员".equals(r.getRole().getRoleName()) &&
                         r.getRegistrationAuthority() != null && createdRa.getId().equals(r.getRegistrationAuthority().getId()));
         assertThat(hasRegistrarRole).isTrue();
@@ -244,7 +246,7 @@ class InitWizardServiceIntegrationTest {
         // 管理员自动成为注册员
         List<Registrar> registrars = registrarRepository.findAll();
         boolean hasRegistrar = registrars.stream()
-                .anyMatch(r -> r.getAccount() != null && appUserId.equals(r.getAccount().getId()));
+                .anyMatch(r -> contactAccountBindingService.accountIdOfContact(r.getId()).map(appUserId::equals).orElse(false));
         assertThat(hasRegistrar).isTrue();
 
         // 默认命名空间已创建

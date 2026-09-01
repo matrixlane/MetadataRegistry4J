@@ -33,6 +33,7 @@ public class ContactService {
     private final IndividualRepository individualRepository;
     private final RoleRepository roleRepository;
     private final AccountRepository accountRepository;
+    private final ContactAccountBindingService contactAccountBindingService;
 
     @Transactional(readOnly = true)
     public Page<ContactResponse> list(String keyword, Pageable pageable) {
@@ -132,13 +133,14 @@ public class ContactService {
             Account account = accountRepository.findById(accountId)
                     .orElseThrow(() -> new ResourceNotFoundException("Account", accountId));
 
-            // Create and save Contact linking directly to Account and its Individual (if exists)
+            // Create and save Contact linking to the Account's Individual (if exists);
+            // 账号绑定写入卫星实体(扩展关联已剥离出标准实体 Contact)
             Contact contact = new Contact();
-            contact.setAccount(account);
             contact.setIndividual(account.getIndividual());
             contact.setOrganization(org);
             contact.setRole(role);
-            contactRepository.save(contact);
+            Contact saved = contactRepository.save(contact);
+            contactAccountBindingService.bind(saved.getId(), account.getId());
         }
     }
 }

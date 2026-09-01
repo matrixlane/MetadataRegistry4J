@@ -69,6 +69,7 @@ class RegistrationLifecycleServiceTest {
 
     @Mock
     private ContactRepository contactRepository;
+    @Mock private ContactAccountBindingService contactAccountBindingService;
 
     @InjectMocks
     private RegistrationLifecycleService registrationLifecycleService;
@@ -678,12 +679,12 @@ class RegistrationLifecycleServiceTest {
             Role contactRole = new Role();
             contactRole.setRoleName("注册管理员");
             contact.setRole(contactRole);
-            org.mockito.Mockito.lenient().when(contactRepository.findByAccount(account)).thenReturn(List.of(contact));
+            org.mockito.Mockito.lenient().when(contactAccountBindingService.contactsOfAccount(account)).thenReturn(List.of(contact));
         } else if (role == AppUserRole.VIEWER) {
             Account account = new Account();
             account.setId(userId);
             org.mockito.Mockito.lenient().when(accountRepository.findById(userId)).thenReturn(Optional.of(account));
-            org.mockito.Mockito.lenient().when(contactRepository.findByAccount(account)).thenReturn(List.of());
+            org.mockito.Mockito.lenient().when(contactAccountBindingService.contactsOfAccount(account)).thenReturn(List.of());
         }
     }
 
