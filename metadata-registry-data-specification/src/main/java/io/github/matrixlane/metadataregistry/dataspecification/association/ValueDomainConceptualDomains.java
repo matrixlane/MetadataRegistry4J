@@ -19,8 +19,8 @@ import io.github.matrixlane.metadataregistry.dataspecification.ValueDomain;
  *   <li>Local_Enumerated_Value_Domain ↔ Local_Enumerated_Conceptual_Domain</li>
  *   <li>Reference_Enumerated_Value_Domain ↔ Reference_Enumerated_Conceptual_Domain</li>
  * </ul>
- * 实现上该关联由三个子类字段承载，本工具类提供基类视角的统一访问并在写入时
- * 强制执行上述子类型一致性。
+ * 实现上该关联由基类 ValueDomain.conceptualDomain 字段承载(三个子类提供
+ * 类型化视图),本工具类在写入时强制执行上述子类型一致性。
  */
 public final class ValueDomainConceptualDomains {
 
@@ -31,16 +31,7 @@ public final class ValueDomainConceptualDomains {
      * 读取值域当前关联的概念域；无关联或未知子类型时返回 null。
      */
     public static ConceptualDomain get(ValueDomain valueDomain) {
-        if (valueDomain instanceof DescribedValueDomain dvd) {
-            return dvd.getDescribedConceptualDomain();
-        }
-        if (valueDomain instanceof LocalEnumeratedValueDomain levd) {
-            return levd.getLocalEnumeratedConceptualDomain();
-        }
-        if (valueDomain instanceof ReferenceEnumeratedValueDomain revd) {
-            return revd.getReferencedConceptualDomain();
-        }
-        return null;
+        return valueDomain == null ? null : valueDomain.getConceptualDomain();
     }
 
     /**
@@ -79,16 +70,8 @@ public final class ValueDomainConceptualDomains {
      * 解除值域当前的概念域关联（若有）。
      */
     public static void clear(ValueDomain valueDomain) {
-        if (valueDomain instanceof DescribedValueDomain dvd) {
-            dvd.setDescribedConceptualDomain(null);
-            return;
-        }
-        if (valueDomain instanceof LocalEnumeratedValueDomain levd) {
-            levd.setLocalEnumeratedConceptualDomain(null);
-            return;
-        }
-        if (valueDomain instanceof ReferenceEnumeratedValueDomain revd) {
-            revd.setReferencedConceptualDomain(null);
+        if (valueDomain != null) {
+            valueDomain.setConceptualDomain(null);
         }
     }
 

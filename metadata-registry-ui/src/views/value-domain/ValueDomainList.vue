@@ -104,6 +104,13 @@
                 <el-icon><Delete /></el-icon>
               </el-button>
             </div>
+            <el-form-item label="取值" required style="margin-bottom: 8px;">
+              <el-input
+                v-model="pv.permittedValue"
+                placeholder="允许值的实际取值（ISO/IEC 11179-31 表 6 permitted_value，必备）"
+                size="small"
+              />
+            </el-form-item>
             <DesignationDefinitionSection
               :designations="pv.designations"
               :definitions="pv.definitions"
@@ -270,7 +277,7 @@ function onEnumKindChange(form: Record<string, any>) {
 
 function addPermissibleValue(form: Record<string, unknown>) {
   const list = (form.permissibleValues || []) as any[];
-  list.push({ designations: [], definitions: [], validPeriodStart: null, validPeriodEnd: null });
+  list.push({ permittedValue: '', designations: [], definitions: [], validPeriodStart: null, validPeriodEnd: null });
   form.permissibleValues = list;
 }
 

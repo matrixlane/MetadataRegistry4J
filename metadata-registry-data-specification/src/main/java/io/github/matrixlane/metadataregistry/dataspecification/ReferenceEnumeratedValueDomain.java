@@ -2,9 +2,6 @@
 package io.github.matrixlane.metadataregistry.dataspecification;
 
 import jakarta.persistence.Column;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -22,10 +19,16 @@ public class ReferenceEnumeratedValueDomain extends EnumeratedValueDomain {
     private String permittedValuesFieldname;
 
     /**
-     * 该引用枚举值域所关联的外部源概念域（典型如 ISO 3166、HL7 v3 codeSystem 等代码集标识）。
-     * ISO/IEC 11179-31:2023 §7.4.4.4 推荐绑定一个 Reference_Enumerated_Conceptual_Domain；本期业务上可空。
+     * value_domain_meaning 在引用枚举子类型上的类型化视图(基类
+     * {@link #getConceptualDomain()} 的窄化)。按 ISO/IEC 11179-31:2023
+     * §7.4.5.2.1(c),Reference_Enumerated_Value_Domain 的 meaning 必须是
+     * Reference_Enumerated_Conceptual_Domain;类型不一致时读取为 null。
      */
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "referenced_conceptual_domain_id")
-    private ReferenceEnumeratedConceptualDomain referencedConceptualDomain;
+    public ReferenceEnumeratedConceptualDomain getReferencedConceptualDomain() {
+        return getConceptualDomain() instanceof ReferenceEnumeratedConceptualDomain recd ? recd : null;
+    }
+
+    public void setReferencedConceptualDomain(ReferenceEnumeratedConceptualDomain referencedConceptualDomain) {
+        setConceptualDomain(referencedConceptualDomain);
+    }
 }

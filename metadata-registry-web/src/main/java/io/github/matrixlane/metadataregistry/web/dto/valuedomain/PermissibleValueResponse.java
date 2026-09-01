@@ -9,6 +9,7 @@ import java.util.UUID;
 
 public record PermissibleValueResponse(
         UUID id,
+        String permittedValue,
         String label,
         List<TextLineResponse> designations,
         List<TextLineResponse> definitions,

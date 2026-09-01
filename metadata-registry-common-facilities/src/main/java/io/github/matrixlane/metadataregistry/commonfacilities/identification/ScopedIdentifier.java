@@ -108,4 +108,41 @@ public class ScopedIdentifier {
         this.namespace = namespace;
         this.identifiedItem = identifiedItem;
     }
+
+    /**
+     * ISO/IEC 11179-3:2023 表 12:full_expansion 0..1,Conditional,derived。
+     * 仅当所属 Namespace 自身恰好有一个标识符时可派生:将命名空间的唯一标识符
+     * 与本标识符组合以完整限定作用域。组合方式因命名空间类型而异(标准原文
+     * "The precise manner of derivation can vary"),本实现采用
+     * "{命名空间标识符}:{标识符}"。不落库,纯派生计算。
+     */
+    public String getFullExpansion() {
+        Namespace ns = this.namespace;
+        if (ns == null || ns.getIdentifiedItem() == null) {
+            return null;
+        }
+        java.util.List<ScopedIdentifier> nsIds = ns.getIdentifiedItem().getScopedIdentifiers();
+        if (nsIds == null || nsIds.size() != 1) {
+            return null;
+        }
+        String nsIdentifier = nsIds.get(0).getIdentifier();
+        if (nsIdentifier == null || nsIdentifier.isBlank() || this.identifier == null) {
+            return null;
+        }
+        return nsIdentifier + ":" + this.identifier;
+    }
+
+    /**
+     * ISO/IEC 11179-3:2023 表 12:shorthand_expansion 0..1,Conditional,derived。
+     * 将所属 Namespace.shorthand_prefix 前置到本标识符;命名空间未配置前缀时
+     * 为 null。不落库,纯派生计算。
+     */
+    public String getShorthandExpansion() {
+        Namespace ns = this.namespace;
+        if (ns == null || ns.getShorthandPrefix() == null || ns.getShorthandPrefix().isBlank()
+                || this.identifier == null) {
+            return null;
+        }
+        return ns.getShorthandPrefix() + this.identifier;
+    }
 }

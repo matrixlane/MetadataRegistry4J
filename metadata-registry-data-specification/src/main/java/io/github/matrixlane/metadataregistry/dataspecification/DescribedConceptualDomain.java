@@ -14,6 +14,6 @@ import java.util.List;
 @NoArgsConstructor
 public class DescribedConceptualDomain extends ConceptualDomain {
 
-    @OneToMany(mappedBy = "describedConceptualDomain")
+    @OneToMany(mappedBy = "conceptualDomain")
     private List<DescribedValueDomain> describedValueDomains = new ArrayList<>();
 }

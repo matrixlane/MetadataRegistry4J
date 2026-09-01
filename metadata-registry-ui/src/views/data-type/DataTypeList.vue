@@ -34,6 +34,14 @@
         <el-form-item label="数据类型方案">
           <el-input v-model="form.dataTypeSchemeId" placeholder="UUID" />
         </el-form-item>
+        <el-form-item label="注记">
+          <el-input
+            v-model="form.annotation"
+            type="textarea"
+            :rows="2"
+            placeholder="可选（ISO/IEC 11179-31 表 8 annotation，进一步说明该数据类型）"
+          />
+        </el-form-item>
       </template>
     </ItemFormDialog>
   </div>

@@ -304,6 +304,7 @@ public class ValueDomainService {
 
         for (PermissibleValueEntry entry : entries) {
             PermissibleValue pv = new PermissibleValue();
+            pv.setPermittedValue(entry.permittedValue());
             itemAdministrationService.applyDesignations(pv, entry.designations());
             itemAdministrationService.applyDefinitions(pv, entry.definitions());
             pv = permissibleValueRepository.save(pv);
@@ -427,6 +428,7 @@ public class ValueDomainService {
             Datetime_Period period = pvs.getValidPeriod();
             out.add(new PermissibleValueResponse(
                     pv.getId(),
+                    pv.getPermittedValue(),
                     ItemNamingHelper.preferredDesignation(pv),
                     itemAdministrationService.mapDesignations(pv),
                     itemAdministrationService.mapDefinitions(pv),

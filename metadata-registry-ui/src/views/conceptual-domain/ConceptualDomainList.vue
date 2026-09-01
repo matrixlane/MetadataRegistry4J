@@ -70,6 +70,28 @@
           </el-form-item>
         </template>
 
+        <!-- 概念域有效期(ISO/IEC 11179-31 表 2 valid_period,必备;不填默认自创建起生效) -->
+        <el-form-item label="有效期">
+          <div style="display: flex; gap: 8px; width: 100%;">
+            <el-date-picker
+              v-model="form.validPeriodStart"
+              type="datetime"
+              placeholder="有效开始时间(默认自创建起)"
+              size="small"
+              style="flex: 1;"
+              value-format="YYYY-MM-DDTHH:mm:ss"
+            />
+            <el-date-picker
+              v-model="form.validPeriodEnd"
+              type="datetime"
+              placeholder="有效结束时间(可选)"
+              size="small"
+              style="flex: 1;"
+              value-format="YYYY-MM-DDTHH:mm:ss"
+            />
+          </div>
+        </el-form-item>
+
         <!-- LOCAL_ENUMERATED 本地枚举型：值含义编辑卡片 -->
         <el-card
           v-if="form.kind === 'ENUMERATED' && form.enumKind === 'LOCAL'"

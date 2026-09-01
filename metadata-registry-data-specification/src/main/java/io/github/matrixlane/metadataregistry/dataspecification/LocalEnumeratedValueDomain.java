@@ -1,8 +1,5 @@
 package io.github.matrixlane.metadataregistry.dataspecification;
 
-import jakarta.persistence.FetchType;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -24,11 +21,16 @@ public class LocalEnumeratedValueDomain extends EnumeratedValueDomain {
     private List<PermissibleValueSet> permissibleValueSets = new ArrayList<>();
 
     /**
-     * value_domain_meaning（ISO/IEC 11179-31:2023 §7.4.4.1）在本地枚举子类型上的实现：
-     * 按 §7.4.5.2.1(a)，Local_Enumerated_Value_Domain 的 meaning 必须是
-     * Local_Enumerated_Conceptual_Domain。
+     * value_domain_meaning 在本地枚举子类型上的类型化视图(基类
+     * {@link #getConceptualDomain()} 的窄化)。按 ISO/IEC 11179-31:2023
+     * §7.4.5.2.1(b),Local_Enumerated_Value_Domain 的 meaning 必须是
+     * Local_Enumerated_Conceptual_Domain;类型不一致时读取为 null。
      */
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "local_enumerated_conceptual_domain_id")
-    private LocalEnumeratedConceptualDomain localEnumeratedConceptualDomain;
+    public LocalEnumeratedConceptualDomain getLocalEnumeratedConceptualDomain() {
+        return getConceptualDomain() instanceof LocalEnumeratedConceptualDomain lecd ? lecd : null;
+    }
+
+    public void setLocalEnumeratedConceptualDomain(LocalEnumeratedConceptualDomain localEnumeratedConceptualDomain) {
+        setConceptualDomain(localEnumeratedConceptualDomain);
+    }
 }

@@ -62,6 +62,7 @@ public class DataTypeService {
     }
 
     private void applyRequest(DataType entity, DataTypeRequest request) {
+        entity.setAnnotation(request.annotation());
         if (request.dataTypeSchemeId() != null) {
             DataTypeScheme scheme = dataTypeSchemeRepository.findById(request.dataTypeSchemeId())
                     .orElseThrow(() -> new ResourceNotFoundException(
@@ -86,6 +87,7 @@ public class DataTypeService {
                 ItemNamingHelper.preferredDesignation(entity),
                 scheme == null ? null : scheme.getId(),
                 scheme == null ? null : ItemNamingHelper.preferredDesignation(scheme),
+                entity.getAnnotation(),
                 itemAdministrationService.mapDesignations(entity),
                 itemAdministrationService.mapDefinitions(entity),
                 itemAdministrationService.buildItemMeta(entity));

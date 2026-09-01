@@ -60,6 +60,8 @@ class ConceptualDomainServiceTest {
                 List.of(),
                 List.of(),
                 List.of(),
+                null,
+                null,
                 null);
 
         service.create(request);
@@ -84,6 +86,8 @@ class ConceptualDomainServiceTest {
                 List.of(),
                 List.of(),
                 List.of(),
+                null,
+                null,
                 null);
 
         service.update(id, request);
@@ -108,6 +112,8 @@ class ConceptualDomainServiceTest {
                 List.of(),
                 List.of(),
                 List.of(),
+                null,
+                null,
                 null);
 
         service.update(id, request);
@@ -116,6 +122,38 @@ class ConceptualDomainServiceTest {
         verify(repository).save(captor.capture());
         ConceptualDomain saved = captor.getValue();
         assertThat(saved).isInstanceOf(LocalEnumeratedConceptualDomain.class);
+    }
+
+    @Test
+    void create_withoutValidPeriod_defaultsStartToNow() {
+        when(repository.save(any(ConceptualDomain.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        service.create(new ConceptualDomainRequest(
+                null, null, List.of(), List.of(), List.of(), null, null, null));
+
+        ArgumentCaptor<ConceptualDomain> captor = ArgumentCaptor.forClass(ConceptualDomain.class);
+        verify(repository).save(captor.capture());
+        // ISO/IEC 11179-31:2023 表 2:valid_period 多重性 1,未提供时默认自创建起生效
+        assertThat(captor.getValue().getValidPeriod()).isNotNull();
+        assertThat(captor.getValue().getValidPeriod().getStartDateTime()).isNotNull();
+    }
+
+    @Test
+    void create_withValidPeriod_appliesRequestValues() {
+        when(repository.save(any(ConceptualDomain.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        service.create(new ConceptualDomainRequest(
+                null, null, List.of(), List.of(), List.of(),
+                java.time.LocalDateTime.of(2026, 1, 1, 0, 0),
+                java.time.LocalDateTime.of(2026, 12, 31, 23, 59),
+                null));
+
+        ArgumentCaptor<ConceptualDomain> captor = ArgumentCaptor.forClass(ConceptualDomain.class);
+        verify(repository).save(captor.capture());
+        assertThat(captor.getValue().getValidPeriod().getStartDateTime().toLocalDateTime())
+                .isEqualTo(java.time.LocalDateTime.of(2026, 1, 1, 0, 0));
+        assertThat(captor.getValue().getValidPeriod().getEndDateTime().toLocalDateTime())
+                .isEqualTo(java.time.LocalDateTime.of(2026, 12, 31, 23, 59));
     }
 
     @Test
@@ -132,6 +170,8 @@ class ConceptualDomainServiceTest {
                 List.of(),
                 List.of(),
                 List.of(),
+                null,
+                null,
                 new ItemRegistrationRequest(null, null, null, List.of(), List.of())));
 
         ArgumentCaptor<ConceptualDomain> captor = ArgumentCaptor.forClass(ConceptualDomain.class);

@@ -67,6 +67,7 @@ public class ConceptualDomainService {
         ConceptualDomain entity = instantiate(targetType);
         conceptContentApplier.applyConcept(entity, request.sourceUri(),
                 request.designations(), request.definitions(), request.registration());
+        applyValidPeriod(entity, request);
         ConceptualDomain saved = repository.save(entity);
         if (saved instanceof LocalEnumeratedConceptualDomain lecd) {
             applyValueMeanings(lecd, request.valueMeanings());
@@ -85,6 +86,7 @@ public class ConceptualDomainService {
         ConceptualDomain mutable = (fromType == toType) ? entity : rehydrate(entity, toType);
         conceptContentApplier.applyConcept(mutable, request.sourceUri(),
                 request.designations(), request.definitions(), request.registration());
+        applyValidPeriod(mutable, request);
         ConceptualDomain saved = repository.save(mutable);
         if (saved instanceof LocalEnumeratedConceptualDomain lecd) {
             applyValueMeanings(lecd, request.valueMeanings());
@@ -94,6 +96,22 @@ public class ConceptualDomainService {
         }
         versionHistoryService.recordSnapshot(saved, "UPDATE");
         return toResponse(saved);
+    }
+
+    /**
+     * 写入概念域有效期(ISO/IEC 11179-31:2023 表 2:valid_period 多重性 1)。
+     * 请求提供任一端时整体覆盖;两端均未提供且实体尚无有效期时,默认自当前
+     * 起在注册系统内生效(标准允许注册机构自行决定该时间语义)。
+     */
+    private void applyValidPeriod(ConceptualDomain entity, ConceptualDomainRequest request) {
+        Datetime_Period period = entity.getValidPeriod() != null ? entity.getValidPeriod() : new Datetime_Period();
+        if (request.validPeriodStart() != null || request.validPeriodEnd() != null) {
+            period.setStartDateTime(toOffset(request.validPeriodStart()));
+            period.setEndDateTime(toOffset(request.validPeriodEnd()));
+        } else if (period.getStartDateTime() == null && period.getEndDateTime() == null) {
+            period.setStartDateTime(OffsetDateTime.now());
+        }
+        entity.setValidPeriod(period);
     }
 
     private ConceptualDomain instantiate(ConceptualDomainType type) {
@@ -120,6 +138,8 @@ public class ConceptualDomainService {
         target.setSourceUri(source.getSourceUri());
         target.setDesignations(source.getDesignations());
         target.setDefinitions(source.getDefinitions());
+        target.setValidPeriod(source.getValidPeriod());
+        target.setDimensionality(source.getDimensionality());
         return target;
     }
 
@@ -164,6 +184,8 @@ public class ConceptualDomainService {
                 itemAdministrationService.mapDesignations(entity),
                 itemAdministrationService.mapDefinitions(entity),
                 vmResponses,
+                entity.getValidPeriod() == null ? null : toLocal(entity.getValidPeriod().getStartDateTime()),
+                entity.getValidPeriod() == null ? null : toLocal(entity.getValidPeriod().getEndDateTime()),
                 itemAdministrationService.buildItemMeta(entity));
     }
 

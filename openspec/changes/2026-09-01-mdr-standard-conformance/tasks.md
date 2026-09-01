@@ -39,12 +39,12 @@
 
 ## 5. 补标准缺失属性
 
-- [ ] 5.1 PermissibleValue.permitted_value(必填,核库回填)
-- [ ] 5.2 ConceptualDomain.valid_period(@Embedded)+ dimensionality(0..1)
-- [ ] 5.3 EnumeratedConceptualDomain.expanded_on_datetime / locked_datetime
-- [ ] 5.4 DataType.annotation
-- [ ] 5.5 ScopedIdentifier.fullExpansion / shorthandExpansion 派生 getter(不落库)+单测
-- [ ] 5.6 value_domain_meaning 提升到 ValueDomain 基类,子类字段迁移后删,保留 §7.4.5.2.1 校验
+- [x] 5.1 PermissibleValue.permitted_value(必填,核库回填)
+- [x] 5.2 ConceptualDomain.valid_period(@Embedded)+ dimensionality(0..1)
+- [x] 5.3 EnumeratedConceptualDomain.expanded_on_datetime / locked_datetime
+- [x] 5.4 DataType.annotation
+- [x] 5.5 ScopedIdentifier.fullExpansion / shorthandExpansion 派生 getter(不落库)+单测
+- [x] 5.6 value_domain_meaning 提升到 ValueDomain 基类,子类字段迁移后删,保留 §7.4.5.2.1 校验
 
 ## 6. 条款号更正
 

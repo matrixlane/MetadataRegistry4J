@@ -11,6 +11,7 @@ public record DataTypeResponse(
         String label,
         UUID dataTypeSchemeId,
         String dataTypeSchemeLabel,
+        String annotation,
         List<TextLineResponse> designations,
         List<TextLineResponse> definitions,
         ItemMetaResponse meta) {

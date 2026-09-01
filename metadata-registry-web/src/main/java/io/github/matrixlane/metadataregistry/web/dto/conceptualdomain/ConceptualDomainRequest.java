@@ -4,6 +4,7 @@ import io.github.matrixlane.metadataregistry.web.dto.common.ItemRegistrationRequ
 import io.github.matrixlane.metadataregistry.web.dto.common.TextLine;
 import jakarta.validation.Valid;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 public record ConceptualDomainRequest(
@@ -15,6 +16,8 @@ public record ConceptualDomainRequest(
         List<TextLine> definitions,
         @Valid
         List<ValueMeaningEntry> valueMeanings,
+        LocalDateTime validPeriodStart,
+        LocalDateTime validPeriodEnd,
         @Valid
         ItemRegistrationRequest registration) {
 }

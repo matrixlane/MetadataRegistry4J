@@ -9,6 +9,7 @@ import java.util.UUID;
 
 public record DataTypeRequest(
         UUID dataTypeSchemeId,
+        String annotation,
         @Valid
         List<TextLine> designations,
         @Valid
