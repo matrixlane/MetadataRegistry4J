@@ -208,6 +208,8 @@
 
 ### 5.1 命名规则(已定 + 建议)
 
+> **【2026-09-01 更新】本节 MDR_RCF/MDR_DSR/X_* 细粒度方案已被用户决策取代**:标准模型统一 `MDR`、扩展统一 `EXT` 两 schema,SQLite 不用 schema。已落地:`orm-team.xml`(team profile 对 23 个 EXT 实体覆盖 table schema)+ V20260901014 三方言迁移(openspec change `2026-09-01-mdr-ext-schema-split`,提交 bc3bc77)。以下细粒度内容仅存档。
+
 已定规则:
 - `MDR_RCF` —— ISO/IEC 11179-3 元模型(registry common facilities)
 - `MDR_DSR` —— ISO/IEC 11179-31 元模型(data specification registration)
@@ -230,6 +232,8 @@
 | X_AUD | 审计/版本历史 | definition_audit_log、version_history、identifier_version_history |
 
 ### 5.2 现有 119 张表的归属草案(mdr → 目标 schema)
+
+> **【2026-09-01 更新】作废存档**:实际落地为 MDR/EXT 两 schema。EXT 侧 23 表:classification_scheme、classification_node、identifier_strategy_config、identifier_sequence_registry、identifier_version_history、scoped_identifier_lifecycle、namespace_identifier_settings、contact_account_binding、language_governance、naming_convention_rules、account、mapping_scheme、mapping_subscription、fhir_element_mapping、interop_mapping、item_link、merge_request、merge_request_item、namespace_permission、registry_node、sync_watermark、system_setting、version_history;item_mapping 三表归 MDR(用户 2026-09-01 决策,标准第 11 章);其余标准表留 MDR。
 
 **MDR_RCF(11179-3)**:administered_item、attached_item、concept、constraint_set、contact、context、definition、definition_context_relation、designation、designation_context_relation、designation_definition_pairing、designation_naming_convention、document_type、identified_item、individual、individual_email、individual_phone、item、language_identification、language_extension、language_variant、naming_convention、namespace、namespace_naming_convention、organization、organization_email、organization_name、organization_phone、reference_document、reference_document_language、reference_document_provider、registered_item、registered_item_reference_document、registrar、registration_authority、registration_authority_doc_language、registration_state、registry_specification、registry_specification_alternative_language、registry_specification_reference_doc_id_kind、role、scoped_identifier、slot、stewardship_record、submission_record、submission_record_registered_item、classification_scheme、classification_node(按第 10 章重建后)、item_classification、item_mapping、item_mapping_subject、item_mapping_object(第 11 章,待补审计确认)
 
