@@ -20,14 +20,10 @@ import io.github.matrixlane.metadataregistry.commonfacilities.registration.Submi
 import io.github.matrixlane.metadataregistry.web.dto.export.AdministeredItemExport;
 import io.github.matrixlane.metadataregistry.web.dto.export.MetadataExportRequest;
 import io.github.matrixlane.metadataregistry.web.dto.export.MetadataExportResult;
-import io.github.matrixlane.metadataregistry.web.entity.ExportTask;
-import io.github.matrixlane.metadataregistry.web.entity.ExportTaskStatus;
 import io.github.matrixlane.metadataregistry.web.repository.AdministeredItemRepository;
-import io.github.matrixlane.metadataregistry.web.repository.ExportTaskRepository;
 import io.github.matrixlane.metadataregistry.web.util.ItemNamingHelper;
 import org.hibernate.Hibernate;
 import org.springframework.data.jpa.domain.Specification;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
@@ -37,9 +33,6 @@ import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -53,23 +46,18 @@ import java.util.stream.Collectors;
  * 注册元数据导出服务
  *
  * <p>支持按注册状态、组织、时间范围、Item 类型过滤，以及字段白名单筛选。
- * 支持同步导出和异步导出两种模式。
  * 支持 JSON 和 CSV 两种格式。
- * MVP 阶段以同步 JSON 导出为主，异步用于大数据量场景。
  */
 @Service
 @Transactional(readOnly = true)
 public class MetadataExportService {
 
     private final AdministeredItemRepository repository;
-    private final ExportTaskRepository exportTaskRepository;
     private final ObjectMapper objectMapper;
 
     public MetadataExportService(AdministeredItemRepository repository,
-                                  ExportTaskRepository exportTaskRepository,
                                   ObjectMapper objectMapper) {
         this.repository = repository;
-        this.exportTaskRepository = exportTaskRepository;
         this.objectMapper = objectMapper;
     }
 
@@ -77,8 +65,6 @@ public class MetadataExportService {
     private static final String EXPORT_FILTER_NAME = "exportFilter";
     private static final int AUTO_ASYNC_THRESHOLD = 1_000;
     private static final int MAX_SYNC_EXPORT_SIZE = 10_000;
-    private static final int EXPORT_TASK_TTL_DAYS = 7;
-    private static final int CHUNK_SIZE = 500;
 
     /**
      * 导出注册元数据为 JSON 字符串（同步，小数据量）
@@ -134,94 +120,7 @@ public class MetadataExportService {
         return repository.count(spec);
     }
 
-    /**
-     * 创建异步导出任务
-     *
-     * @param request   导出请求参数
-     * @param userId    创建者用户ID
-     * @return 导出的任务
-     */
-    @Transactional
-    public ExportTask createAsyncExportTask(MetadataExportRequest request, UUID userId) {
-        long totalCount = estimateCount(request);
 
-        ExportTask task = ExportTask.builder()
-                .status(ExportTaskStatus.PENDING)
-                .processedCount(0)
-                .totalCount((int) totalCount)
-                .requestParams(toJsonString(request))
-                .createdBy(userId)
-                .createdAt(LocalDateTime.now())
-                .expiresAt(LocalDateTime.now().plusDays(EXPORT_TASK_TTL_DAYS))
-                .format("json")
-                .build();
-
-        return exportTaskRepository.save(task);
-    }
-
-    /**
-     * 异步执行导出任务
-     *
-     * @param taskId 任务ID
-     */
-    @Async("exportTaskExecutor")
-    @Transactional
-    public void executeAsyncExport(UUID taskId) {
-        ExportTask task = exportTaskRepository.findById(taskId)
-                .orElseThrow(() -> new IllegalArgumentException("导出任务不存在: " + taskId));
-
-        try {
-            task.setStatus(ExportTaskStatus.PROCESSING);
-            task.setProcessedCount(0);
-            exportTaskRepository.save(task);
-
-            MetadataExportRequest request = parseRequest(task.getRequestParams());
-            List<AdministeredItem> items = queryItems(request);
-            task.setTotalCount(items.size());
-
-            // 使用流式写入到临时文件
-            Path tempFile = Files.createTempFile("mdr-export-", ".json");
-            try (OutputStream os = Files.newOutputStream(tempFile, StandardOpenOption.WRITE);
-                 JsonGenerator generator = new JsonFactory().createGenerator(os, com.fasterxml.jackson.core.JsonEncoding.UTF8)) {
-
-                ObjectMapper filteredMapper = createFilteredMapper(request.fields());
-                generator.writeStartObject();
-
-                // 写入元信息
-                MetadataExportResult.ExportMetadata metadata = buildMetadata(request, items.size());
-                generator.writeFieldName("exportMetadata");
-                filteredMapper.writeValue(generator, metadata);
-
-                // 写入 items 数组（流式写入）
-                generator.writeArrayFieldStart("items");
-                int count = 0;
-                for (AdministeredItem item : items) {
-                    AdministeredItemExport export = toExport(item);
-                    filteredMapper.writeValue(generator, export);
-                    count++;
-                    if (count % CHUNK_SIZE == 0) {
-                        task.setProcessedCount(count);
-                        exportTaskRepository.save(task);
-                    }
-                }
-                generator.writeEndArray();
-                generator.writeEndObject();
-            }
-
-            task.setStatus(ExportTaskStatus.COMPLETED);
-            task.setProcessedCount(items.size());
-            task.setResultFilePath(tempFile.toAbsolutePath().toString());
-            task.setCompletedAt(LocalDateTime.now());
-            task.setExpiresAt(LocalDateTime.now().plusDays(EXPORT_TASK_TTL_DAYS));
-            exportTaskRepository.save(task);
-
-        } catch (Exception e) {
-            task.setStatus(ExportTaskStatus.FAILED);
-            task.setErrorMessage(e.getMessage() != null ? e.getMessage() : e.getClass().getName());
-            task.setCompletedAt(LocalDateTime.now());
-            exportTaskRepository.save(task);
-        }
-    }
 
     /**
      * 流式导出 JSON 到输出流（用于同步大文件场景）
@@ -303,67 +202,7 @@ public class MetadataExportService {
         }
     }
 
-    /**
-     * 分片读取异步导出结果
-     *
-     * @param taskId   任务ID
-     * @param offset   起始位置（字节）
-     * @param length   读取长度（字节）
-     * @return 字节数组
-     */
-    public byte[] readExportChunk(UUID taskId, long offset, int length) {
-        ExportTask task = exportTaskRepository.findById(taskId)
-                .orElseThrow(() -> new IllegalArgumentException("导出任务不存在: " + taskId));
 
-        if (task.getStatus() != ExportTaskStatus.COMPLETED) {
-            throw new IllegalStateException("导出任务未完成，当前状态: " + task.getStatus());
-        }
-
-        if (task.getResultFilePath() == null) {
-            throw new IllegalStateException("导出结果文件路径为空");
-        }
-
-        try {
-            Path path = Path.of(task.getResultFilePath());
-            if (!Files.exists(path)) {
-                throw new IllegalStateException("导出结果文件已过期或已被清理");
-            }
-            long fileSize = Files.size(path);
-            long actualOffset = Math.min(offset, fileSize);
-            int actualLength = (int) Math.min(length, fileSize - actualOffset);
-
-            byte[] buffer = new byte[actualLength];
-            try (var inputStream = Files.newInputStream(path)) {
-                inputStream.skip(actualOffset);
-                int bytesRead = inputStream.read(buffer);
-                if (bytesRead < actualLength) {
-                    byte[] trimmed = new byte[bytesRead];
-                    System.arraycopy(buffer, 0, trimmed, 0, bytesRead);
-                    return trimmed;
-                }
-            }
-            return buffer;
-        } catch (IOException e) {
-            throw new RuntimeException("读取导出结果文件失败", e);
-        }
-    }
-
-    /**
-     * 获取导出任务的文件大小
-     */
-    public long getExportFileSize(UUID taskId) {
-        ExportTask task = exportTaskRepository.findById(taskId)
-                .orElseThrow(() -> new IllegalArgumentException("导出任务不存在: " + taskId));
-
-        if (task.getResultFilePath() == null) {
-            return 0;
-        }
-        try {
-            return Files.size(Path.of(task.getResultFilePath()));
-        } catch (IOException e) {
-            return 0;
-        }
-    }
 
     /**
      * 查询符合条件的 AdministeredItem（含 Item 类型过滤）
@@ -645,11 +484,5 @@ public class MetadataExportService {
         }
     }
 
-    private static MetadataExportRequest parseRequest(String json) {
-        try {
-            return new ObjectMapper().readValue(json, MetadataExportRequest.class);
-        } catch (Exception e) {
-            throw new IllegalArgumentException("无法解析导出请求参数", e);
-        }
-    }
+
 }

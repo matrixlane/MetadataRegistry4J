@@ -18,10 +18,7 @@ import io.github.matrixlane.metadataregistry.web.common.ResourceNotFoundExceptio
 import io.github.matrixlane.metadataregistry.web.dto.export.ExportFormat;
 import io.github.matrixlane.metadataregistry.web.dto.export.datadictionary.DataDictionaryExportRequest;
 import io.github.matrixlane.metadataregistry.web.dto.export.datadictionary.DataDictionaryItemExport;
-import io.github.matrixlane.metadataregistry.web.entity.ExportTask;
-import io.github.matrixlane.metadataregistry.web.entity.ExportTaskStatus;
 import io.github.matrixlane.metadataregistry.web.repository.DataElementRepository;
-import io.github.matrixlane.metadataregistry.web.repository.ExportTaskRepository;
 import io.github.matrixlane.metadataregistry.web.repository.ValueDomainRepository;
 import io.github.matrixlane.metadataregistry.web.util.ItemNamingHelper;
 import lombok.RequiredArgsConstructor;
@@ -29,7 +26,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -64,7 +60,6 @@ public class DataDictionaryExportService {
 
     private final DataElementRepository dataElementRepository;
     private final ValueDomainRepository valueDomainRepository;
-    private final ExportTaskRepository exportTaskRepository;
     private final DataDictionaryExcelExportService excelExportService;
     private final DataDictionaryPdfExportService pdfExportService;
     private final ObjectMapper objectMapper;
@@ -113,130 +108,19 @@ public class DataDictionaryExportService {
         return baos.toByteArray();
     }
 
-    /**
-     * 是否需要异步导出
-     */
-    public boolean shouldUseAsyncExport(DataDictionaryExportRequest request) {
-        int count = Math.min(request.itemIds().size(), request.maxItems());
-        return count > SYNC_EXPORT_MAX_ITEMS || request.async();
-    }
 
     // ─────────────────────────────────────────────────────────────────
     // 异步导出
     // ─────────────────────────────────────────────────────────────────
 
-    /**
-     * 创建异步导出任务
-     */
-    @Transactional
-    public ExportTask createAsyncExportTask(DataDictionaryExportRequest request, UUID userId) {
-        int totalCount = Math.min(request.itemIds().size(), request.maxItems());
 
-        ExportTask task = ExportTask.builder()
-                .status(ExportTaskStatus.PENDING)
-                .processedCount(0)
-                .totalCount(totalCount)
-                .requestParams(toJsonString(request))
-                .createdBy(userId)
-                .createdAt(LocalDateTime.now())
-                .expiresAt(LocalDateTime.now().plusDays(EXPORT_TASK_TTL_DAYS))
-                .format(request.format().name().toLowerCase())
-                .build();
-
-        return exportTaskRepository.save(task);
-    }
-
-    /**
-     * 异步执行导出任务
-     */
-    @Async("exportTaskExecutor")
-    @Transactional
-    public void executeAsyncExport(UUID taskId) {
-        ExportTask task = exportTaskRepository.findById(taskId)
-                .orElseThrow(() -> new IllegalArgumentException("导出任务不存在: " + taskId));
-
-        try {
-            task.setStatus(ExportTaskStatus.PROCESSING);
-            task.setProcessedCount(0);
-            exportTaskRepository.save(task);
-
-            DataDictionaryExportRequest request = parseRequest(task.getRequestParams());
-            List<DataDictionaryItemExport> items = queryItems(request.itemIds(), request.maxItems());
-            task.setTotalCount(items.size());
-
-            Path tempFile = Files.createTempFile("dd-export-", "." + request.format().name().toLowerCase());
-            try (var os = Files.newOutputStream(tempFile, StandardOpenOption.WRITE)) {
-                switch (request.format()) {
-                    case EXCEL -> excelExportService.exportToExcelStreaming(items, os,
-                            request.includeValueDomainDetails(), request.includeRegistrationInfo());
-                    case PDF -> pdfExportService.exportDataDictionaryReport(items, "数据字典报告", os);
-                    default -> throw new IllegalArgumentException("不支持的异步导出格式: " + request.format());
-                }
-            }
-
-            task.setStatus(ExportTaskStatus.COMPLETED);
-            task.setProcessedCount(items.size());
-            task.setResultFilePath(tempFile.toAbsolutePath().toString());
-            task.setCompletedAt(LocalDateTime.now());
-            task.setExpiresAt(LocalDateTime.now().plusDays(EXPORT_TASK_TTL_DAYS));
-            exportTaskRepository.save(task);
-
-            log.info("异步导出任务完成: taskId={}, items={}, file={}", taskId, items.size(), tempFile);
-
-        } catch (Exception e) {
-            log.error("异步导出任务失败: taskId={}", taskId, e);
-            task.setStatus(ExportTaskStatus.FAILED);
-            task.setErrorMessage(e.getMessage() != null ? e.getMessage() : e.getClass().getName());
-            task.setCompletedAt(LocalDateTime.now());
-            exportTaskRepository.save(task);
-        }
-    }
 
     // ─────────────────────────────────────────────────────────────────
     // 任务状态查询与下载
     // ─────────────────────────────────────────────────────────────────
 
-    @Transactional(readOnly = true)
-    public ExportTask getTaskStatus(UUID taskId) {
-        return exportTaskRepository.findById(taskId)
-                .orElseThrow(() -> new ResourceNotFoundException("ExportTask", taskId));
-    }
 
-    @Transactional(readOnly = true)
-    public byte[] downloadTaskResult(UUID taskId) throws IOException {
-        ExportTask task = exportTaskRepository.findById(taskId)
-                .orElseThrow(() -> new ResourceNotFoundException("ExportTask", taskId));
 
-        if (task.getStatus() != ExportTaskStatus.COMPLETED) {
-            throw new IllegalStateException("导出任务未完成，当前状态: " + task.getStatus());
-        }
-
-        if (task.getResultFilePath() == null) {
-            throw new IllegalStateException("导出结果文件路径为空");
-        }
-
-        Path path = Path.of(task.getResultFilePath());
-        if (!Files.exists(path)) {
-            throw new IllegalStateException("导出结果文件已过期或已被清理");
-        }
-
-        return Files.readAllBytes(path);
-    }
-
-    @Transactional(readOnly = true)
-    public long getTaskResultSize(UUID taskId) {
-        ExportTask task = exportTaskRepository.findById(taskId)
-                .orElseThrow(() -> new ResourceNotFoundException("ExportTask", taskId));
-
-        if (task.getResultFilePath() == null) {
-            return 0;
-        }
-        try {
-            return Files.size(Path.of(task.getResultFilePath()));
-        } catch (IOException e) {
-            return 0;
-        }
-    }
 
     // ─────────────────────────────────────────────────────────────────
     // 数据查询与转换

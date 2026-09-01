@@ -17,10 +17,7 @@ import io.github.matrixlane.metadataregistry.dataspecification.ValueDomain;
 import io.github.matrixlane.metadataregistry.web.dto.export.ExportFormat;
 import io.github.matrixlane.metadataregistry.web.dto.export.datadictionary.DataDictionaryExportRequest;
 import io.github.matrixlane.metadataregistry.web.dto.export.datadictionary.DataDictionaryItemExport;
-import io.github.matrixlane.metadataregistry.web.entity.ExportTask;
-import io.github.matrixlane.metadataregistry.web.entity.ExportTaskStatus;
 import io.github.matrixlane.metadataregistry.web.repository.DataElementRepository;
-import io.github.matrixlane.metadataregistry.web.repository.ExportTaskRepository;
 import io.github.matrixlane.metadataregistry.web.repository.ValueDomainRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -60,9 +57,6 @@ class DataDictionaryExportServiceTest {
     private ValueDomainRepository valueDomainRepository;
 
     @Mock
-    private ExportTaskRepository exportTaskRepository;
-
-    @Mock
     private DataDictionaryExcelExportService excelExportService;
 
     @Mock
@@ -79,7 +73,7 @@ class DataDictionaryExportServiceTest {
     @BeforeEach
     void setUp() {
         exportService = new DataDictionaryExportService(
-                dataElementRepository, valueDomainRepository, exportTaskRepository,
+                dataElementRepository, valueDomainRepository,
                 excelExportService, pdfExportService, objectMapper);
 
         testElements = List.of(
@@ -175,207 +169,22 @@ class DataDictionaryExportServiceTest {
     // 3. 异步导出任务
     // =========================================================================
 
-    @Test
-    @DisplayName("创建异步任务 - 应返回 PENDING 状态")
-    void createAsyncExportTask_shouldReturnPendingTask() {
-        when(exportTaskRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        ExportTask task = exportService.createAsyncExportTask(excelRequest, UUID.randomUUID());
 
-        assertThat(task.getStatus()).isEqualTo(ExportTaskStatus.PENDING);
-        assertThat(task.getTotalCount()).isEqualTo(3);
-    }
 
-    @Test
-    @DisplayName("异步阈值判断 - 小数据量不需要异步")
-    void shouldUseAsyncExport_smallData_shouldReturnFalse() {
-        boolean result = exportService.shouldUseAsyncExport(excelRequest);
-        assertThat(result).isFalse();
-    }
-
-    @Test
-    @DisplayName("异步阈值判断 - 大数据量需要异步")
-    void shouldUseAsyncExport_largeData_shouldReturnTrue() {
-        List<UUID> largeIds = new ArrayList<>();
-        for (int i = 0; i < 5001; i++) {
-            largeIds.add(UUID.randomUUID());
-        }
-        DataDictionaryExportRequest largeRequest = new DataDictionaryExportRequest(
-                largeIds, ExportFormat.EXCEL, DataDictionaryExportRequest.ExportMode.SINGLE,
-                false, false, false, 5001);
-
-        boolean result = exportService.shouldUseAsyncExport(largeRequest);
-        assertThat(result).isTrue();
-    }
-
-    @Test
-    @DisplayName("异步阈值判断 - 显式请求异步")
-    void shouldUseAsyncExport_explicitAsync_shouldReturnTrue() {
-        DataDictionaryExportRequest asyncRequest = new DataDictionaryExportRequest(
-                List.of(UUID.randomUUID()), ExportFormat.EXCEL,
-                DataDictionaryExportRequest.ExportMode.SINGLE, false, false, true, 5000);
-
-        boolean result = exportService.shouldUseAsyncExport(asyncRequest);
-        assertThat(result).isTrue();
-    }
 
     // =========================================================================
     // 4. 任务查询与下载
     // =========================================================================
 
-    @Test
-    @DisplayName("查询任务状态 - 应返回任务信息")
-    void getTaskStatus_shouldReturnTask() {
-        ExportTask task = ExportTask.builder()
-                .id(UUID.randomUUID())
-                .status(ExportTaskStatus.COMPLETED)
-                .build();
-        when(exportTaskRepository.findById(task.getId())).thenReturn(Optional.of(task));
 
-        ExportTask result = exportService.getTaskStatus(task.getId());
 
-        assertThat(result.getStatus()).isEqualTo(ExportTaskStatus.COMPLETED);
-    }
 
-    @Test
-    @DisplayName("下载任务结果 - 未完成任务应抛出异常")
-    void downloadTaskResult_incompleteTask_shouldThrow() {
-        ExportTask task = ExportTask.builder()
-                .id(UUID.randomUUID())
-                .status(ExportTaskStatus.PROCESSING)
-                .build();
-        when(exportTaskRepository.findById(task.getId())).thenReturn(Optional.of(task));
 
-        assertThatThrownBy(() -> exportService.downloadTaskResult(task.getId()))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("未完成");
-    }
 
-    @Test
-    @DisplayName("获取任务结果大小 - 无文件路径应返回 0")
-    void getTaskResultSize_noFilePath_shouldReturnZero() {
-        ExportTask task = ExportTask.builder()
-                .id(UUID.randomUUID())
-                .status(ExportTaskStatus.COMPLETED)
-                .resultFilePath(null)
-                .build();
-        when(exportTaskRepository.findById(task.getId())).thenReturn(Optional.of(task));
 
-        long size = exportService.getTaskResultSize(task.getId());
-        assertThat(size).isEqualTo(0);
-    }
 
-    @Test
-    @DisplayName("获取任务结果大小 - 文件读取异常应返回 0")
-    void getTaskResultSize_ioException_shouldReturnZero() {
-        ExportTask task = ExportTask.builder()
-                .id(UUID.randomUUID())
-                .status(ExportTaskStatus.COMPLETED)
-                .resultFilePath("/nonexistent/path/file.xlsx")
-                .build();
-        when(exportTaskRepository.findById(task.getId())).thenReturn(Optional.of(task));
 
-        long size = exportService.getTaskResultSize(task.getId());
-        assertThat(size).isEqualTo(0);
-    }
-
-    @Test
-    @DisplayName("下载任务结果 - 文件路径为空应抛出异常")
-    void downloadTaskResult_nullFilePath_shouldThrow() {
-        ExportTask task = ExportTask.builder()
-                .id(UUID.randomUUID())
-                .status(ExportTaskStatus.COMPLETED)
-                .resultFilePath(null)
-                .build();
-        when(exportTaskRepository.findById(task.getId())).thenReturn(Optional.of(task));
-
-        assertThatThrownBy(() -> exportService.downloadTaskResult(task.getId()))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("为空");
-    }
-
-    @Test
-    @DisplayName("下载任务结果 - 文件不存在应抛出异常")
-    void downloadTaskResult_fileNotExists_shouldThrow() {
-        ExportTask task = ExportTask.builder()
-                .id(UUID.randomUUID())
-                .status(ExportTaskStatus.COMPLETED)
-                .resultFilePath("/nonexistent/path/file.xlsx")
-                .build();
-        when(exportTaskRepository.findById(task.getId())).thenReturn(Optional.of(task));
-
-        assertThatThrownBy(() -> exportService.downloadTaskResult(task.getId()))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("过期");
-    }
-
-    @Test
-    @DisplayName("异步执行导出任务 - Excel 格式应成功完成")
-    void executeAsyncExport_excel_shouldComplete() throws IOException {
-        ExportTask task = ExportTask.builder()
-                .id(UUID.randomUUID())
-                .status(ExportTaskStatus.PENDING)
-                .totalCount(3)
-                .requestParams(objectMapper.writeValueAsString(excelRequest))
-                .format("excel")
-                .build();
-        when(exportTaskRepository.findById(task.getId())).thenReturn(Optional.of(task));
-        when(exportTaskRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
-        when(dataElementRepository.findAllById(any())).thenReturn(testElements);
-
-        exportService.executeAsyncExport(task.getId());
-
-        assertThat(task.getStatus()).isEqualTo(ExportTaskStatus.COMPLETED);
-        assertThat(task.getProcessedCount()).isEqualTo(3);
-        assertThat(task.getResultFilePath()).isNotNull();
-        // 清理临时文件
-        if (task.getResultFilePath() != null) {
-            Files.deleteIfExists(Path.of(task.getResultFilePath()));
-        }
-    }
-
-    @Test
-    @DisplayName("异步执行导出任务 - PDF 格式应成功完成")
-    void executeAsyncExport_pdf_shouldComplete() throws IOException {
-        ExportTask task = ExportTask.builder()
-                .id(UUID.randomUUID())
-                .status(ExportTaskStatus.PENDING)
-                .totalCount(3)
-                .requestParams(objectMapper.writeValueAsString(pdfRequest))
-                .format("pdf")
-                .build();
-        when(exportTaskRepository.findById(task.getId())).thenReturn(Optional.of(task));
-        when(exportTaskRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
-        when(dataElementRepository.findAllById(any())).thenReturn(testElements);
-
-        exportService.executeAsyncExport(task.getId());
-
-        assertThat(task.getStatus()).isEqualTo(ExportTaskStatus.COMPLETED);
-        assertThat(task.getProcessedCount()).isEqualTo(3);
-        if (task.getResultFilePath() != null) {
-            Files.deleteIfExists(Path.of(task.getResultFilePath()));
-        }
-    }
-
-    @Test
-    @DisplayName("异步执行导出任务 - 异常时应标记为 FAILED")
-    void executeAsyncExport_exception_shouldMarkFailed() throws IOException {
-        ExportTask task = ExportTask.builder()
-                .id(UUID.randomUUID())
-                .status(ExportTaskStatus.PENDING)
-                .totalCount(3)
-                .requestParams(objectMapper.writeValueAsString(excelRequest))
-                .format("excel")
-                .build();
-        when(exportTaskRepository.findById(task.getId())).thenReturn(Optional.of(task));
-        when(exportTaskRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
-        when(dataElementRepository.findAllById(any())).thenThrow(new RuntimeException("DB error"));
-
-        exportService.executeAsyncExport(task.getId());
-
-        assertThat(task.getStatus()).isEqualTo(ExportTaskStatus.FAILED);
-        assertThat(task.getErrorMessage()).contains("DB error");
-    }
 
     // =========================================================================
     // 5. DTO 转换
@@ -407,35 +216,8 @@ class DataDictionaryExportServiceTest {
         assertThat(dto.valueDomainLabel()).isNull();
     }
 
-    @Test
-    @DisplayName("查询任务状态 - 任务不存在应抛出异常")
-    void getTaskStatus_notFound_shouldThrow() {
-        UUID taskId = UUID.randomUUID();
-        when(exportTaskRepository.findById(taskId)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> exportService.getTaskStatus(taskId))
-                .isInstanceOf(io.github.matrixlane.metadataregistry.web.common.ResourceNotFoundException.class);
-    }
 
-    @Test
-    @DisplayName("下载任务结果 - 任务不存在应抛出异常")
-    void downloadTaskResult_notFound_shouldThrow() {
-        UUID taskId = UUID.randomUUID();
-        when(exportTaskRepository.findById(taskId)).thenReturn(Optional.empty());
-
-        assertThatThrownBy(() -> exportService.downloadTaskResult(taskId))
-                .isInstanceOf(io.github.matrixlane.metadataregistry.web.common.ResourceNotFoundException.class);
-    }
-
-    @Test
-    @DisplayName("获取任务结果大小 - 任务不存在应抛出异常")
-    void getTaskResultSize_notFound_shouldThrow() {
-        UUID taskId = UUID.randomUUID();
-        when(exportTaskRepository.findById(taskId)).thenReturn(Optional.empty());
-
-        assertThatThrownBy(() -> exportService.getTaskResultSize(taskId))
-                .isInstanceOf(io.github.matrixlane.metadataregistry.web.common.ResourceNotFoundException.class);
-    }
 
     @Test
     @DisplayName("同步导出 - null 格式应抛出异常")

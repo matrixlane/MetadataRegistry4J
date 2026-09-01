@@ -1,10 +1,7 @@
 package io.github.matrixlane.metadataregistry.web.controller;
 
 import io.github.matrixlane.metadataregistry.web.dto.export.ExportFormat;
-import io.github.matrixlane.metadataregistry.web.dto.export.ExportTaskResponse;
 import io.github.matrixlane.metadataregistry.web.dto.export.datadictionary.DataDictionaryExportRequest;
-import io.github.matrixlane.metadataregistry.web.entity.ExportTask;
-import io.github.matrixlane.metadataregistry.web.entity.ExportTaskStatus;
 import io.github.matrixlane.metadataregistry.web.service.datadictionary.DataDictionaryExportService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -117,92 +114,13 @@ class DataDictionaryExportControllerTest {
     // 3. 异步导出
     // =========================================================================
 
-    @Test
-    @DisplayName("POST /async - 应创建异步任务")
-    void createAsyncExport_shouldReturnTaskResponse() throws Exception {
-        ExportTask task = ExportTask.builder()
-                .id(UUID.randomUUID())
-                .status(ExportTaskStatus.PENDING)
-                .totalCount(10)
-                .build();
 
-        when(exportService.createAsyncExportTask(any(), any())).thenReturn(task);
-
-        DataDictionaryExportRequest request = new DataDictionaryExportRequest(
-                List.of(UUID.randomUUID()), ExportFormat.EXCEL,
-                DataDictionaryExportRequest.ExportMode.SINGLE, false, false, true, 100);
-
-        String json = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(request);
-
-        mockMvc.perform(post("/api/v1/export/data-dictionary/async")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(json))
-                .andExpect(status().isOk())
-                .andExpect(content().contentType(MediaType.APPLICATION_JSON));
-
-        verify(exportService).executeAsyncExport(task.getId());
-    }
-
-    @Test
-    @DisplayName("GET /async/{taskId} - 应返回任务状态")
-    void getAsyncExportStatus_shouldReturnStatus() throws Exception {
-        UUID taskId = UUID.randomUUID();
-        ExportTask task = ExportTask.builder()
-                .id(taskId)
-                .status(ExportTaskStatus.COMPLETED)
-                .processedCount(10)
-                .totalCount(10)
-                .build();
-
-        when(exportService.getTaskStatus(taskId)).thenReturn(task);
-        when(exportService.getTaskResultSize(taskId)).thenReturn(1024L);
-
-        mockMvc.perform(get("/api/v1/export/data-dictionary/async/{taskId}", taskId))
-                .andExpect(status().isOk())
-                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                .andExpect(content().json("""
-                        {"data":{"id":"%s","status":"COMPLETED","processedCount":10,"totalCount":10,"fileSize":1024}}
-                        """.formatted(taskId), false));
-    }
 
     // =========================================================================
     // 4. 下载
     // =========================================================================
 
-    @Test
-    @DisplayName("GET /async/{taskId}/download - 已完成任务应返回文件")
-    void downloadAsyncExport_completedTask_shouldReturnFile() throws Exception {
-        UUID taskId = UUID.randomUUID();
-        ExportTask task = ExportTask.builder()
-                .id(taskId)
-                .status(ExportTaskStatus.COMPLETED)
-                .format("xlsx")
-                .build();
 
-        when(exportService.getTaskStatus(taskId)).thenReturn(task);
-        when(exportService.downloadTaskResult(taskId)).thenReturn(new byte[]{1, 2, 3, 4});
-
-        mockMvc.perform(get("/api/v1/export/data-dictionary/async/{taskId}/download", taskId))
-                .andExpect(status().isOk())
-                .andExpect(header().exists("Content-Disposition"));
-    }
-
-    @Test
-    @DisplayName("GET /async/{taskId}/download - 未完成任务应抛出异常")
-    void downloadAsyncExport_incompleteTask_shouldThrow() {
-        UUID taskId = UUID.randomUUID();
-        ExportTask task = ExportTask.builder()
-                .id(taskId)
-                .status(ExportTaskStatus.PROCESSING)
-                .build();
-
-        when(exportService.getTaskStatus(taskId)).thenReturn(task);
-
-        assertThatThrownBy(() ->
-                mockMvc.perform(get("/api/v1/export/data-dictionary/async/{taskId}/download", taskId)))
-                .hasCauseInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("未完成");
-    }
 
     // =========================================================================
     // 5. 文件名安全处理

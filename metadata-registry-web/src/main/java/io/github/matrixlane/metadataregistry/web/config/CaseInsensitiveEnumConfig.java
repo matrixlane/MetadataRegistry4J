@@ -13,20 +13,11 @@ import io.github.matrixlane.metadataregistry.itemmapping.enums.InteropMappingSta
 import io.github.matrixlane.metadataregistry.itemmapping.enums.MappingSchemeStatus;
 import io.github.matrixlane.metadataregistry.itemmapping.enums.MappingType;
 import io.github.matrixlane.metadataregistry.itemmapping.notification.SubscriptionType;
-import io.github.matrixlane.metadataregistry.web.entity.ApprovalProcessStatus;
-import io.github.matrixlane.metadataregistry.web.entity.ApprovalResult;
-import io.github.matrixlane.metadataregistry.web.entity.ApprovalStepAssigneeRule;
-import io.github.matrixlane.metadataregistry.web.entity.ApprovalStepStatus;
-import io.github.matrixlane.metadataregistry.web.entity.DataQualityTaskStatus;
-import io.github.matrixlane.metadataregistry.web.entity.ExportTaskStatus;
 import io.github.matrixlane.metadataregistry.web.entity.NamespacePermissionType;
 import io.github.matrixlane.metadataregistry.web.entity.RejectStrategy;
 import io.github.matrixlane.metadataregistry.web.federation.MergeItemChangeType;
 import io.github.matrixlane.metadataregistry.web.federation.MergeItemResolution;
 import io.github.matrixlane.metadataregistry.web.federation.MergeRequestStatus;
-import io.github.matrixlane.metadataregistry.web.notification.entity.NotificationChannel;
-import io.github.matrixlane.metadataregistry.web.notification.entity.NotificationStatus;
-import io.github.matrixlane.metadataregistry.web.notification.entity.NotificationType;
 import org.hibernate.boot.MetadataBuilder;
 import org.hibernate.boot.registry.StandardServiceRegistry;
 import org.hibernate.boot.spi.MetadataBuilderInitializer;
@@ -69,20 +60,11 @@ public class CaseInsensitiveEnumConfig implements MetadataBuilderInitializer {
             MappingSchemeStatus.class,
             MappingType.class,
             SubscriptionType.class,
-            ApprovalProcessStatus.class,
-            ApprovalResult.class,
-            ApprovalStepAssigneeRule.class,
-            ApprovalStepStatus.class,
-            DataQualityTaskStatus.class,
-            ExportTaskStatus.class,
             NamespacePermissionType.class,
             RejectStrategy.class,
             MergeItemChangeType.class,
             MergeItemResolution.class,
-            MergeRequestStatus.class,
-            NotificationChannel.class,
-            NotificationStatus.class,
-            NotificationType.class);
+            MergeRequestStatus.class);
 
     @Override
     @SuppressWarnings({"unchecked", "rawtypes"})

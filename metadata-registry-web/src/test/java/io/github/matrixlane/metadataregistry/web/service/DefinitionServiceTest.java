@@ -8,7 +8,6 @@ import io.github.matrixlane.metadataregistry.web.common.ResourceNotFoundExceptio
 import io.github.matrixlane.metadataregistry.web.common.BusinessException;
 import io.github.matrixlane.metadataregistry.web.dto.designationdefinition.DefinitionRequest;
 import io.github.matrixlane.metadataregistry.web.dto.designationdefinition.DefinitionResponse;
-import io.github.matrixlane.metadataregistry.web.entity.DefinitionAuditLog;
 import io.github.matrixlane.metadataregistry.web.repository.ContextRepository;
 import io.github.matrixlane.metadataregistry.web.repository.DefinitionRepository;
 import io.github.matrixlane.metadataregistry.web.repository.ItemRepository;
@@ -18,7 +17,6 @@ import io.github.matrixlane.metadataregistry.web.repository.RegistrySpecificatio
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -40,7 +38,6 @@ class DefinitionServiceTest {
     @Mock private LanguageIdentificationRepository languageRepository;
     @Mock private ContextRepository contextRepository;
     @Mock private ReferenceDocumentRepository referenceDocumentRepository;
-    @Mock private DefinitionAuditLogService definitionAuditLogService;
     @Mock private RegistrySpecificationRepository registrySpecificationRepository;
 
     @InjectMocks
@@ -87,7 +84,7 @@ class DefinitionServiceTest {
     }
 
     @Test
-    void create_shouldSucceedAndLogAudit() {
+    void create_shouldSucceed() {
         when(itemRepository.findById(itemId)).thenReturn(Optional.of(item));
         when(languageRepository.findById(languageId)).thenReturn(Optional.of(lang));
         when(definitionRepository.save(any(Definition.class))).thenAnswer(i -> {
@@ -101,16 +98,10 @@ class DefinitionServiceTest {
 
         DefinitionResponse result = definitionService.create(request);
         assertThat(result.value()).isEqualTo("患者的唯一标识");
-
-        ArgumentCaptor<DefinitionAuditLog> logCaptor = ArgumentCaptor.forClass(DefinitionAuditLog.class);
-        verify(definitionAuditLogService).save(logCaptor.capture());
-        DefinitionAuditLog log = logCaptor.getValue();
-        assertThat(log.getAction()).isEqualTo("CREATE");
-        assertThat(log.getItemId()).isEqualTo(itemId);
     }
 
     @Test
-    void update_shouldSucceedAndLogAudit() {
+    void update_shouldSucceed() {
         Definition d = createDefinition("旧定义");
         when(definitionRepository.findById(definitionId)).thenReturn(Optional.of(d));
         when(languageRepository.findById(languageId)).thenReturn(Optional.of(lang));
@@ -121,30 +112,17 @@ class DefinitionServiceTest {
 
         DefinitionResponse result = definitionService.update(definitionId, request);
         assertThat(result.value()).isEqualTo("新定义");
-
-        ArgumentCaptor<DefinitionAuditLog> logCaptor = ArgumentCaptor.forClass(DefinitionAuditLog.class);
-        verify(definitionAuditLogService).save(logCaptor.capture());
-        DefinitionAuditLog log = logCaptor.getValue();
-        assertThat(log.getAction()).isEqualTo("UPDATE");
-        assertThat(log.getOldValueSummary()).isEqualTo("旧定义");
-        assertThat(log.getNewValueSummary()).isEqualTo("新定义");
     }
 
     @Test
-    void delete_shouldRemoveAndLogAudit() {
+    void delete_shouldRemove() {
         Definition d = createDefinition("将被删除的定义");
         when(definitionRepository.findById(definitionId)).thenReturn(Optional.of(d));
         doNothing().when(definitionRepository).deleteById(definitionId);
 
         definitionService.delete(definitionId);
 
-        verify(definitionRepository).deleteById(definitionId);
-        ArgumentCaptor<DefinitionAuditLog> logCaptor = ArgumentCaptor.forClass(DefinitionAuditLog.class);
-        verify(definitionAuditLogService).save(logCaptor.capture());
-        DefinitionAuditLog log = logCaptor.getValue();
-        assertThat(log.getAction()).isEqualTo("DELETE");
-        assertThat(log.getOldValueSummary()).isEqualTo("将被删除的定义");
-    }
+        verify(definitionRepository).deleteById(definitionId);    }
 
     @Test
     void delete_shouldThrowWhenNotFound() {

@@ -2,12 +2,12 @@
 
 ## 1. 直接删除(无前端功能)
 
-- [ ] 1.1 整模块删除 draft-generation、schema-extraction(根 pom 移除模块声明,确认无残留依赖)
-- [ ] 1.2 web 内删除审批流(approval_* 5 表实体、ApprovalService/MultiLevelApprovalService/ApprovalController 等)
-- [ ] 1.3 web 内删除通知(notification_* 实体、EmailNotificationService/NotificationRetryService)
-- [ ] 1.4 web 内删除数据质量(data_quality_task + DataQuality*)、导出任务(export_task)
-- [ ] 1.5 web 内删除 FHIR(web/entity/fhir 4 表、FhirComplianceService 等引用)
-- [ ] 1.6 删除 definition_audit_log(实体+服务+端点)
+- [x] 1.1 整模块删除 draft-generation、schema-extraction(根 pom 移除模块声明,确认无残留依赖)
+- [x] 1.2 web 内删除审批流(approval_* 5 表实体、ApprovalService/MultiLevelApprovalService/ApprovalController 等)
+- [x] 1.3 web 内删除通知(notification_* 实体、EmailNotificationService/NotificationRetryService)
+- [x] 1.4 web 内删除数据质量(data_quality_task + DataQuality*)、导出任务(export_task)
+- [x] 1.5 web 内删除 FHIR(web/entity/fhir 4 表、FhirComplianceService 等引用)
+- [x] 1.6 删除 definition_audit_log(实体+服务+端点)
 - [ ] 1.7 common-facilities 删除 Value 类(含 datatypeUri)、DataTimePeriod 别名(4 处 @Embedded 先收敛到 Datetime_Period)
 - [ ] 1.8 删除 Designation.contexts/Definition.contexts 裸 @ManyToMany + Definition.namespaces;同步修 MetadataSearchService.java:222-227 原生 SQL 改 JOIN *_context_relation(顺带修搜索过滤恒空既存 bug);designation_namespace 在用勿误删
 - [ ] 1.9 Slot 恢复标准属性名 type(迁移脚本列 value_datatype→type,删废弃双字段)

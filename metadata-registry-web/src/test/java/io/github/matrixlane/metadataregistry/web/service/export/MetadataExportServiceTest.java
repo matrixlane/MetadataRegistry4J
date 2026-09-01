@@ -20,10 +20,7 @@ import io.github.matrixlane.metadataregistry.commonfacilities.registration.Stewa
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.SubmissionRecord;
 import io.github.matrixlane.metadataregistry.web.dto.export.MetadataExportRequest;
 import io.github.matrixlane.metadataregistry.web.dto.export.MetadataExportResult;
-import io.github.matrixlane.metadataregistry.web.entity.ExportTask;
-import io.github.matrixlane.metadataregistry.web.entity.ExportTaskStatus;
 import io.github.matrixlane.metadataregistry.web.repository.AdministeredItemRepository;
-import io.github.matrixlane.metadataregistry.web.repository.ExportTaskRepository;
 import io.github.matrixlane.metadataregistry.web.service.MetadataExportService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -59,7 +56,6 @@ import static org.mockito.Mockito.when;
  *   <li>异步任务创建与执行</li>
  *   <li>CSV 导出</li>
  *   <li>流式 JSON 导出</li>
- *   <li>分片读取结果</li>
  * </ul>
  */
 @ExtendWith(MockitoExtension.class)
@@ -67,9 +63,6 @@ class MetadataExportServiceTest {
 
     @Mock
     private AdministeredItemRepository repository;
-
-    @Mock
-    private ExportTaskRepository exportTaskRepository;
 
     private MetadataExportService exportService;
 
@@ -82,7 +75,7 @@ class MetadataExportServiceTest {
 
     @BeforeEach
     void setUp() {
-        exportService = new MetadataExportService(repository, exportTaskRepository, objectMapper);
+        exportService = new MetadataExportService(repository, objectMapper);
 
         testItems = new ArrayList<>();
 
@@ -307,21 +300,6 @@ class MetadataExportServiceTest {
         assertThat(shouldAsync).isTrue();
     }
 
-    @Test
-    @DisplayName("异步任务创建：应返回 PENDING 任务")
-    void createAsyncExportTask_shouldReturnPendingTask() {
-        UUID userId = UUID.randomUUID();
-        when(repository.count(any(Specification.class))).thenReturn(50L);
-        when(exportTaskRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
-
-        ExportTask task = exportService.createAsyncExportTask(request, userId);
-
-        assertThat(task.getStatus()).isEqualTo(ExportTaskStatus.PENDING);
-        assertThat(task.getCreatedBy()).isEqualTo(userId);
-        assertThat(task.getTotalCount()).isEqualTo(50);
-        assertThat(task.getCreatedAt()).isNotNull();
-        assertThat(task.getExpiresAt()).isAfter(task.getCreatedAt());
-    }
 
     // =========================================================================
     // 4. CSV 导出
@@ -381,32 +359,7 @@ class MetadataExportServiceTest {
     // 6. 分片读取
     // =========================================================================
 
-    @Test
-    @DisplayName("分片读取：未完成的任务应报错")
-    void readExportChunk_incompleteTask_shouldThrow() {
-        ExportTask incompleteTask = ExportTask.builder()
-                .id(UUID.randomUUID())
-                .status(ExportTaskStatus.PROCESSING)
-                .build();
 
-        when(exportTaskRepository.findById(incompleteTask.getId()))
-                .thenReturn(Optional.of(incompleteTask));
-
-        assertThatThrownBy(() -> exportService.readExportChunk(incompleteTask.getId(), 0, 1024))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("导出任务未完成");
-    }
-
-    @Test
-    @DisplayName("分片读取：任务不存在应报错")
-    void readExportChunk_taskNotFound_shouldThrow() {
-        UUID nonExistentId = UUID.randomUUID();
-        when(exportTaskRepository.findById(nonExistentId)).thenReturn(Optional.empty());
-
-        assertThatThrownBy(() -> exportService.readExportChunk(nonExistentId, 0, 1024))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("导出任务不存在");
-    }
 
     // =========================================================================
     // 辅助方法

@@ -17,8 +17,6 @@
         <module>metadata-registry-data-specification</module>
         <module>metadata-registry-data-set-registration</module>
         <module>metadata-registry-item-mapping</module>
-        <module>metadata-registry-schema-extraction</module>
-        <module>metadata-registry-draft-generation</module>
         <module>metadata-registry-web</module>
     </modules>
 
@@ -148,16 +146,6 @@
             <dependency>
                 <groupId>io.github.matrixlane</groupId>
                 <artifactId>metadata-registry-item-mapping</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>io.github.matrixlane</groupId>
-                <artifactId>metadata-registry-schema-extraction</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>io.github.matrixlane</groupId>
-                <artifactId>metadata-registry-draft-generation</artifactId>
                 <version>${project.version}</version>
             </dependency>
         </dependencies>

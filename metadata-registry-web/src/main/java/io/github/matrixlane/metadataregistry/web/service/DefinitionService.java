@@ -9,7 +9,6 @@ import io.github.matrixlane.metadataregistry.web.common.BusinessException;
 import io.github.matrixlane.metadataregistry.web.common.ResourceNotFoundException;
 import io.github.matrixlane.metadataregistry.web.dto.designationdefinition.DefinitionRequest;
 import io.github.matrixlane.metadataregistry.web.dto.designationdefinition.DefinitionResponse;
-import io.github.matrixlane.metadataregistry.web.entity.DefinitionAuditLog;
 import io.github.matrixlane.metadataregistry.web.common.ApiCodes;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.LanguageIdentification;
 import io.github.matrixlane.metadataregistry.web.repository.ContextRepository;
@@ -43,7 +42,6 @@ public class DefinitionService {
     private final LanguageIdentificationRepository languageRepository;
     private final ContextRepository contextRepository;
     private final ReferenceDocumentRepository referenceDocumentRepository;
-    private final DefinitionAuditLogService definitionAuditLogService;
     private final RegistrySpecificationRepository registrySpecificationRepository;
 
     @Transactional(readOnly = true)
@@ -84,11 +82,6 @@ public class DefinitionService {
 
         Definition saved = definitionRepository.save(d);
 
-        definitionAuditLogService.save(DefinitionAuditLog.ofCreate(
-                saved.getId(), item.getId(), request.value(),
-                saved.getLanguage() == null ? null : saved.getLanguage().getLanguageIdentifier(),
-                currentUser()));
-
         return toResponse(saved);
     }
 
@@ -120,13 +113,6 @@ public class DefinitionService {
 
         Definition saved = definitionRepository.save(d);
 
-        definitionAuditLogService.save(DefinitionAuditLog.ofUpdate(
-                saved.getId(),
-                saved.getItem() == null ? null : saved.getItem().getId(),
-                oldValue, request.value(),
-                saved.getLanguage() == null ? null : saved.getLanguage().getLanguageIdentifier(),
-                currentUser()));
-
         return toResponse(saved);
     }
 
@@ -138,9 +124,6 @@ public class DefinitionService {
         String oldLang = d.getLanguage() == null ? null : d.getLanguage().getLanguageIdentifier();
 
         definitionRepository.deleteById(id);
-
-        definitionAuditLogService.save(DefinitionAuditLog.ofDelete(
-                id, itemId, oldValue, oldLang, currentUser()));
     }
 
     private Definition loadOrThrow(UUID id) {

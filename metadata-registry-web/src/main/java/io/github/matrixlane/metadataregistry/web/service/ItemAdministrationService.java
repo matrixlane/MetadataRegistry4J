@@ -69,7 +69,6 @@ public class ItemAdministrationService {
     private final RegistrationAuthorityRepository registrationAuthorityRepository;
     private final ContextRepository contextRepository;
     private final NamingConventionEngine namingConventionEngine;
-    private final DefinitionAuditLogService definitionAuditLogService;
     private final ScopedIdentifierRepository scopedIdentifierRepository;
     private final AdministeredItemRepository administeredItemRepository;
     private final IdentifierInputPolicyService identifierInputPolicyService;
@@ -187,8 +186,6 @@ public class ItemAdministrationService {
         validateIsolatedLines(definitions, "定义");
         validatePreferredUniqueness(definitions, resolveLanguages(definitions), "定义");
 
-        List<DefinitionSnapshot> oldSnapshots = snapshotDefinitions(item.getDefinitions());
-
         item.getDefinitions().clear();
         for (int i = 0; i < definitions.size(); i++) {
             TextLine line = definitions.get(i);
@@ -210,50 +207,6 @@ public class ItemAdministrationService {
             item.getDefinitions().add(d);
         }
 
-        List<DefinitionSnapshot> newSnapshots = snapshotDefinitions(item.getDefinitions());
-        logDefinitionChanges(item.getId(), oldSnapshots, newSnapshots);
-    }
-
-    private List<DefinitionSnapshot> snapshotDefinitions(List<Definition> definitions) {
-        if (definitions == null) return Collections.emptyList();
-        return definitions.stream()
-                .map(d -> new DefinitionSnapshot(
-                        d.getId(),
-                        d.getText() == null ? null : d.getText().getValue(),
-                        d.getLanguage() == null ? null : d.getLanguage().getLanguageIdentifier()))
-                .toList();
-    }
-
-    private void logDefinitionChanges(UUID itemId, List<DefinitionSnapshot> oldList, List<DefinitionSnapshot> newList) {
-        if (itemId == null) return;
-        String operator = currentUser();
-        Map<String, DefinitionSnapshot> oldMap = new HashMap<>();
-        for (DefinitionSnapshot s : oldList) {
-            if (s.language != null) oldMap.put(s.language, s);
-        }
-        Map<String, DefinitionSnapshot> newMap = new HashMap<>();
-        for (DefinitionSnapshot s : newList) {
-            if (s.language != null) newMap.put(s.language, s);
-        }
-
-        for (DefinitionSnapshot oldSnap : oldList) {
-            DefinitionSnapshot newSnap = newMap.get(oldSnap.language);
-            if (newSnap == null) {
-                definitionAuditLogService.save(io.github.matrixlane.metadataregistry.web.entity.DefinitionAuditLog.ofDelete(
-                        oldSnap.id, itemId, oldSnap.text, oldSnap.language, operator));
-            } else if (!oldSnap.text.equals(newSnap.text)) {
-                definitionAuditLogService.save(io.github.matrixlane.metadataregistry.web.entity.DefinitionAuditLog.ofUpdate(
-                        oldSnap.id, itemId, oldSnap.text, newSnap.text, oldSnap.language, operator));
-            }
-        }
-        for (DefinitionSnapshot newSnap : newList) {
-            if (!oldMap.containsKey(newSnap.language)) {
-                // CREATE: id may be null before persist; logged with null definitionId,
-                // itemId and languageIdentifier allow tracing.
-                definitionAuditLogService.save(io.github.matrixlane.metadataregistry.web.entity.DefinitionAuditLog.ofCreate(
-                        newSnap.id, itemId, newSnap.text, newSnap.language, operator));
-            }
-        }
     }
 
     private String currentUser() {
@@ -266,9 +219,6 @@ public class ItemAdministrationService {
             return user.username();
         }
         return auth.getName();
-    }
-
-    private record DefinitionSnapshot(UUID id, String text, String language) {
     }
 
     public AdministeredItem ensureAdministeredItem(Item item, ItemRegistrationRequest req) {

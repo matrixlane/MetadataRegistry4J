@@ -16,7 +16,6 @@ import io.github.matrixlane.metadataregistry.web.dto.common.ItemRegistrationRequ
 import io.github.matrixlane.metadataregistry.web.dto.common.TextLine;
 import io.github.matrixlane.metadataregistry.web.dto.common.TextLineContextEntry;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.Context;
-import io.github.matrixlane.metadataregistry.web.entity.DefinitionAuditLog;
 import io.github.matrixlane.metadataregistry.web.repository.ContextRepository;
 import io.github.matrixlane.metadataregistry.web.repository.LanguageIdentificationRepository;
 import io.github.matrixlane.metadataregistry.web.repository.ReferenceDocumentRepository;
@@ -30,7 +29,6 @@ import io.github.matrixlane.metadataregistry.commonfacilities.registration.Regis
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -53,7 +51,6 @@ class ItemAdministrationServiceTest {
     @Mock private io.github.matrixlane.metadataregistry.web.repository.RegistrationAuthorityRepository registrationAuthorityRepository;
     @Mock private ContextRepository contextRepository;
     @Mock private NamingConventionEngine namingConventionEngine;
-    @Mock private DefinitionAuditLogService definitionAuditLogService;
     @Mock private IdentifierInputPolicyService identifierInputPolicyService;
     @Mock private NamingConventionRepository namingConventionRepository;
     @Mock private NamespaceConstraintValidator namespaceConstraintValidator;
@@ -190,7 +187,7 @@ class ItemAdministrationServiceTest {
     }
 
     @Test
-    void applyDefinitions_shouldSucceedAndLogAudit() {
+    void applyDefinitions_shouldSucceed() {
         when(languageRepository.findById(languageId)).thenReturn(Optional.of(lang));
         Context ctx = new Context();
         ctx.setId(contextId);
@@ -203,16 +200,10 @@ class ItemAdministrationServiceTest {
 
         assertThat(item.getDefinitions()).hasSize(1);
         assertThat(item.getDefinitions().get(0).getText().getValue()).isEqualTo("患者的唯一标识");
-
-        ArgumentCaptor<DefinitionAuditLog> logCaptor = ArgumentCaptor.forClass(DefinitionAuditLog.class);
-        verify(definitionAuditLogService).save(logCaptor.capture());
-        DefinitionAuditLog log = logCaptor.getValue();
-        assertThat(log.getAction()).isEqualTo("CREATE");
-        assertThat(log.getItemId()).isEqualTo(itemId);
     }
 
     @Test
-    void applyDefinitions_shouldLogUpdateWhenReplacingExisting() {
+    void applyDefinitions_shouldReplaceExisting() {
         Definition existing = new Definition();
         existing.setId(UUID.randomUUID());
         existing.setText(io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.Text.of("旧定义"));
@@ -230,12 +221,8 @@ class ItemAdministrationServiceTest {
 
         itemAdministrationService.applyDefinitions(item, List.of(line));
 
-        ArgumentCaptor<DefinitionAuditLog> logCaptor = ArgumentCaptor.forClass(DefinitionAuditLog.class);
-        verify(definitionAuditLogService).save(logCaptor.capture());
-        DefinitionAuditLog log = logCaptor.getValue();
-        assertThat(log.getAction()).isEqualTo("UPDATE");
-        assertThat(log.getOldValueSummary()).isEqualTo("旧定义");
-        assertThat(log.getNewValueSummary()).isEqualTo("新定义");
+        assertThat(item.getDefinitions()).hasSize(1);
+        assertThat(item.getDefinitions().get(0).getText().getValue()).isEqualTo("新定义");
     }
 
     @Test

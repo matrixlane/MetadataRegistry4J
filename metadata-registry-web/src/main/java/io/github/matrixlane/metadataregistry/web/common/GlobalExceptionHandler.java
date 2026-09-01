@@ -1,6 +1,5 @@
 package io.github.matrixlane.metadataregistry.web.common;
 
-import io.github.matrixlane.metadataregistry.schemaextraction.javasource.JavaSourceParseException;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -86,12 +85,6 @@ public class GlobalExceptionHandler {
         log.warn("数据完整性冲突", ex);
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(ApiResponse.error(ApiCodes.CONFLICT, "数据冲突：" + rootMessage(ex)));
-    }
-
-    @ExceptionHandler(JavaSourceParseException.class)
-    public ResponseEntity<ApiResponse<Void>> handleJavaSourceParseException(JavaSourceParseException ex) {
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(ApiResponse.error(ApiCodes.BAD_REQUEST, ex.getMessage()));
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

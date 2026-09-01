@@ -32,26 +32,5 @@ public final class ApiCodes {
     public static final int INVALID_STATE_TRANSITION_FROM_HISTORICAL = 1118;
     public static final int INVALID_STATE_TRANSITION_FROM_APPLICATION = 1119;
 
-    // === Approval Workflow Errors (1200-1299) ===
-    public static final int APPROVAL_RECORD_NOT_FOUND = 1200;
-    public static final int APPROVAL_INVALID_STATE = 1201;
-    public static final int APPROVAL_ALREADY_PENDING = 1202;
-    public static final int APPROVAL_NOT_PENDING = 1203;
-    public static final int APPROVAL_OPINION_TOO_LONG = 1204;
-    public static final int APPROVAL_NOT_REJECTED = 1205;
-    public static final int APPROVAL_CANNOT_SUBMIT = 1206;
-
-    // === Multi-Level Approval Workflow Errors (1300-1399) ===
-    public static final int APPROVAL_TEMPLATE_NOT_FOUND = 1300;
-    public static final int APPROVAL_TEMPLATE_LOCKED = 1301;
-    public static final int APPROVAL_TEMPLATE_NAME_DUPLICATE = 1302;
-    public static final int APPROVAL_STEP_NOT_FOUND = 1303;
-    public static final int APPROVAL_PROCESS_INSTANCE_NOT_FOUND = 1304;
-    public static final int APPROVAL_PROCESS_ALREADY_PENDING = 1305;
-    public static final int APPROVAL_STEP_NOT_PENDING = 1306;
-    public static final int APPROVAL_STEP_NOT_CURRENT = 1307;
-    public static final int APPROVAL_UNAUTHORIZED_STEP = 1308;
-    public static final int APPROVAL_INVALID_TEMPLATE = 1309;
-    public static final int APPROVAL_TRANSFER_FAILED = 1310;
     public static final int APPROVAL_TIMEOUT_NOT_CONFIGURED = 1311;
 }

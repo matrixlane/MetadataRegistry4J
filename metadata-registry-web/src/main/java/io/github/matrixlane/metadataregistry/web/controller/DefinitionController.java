@@ -3,8 +3,6 @@ package io.github.matrixlane.metadataregistry.web.controller;
 import io.github.matrixlane.metadataregistry.web.common.ApiResponse;
 import io.github.matrixlane.metadataregistry.web.dto.designationdefinition.DefinitionRequest;
 import io.github.matrixlane.metadataregistry.web.dto.designationdefinition.DefinitionResponse;
-import io.github.matrixlane.metadataregistry.web.entity.DefinitionAuditLog;
-import io.github.matrixlane.metadataregistry.web.service.DefinitionAuditLogService;
 import io.github.matrixlane.metadataregistry.web.service.DefinitionService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -29,7 +27,6 @@ import java.util.UUID;
 public class DefinitionController {
 
     private final DefinitionService definitionService;
-    private final DefinitionAuditLogService definitionAuditLogService;
 
     @GetMapping
     @Operation(summary = "列出某注册项的所有定义")
@@ -63,11 +60,5 @@ public class DefinitionController {
     public ApiResponse<Void> delete(@PathVariable UUID itemId, @PathVariable UUID id) {
         definitionService.delete(id);
         return ApiResponse.ok();
-    }
-
-    @GetMapping("/{id}/audit-logs")
-    @Operation(summary = "查询定义操作日志")
-    public ApiResponse<List<DefinitionAuditLog>> listAuditLogs(@PathVariable UUID itemId, @PathVariable UUID id) {
-        return ApiResponse.ok(definitionAuditLogService.findByDefinitionId(id));
     }
 }
