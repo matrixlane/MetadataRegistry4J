@@ -12,7 +12,7 @@ class SlotTest {
         Slot slot = new Slot("color", "red", "xsd:string", item);
         assertThat(slot.getName()).isEqualTo("color");
         assertThat(slot.getValue()).containsExactly("red");
-        assertThat(slot.getValue_datatype()).isEqualTo("xsd:string");
+        assertThat(slot.getType()).isEqualTo("xsd:string");
         assertThat(slot.getItem()).isEqualTo(item);
     }
 
@@ -21,12 +21,10 @@ class SlotTest {
         Slot slot = new Slot();
         slot.setName("size");
         slot.getValue().add("42");
-        slot.setValue_datatype("xsd:integer");
-        slot.setType("legacy-type");
+        slot.setType("xsd:integer");
         assertThat(slot.getName()).isEqualTo("size");
         assertThat(slot.getValue()).containsExactly("42");
-        assertThat(slot.getValue_datatype()).isEqualTo("xsd:integer");
-        assertThat(slot.getType()).isEqualTo("legacy-type");
+        assertThat(slot.getType()).isEqualTo("xsd:integer");
     }
 
     @Test
@@ -35,7 +33,7 @@ class SlotTest {
         assertThat(slot.getId()).isNull();
         assertThat(slot.getName()).isNull();
         assertThat(slot.getValue()).isEmpty();
-        assertThat(slot.getValue_datatype()).isNull();
+        assertThat(slot.getType()).isNull();
         assertThat(slot.getItem()).isNull();
     }
 
@@ -85,12 +83,5 @@ class SlotTest {
     void shouldSupportEmptyStringValue() {
         Slot slot = new Slot("empty", "", "xsd:string", new Context());
         assertThat(slot.getValue()).containsExactly("");
-    }
-
-    @Test
-    void deprecatedTypeFieldShouldBeAccessible() {
-        Slot slot = new Slot();
-        slot.setType("old-type");
-        assertThat(slot.getType()).isEqualTo("old-type");
     }
 }

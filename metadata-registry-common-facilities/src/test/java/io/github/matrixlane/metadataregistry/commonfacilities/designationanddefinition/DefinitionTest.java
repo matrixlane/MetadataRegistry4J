@@ -2,7 +2,6 @@ package io.github.matrixlane.metadataregistry.commonfacilities.designationanddef
 
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.Context;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.Text;
-import io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -12,8 +11,6 @@ class DefinitionTest {
     @Test
     void shouldInitializeCollections() {
         Definition definition = new Definition();
-        assertThat(definition.getNamespaces()).isEmpty();
-        assertThat(definition.getContexts()).isEmpty();
         assertThat(definition.getDefinitionContexts()).isEmpty();
         assertThat(definition.getDesignationDefinitionPairings()).isEmpty();
     }
@@ -32,20 +29,6 @@ class DefinitionTest {
         Context item = new Context();
         definition.setItem(item);
         assertThat(definition.getItem()).isEqualTo(item);
-    }
-
-    @Test
-    void shouldAddNamespace() {
-        Definition definition = new Definition();
-        definition.getNamespaces().add(new Namespace());
-        assertThat(definition.getNamespaces()).hasSize(1);
-    }
-
-    @Test
-    void shouldAddContext() {
-        Definition definition = new Definition();
-        definition.getContexts().add(new Context());
-        assertThat(definition.getContexts()).hasSize(1);
     }
 
     @Test

@@ -56,32 +56,21 @@ public class Slot {
     private List<String> value = new ArrayList<>();
 
     /**
-     * The datatype of the value, as a URI or type identifier.
-     * Corresponds to the standard attribute {@code value_datatype}.
+     * ISO/IEC 11179-3:2023 表 11(Slot):type 0..1 String (6.2.11)。
+     * 对 slot 取值的分类,可用于(但不限于)标识取值的数据类型。
      */
-    private String value_datatype;
-
-    /**
-     * Legacy field retained for backward compatibility.
-     * <p>
-     * DEVIATION: The standard uses {@code value_datatype}; this field predates
-     * the standard-aligned naming. Migrate to {@link #value_datatype}.
-     *
-     * @deprecated Use {@link #value_datatype} instead.
-     */
-    @Deprecated(since = "0.1.0", forRemoval = false)
     private String type;
 
     @ManyToOne
     @JoinColumn(name = "item_id")
     private Item item;
 
-    public Slot(String name, String value, String value_datatype, Item item) {
+    public Slot(String name, String value, String type, Item item) {
         this.name = name;
         if (value != null) {
             this.value.add(value);
         }
-        this.value_datatype = value_datatype;
+        this.type = type;
         this.item = item;
     }
 }

@@ -220,10 +220,10 @@ public class MetadataSearchService {
 
         if (contextId != null) {
             String contextFilter = " AND (EXISTS (SELECT 1 FROM " + t("designation") + " d_ctx " +
-                    "JOIN " + t("designation_context") + " dc ON dc.designation_id = d_ctx.id " +
+                    "JOIN " + t("designation_context_relation") + " dc ON dc.designation_id = d_ctx.id " +
                     "WHERE d_ctx.item_id = i.id AND dc.context_id = ?)" +
                     " OR EXISTS (SELECT 1 FROM " + t("definition") + " df_ctx " +
-                    "JOIN " + t("definition_context") + " dfc ON dfc.definition_id = df_ctx.id " +
+                    "JOIN " + t("definition_context_relation") + " dfc ON dfc.definition_id = df_ctx.id " +
                     "WHERE df_ctx.item_id = i.id AND dfc.context_id = ?))";
             where.append(contextFilter);
             countParams.add(contextId);

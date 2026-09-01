@@ -13,7 +13,6 @@ class DesignationTest {
     void shouldInitializeCollections() {
         Designation designation = new Designation();
         assertThat(designation.getNamespaces()).isEmpty();
-        assertThat(designation.getContexts()).isEmpty();
         assertThat(designation.getDesignationContexts()).isEmpty();
         assertThat(designation.getDesignationDefinitionPairings()).isEmpty();
     }
@@ -39,13 +38,6 @@ class DesignationTest {
         Designation designation = new Designation();
         designation.getNamespaces().add(new Namespace());
         assertThat(designation.getNamespaces()).hasSize(1);
-    }
-
-    @Test
-    void shouldAddContext() {
-        Designation designation = new Designation();
-        designation.getContexts().add(new Context());
-        assertThat(designation.getContexts()).hasSize(1);
     }
 
     @Test

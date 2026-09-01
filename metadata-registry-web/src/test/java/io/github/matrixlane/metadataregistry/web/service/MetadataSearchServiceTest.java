@@ -166,7 +166,7 @@ class MetadataSearchServiceTest {
     private static final java.util.Set<String> KNOWN_TABLES = java.util.Set.of(
             "administered_item", "identified_item", "item", "scoped_identifier", "namespace",
             "registration_authority", "registration_state", "registered_item", "designation", "definition",
-            "designation_context", "definition_context", "organization_name", "constraint_set",
+            "designation_context_relation", "definition_context_relation", "organization_name", "constraint_set",
             "registry_specification", "reference_document", "data_element", "data_element_concept",
             "conceptual_domain", "value_domain", "object_class", "property", "data_type",
             "data_type_scheme", "unit_of_measure", "measure_class", "dimensionality",

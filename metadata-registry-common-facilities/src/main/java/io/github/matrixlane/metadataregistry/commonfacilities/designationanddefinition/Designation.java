@@ -4,7 +4,6 @@ import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.Stand
 
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.LanguageIdentification;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.ReferenceDocument;
-import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.Context;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.Entity;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.Item;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.Sign;
@@ -58,14 +57,6 @@ public class Designation extends Entity {
             inverseJoinColumns = @JoinColumn(name = "namespace_id")
     )
     private List<Namespace> namespaces = new ArrayList<>();
-
-    @ManyToMany
-    @JoinTable(
-            name = "designation_context",
-            joinColumns = @JoinColumn(name = "designation_id"),
-            inverseJoinColumns = @JoinColumn(name = "context_id")
-    )
-    private List<Context> contexts = new ArrayList<>();
 
     @OneToMany(mappedBy = "designation")
     private List<DesignationContext> designationContexts = new ArrayList<>();
