@@ -49,6 +49,7 @@ class GlobalNamespaceServiceTest {
     @Mock private LanguageIdentificationRepository languageRepository;
     @Mock private OrganizationRepository organizationRepository;
     @Mock private io.github.matrixlane.metadataregistry.web.service.ScopedIdentifierLifecycleService lifecycleService;
+    @Mock private io.github.matrixlane.metadataregistry.web.service.NamespaceIdentifierSettingsService settingsService;
 
     @InjectMocks
     private GlobalNamespaceService service;

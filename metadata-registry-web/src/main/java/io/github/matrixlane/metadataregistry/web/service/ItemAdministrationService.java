@@ -78,6 +78,7 @@ public class ItemAdministrationService {
     private final ActiveRegistrarService activeRegistrarService;
     private final RegistrySpecificationRepository registrySpecificationRepository;
     private final ScopedIdentifierLifecycleService lifecycleService;
+    private final NamespaceIdentifierSettingsService namespaceIdentifierSettingsService;
 
     public void applyDesignations(Item item, List<TextLine> designations) {
         applyDesignations(item, designations, null);
@@ -300,13 +301,15 @@ public class ItemAdministrationService {
             // 联邦合并路径不经由此处，版本由合并执行器显式维护。
             String requestedVersion = req.version();
             if (lifecycleService.getOrDefault(si.getId()).getVersionCreationMode() == IdentifierCreationMode.AUTO) {
-                si.setVersion(Versions.bump(si.getVersion(), ns != null ? ns.getVersioningPolicy() : null));
+                si.setVersion(Versions.bump(si.getVersion(), ns != null
+                        ? namespaceIdentifierSettingsService.getOrDefault(ns.getId()).getVersioningPolicy() : null));
             } else if (requestedVersion != null && !requestedVersion.isBlank()
                     && !requestedVersion.equals(si.getVersion())) {
                 identifierInputPolicyService.validateManualVersion(ns, requestedVersion);
                 si.setVersion(requestedVersion);
             } else {
-                si.setVersion(Versions.bump(si.getVersion(), ns != null ? ns.getVersioningPolicy() : null));
+                si.setVersion(Versions.bump(si.getVersion(), ns != null
+                        ? namespaceIdentifierSettingsService.getOrDefault(ns.getId()).getVersioningPolicy() : null));
             }
             if (ai.getScopedIdentifiers().size() == 1 && ns != null) {
                 // 单标识条目维持既有行为；多标识（联邦迁移双标识）条目不重挂命名空间，

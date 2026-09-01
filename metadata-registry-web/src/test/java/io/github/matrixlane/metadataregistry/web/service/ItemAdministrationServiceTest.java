@@ -59,6 +59,7 @@ class ItemAdministrationServiceTest {
     @Mock private ActiveRegistrarService activeRegistrarService;
     @Mock private RegistrySpecificationRepository registrySpecificationRepository;
     @Mock private ScopedIdentifierLifecycleService lifecycleService;
+    @Mock private NamespaceIdentifierSettingsService namespaceIdentifierSettingsService;
 
     @InjectMocks
     private ItemAdministrationService itemAdministrationService;
@@ -85,6 +86,8 @@ class ItemAdministrationServiceTest {
         // 卫星实体默认行为:无卫星行时返回默认值(语义同字段时代初始值)
         lenient().when(lifecycleService.getOrDefault(any()))
                 .thenAnswer(inv -> new io.github.matrixlane.metadataregistry.ext.identification.ScopedIdentifierLifecycle());
+        lenient().when(namespaceIdentifierSettingsService.getOrDefault(any()))
+                .thenAnswer(inv -> new io.github.matrixlane.metadataregistry.ext.identification.NamespaceIdentifierSettings());
 
         // 缺省按"透传手动值"裁决，个别用例可覆盖
         lenient().when(identifierInputPolicyService.resolveIdentifier(any(), any(), any(), any()))
@@ -725,7 +728,7 @@ class ItemAdministrationServiceTest {
         // 请求版本与现行版本相同（前端回显）→ 按命名空间版本策略递增
         Namespace ns = new Namespace();
         ns.setId(UUID.randomUUID());
-        ns.setVersioningPolicy("SEQUENTIAL");
+        stubVersioningPolicy(ns, "SEQUENTIAL");
         when(namespaceRepository.findById(ns.getId())).thenReturn(Optional.of(ns));
         AdministeredItem existing = attachExistingIdentifier(ns, "X-1", "1");
 
@@ -742,7 +745,7 @@ class ItemAdministrationServiceTest {
         // 请求未携带版本 → 同样视为本地编辑，版本递增
         Namespace ns = new Namespace();
         ns.setId(UUID.randomUUID());
-        ns.setVersioningPolicy("SEQUENTIAL");
+        stubVersioningPolicy(ns, "SEQUENTIAL");
         when(namespaceRepository.findById(ns.getId())).thenReturn(Optional.of(ns));
         AdministeredItem existing = attachExistingIdentifier(ns, "X-1", "3");
 
@@ -758,7 +761,7 @@ class ItemAdministrationServiceTest {
     void ensureAdministeredItem_update_semverPolicy_bumpsPatch() {
         Namespace ns = new Namespace();
         ns.setId(UUID.randomUUID());
-        ns.setVersioningPolicy("SEMVER");
+        stubVersioningPolicy(ns, "SEMVER");
         when(namespaceRepository.findById(ns.getId())).thenReturn(Optional.of(ns));
         AdministeredItem existing = attachExistingIdentifier(ns, "X-1", "1.0.0");
 
@@ -775,7 +778,7 @@ class ItemAdministrationServiceTest {
         // 请求显式携带不同版本 → 尊重用户指定，不再递增
         Namespace ns = new Namespace();
         ns.setId(UUID.randomUUID());
-        ns.setVersioningPolicy("SEQUENTIAL");
+        stubVersioningPolicy(ns, "SEQUENTIAL");
         when(namespaceRepository.findById(ns.getId())).thenReturn(Optional.of(ns));
         AdministeredItem existing = attachExistingIdentifier(ns, "X-1", "1");
 
@@ -793,7 +796,7 @@ class ItemAdministrationServiceTest {
         // 来源命名空间下的标识（合并基）保持不变
         Namespace targetNs = new Namespace();
         targetNs.setId(UUID.randomUUID());
-        targetNs.setVersioningPolicy("SEQUENTIAL");
+        stubVersioningPolicy(targetNs, "SEQUENTIAL");
         Namespace sourceCopy = new Namespace();
         sourceCopy.setId(UUID.randomUUID());
         sourceCopy.setSchemeReference(Sign.of("urn:metadata-registry:imported:uuid-1"));
@@ -824,7 +827,7 @@ class ItemAdministrationServiceTest {
         // 避免触碰来源命名空间标识（合并基）
         RegistrationAuthority ra = newRa();
         Namespace raNs = raNamespace(ra);
-        raNs.setVersioningPolicy("SEQUENTIAL");
+        stubVersioningPolicy(raNs, "SEQUENTIAL");
         Namespace sourceCopy = new Namespace();
         sourceCopy.setId(UUID.randomUUID());
         sourceCopy.setSchemeReference(Sign.of("urn:metadata-registry:imported:uuid-1"));
@@ -847,5 +850,12 @@ class ItemAdministrationServiceTest {
         assertThat(raSi.getVersion()).isEqualTo("2");
         assertThat(raSi.getNamespace()).isSameAs(raNs);
         assertThat(sourceSi.getVersion()).isEqualTo("10");
+    }
+
+    private void stubVersioningPolicy(Namespace ns, String policy) {
+        var settings = new io.github.matrixlane.metadataregistry.ext.identification.NamespaceIdentifierSettings();
+        settings.setNamespaceId(ns.getId());
+        settings.setVersioningPolicy(policy);
+        lenient().when(namespaceIdentifierSettingsService.getOrDefault(ns.getId())).thenReturn(settings);
     }
 }

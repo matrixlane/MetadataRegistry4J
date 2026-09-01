@@ -59,6 +59,7 @@ public class MergeExecutor {
     private final RegistrationAuthorityRepository registrationAuthorityRepository;
     private final ScopedIdentifierRepository scopedIdentifierRepository;
     private final io.github.matrixlane.metadataregistry.web.service.ScopedIdentifierLifecycleService lifecycleService;
+    private final io.github.matrixlane.metadataregistry.web.service.NamespaceIdentifierSettingsService settingsService;
     private final LanguageIdentificationRepository languageRepository;
     private final ItemAdministrationService itemAdministrationService;
     private final VersionHistoryService versionHistoryService;
@@ -260,7 +261,8 @@ public class MergeExecutor {
                     lifecycleService.stageNew(created, lc);
                     return created;
                 });
-        targetSi.setVersion(Versions.bump(targetSi.getVersion(), targetNs.getVersioningPolicy()));
+        targetSi.setVersion(Versions.bump(targetSi.getVersion(),
+                settingsService.getOrDefault(targetNs.getId()).getVersioningPolicy()));
         identifierVersionHistoryRepository.save(new IdentifierVersionHistory(
                 targetSi, targetSi.getVersion(),
                 targetSi.getId() != null

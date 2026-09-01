@@ -53,6 +53,13 @@ class GenericItemCreatorTest {
     @Mock private IdentifierStrategyConfigService identifierStrategyConfigService;
     @Mock private GlobalNamespaceService globalNamespaceService;
     @Mock private io.github.matrixlane.metadataregistry.web.service.ScopedIdentifierLifecycleService lifecycleService;
+    @Mock private io.github.matrixlane.metadataregistry.web.service.NamespaceIdentifierSettingsService settingsService;
+
+    @org.junit.jupiter.api.BeforeEach
+    void stubSettingsDefaults() {
+        org.mockito.Mockito.lenient().when(settingsService.getOrDefault(org.mockito.ArgumentMatchers.any()))
+                .thenAnswer(inv -> new io.github.matrixlane.metadataregistry.ext.identification.NamespaceIdentifierSettings());
+    }
 
     @InjectMocks
     private GenericItemCreator creator;

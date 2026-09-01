@@ -4,8 +4,9 @@ import io.github.matrixlane.metadataregistry.commonfacilities.identification.Nam
 /**
  * Version numbering policy of a {@link Namespace}.
  *
- * <p>Persisted as the {@code versioning_policy} column on the {@code namespace}
- * table. When unset, the effective policy is {@link #SEMVER}.
+ * <p>Persisted as the {@code versioning_policy} column on the
+ * {@code namespace_identifier_settings} satellite table (formerly a column on
+ * {@code namespace}). When unset, the effective policy is {@link #SEMVER}.
  */
 public enum VersioningPolicy {
 

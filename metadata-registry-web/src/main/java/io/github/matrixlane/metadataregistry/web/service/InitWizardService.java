@@ -62,6 +62,7 @@ public class InitWizardService {
     private final Optional<SystemDefaultNamespaceInitializer> systemDefaultNamespaceInitializer;
     private final PasswordEncoder passwordEncoder;
     private final DatabaseCleaner databaseCleaner;
+    private final NamespaceIdentifierSettingsService namespaceIdentifierSettingsService;
 
     @Transactional(readOnly = true)
     public InitWizardStatusResponse getStatus() {
@@ -209,14 +210,18 @@ public class InitWizardService {
 
             ns.setRegistrationAuthority(ra);
             ns.setNamingAuthority(ra);
-            ns.setVersioningPolicy(request.versionPolicy() != null && !request.versionPolicy().isBlank()
-                    ? request.versionPolicy() : "SEMVER");
+            String versioningPolicy = request.versionPolicy() != null && !request.versionPolicy().isBlank()
+                    ? request.versionPolicy() : "SEMVER";
             String identifierInputMode = normalizeInputMode(request.identifierInputMode());
             String versionInputMode = normalizeInputMode(request.versionInputMode());
-            ns.setIdentifierInputMode(identifierInputMode);
-            ns.setVersionInputMode(versionInputMode);
 
             Namespace nsSaved = namespaceRepository.save(ns);
+            // 标识符治理扩展属性写入卫星实体(标准实体 Namespace 不再持有)
+            namespaceIdentifierSettingsService.mutate(nsSaved.getId(), settings -> {
+                settings.setVersioningPolicy(versioningPolicy);
+                settings.setIdentifierInputMode(identifierInputMode);
+                settings.setVersionInputMode(versionInputMode);
+            });
 
             // MANUAL_ONLY 命名空间禁用自动生成，不创建策略配置
             if (!"MANUAL_ONLY".equals(identifierInputMode)) {

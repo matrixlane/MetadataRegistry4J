@@ -15,11 +15,11 @@
 ## 2. 新建 metadata-registry-ext 模块
 
 - [x] 2.1 建模块骨架(pom、包 io.github.matrixlane.metadataregistry.ext、根 pom 注册、web 依赖之)
-- [ ] 2.2 标识符策略框架 35 类迁入(策略族、segment/ 19 类、IdentifierStrategyConfig/SequenceRegistry/IdentifierVersionHistory 实体、VersionStatus/VersioningPolicy/Versions/SemVerValidator、IdentifierCreationMode/IdentifierInputMode)
+- [x] 2.2 标识符策略框架 35 类迁入(策略族、segment/ 19 类、IdentifierStrategyConfig/SequenceRegistry/IdentifierVersionHistory 实体、VersionStatus/VersioningPolicy/Versions/SemVerValidator、IdentifierCreationMode/IdentifierInputMode)
 - [ ] 2.3 Namespace 扩展字段剥为 NamespaceIdentifierPolicy 卫星实体(versioningPolicy/identifierInputMode/versionInputMode/manualIdentifierPattern);NamespaceService/IdentifierInputPolicyService/InitWizardService/联邦包改读写卫星实体,DTO/前端不变
-- [ ] 2.4 ScopedIdentifier 扩展字段剥为 ScopedIdentifierLifecycle 卫星实体(creationMode/versionStatus/4 时间戳);ScopedIdentifierService 适配
+- [x] 2.4 ScopedIdentifier 扩展字段剥为 ScopedIdentifierLifecycle 卫星实体(creationMode/versionStatus/4 时间戳);ScopedIdentifierService 适配
 - [ ] 2.5 ClassificationScheme/ClassificationNode 整体迁入 ext(javadoc 显式声明妥协:第 10 章标准模型重建另立 change)
-- [ ] 2.6 item-mapping 对 Versions/SemVerValidator 依赖改指 ext 模块
+- [x] 2.6 item-mapping 对 Versions/SemVerValidator 依赖改指 ext 模块(核实为 no-op:item-mapping 对二者无真实引用,无需改动)
 - [ ] 2.7 11179-3 第 11 章审计:Item_Mapping/Subject_Mapping/Object_Mapping/Item_Mapping_Degree 对照 item_mapping* 三表(Milvus 核实标准原文),产出审计结论报告供用户决策 MDR/EXT 归属
 - [ ] 2.8 卫星实体迁移脚本(新表建表+从 namespace/scoped_identifier 回填+旧列删除;三方言)
 

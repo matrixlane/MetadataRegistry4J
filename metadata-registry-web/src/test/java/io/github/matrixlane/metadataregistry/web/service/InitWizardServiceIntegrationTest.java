@@ -53,6 +53,8 @@ class InitWizardServiceIntegrationTest {
 
     @Autowired
     private SystemSettingRepository systemSettingRepository;
+    @Autowired
+    private io.github.matrixlane.metadataregistry.web.repository.NamespaceIdentifierSettingsRepository namespaceIdentifierSettingsRepository;
 
     @Autowired
     private AccountRepository accountRepository;
@@ -144,8 +146,9 @@ class InitWizardServiceIntegrationTest {
         assertThat(createdNs).isNotNull();
         assertThat(createdNs.getDesignations()).isNotEmpty();
         assertThat(createdNs.getDesignations().get(0).getSign().getValue()).isEqualTo("默认命名空间");
-        // 版本生成策略归属于命名空间
-        assertThat(createdNs.getVersioningPolicy()).isEqualTo("SEQUENTIAL");
+        // 版本生成策略归属于命名空间(扩展属性存于卫星表 namespace_identifier_settings)
+        var nsSettings = namespaceIdentifierSettingsRepository.findByNamespaceId(createdNs.getId()).orElseThrow();
+        assertThat(nsSettings.getVersioningPolicy()).isEqualTo("SEQUENTIAL");
 
         // 3.1 命名空间级标识生成策略配置已发布并绑定到该命名空间
         List<IdentifierStrategyConfig> nsConfigs = identifierStrategyConfigRepository.findAll().stream()
@@ -158,8 +161,8 @@ class InitWizardServiceIntegrationTest {
         // 系统默认模板：对象缩写 + 分隔符 + 顺序号（如 DE.00001）
         assertThat(nsConfig.getConfigJson()).contains("OBJECT_ABBREVIATION");
         // 标识/版本输入模式缺省为 AUTO_WITH_OVERRIDE
-        assertThat(createdNs.getIdentifierInputMode()).isEqualTo("AUTO_WITH_OVERRIDE");
-        assertThat(createdNs.getVersionInputMode()).isEqualTo("AUTO_WITH_OVERRIDE");
+        assertThat(nsSettings.getIdentifierInputMode()).isEqualTo("AUTO_WITH_OVERRIDE");
+        assertThat(nsSettings.getVersionInputMode()).isEqualTo("AUTO_WITH_OVERRIDE");
 
         // 4. Verify Super Admin User is assigned Registrar contact
         List<Registrar> registrars = registrarRepository.findAll();

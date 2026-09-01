@@ -24,6 +24,14 @@ import lombok.Setter;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * ISO/IEC 11179-3:2023 表 13(Namespace)。
+ *
+ * <p>标识符治理扩展属性(versioningPolicy/identifierInputMode/versionInputMode/
+ * manualIdentifierPattern)已剥离至 ext 模块卫星实体
+ * {@code NamespaceIdentifierSettings}(表 namespace_identifier_settings,
+ * 按 namespace_id 一一对应,有意不建 JPA 关联)。
+ */
 @jakarta.persistence.Entity
 @Getter
 @Setter
@@ -46,33 +54,6 @@ public class Namespace extends Item {
             @AttributeOverride(name = "value", column = @Column(name = "scheme_reference", length = 255))
     })
     private Sign schemeReference;
-
-    /**
-     * 版本生成策略（如 SEMVER / SEQUENTIAL / DATE）。
-     * 命名空间级设置，供该命名空间下条目版本自动递增生效。
-     */
-    @jakarta.persistence.Column(name = "versioning_policy", length = 32)
-    private String versioningPolicy = "SEMVER";
-
-    /**
-     * 标识符输入模式（AUTO_ONLY / AUTO_WITH_OVERRIDE / MANUAL_ONLY）。
-     * 控制该命名空间下标识符允许自动生成、手动覆盖还是纯手动。
-     */
-    @jakarta.persistence.Column(name = "identifier_input_mode", length = 32)
-    private String identifierInputMode = "AUTO_WITH_OVERRIDE";
-
-    /**
-     * 版本号输入模式（AUTO_ONLY / AUTO_WITH_OVERRIDE / MANUAL_ONLY），独立于标识符。
-     * AUTO 模式下版本号留空时按 versioningPolicy 生成初始版本。
-     */
-    @jakarta.persistence.Column(name = "version_input_mode", length = 32)
-    private String versionInputMode = "AUTO_WITH_OVERRIDE";
-
-    /**
-     * 手动标识校验正则（可空）。配置后，手动填写的标识符必须匹配该正则。
-     */
-    @jakarta.persistence.Column(name = "manual_identifier_pattern", length = 255)
-    private String manualIdentifierPattern;
 
     /**
      * When TRUE, all Items in this namespace must pass NamingConvention validation

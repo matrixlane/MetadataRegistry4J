@@ -49,6 +49,7 @@ public class GlobalNamespaceService {
     public static final String IMPORTED_NAMESPACE_SCHEME_PREFIX = "urn:metadata-registry:imported:";
 
     private final io.github.matrixlane.metadataregistry.web.service.ScopedIdentifierLifecycleService lifecycleService;
+    private final io.github.matrixlane.metadataregistry.web.service.NamespaceIdentifierSettingsService settingsService;
     private final NamespaceRepository namespaceRepository;
     private final AdministeredItemRepository administeredItemRepository;
     private final ScopedIdentifierRepository scopedIdentifierRepository;
@@ -177,10 +178,11 @@ public class GlobalNamespaceService {
         Namespace ns = new Namespace();
         ns.setShorthandPrefix(GLOBAL_NAMESPACE_PREFIX);
         ns.setSchemeReference(Sign.of(GLOBAL_NAMESPACE_SCHEME));
-        ns.setVersioningPolicy("SEQUENTIAL");
         addDesignation(ns, "global", "en-US", "Latn", "US");
         addDesignation(ns, "全局命名空间", "zh-CN", "Hans", "CN");
         Namespace saved = namespaceRepository.save(ns);
+        // 标识符治理扩展属性写入卫星实体(标准实体 Namespace 不再持有)
+        settingsService.mutate(saved.getId(), settings -> settings.setVersioningPolicy("SEQUENTIAL"));
 
         IdentifierStrategyConfig config = new IdentifierStrategyConfig("UUID");
         config.setNamespace(saved);

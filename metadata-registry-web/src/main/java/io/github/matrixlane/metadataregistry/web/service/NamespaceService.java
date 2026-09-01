@@ -50,6 +50,7 @@ public class NamespaceService {
     private final IdentifierStrategyConfigRepository strategyConfigRepository;
     private final IdentifierStrategyLoader strategyLoader;
     private final NamespaceOwnershipService namespaceOwnershipService;
+    private final NamespaceIdentifierSettingsService settingsService;
 
     private static final com.fasterxml.jackson.databind.ObjectMapper JSON =
             new com.fasterxml.jackson.databind.ObjectMapper();
@@ -105,6 +106,7 @@ public class NamespaceService {
         namespaceConstraintValidator.validateNamespace(entity);
         Namespace saved = repository.save(entity);
         applyStrategyConfig(saved, request);
+        applyPolicySettings(saved.getId(), request);
         return toResponse(saved);
     }
 
@@ -114,6 +116,7 @@ public class NamespaceService {
         namespaceConstraintValidator.validateNamespace(entity);
         Namespace saved = repository.save(entity);
         applyStrategyConfig(saved, request);
+        applyPolicySettings(saved.getId(), request);
         return toResponse(saved);
     }
 
@@ -155,21 +158,6 @@ public class NamespaceService {
         if (request.oneItemPerNameIndicator() != null) {
             entity.setOneItemPerNameIndicator(request.oneItemPerNameIndicator());
         }
-        // Only touch policy fields when the caller supplies them; requests
-        // omitting them leave existing settings untouched.
-        if (request.identifierInputMode() != null) {
-            entity.setIdentifierInputMode(request.identifierInputMode());
-        }
-        if (request.versionInputMode() != null) {
-            entity.setVersionInputMode(request.versionInputMode());
-        }
-        if (request.versioningPolicy() != null) {
-            entity.setVersioningPolicy(request.versioningPolicy());
-        }
-        if (request.manualIdentifierPattern() != null) {
-            entity.setManualIdentifierPattern(request.manualIdentifierPattern());
-        }
-
         itemAdministrationService.applyDesignations(entity, request.designations());
         itemAdministrationService.applyDefinitions(entity, request.definitions());
     }
@@ -231,6 +219,31 @@ public class NamespaceService {
      * configs untouched. Publishes a new version row, disables previous
      * PUBLISHED versions, and refreshes the in-memory strategy registry.
      */
+    /**
+     * 标识符治理设置写入卫星实体(扩展属性已剥离出标准实体 Namespace)。
+     * 仅在请求显式携带至少一个策略字段时 upsert;省略的请求保持既有设置。
+     */
+    private void applyPolicySettings(UUID namespaceId, NamespaceRequest request) {
+        if (request.identifierInputMode() == null && request.versionInputMode() == null
+                && request.versioningPolicy() == null && request.manualIdentifierPattern() == null) {
+            return;
+        }
+        settingsService.mutate(namespaceId, settings -> {
+            if (request.identifierInputMode() != null) {
+                settings.setIdentifierInputMode(request.identifierInputMode());
+            }
+            if (request.versionInputMode() != null) {
+                settings.setVersionInputMode(request.versionInputMode());
+            }
+            if (request.versioningPolicy() != null) {
+                settings.setVersioningPolicy(request.versioningPolicy());
+            }
+            if (request.manualIdentifierPattern() != null) {
+                settings.setManualIdentifierPattern(request.manualIdentifierPattern());
+            }
+        });
+    }
+
     private void applyStrategyConfig(Namespace entity, NamespaceRequest request) {
         String type = request.identifierStrategy();
         if (type == null) {

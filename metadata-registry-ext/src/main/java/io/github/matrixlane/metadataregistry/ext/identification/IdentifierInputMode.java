@@ -5,7 +5,8 @@ import io.github.matrixlane.metadataregistry.commonfacilities.identification.Nam
  * Identifier input governance mode of a {@link Namespace}.
  *
  * <p>Persisted as the {@code identifier_input_mode} / {@code version_input_mode}
- * columns on the {@code namespace} table. When unset, the effective mode is
+ * columns on the {@code namespace_identifier_settings} satellite table (formerly
+ * columns on {@code namespace}). When unset, the effective mode is
  * {@link #AUTO_WITH_OVERRIDE}.
  */
 public enum IdentifierInputMode {

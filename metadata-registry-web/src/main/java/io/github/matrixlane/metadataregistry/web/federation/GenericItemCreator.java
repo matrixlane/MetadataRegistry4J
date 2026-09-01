@@ -80,6 +80,7 @@ public class GenericItemCreator {
     private final IdentifierVersionHistoryRepository identifierVersionHistoryRepository;
     private final IdentifierStrategyConfigService identifierStrategyConfigService;
     private final io.github.matrixlane.metadataregistry.web.service.ScopedIdentifierLifecycleService lifecycleService;
+    private final io.github.matrixlane.metadataregistry.web.service.NamespaceIdentifierSettingsService settingsService;
     private final GlobalNamespaceService globalNamespaceService;
 
     public AdministeredItem create(BundleItemSnapshot snapshot, UUID targetNamespaceId, RegistryNode node) {
@@ -123,7 +124,7 @@ public class GenericItemCreator {
         // 目的方命名空间按标识生成策略生成新标识：迁移后条目持有双命名空间双标识
         ScopedIdentifier targetSi = new ScopedIdentifier(
                 identifierStrategyConfigService.generateIdentifier(targetNs, null), targetNs, ai);
-        targetSi.setVersion(Versions.initial(targetNs.getVersioningPolicy()));
+        targetSi.setVersion(Versions.initial(settingsService.getOrDefault(targetNs.getId()).getVersioningPolicy()));
         ai.getScopedIdentifiers().add(targetSi);
         itemRepository.save(item);
         // 生命周期扩展属性(createdAt 等)写入卫星实体;SI 经级联已持久化,ID 可用
