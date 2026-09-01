@@ -22,6 +22,7 @@ import java.util.Locale;
  */
 public class CaseInsensitiveEnumJavaType<T extends Enum<T>> extends EnumJavaType<T> {
 
+
     public CaseInsensitiveEnumJavaType(Class<T> type) {
         super(type);
     }
@@ -69,6 +70,33 @@ public class CaseInsensitiveEnumJavaType<T extends Enum<T>> extends EnumJavaType
         if (normalized.isEmpty()) {
             return null;
         }
-        return Enum.valueOf(getJavaTypeClass(), normalized);
+        try {
+            return Enum.valueOf(getJavaTypeClass(), normalized);
+        }
+        catch (IllegalArgumentException e) {
+            // 标准书写格式含空格/连字符的取值(如 11179-3 Table 30 的 "Preferred Standard")
+            // 归一为下划线后再匹配,兼容按标准格式导入的历史数据。
+            String underscored = normalizeToUnderscored(normalized);
+            return Enum.valueOf(getJavaTypeClass(), underscored);
+        }
+    }
+
+    private static String normalizeToUnderscored(String s) {
+        StringBuilder sb = new StringBuilder(s.length());
+        boolean prevUnderscore = false;
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (Character.isWhitespace(c) || c == '-') {
+                if (!prevUnderscore) {
+                    sb.append('_');
+                    prevUnderscore = true;
+                }
+            }
+            else {
+                sb.append(c);
+                prevUnderscore = false;
+            }
+        }
+        return sb.toString();
     }
 }

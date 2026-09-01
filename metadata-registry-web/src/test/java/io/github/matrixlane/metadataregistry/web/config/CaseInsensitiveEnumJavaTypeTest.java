@@ -41,7 +41,17 @@ class CaseInsensitiveEnumJavaTypeTest {
     @Test
     void fromString_isCaseInsensitive() {
         assertThat(javaType.fromString("Superseded")).isEqualTo(RegistrationStatus.SUPERSEDED);
-        assertThat(javaType.fromString("PREFERRED")).isEqualTo(RegistrationStatus.PREFERRED);
+        assertThat(javaType.fromString("PREFERRED_STANDARD")).isEqualTo(RegistrationStatus.PREFERRED_STANDARD);
         assertThat(javaType.fromString(null)).isNull();
+    }
+
+    @Test
+    void fromString_normalizesStandardWrittenFormWithSpaces() {
+        // 11179-3:2023 Table 30 / 11179-6:2023 Table 1 的标准书写格式是 "Preferred Standard"(含空格),
+        // 按标准格式导入的历史数据必须能读回 PREFERRED_STANDARD,不抛 No enum constant。
+        assertThat(javaType.fromString("Preferred Standard")).isEqualTo(RegistrationStatus.PREFERRED_STANDARD);
+        assertThat(javaType.fromString("preferred standard")).isEqualTo(RegistrationStatus.PREFERRED_STANDARD);
+        assertThat(javaType.fromString(" preferred  standard ")).isEqualTo(RegistrationStatus.PREFERRED_STANDARD);
+        assertThat(javaType.fromName("Preferred Standard")).isEqualTo(RegistrationStatus.PREFERRED_STANDARD);
     }
 }

@@ -187,11 +187,11 @@
     "RECORDED": "已记录",
     "QUALIFIED": "已合格",
     "INCOMPLETE": "不完整",
-    "SUBMITTED": "已提交",
+    "CANDIDATE": "候选",
     "RETIRED": "已退役",
     "HISTORICAL": "历史",
     "STANDARD": "标准",
-    "PREFERRED": "首选",
+    "PREFERRED_STANDARD": "首选标准",
     "APPLICATION": "应用"
   },
   "namespace": {

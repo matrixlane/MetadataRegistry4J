@@ -22,11 +22,11 @@ public final class ApiCodes {
     public static final int TARGET_STATE_REQUIRED = 1103;
     public static final int ADMINISTERED_ITEM_NOT_FOUND = 1104;
     public static final int INVALID_STATE_TRANSITION_FROM_INCOMPLETE = 1110;
-    public static final int INVALID_STATE_TRANSITION_FROM_SUBMITTED = 1111;
+    public static final int INVALID_STATE_TRANSITION_FROM_CANDIDATE = 1111;
     public static final int INVALID_STATE_TRANSITION_FROM_RECORDED = 1112;
     public static final int INVALID_STATE_TRANSITION_FROM_QUALIFIED = 1113;
     public static final int INVALID_STATE_TRANSITION_FROM_STANDARD = 1114;
-    public static final int INVALID_STATE_TRANSITION_FROM_PREFERRED = 1115;
+    public static final int INVALID_STATE_TRANSITION_FROM_PREFERRED_STANDARD = 1115;
     public static final int INVALID_STATE_TRANSITION_FROM_SUPERSEDED = 1116;
     public static final int INVALID_STATE_TRANSITION_FROM_RETIRED = 1117;
     public static final int INVALID_STATE_TRANSITION_FROM_HISTORICAL = 1118;

@@ -120,11 +120,11 @@
     "RECORDED": "Recorded",
     "QUALIFIED": "Qualified",
     "INCOMPLETE": "Incomplete",
-    "SUBMITTED": "Submitted",
+    "CANDIDATE": "Candidate",
     "RETIRED": "Retired",
     "HISTORICAL": "Historical",
     "STANDARD": "Standard",
-    "PREFERRED": "Preferred",
+    "PREFERRED_STANDARD": "Preferred Standard",
     "APPLICATION": "Application"
   },
   "acceptability": {

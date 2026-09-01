@@ -101,10 +101,10 @@ class RegistrationLifecycleServiceTest {
         when(administeredItemRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         AdministeredItem result = registrationLifecycleService.transition(
-                itemId, RegistrationStatus.SUBMITTED, "提交审核");
+                itemId, RegistrationStatus.CANDIDATE, "提交审核");
 
         assertThat(result.getRegistrationState().getRegistrationStatus())
-                .isEqualTo(RegistrationStatus.SUBMITTED);
+                .isEqualTo(RegistrationStatus.CANDIDATE);
         assertThat(result.getRegistrationState().getAdministrativeNote()).isEqualTo("提交审核");
         assertThat(result.getRegistrationState().getPreviousState()).isNotNull();
         assertThat(result.getRegistrationState().getPreviousState().getRegistrationStatus())
@@ -116,7 +116,7 @@ class RegistrationLifecycleServiceTest {
     @DisplayName("SUBMITTED → RECORDED: 合法转换，REGISTRAR 角色")
     void transition_submittedToRecorded_asRegistrar_shouldSucceed() {
         authenticateAs(AppUserRole.REGISTRAR);
-        item.setRegistrationState(createState(RegistrationStatus.SUBMITTED));
+        item.setRegistrationState(createState(RegistrationStatus.CANDIDATE));
         when(administeredItemRepository.findById(itemId)).thenReturn(Optional.of(item));
         when(administeredItemRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
@@ -134,7 +134,7 @@ class RegistrationLifecycleServiceTest {
 
         RegistrationStatus[] flow = {
                 RegistrationStatus.INCOMPLETE,
-                RegistrationStatus.SUBMITTED,
+                RegistrationStatus.CANDIDATE,
                 RegistrationStatus.RECORDED,
                 RegistrationStatus.QUALIFIED,
                 RegistrationStatus.STANDARD
@@ -184,7 +184,7 @@ class RegistrationLifecycleServiceTest {
     @DisplayName("SUBMITTED → APPLICATION: 合法转换，ADMIN 角色")
     void transition_submittedToApplication_asAdmin_shouldSucceed() {
         authenticateAs(AppUserRole.ADMIN);
-        item.setRegistrationState(createState(RegistrationStatus.SUBMITTED));
+        item.setRegistrationState(createState(RegistrationStatus.CANDIDATE));
         when(administeredItemRepository.findById(itemId)).thenReturn(Optional.of(item));
         when(administeredItemRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
@@ -270,12 +270,12 @@ class RegistrationLifecycleServiceTest {
                 new Object[]{RegistrationStatus.INCOMPLETE, RegistrationStatus.RECORDED, ApiCodes.INVALID_STATE_TRANSITION_FROM_INCOMPLETE},
                 new Object[]{RegistrationStatus.INCOMPLETE, RegistrationStatus.QUALIFIED, ApiCodes.INVALID_STATE_TRANSITION_FROM_INCOMPLETE},
                 // SUBMITTED (1111)
-                new Object[]{RegistrationStatus.SUBMITTED, RegistrationStatus.INCOMPLETE, ApiCodes.INVALID_STATE_TRANSITION_FROM_SUBMITTED},
-                new Object[]{RegistrationStatus.SUBMITTED, RegistrationStatus.SUBMITTED, ApiCodes.ALREADY_IN_TARGET_STATE},
-                new Object[]{RegistrationStatus.SUBMITTED, RegistrationStatus.QUALIFIED, ApiCodes.INVALID_STATE_TRANSITION_FROM_SUBMITTED},
+                new Object[]{RegistrationStatus.CANDIDATE, RegistrationStatus.INCOMPLETE, ApiCodes.INVALID_STATE_TRANSITION_FROM_CANDIDATE},
+                new Object[]{RegistrationStatus.CANDIDATE, RegistrationStatus.CANDIDATE, ApiCodes.ALREADY_IN_TARGET_STATE},
+                new Object[]{RegistrationStatus.CANDIDATE, RegistrationStatus.QUALIFIED, ApiCodes.INVALID_STATE_TRANSITION_FROM_CANDIDATE},
                 // RECORDED (1112)
                 new Object[]{RegistrationStatus.RECORDED, RegistrationStatus.INCOMPLETE, ApiCodes.INVALID_STATE_TRANSITION_FROM_RECORDED},
-                new Object[]{RegistrationStatus.RECORDED, RegistrationStatus.SUBMITTED, ApiCodes.INVALID_STATE_TRANSITION_FROM_RECORDED},
+                new Object[]{RegistrationStatus.RECORDED, RegistrationStatus.CANDIDATE, ApiCodes.INVALID_STATE_TRANSITION_FROM_RECORDED},
                 new Object[]{RegistrationStatus.RECORDED, RegistrationStatus.RECORDED, ApiCodes.ALREADY_IN_TARGET_STATE},
                 // QUALIFIED (1113)
                 new Object[]{RegistrationStatus.QUALIFIED, RegistrationStatus.RECORDED, ApiCodes.INVALID_STATE_TRANSITION_FROM_QUALIFIED},
@@ -284,17 +284,17 @@ class RegistrationLifecycleServiceTest {
                 new Object[]{RegistrationStatus.STANDARD, RegistrationStatus.QUALIFIED, ApiCodes.INVALID_STATE_TRANSITION_FROM_STANDARD},
                 new Object[]{RegistrationStatus.STANDARD, RegistrationStatus.STANDARD, ApiCodes.ALREADY_IN_TARGET_STATE},
                 // PREFERRED (1115)
-                new Object[]{RegistrationStatus.PREFERRED, RegistrationStatus.QUALIFIED, ApiCodes.INVALID_STATE_TRANSITION_FROM_PREFERRED},
+                new Object[]{RegistrationStatus.PREFERRED_STANDARD, RegistrationStatus.QUALIFIED, ApiCodes.INVALID_STATE_TRANSITION_FROM_PREFERRED_STANDARD},
                 // SUPERSEDED (1116)
                 new Object[]{RegistrationStatus.SUPERSEDED, RegistrationStatus.STANDARD, ApiCodes.INVALID_STATE_TRANSITION_FROM_SUPERSEDED},
                 // RETIRED (1117)
                 new Object[]{RegistrationStatus.RETIRED, RegistrationStatus.STANDARD, ApiCodes.INVALID_STATE_TRANSITION_FROM_RETIRED},
                 // APPLICATION (1119)
                 new Object[]{RegistrationStatus.APPLICATION, RegistrationStatus.INCOMPLETE, ApiCodes.INVALID_STATE_TRANSITION_FROM_APPLICATION},
-                new Object[]{RegistrationStatus.APPLICATION, RegistrationStatus.SUBMITTED, ApiCodes.INVALID_STATE_TRANSITION_FROM_APPLICATION},
+                new Object[]{RegistrationStatus.APPLICATION, RegistrationStatus.CANDIDATE, ApiCodes.INVALID_STATE_TRANSITION_FROM_APPLICATION},
                 new Object[]{RegistrationStatus.APPLICATION, RegistrationStatus.QUALIFIED, ApiCodes.INVALID_STATE_TRANSITION_FROM_APPLICATION},
                 new Object[]{RegistrationStatus.APPLICATION, RegistrationStatus.STANDARD, ApiCodes.INVALID_STATE_TRANSITION_FROM_APPLICATION},
-                new Object[]{RegistrationStatus.APPLICATION, RegistrationStatus.PREFERRED, ApiCodes.INVALID_STATE_TRANSITION_FROM_APPLICATION},
+                new Object[]{RegistrationStatus.APPLICATION, RegistrationStatus.PREFERRED_STANDARD, ApiCodes.INVALID_STATE_TRANSITION_FROM_APPLICATION},
                 new Object[]{RegistrationStatus.APPLICATION, RegistrationStatus.SUPERSEDED, ApiCodes.INVALID_STATE_TRANSITION_FROM_APPLICATION},
                 new Object[]{RegistrationStatus.APPLICATION, RegistrationStatus.HISTORICAL, ApiCodes.INVALID_STATE_TRANSITION_FROM_APPLICATION},
                 new Object[]{RegistrationStatus.APPLICATION, RegistrationStatus.APPLICATION, ApiCodes.ALREADY_IN_TARGET_STATE},
@@ -329,7 +329,7 @@ class RegistrationLifecycleServiceTest {
     @DisplayName("REGISTRAR 无权执行 PREFERRED → SUPERSEDED")
     void transition_preferredToSuperseded_asRegistrar_shouldReject() {
         authenticateAs(AppUserRole.REGISTRAR);
-        item.setRegistrationState(createState(RegistrationStatus.PREFERRED));
+        item.setRegistrationState(createState(RegistrationStatus.PREFERRED_STANDARD));
         when(administeredItemRepository.findById(itemId)).thenReturn(Optional.of(item));
 
         assertThatThrownBy(() -> registrationLifecycleService.transition(
@@ -365,7 +365,7 @@ class RegistrationLifecycleServiceTest {
         when(administeredItemRepository.findById(itemId)).thenReturn(Optional.of(item));
 
         assertThatThrownBy(() -> registrationLifecycleService.transition(
-                itemId, RegistrationStatus.SUBMITTED, "尝试转换"))
+                itemId, RegistrationStatus.CANDIDATE, "尝试转换"))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> {
                     BusinessException be = (BusinessException) ex;
@@ -381,7 +381,7 @@ class RegistrationLifecycleServiceTest {
         when(administeredItemRepository.findById(itemId)).thenReturn(Optional.of(item));
 
         assertThatThrownBy(() -> registrationLifecycleService.transition(
-                itemId, RegistrationStatus.SUBMITTED, "尝试转换"))
+                itemId, RegistrationStatus.CANDIDATE, "尝试转换"))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> {
                     BusinessException be = (BusinessException) ex;
@@ -413,10 +413,10 @@ class RegistrationLifecycleServiceTest {
         when(administeredItemRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         AdministeredItem result = registrationLifecycleService.transition(
-                itemId, RegistrationStatus.SUBMITTED, "提交");
+                itemId, RegistrationStatus.CANDIDATE, "提交");
 
         assertThat(result.getRegistrationState().getRegistrationStatus())
-                .isEqualTo(RegistrationStatus.SUBMITTED);
+                .isEqualTo(RegistrationStatus.CANDIDATE);
     }
 
     // =========================================================================
@@ -445,7 +445,7 @@ class RegistrationLifecycleServiceTest {
         when(administeredItemRepository.findById(itemId)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> registrationLifecycleService.transition(
-                itemId, RegistrationStatus.SUBMITTED, "备注"))
+                itemId, RegistrationStatus.CANDIDATE, "备注"))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> {
                     BusinessException be = (BusinessException) ex;
@@ -458,11 +458,11 @@ class RegistrationLifecycleServiceTest {
     @DisplayName("同状态转换应返回错误码 1101")
     void transition_sameState_shouldReturnError1101() {
         authenticateAs(AppUserRole.ADMIN);
-        item.setRegistrationState(createState(RegistrationStatus.SUBMITTED));
+        item.setRegistrationState(createState(RegistrationStatus.CANDIDATE));
         when(administeredItemRepository.findById(itemId)).thenReturn(Optional.of(item));
 
         assertThatThrownBy(() -> registrationLifecycleService.transition(
-                itemId, RegistrationStatus.SUBMITTED, "重复转换"))
+                itemId, RegistrationStatus.CANDIDATE, "重复转换"))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> {
                     BusinessException be = (BusinessException) ex;
@@ -480,10 +480,10 @@ class RegistrationLifecycleServiceTest {
         when(administeredItemRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         AdministeredItem result = registrationLifecycleService.transition(
-                itemId, RegistrationStatus.SUBMITTED, "首次提交");
+                itemId, RegistrationStatus.CANDIDATE, "首次提交");
 
         assertThat(result.getRegistrationState().getRegistrationStatus())
-                .isEqualTo(RegistrationStatus.SUBMITTED);
+                .isEqualTo(RegistrationStatus.CANDIDATE);
         assertThat(result.getRegistrationState().getPreviousState()).isNull();
     }
 
@@ -499,7 +499,7 @@ class RegistrationLifecycleServiceTest {
         // 构建历史链: current(SUBMITTED) -> previous(INCOMPLETE)
         RegistrationState previous = createState(RegistrationStatus.INCOMPLETE);
         previous.setId(UUID.randomUUID());
-        RegistrationState current = createState(RegistrationStatus.SUBMITTED);
+        RegistrationState current = createState(RegistrationStatus.CANDIDATE);
         current.setId(UUID.randomUUID());
         current.setPreviousState(previous);
         item.setRegistrationState(current);
@@ -511,7 +511,7 @@ class RegistrationLifecycleServiceTest {
 
         assertThat(page.getTotalElements()).isEqualTo(2);
         List<RegistrationStateHistoryEntry> content = page.getContent();
-        assertThat(content.get(0).status()).isEqualTo(RegistrationStatus.SUBMITTED);
+        assertThat(content.get(0).status()).isEqualTo(RegistrationStatus.CANDIDATE);
         assertThat(content.get(1).status()).isEqualTo(RegistrationStatus.INCOMPLETE);
     }
 
@@ -552,7 +552,7 @@ class RegistrationLifecycleServiceTest {
     @DisplayName("canTransition: ADMIN 对所有合法转换返回 true")
     void canTransition_adminAlwaysTrueForLegal() {
         assertThat(registrationLifecycleService.canTransition(
-                RegistrationStatus.INCOMPLETE, RegistrationStatus.SUBMITTED, AppUserRole.ADMIN)).isTrue();
+                RegistrationStatus.INCOMPLETE, RegistrationStatus.CANDIDATE, AppUserRole.ADMIN)).isTrue();
         assertThat(registrationLifecycleService.canTransition(
                 RegistrationStatus.STANDARD, RegistrationStatus.SUPERSEDED, AppUserRole.ADMIN)).isTrue();
         assertThat(registrationLifecycleService.canTransition(
@@ -565,7 +565,7 @@ class RegistrationLifecycleServiceTest {
         assertThat(registrationLifecycleService.canTransition(
                 RegistrationStatus.STANDARD, RegistrationStatus.SUPERSEDED, AppUserRole.REGISTRAR)).isFalse();
         assertThat(registrationLifecycleService.canTransition(
-                RegistrationStatus.PREFERRED, RegistrationStatus.SUPERSEDED, AppUserRole.REGISTRAR)).isFalse();
+                RegistrationStatus.PREFERRED_STANDARD, RegistrationStatus.SUPERSEDED, AppUserRole.REGISTRAR)).isFalse();
         assertThat(registrationLifecycleService.canTransition(
                 RegistrationStatus.SUPERSEDED, RegistrationStatus.HISTORICAL, AppUserRole.REGISTRAR)).isFalse();
     }
@@ -574,9 +574,9 @@ class RegistrationLifecycleServiceTest {
     @DisplayName("canTransition: REGISTRAR 对常规正向转换返回 true")
     void canTransition_registrarNormalForward() {
         assertThat(registrationLifecycleService.canTransition(
-                RegistrationStatus.INCOMPLETE, RegistrationStatus.SUBMITTED, AppUserRole.REGISTRAR)).isTrue();
+                RegistrationStatus.INCOMPLETE, RegistrationStatus.CANDIDATE, AppUserRole.REGISTRAR)).isTrue();
         assertThat(registrationLifecycleService.canTransition(
-                RegistrationStatus.SUBMITTED, RegistrationStatus.RECORDED, AppUserRole.REGISTRAR)).isTrue();
+                RegistrationStatus.CANDIDATE, RegistrationStatus.RECORDED, AppUserRole.REGISTRAR)).isTrue();
         assertThat(registrationLifecycleService.canTransition(
                 RegistrationStatus.QUALIFIED, RegistrationStatus.STANDARD, AppUserRole.REGISTRAR)).isTrue();
     }
@@ -585,7 +585,7 @@ class RegistrationLifecycleServiceTest {
     @DisplayName("canTransition: VIEWER 对所有转换返回 false")
     void canTransition_viewerAlwaysFalse() {
         assertThat(registrationLifecycleService.canTransition(
-                RegistrationStatus.INCOMPLETE, RegistrationStatus.SUBMITTED, AppUserRole.VIEWER)).isFalse();
+                RegistrationStatus.INCOMPLETE, RegistrationStatus.CANDIDATE, AppUserRole.VIEWER)).isFalse();
         assertThat(registrationLifecycleService.canTransition(
                 RegistrationStatus.STANDARD, RegistrationStatus.RETIRED, AppUserRole.VIEWER)).isFalse();
     }

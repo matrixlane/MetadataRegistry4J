@@ -103,9 +103,9 @@ async function handleEdit(row: Record<string, unknown>) {
 function statusType(status?: string) {
   switch (status) {
     case 'STANDARD': return 'success';
-    case 'PREFERRED': return 'success';
+    case 'PREFERRED_STANDARD': return 'success';
     case 'INCOMPLETE': return 'info';
-    case 'SUBMITTED': return undefined as any;
+    case 'CANDIDATE': return undefined as any;
     case 'RETIRED': return 'danger';
     default: return 'warning';
   }

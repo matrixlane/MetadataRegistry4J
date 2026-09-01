@@ -182,7 +182,7 @@ class ApprovalServiceTest {
 
         approvalService.approve(recordId, "通过");
 
-        verify(registrationLifecycleService).transition(eq(itemId), eq(RegistrationStatus.SUBMITTED), any());
+        verify(registrationLifecycleService).transition(eq(itemId), eq(RegistrationStatus.CANDIDATE), any());
         verify(registrationLifecycleService).transition(eq(itemId), eq(RegistrationStatus.RECORDED), any());
         verify(registrationLifecycleService).transition(eq(itemId), eq(RegistrationStatus.QUALIFIED), any());
         verify(registrationLifecycleService).transition(eq(itemId), eq(RegistrationStatus.STANDARD), any());
@@ -209,7 +209,7 @@ class ApprovalServiceTest {
     void approve_preferred_shouldSkipTransition() {
         authenticateAs("approver", AppUserRole.ADMIN);
         ApprovalRecord record = createPendingRecord();
-        item.setRegistrationState(createState(RegistrationStatus.PREFERRED));
+        item.setRegistrationState(createState(RegistrationStatus.PREFERRED_STANDARD));
 
         when(approvalRecordRepository.findById(recordId)).thenReturn(Optional.of(record));
         when(administeredItemRepository.findById(itemId)).thenReturn(Optional.of(item));
@@ -516,7 +516,7 @@ class ApprovalServiceTest {
 
         approvalService.approve(recordId, "通过正向路径");
 
-        verify(registrationLifecycleService).transition(eq(itemId), eq(RegistrationStatus.SUBMITTED), any());
+        verify(registrationLifecycleService).transition(eq(itemId), eq(RegistrationStatus.CANDIDATE), any());
         verify(registrationLifecycleService).transition(eq(itemId), eq(RegistrationStatus.RECORDED), any());
         verify(registrationLifecycleService).transition(eq(itemId), eq(RegistrationStatus.QUALIFIED), any());
         verify(registrationLifecycleService).transition(eq(itemId), eq(RegistrationStatus.STANDARD), any());

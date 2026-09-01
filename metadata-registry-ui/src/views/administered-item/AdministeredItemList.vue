@@ -68,16 +68,16 @@ const dialog = ref<InstanceType<typeof ResourceFormDialog>>();
 const currentRow = ref<Record<string, unknown> | null>(null);
 
 const allowedStatuses = computed(() => [
-  'INCOMPLETE', 'SUBMITTED', 'RECORDED', 'QUALIFIED',
-  'STANDARD', 'PREFERRED', 'SUPERSEDED', 'RETIRED', 'HISTORICAL'
+  'INCOMPLETE', 'CANDIDATE', 'RECORDED', 'QUALIFIED',
+  'STANDARD', 'PREFERRED_STANDARD', 'SUPERSEDED', 'RETIRED', 'HISTORICAL'
 ]);
 
 function statusType(status?: string): import('@/types/common').ElTagType | undefined {
   switch (status) {
     case 'STANDARD': return 'success';
-    case 'PREFERRED': return 'success';
+    case 'PREFERRED_STANDARD': return 'success';
     case 'INCOMPLETE': return 'info';
-    case 'SUBMITTED': return undefined;
+    case 'CANDIDATE': return undefined;
     case 'RETIRED': return 'danger';
     default: return 'warning';
   }

@@ -4,15 +4,19 @@
 TBD - created by archiving change iso-11179-3-chapter-9-registration-package. Update Purpose after archive.
 ## Requirements
 ### Requirement: RegistrationStatus covers ISO/IEC 11179-3:2023 states
-The system SHALL provide a `RegistrationStatus` enumeration that includes all statuses defined in ISO/IEC 11179-3:2023, 9.6.2: `INCOMPLETE`, `SUBMITTED`, `RECORDED`, `QUALIFIED`, `STANDARD`, `PREFERRED`, `SUPERSEDED`, `RETIRED`, `HISTORICAL`, and `APPLICATION`.
+The system SHALL provide a `RegistrationStatus` enumeration whose values correspond exactly to the statuses defined in ISO/IEC 11179-3:2023, Table 30 (9.6.2) and ISO/IEC 11179-6:2023, Table 1 (4.3.2): `INCOMPLETE`, `CANDIDATE`, `RECORDED`, `QUALIFIED`, `STANDARD`, `PREFERRED_STANDARD`, `SUPERSEDED`, `RETIRED`, `HISTORICAL`, and `APPLICATION`. The Java enum constant `PREFERRED_STANDARD` corresponds to the standard status name "Preferred Standard"; `CANDIDATE` corresponds to "Candidate". The status `SUBMITTED` does not exist in the standard and SHALL NOT appear.
 
-#### Scenario: Application state is selectable
+#### Scenario: Candidate state is selectable
 - **WHEN** an administrator creates or updates a `Registration_State`
-- **THEN** the system accepts `APPLICATION` as a valid registration status
+- **THEN** the system accepts `CANDIDATE` as a valid registration status
 
-#### Scenario: State transition does not reject Application
-- **GIVEN** an administered item is in a non-terminal status
-- **WHEN** the administrator transitions it to `APPLICATION`
+#### Scenario: Submitted is not a valid status
+- **WHEN** any code path attempts to resolve `SUBMITTED` as a `RegistrationStatus`
+- **THEN** the resolution fails, because `SUBMITTED` is not defined in the standard
+
+#### Scenario: State transition does not reject Candidate
+- **GIVEN** an administered item is in `INCOMPLETE` status
+- **WHEN** the administrator transitions it to `CANDIDATE`
 - **THEN** the transition is persisted without validation errors
 
 ### Requirement: 字符串枚举的持久化读取兼容标准大小写形式

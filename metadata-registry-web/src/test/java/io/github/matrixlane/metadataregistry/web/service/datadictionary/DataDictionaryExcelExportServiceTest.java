@@ -39,7 +39,7 @@ class DataDictionaryExcelExportServiceTest {
                 createItem("DE002", "1.0", "患者性别", "患者性别的定义",
                         RegistrationStatus.QUALIFIED, "字符串", "性别值域", List.of()),
                 createItem("DE003", "1.0", "出生日期", "出生日期的定义",
-                        RegistrationStatus.SUBMITTED, "日期", "日期值域", List.of())
+                        RegistrationStatus.CANDIDATE, "日期", "日期值域", List.of())
         );
     }
 
