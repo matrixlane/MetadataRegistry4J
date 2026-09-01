@@ -23,11 +23,29 @@
 | 3.5 条款号错位 | ✅ 14 处错位更正 + 6 类补注 + Entity 虚假引用删除 | 6f108f9 |
 | 4.1 属性级缺失 1–6 | ✅ 全部补齐(permitted_value 必填回填、valid_period/dimensionality、两个 datetime、annotation、派生 getter) | dc5a3da |
 
+阶段 2(`openspec/changes/2026-09-01-ext-extraction`)已处置完毕,第 2 节多余扩展项按提交对应:
+
+| 报告条目 | 处置 | 提交 |
+|---|---|---|
+| 2.1 `Contact.account` | ✅ 剥为 `ContactAccountBinding` 卫星实体(EXT,纯值键;读路径统一经 ContactAccountBindingService) | b991cdf(3.1) |
+| 2.1 `LanguageIdentification.enabled` | ✅ 剥为 `LanguageGovernance` 卫星实体(缺行等同启用) | 75a2330(3.2) |
+| 2.1 `DataTimePeriod`、`EmailAddress`、`Value`(含 datatypeUri) | ✅ 已删除 | 489a8ef |
+| 2.1 `Slot.value_datatype` | ✅ 回归标准属性名 `type` | 489a8ef |
+| 2.1 `Entity` 虚假标准引用 | ✅ 已清除(阶段 1) | 6f108f9 |
+| 2.2 `Designation.contexts`/`Definition.contexts`、`Definition.namespaces` | ✅ 已删除(走标准关联类) | 489a8ef |
+| 2.2 `NamingConvention.rulesJson` | ✅ 剥为 `NamingConventionRules` 卫星实体(校验引擎经卫星服务/显式重载读取) | 24b0aa5(3.3) |
+| 2.3 标识符生成策略框架(11)+ 分段模板引擎(19)+ 版本治理(5)+ 创建模式治理(2) | ✅ 迁 `metadata-registry-ext`(ext.identification) | 536221d(2.2/2.4) |
+| 2.3 `Namespace` 4 个治理属性 | ✅ 剥为 `NamespaceIdentifierSettings` 卫星实体(resolver 单点读取) | 41dd8ab(2.3/2.8) |
+| 2.3 `ScopedIdentifier` 7 个扩展属性 | ✅ 剥为 `ScopedIdentifierLifecycle` 卫星实体 | 536221d(2.2/2.4) |
+| 2.4 `ClassificationScheme`/`ClassificationNode` | ✅ 迁 `metadata-registry-ext`(ext.classification,附妥协声明;第 10 章标准模型重建另立变更) | 241e0c2(2.5) |
+| 2.4 `association/` 10 类 | ✅ 迁 `web.service.association`(纯服务无实体,无表) | a976cf3(3.4) |
+| web 审批流/通知/数据质量/导出任务/FHIR 实体/definition_audit_log、draft-generation/schema-extraction 模块 | ✅ 已删除(无前端死代码);残留清理:`APPROVAL_TIMEOUT_NOT_CONFIGURED` 死码、`@Async("dataQualityTaskExecutor")` 失效限定符 | 489a8ef 及以前;残留 (4.3) |
+
 **尚未处置(后续阶段/变更):**
 
-- 0.2 ClassificationScheme/ClassificationNode 放错模块 → 阶段 2 先迁 `metadata-registry-ext`,第 10 章标准模型重建另立变更
-- 0.3 Item_Mapping 第 11 章一致性审计 → 列入阶段 2(`ext-extraction`)tasks
-- 第 2 节多余扩展项(56 类/属性)→ 阶段 2 剥离/删除、阶段 3 归 EXT schema
+- 2.1 `Account`/`SystemRole`(IAM 设施)→ 留待阶段 3 schema 拆分时归 EXT(或另立 IAM 模块决策)
+- 0.3 Item_Mapping 第 11 章一致性审计 → 报告已产出(`docs/iso11179-clause11-itemmapping-audit-2026-09-01.md`,建议归 EXT),**归属决策待用户**
+- 第 2 节已剥离项的 schema 落地 → 阶段 3(`mdr-ext-schema-split`)归 EXT schema
 - 4.2 类/关联级缺失(11179-31 §7.7/§7.8/§7.9 区域、9 个 Constraint_Set 子类等)→ 待用户决策后另立变更
 
 ---

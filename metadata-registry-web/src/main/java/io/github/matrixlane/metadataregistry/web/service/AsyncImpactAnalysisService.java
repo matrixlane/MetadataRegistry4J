@@ -33,7 +33,7 @@ public class AsyncImpactAnalysisService {
      * @param changeType description of the change
      * @return a CompletableFuture containing the impact analysis result
      */
-    @Async("dataQualityTaskExecutor")
+    @Async
     public CompletableFuture<ImpactAnalysisResult> analyzeItemChangeAsync(UUID itemId, String changeType) {
         log.debug("Starting async impact analysis for item {} change {}", itemId, changeType);
         long start = System.currentTimeMillis();
@@ -55,7 +55,7 @@ public class AsyncImpactAnalysisService {
      * @param changeType description of the change
      * @return a CompletableFuture containing the impact analysis result
      */
-    @Async("dataQualityTaskExecutor")
+    @Async
     public CompletableFuture<ImpactAnalysisResult> analyzeMappingChangeAsync(UUID mappingId, String changeType) {
         log.debug("Starting async impact analysis for mapping {} change {}", mappingId, changeType);
         long start = System.currentTimeMillis();

@@ -32,5 +32,4 @@ public final class ApiCodes {
     public static final int INVALID_STATE_TRANSITION_FROM_HISTORICAL = 1118;
     public static final int INVALID_STATE_TRANSITION_FROM_APPLICATION = 1119;
 
-    public static final int APPROVAL_TIMEOUT_NOT_CONFIGURED = 1311;
 }

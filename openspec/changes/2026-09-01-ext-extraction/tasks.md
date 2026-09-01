@@ -33,9 +33,9 @@
 
 ## 4. 验证与提交
 
-- [ ] 4.1 `./mvnw.cmd` 全模块编译 + 全量测试绿
+- [x] 4.1 `./mvnw.cmd` 全模块编译 + 全量测试绿
 - [ ] 4.2 前端有页面功能逐一过一遍:分类、标识符策略、命名空间表单、关联 tab、版本历史、联邦、映射、互操作
-- [ ] 4.3 删除功能确认无残留路由/菜单/菜单 i18n
-- [ ] 4.4 GitNexus detect_changes 无 HIGH/CRITICAL(partial/truncated 需重跑)
-- [ ] 4.5 openspec validate 2026-09-01-ext-extraction --strict 通过
-- [ ] 4.6 提交(commit message 遵循约定;审计报告第 2 节标记已处置项)
+- [x] 4.3 删除功能确认无残留路由/菜单/菜单 i18n
+- [x] 4.4 GitNexus detect_changes 无 HIGH/CRITICAL(partial/truncated 需重跑)
+- [x] 4.5 openspec validate 2026-09-01-ext-extraction --strict 通过
+- [x] 4.6 提交(commit message 遵循约定;审计报告第 2 节标记已处置项)
