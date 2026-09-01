@@ -47,7 +47,7 @@ class OrmTeamXmlTest {
     @Test
     void ormTeamXmlCoversExactlyTheExtEntities() throws Exception {
         List<String> classes = new ArrayList<>();
-        try (InputStream in = getClass().getResourceAsStream("/META-INF/orm-team.xml")) {
+        try (InputStream in = getClass().getResourceAsStream("/orm/orm-team.xml")) {
             assertThat(in).as("orm-team.xml 必须存在于类路径").isNotNull();
             Document doc = DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(in);
             NodeList entities = doc.getDocumentElement().getElementsByTagName("entity");

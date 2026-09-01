@@ -23,7 +23,7 @@
 
 ### 2. 技术机制(不动实体注解)
 
-- team profile 新增 `spring.jpa.mapping-resources: classpath:META-INF/orm-team.xml`;该 orm.xml 对上述 23 个实体逐一 `<table schema="ext"/>` 覆盖(合并模式,其余映射继承注解)。
+- team profile 新增 `spring.jpa.mapping-resources: classpath:orm/orm-team.xml`;该 orm.xml 对上述 23 个实体逐一 `<table schema="ext"/>` 覆盖(合并模式,其余映射继承注解)。
 - SQLite profile(local/personal/测试)不加载 orm.xml,行为与现状完全一致(无 schema)。
 - `db/schema-init.sql` 增加 ext schema 创建(SQL Server);达梦"用户即模式",EXT 模式需 DBA 预建并授权,文档说明。
 - 派生后果:team 上 ddl-auto=update 将按 orm.xml 把 EXT 表识别在 ext schema,不会在 mdr 重复建表。

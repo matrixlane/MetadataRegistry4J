@@ -14,7 +14,7 @@ import java.util.UUID;
 @Component
 public class DatabaseEnvironment {
 
-    /** 扩展(EXT)表集:归 ext schema;与 META-INF/orm-team.xml 清单一致(OrmTeamXmlTest 守卫)。 */
+    /** 扩展(EXT)表集:归 ext schema;与 orm/orm-team.xml 清单一致(OrmTeamXmlTest 守卫)。 */
     private static final java.util.Set<String> EXT_TABLES = java.util.Set.of(
             "classification_scheme", "classification_node",
             "identifier_strategy_config", "identifier_sequence_registry", "identifier_version_history",

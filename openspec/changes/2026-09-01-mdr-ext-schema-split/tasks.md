@@ -2,7 +2,7 @@
 
 ## 1. 机制落地
 
-- [x] 1.1 写 `META-INF/orm-team.xml`(23 个 EXT 实体 `<table schema="ext"/>` 覆盖,合并模式)
+- [x] 1.1 写 `orm/orm-team.xml`(23 个 EXT 实体 `<table schema="ext"/>` 覆盖,合并模式)
 - [x] 1.2 team profile 配置 `spring.jpa.mapping-resources`;`db/schema-init.sql` 增 ext schema;personal/local 注释说明 SQLite 不加载
 - [x] 1.3 写一次性校验测试:解析 orm-team.xml,23 个 class 全限定名 Class.forName 可达 + 表名与实体解析一致(防类名漂移)
 - [x] 1.4 EXT 实体集合表/派生表核对(@ElementCollection/@JoinTable 逐一确认无 EXT 侧集合表)
