@@ -45,6 +45,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import io.github.matrixlane.metadataregistry.dataspecification.DescribedValueDomain;
 
 /**
  * {@link DataDictionaryExportService} 单元测试
@@ -521,7 +522,7 @@ class DataDictionaryExportServiceTest {
         de.setIdentifiedItem(ai);
 
         // ValueDomain
-        ValueDomain vd = new ValueDomain();
+        ValueDomain vd = new DescribedValueDomain();
         vd.setId(UUID.randomUUID());
         Designation vdDesignation = new Designation();
         var vdSign = new io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.Sign();

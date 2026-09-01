@@ -8,5 +8,5 @@ import lombok.Setter;
 @Getter
 @Setter
 @NoArgsConstructor
-public class EnumeratedValueDomain extends ValueDomain {
+public abstract class EnumeratedValueDomain extends ValueDomain {
 }

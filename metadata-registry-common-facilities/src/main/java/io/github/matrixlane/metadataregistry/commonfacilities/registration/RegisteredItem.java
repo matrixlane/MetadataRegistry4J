@@ -19,7 +19,7 @@ import java.util.List;
 @Getter
 @Setter
 @NoArgsConstructor
-public class RegisteredItem extends IdentifiedItem {
+public abstract class RegisteredItem extends IdentifiedItem {
 
     @ManyToOne
     @JoinColumn(name = "constraint_set_id")

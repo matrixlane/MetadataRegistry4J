@@ -11,10 +11,10 @@
 
 ## 2. 抽象类修正
 
-- [ ] 2.1 ValueDomain/ConceptualDomain/EnumeratedValueDomain/EnumeratedConceptualDomain 改 abstract
-- [ ] 2.2 RegisteredItem 改 abstract
-- [ ] 2.3 Concept 取消 abstract
-- [ ] 2.4 修测试实例化点(association/*Test、DataDictionaryExportServiceTest、DataElementServiceTest、RegisteredItemTest、SubmissionRecordTest 等)
+- [x] 2.1 ValueDomain/ConceptualDomain/EnumeratedValueDomain/EnumeratedConceptualDomain 改 abstract
+- [x] 2.2 RegisteredItem 改 abstract
+- [x] 2.3 Concept 取消 abstract
+- [x] 2.4 修测试实例化点(association/*Test、DataDictionaryExportServiceTest、DataElementServiceTest、RegisteredItemTest、SubmissionRecordTest 等)
 
 ## 3. 类型修正
 

@@ -13,6 +13,8 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import io.github.matrixlane.metadataregistry.dataspecification.DescribedConceptualDomain;
+import io.github.matrixlane.metadataregistry.dataspecification.DescribedValueDomain;
 
 class DataElementAssociationValidatorTest {
 
@@ -43,7 +45,7 @@ class DataElementAssociationValidatorTest {
     @Test
     void validate_valueDomainAssociationWithCorrectTypes_passes() {
         DataElement de = new DataElement();
-        ValueDomain vd = new ValueDomain();
+        ValueDomain vd = new DescribedValueDomain();
 
         assertThatNoException().isThrownBy(() ->
                 validator.validate(AssociationType.DATA_ELEMENT_TO_VALUE_DOMAIN, de, vd));
@@ -52,7 +54,7 @@ class DataElementAssociationValidatorTest {
     @Test
     void validate_conceptAssociationWithWrongTargetType_throws() {
         DataElement de = new DataElement();
-        Item wrongTarget = new ConceptualDomain();
+        Item wrongTarget = new DescribedConceptualDomain();
 
         assertThatThrownBy(() ->
                 validator.validate(AssociationType.DATA_ELEMENT_TO_DATA_ELEMENT_CONCEPT, de, wrongTarget))
@@ -63,7 +65,7 @@ class DataElementAssociationValidatorTest {
     @Test
     void validate_valueDomainAssociationWithWrongSourceType_throws() {
         DataElementConcept dec = new DataElementConcept();
-        ValueDomain vd = new ValueDomain();
+        ValueDomain vd = new DescribedValueDomain();
 
         assertThatThrownBy(() ->
                 validator.validate(AssociationType.DATA_ELEMENT_TO_VALUE_DOMAIN, dec, vd))
@@ -82,7 +84,7 @@ class DataElementAssociationValidatorTest {
     void validateCompleteness_acceptsBothPresent() {
         DataElement de = new DataElement();
         de.setDataElementConcept(new DataElementConcept());
-        de.setValueDomain(new ValueDomain());
+        de.setValueDomain(new DescribedValueDomain());
 
         assertThatNoException().isThrownBy(() -> validator.validateCompleteness(de));
     }

@@ -10,13 +10,17 @@ import io.github.matrixlane.metadataregistry.commonfacilities.identification.Sco
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.Versions;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.AdministeredItem;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationAuthority;
-import io.github.matrixlane.metadataregistry.dataspecification.ConceptualDomain;
 import io.github.matrixlane.metadataregistry.dataspecification.DataElement;
 import io.github.matrixlane.metadataregistry.dataspecification.DataElementConcept;
 import io.github.matrixlane.metadataregistry.dataspecification.DataType;
+import io.github.matrixlane.metadataregistry.dataspecification.DescribedConceptualDomain;
+import io.github.matrixlane.metadataregistry.dataspecification.DescribedValueDomain;
+import io.github.matrixlane.metadataregistry.dataspecification.LocalEnumeratedConceptualDomain;
+import io.github.matrixlane.metadataregistry.dataspecification.LocalEnumeratedValueDomain;
 import io.github.matrixlane.metadataregistry.dataspecification.ObjectClass;
 import io.github.matrixlane.metadataregistry.dataspecification.Property;
-import io.github.matrixlane.metadataregistry.dataspecification.ValueDomain;
+import io.github.matrixlane.metadataregistry.dataspecification.ReferenceEnumeratedConceptualDomain;
+import io.github.matrixlane.metadataregistry.dataspecification.ReferenceEnumeratedValueDomain;
 import io.github.matrixlane.metadataregistry.web.common.ApiCodes;
 import io.github.matrixlane.metadataregistry.web.common.BusinessException;
 import io.github.matrixlane.metadataregistry.web.common.ResourceNotFoundException;
@@ -49,15 +53,22 @@ import java.util.function.Supplier;
 @RequiredArgsConstructor
 public class GenericItemCreator {
 
-    private static final Map<String, Supplier<? extends Item>> TYPE_REGISTRY = Map.of(
-            "DataElement", DataElement::new,
-            "ObjectClass", ObjectClass::new,
-            "Property", Property::new,
-            "ConceptualDomain", ConceptualDomain::new,
-            "ValueDomain", ValueDomain::new,
-            "DataElementConcept", DataElementConcept::new,
-            "DataType", DataType::new,
-            "Context", Context::new
+    private static final Map<String, Supplier<? extends Item>> TYPE_REGISTRY = Map.ofEntries(
+            Map.entry("DataElement", DataElement::new),
+            Map.entry("ObjectClass", ObjectClass::new),
+            Map.entry("Property", Property::new),
+            // 导出端 itemType 取 getClass().getSimpleName()(具体子类名),原先的
+            // "ConceptualDomain"/"ValueDomain" 基类键永远匹配不上;且基类已按
+            // 11179-31 修正为 abstract,此处注册全部具体子类。
+            Map.entry("DescribedConceptualDomain", DescribedConceptualDomain::new),
+            Map.entry("LocalEnumeratedConceptualDomain", LocalEnumeratedConceptualDomain::new),
+            Map.entry("ReferenceEnumeratedConceptualDomain", ReferenceEnumeratedConceptualDomain::new),
+            Map.entry("DescribedValueDomain", DescribedValueDomain::new),
+            Map.entry("LocalEnumeratedValueDomain", LocalEnumeratedValueDomain::new),
+            Map.entry("ReferenceEnumeratedValueDomain", ReferenceEnumeratedValueDomain::new),
+            Map.entry("DataElementConcept", DataElementConcept::new),
+            Map.entry("DataType", DataType::new),
+            Map.entry("Context", Context::new)
     );
 
     private final ItemAdministrationService itemAdministrationService;

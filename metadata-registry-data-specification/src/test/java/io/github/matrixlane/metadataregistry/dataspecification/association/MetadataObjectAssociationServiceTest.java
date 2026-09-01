@@ -16,6 +16,8 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import io.github.matrixlane.metadataregistry.dataspecification.DescribedConceptualDomain;
+import io.github.matrixlane.metadataregistry.dataspecification.DescribedValueDomain;
 
 class MetadataObjectAssociationServiceTest {
 
@@ -39,7 +41,7 @@ class MetadataObjectAssociationServiceTest {
     @Test
     void associate_dataElementToValueDomain_setsValueDomain() {
         DataElement de = new DataElement();
-        ValueDomain vd = new ValueDomain();
+        ValueDomain vd = new DescribedValueDomain();
 
         service.associate(AssociationType.DATA_ELEMENT_TO_VALUE_DOMAIN, de, vd);
 
@@ -49,7 +51,7 @@ class MetadataObjectAssociationServiceTest {
     @Test
     void associate_dataElementConceptToConceptualDomain_keepsBothSidesInSync() {
         DataElementConcept dec = new DataElementConcept();
-        ConceptualDomain cd = new ConceptualDomain();
+        ConceptualDomain cd = new DescribedConceptualDomain();
 
         service.associate(AssociationType.DATA_ELEMENT_CONCEPT_TO_CONCEPTUAL_DOMAIN, dec, cd);
 
@@ -59,7 +61,7 @@ class MetadataObjectAssociationServiceTest {
 
     @Test
     void associate_valueDomainToDataType_setsDataType() {
-        ValueDomain vd = new ValueDomain();
+        ValueDomain vd = new DescribedValueDomain();
         DataType dt = new DataType();
 
         service.associate(AssociationType.VALUE_DOMAIN_TO_DATA_TYPE, vd, dt);
@@ -69,7 +71,7 @@ class MetadataObjectAssociationServiceTest {
 
     @Test
     void associate_valueDomainToUnitOfMeasure_setsUnitOfMeasure() {
-        ValueDomain vd = new ValueDomain();
+        ValueDomain vd = new DescribedValueDomain();
         UnitOfMeasure uom = new UnitOfMeasure();
 
         service.associate(AssociationType.VALUE_DOMAIN_TO_UNIT_OF_MEASURE, vd, uom);
@@ -101,7 +103,7 @@ class MetadataObjectAssociationServiceTest {
     @Test
     void dissociate_dataElementValueDomain_removesValueDomain() {
         DataElement de = new DataElement();
-        ValueDomain vd = new ValueDomain();
+        ValueDomain vd = new DescribedValueDomain();
         de.setValueDomain(vd);
 
         service.dissociate(AssociationType.DATA_ELEMENT_TO_VALUE_DOMAIN, de, vd);
@@ -112,7 +114,7 @@ class MetadataObjectAssociationServiceTest {
     @Test
     void dissociate_conceptualDomain_keepsBothSidesInSync() {
         DataElementConcept dec = new DataElementConcept();
-        ConceptualDomain cd = new ConceptualDomain();
+        ConceptualDomain cd = new DescribedConceptualDomain();
         dec.getConceptualDomains().add(cd);
         cd.getDataElementConcepts().add(dec);
 
@@ -137,8 +139,8 @@ class MetadataObjectAssociationServiceTest {
     @Test
     void replace_dataElementValueDomain_replacesTarget() {
         DataElement de = new DataElement();
-        ValueDomain oldVd = new ValueDomain();
-        ValueDomain newVd = new ValueDomain();
+        ValueDomain oldVd = new DescribedValueDomain();
+        ValueDomain newVd = new DescribedValueDomain();
         de.setValueDomain(oldVd);
 
         service.replace(AssociationType.DATA_ELEMENT_TO_VALUE_DOMAIN, de, oldVd, newVd);
@@ -149,8 +151,8 @@ class MetadataObjectAssociationServiceTest {
     @Test
     void replace_dataElementConceptConceptualDomain_replacesTarget() {
         DataElementConcept dec = new DataElementConcept();
-        ConceptualDomain oldCd = new ConceptualDomain();
-        ConceptualDomain newCd = new ConceptualDomain();
+        ConceptualDomain oldCd = new DescribedConceptualDomain();
+        ConceptualDomain newCd = new DescribedConceptualDomain();
         dec.getConceptualDomains().add(oldCd);
         oldCd.getDataElementConcepts().add(dec);
 

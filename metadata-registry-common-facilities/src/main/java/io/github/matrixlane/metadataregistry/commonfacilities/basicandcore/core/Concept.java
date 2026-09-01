@@ -15,7 +15,7 @@ import lombok.Setter;
 @Getter
 @Setter
 @NoArgsConstructor
-public abstract class Concept extends Item {
+public class Concept extends Item {
 
     private String sourceUri;
 }

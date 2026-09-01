@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import io.github.matrixlane.metadataregistry.dataspecification.DescribedConceptualDomain;
 
 class DataElementConceptAssociationValidatorTest {
 
@@ -51,7 +52,7 @@ class DataElementConceptAssociationValidatorTest {
     @Test
     void validate_conceptualDomainAssociationWithCorrectTypes_passes() {
         DataElementConcept dec = new DataElementConcept();
-        ConceptualDomain cd = new ConceptualDomain();
+        ConceptualDomain cd = new DescribedConceptualDomain();
 
         assertThatNoException().isThrownBy(() ->
                 validator.validate(AssociationType.DATA_ELEMENT_CONCEPT_TO_CONCEPTUAL_DOMAIN, dec, cd));
@@ -71,7 +72,7 @@ class DataElementConceptAssociationValidatorTest {
     @Test
     void validate_conceptualDomainAssociationWithWrongSourceType_throws() {
         DataElement de = new DataElement();
-        ConceptualDomain cd = new ConceptualDomain();
+        ConceptualDomain cd = new DescribedConceptualDomain();
 
         assertThatThrownBy(() ->
                 validator.validate(AssociationType.DATA_ELEMENT_CONCEPT_TO_CONCEPTUAL_DOMAIN, de, cd))

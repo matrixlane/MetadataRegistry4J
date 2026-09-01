@@ -17,7 +17,7 @@ import java.util.List;
 @Getter
 @Setter
 @NoArgsConstructor
-public class ValueDomain extends Item {
+public abstract class ValueDomain extends Item {
 
     @ManyToOne
     @JoinColumn(name = "data_type_id")

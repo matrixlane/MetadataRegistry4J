@@ -5,6 +5,7 @@ import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basic
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import io.github.matrixlane.metadataregistry.commonfacilities.registration.AdministeredItem;
 
 class SubmissionRecordTest {
 
@@ -33,7 +34,7 @@ class SubmissionRecordTest {
     @Test
     void shouldAddRegisteredItem() {
         SubmissionRecord record = new SubmissionRecord();
-        RegisteredItem item = new RegisteredItem();
+        RegisteredItem item = new AdministeredItem();
         record.getRegisteredItems().add(item);
         assertThat(record.getRegisteredItems()).hasSize(1);
     }

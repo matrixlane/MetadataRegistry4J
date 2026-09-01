@@ -26,6 +26,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import io.github.matrixlane.metadataregistry.dataspecification.DescribedValueDomain;
 
 /**
  * ISO/IEC 11179-31:2023 中 data_element_meaning（数据元→数据元概念）与
@@ -105,7 +106,7 @@ class DataElementServiceTest {
         UUID id = UUID.randomUUID();
         DataElement entity = new DataElement();
         entity.setDataElementConcept(new DataElementConcept());
-        entity.setValueDomain(new ValueDomain());
+        entity.setValueDomain(new DescribedValueDomain());
         when(repository.findById(id)).thenReturn(Optional.of(entity));
         when(repository.save(any(DataElement.class))).thenAnswer(inv -> inv.getArgument(0));
 

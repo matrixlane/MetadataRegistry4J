@@ -15,7 +15,7 @@ import java.util.List;
 @Getter
 @Setter
 @NoArgsConstructor
-public class ConceptualDomain extends Concept {
+public abstract class ConceptualDomain extends Concept {
 
     @ManyToMany
     @JoinTable(
