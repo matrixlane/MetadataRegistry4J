@@ -44,7 +44,7 @@
 **尚未处置(后续阶段/变更):**
 
 - 2.1 `Account`/`SystemRole`(IAM 设施)→ 留待阶段 3 schema 拆分时归 EXT(或另立 IAM 模块决策)
-- 0.3 Item_Mapping 第 11 章一致性审计 → 报告已产出(`docs/iso11179-clause11-itemmapping-audit-2026-09-01.md`,建议归 EXT),**归属决策待用户**
+- 0.3 Item_Mapping 第 11 章一致性审计 → 报告已产出(`docs/iso11179-clause11-itemmapping-audit-2026-09-01.md`);**用户已决策(2026-09-01):归 MDR(标准第 11 章内容),按第 11 章元模型重建另立 change**,与第 10 章 Classification 重建一并规划;阶段 3 中 item-mapping 表留 MDR schema
 - 第 2 节已剥离项的 schema 落地 → 阶段 3(`mdr-ext-schema-split`)归 EXT schema
 - 4.2 类/关联级缺失(11179-31 §7.7/§7.8/§7.9 区域、9 个 Constraint_Set 子类等)→ 待用户决策后另立变更
 

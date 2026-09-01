@@ -53,4 +53,20 @@
 替代方案(不推荐):按第 11 章立即重建——工作量大且与联邦合并、映射订阅等
 既有扩展功能耦合深,宜与第 10 章重建统一立项。
 
-**决策:□ 同意归 EXT(建议) □ 归 MDR 并立项重建 □ 其他:______**
+**决策(用户,2026-09-01):归 MDR 并立项重建。**
+
+用户裁定:item-mapping 是 ISO/IEC 11179-3:2023 标准内容,应作为标准模型
+对待。(用户表述为"第 10 章";经 Milvus 标准原文核实,Item_Mapping 为
+**第 11 章 Item Mapping package**,第 10 章为 Classification package——
+用户意图明确为"标准里有,归标准侧",条款号以原文为准。)
+
+落实口径:
+
+- 阶段 3(`mdr-ext-schema-split`)中 item-mapping 三表**留在 MDR schema**,
+  不随扩展剥离;
+- 按第 11 章元模型的符合性重建(Item 子类化、Subject/Object 关联类、
+  mapping_variable_name、标准 14 值 degree 枚举、mapping_hierarchy、
+  transformation_rule_notation)**另立 change**,与第 10 章 Classification
+  重建一并规划;
+- 注册表遵从声明目标由 "Basic Registry" 调整为 "Basic Registry with mapping"
+  (4.4.2:含第 11 章的 profile)。

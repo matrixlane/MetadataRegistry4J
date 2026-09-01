@@ -20,7 +20,7 @@
 - [x] 2.4 ScopedIdentifier 扩展字段剥为 ScopedIdentifierLifecycle 卫星实体(creationMode/versionStatus/4 时间戳);ScopedIdentifierService 适配
 - [x] 2.5 ClassificationScheme/ClassificationNode 整体迁入 ext(javadoc 显式声明妥协:第 10 章标准模型重建另立 change)
 - [x] 2.6 item-mapping 对 Versions/SemVerValidator 依赖改指 ext 模块(核实为 no-op:item-mapping 对二者无真实引用,无需改动)
-- [x] 2.7 11179-3 第 11 章审计(Milvus 核实标准原文):报告 docs/iso11179-clause11-itemmapping-audit-2026-09-01.md 已产出,建议归 EXT,归属决策待用户
+- [x] 2.7 11179-3 第 11 章审计(Milvus 核实标准原文):报告 docs/iso11179-clause11-itemmapping-audit-2026-09-01.md 已产出,用户已决策(2026-09-01):归 MDR(标准第 11 章),重建另立 change
 - [x] 2.8 卫星实体迁移脚本(V20260901009 SI 卫星、V20260901010 NS 卫星;新表建表+回填+旧列删除;三方言)
 
 ## 3. web 内扩展属性卫星实体化
