@@ -26,7 +26,7 @@
 ## 3. web 内扩展属性卫星实体化
 
 - [x] 3.1 Contact.account → ContactAccountBinding 卫星实体,服务层适配,DTO/前端不变
-- [ ] 3.2 LanguageIdentification.enabled → LanguageGovernance 卫星实体(编辑器过滤链路适配)
+- [x] 3.2 LanguageIdentification.enabled → LanguageGovernance 卫星实体(编辑器过滤链路适配)
 - [ ] 3.3 NamingConvention.rulesJson → NamingConventionRules 卫星实体(校验引擎适配)
 - [ ] 3.4 association/ 11 类从 data-specification 迁 web/service/association(纯服务无实体)
 - [ ] 3.5 上述三卫星实体迁移脚本(建表+回填+删旧列;三方言)

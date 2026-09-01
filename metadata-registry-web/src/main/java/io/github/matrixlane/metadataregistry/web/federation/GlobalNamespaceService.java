@@ -219,7 +219,6 @@ public class GlobalNamespaceService {
                     created.setLanguageIdentifier(langId);
                     created.setScriptIdentifier(script);
                     created.setGeopoliticalTerritoryIdentifier(territory);
-                    created.setEnabled(true);
                     return languageRepository.save(created);
                 });
         Designation designation = new Designation();

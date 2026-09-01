@@ -19,6 +19,10 @@ import java.util.stream.Collectors;
  *
  * <p>Identifies a natural language using the BCP 47 tag system,
  * comprising language, script, region, variant, extension, and private-use subtags.
+ *
+ * <p>扩展属性 enabled(语言是否启用)非标准模型,已剥离至卫星实体
+ * {@code ext.basicandcore.LanguageGovernance}(表 language_governance),
+ * 读写经 web 层 LanguageGovernanceService,缺失行等同 enabled=true。
  */
 @StandardReference("ISO/IEC 11179-3:2023, 6.3.7")
 @jakarta.persistence.Entity
@@ -28,9 +32,6 @@ import java.util.stream.Collectors;
 public class LanguageIdentification extends Entity {
 
     private String languageIdentifier;
-
-    @Column(name = "enabled")
-    private Boolean enabled = true;
 
     private String scriptIdentifier;
 

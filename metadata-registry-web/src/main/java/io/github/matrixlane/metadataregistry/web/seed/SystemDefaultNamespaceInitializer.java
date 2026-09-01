@@ -116,7 +116,6 @@ public class SystemDefaultNamespaceInitializer implements ApplicationRunner {
                     lang.setLanguageIdentifier(identifier);
                     lang.setScriptIdentifier(script);
                     lang.setGeopoliticalTerritoryIdentifier(territory);
-                    lang.setEnabled(true);
                     return languageRepository.save(lang);
                 });
     }

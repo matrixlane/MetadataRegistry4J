@@ -64,7 +64,6 @@ public class LanguageInitializer implements ApplicationRunner {
                 lang.setLanguageIdentifier(identifier);
                 lang.setScriptIdentifier(script);
                 lang.setGeopoliticalTerritoryIdentifier(territory);
-                lang.setEnabled(true);
                 languageRepository.save(lang);
                 log.info("已新增内置语言标识: {}", identifier);
             }

@@ -25,8 +25,17 @@ class LanguageIdentificationServiceTest {
     @Mock
     private LanguageIdentificationRepository repository;
 
+    @Mock
+    private LanguageGovernanceService governanceService;
+
     @InjectMocks
     private LanguageIdentificationService service;
+
+    @org.junit.jupiter.api.BeforeEach
+    void stubGovernance() {
+        org.mockito.Mockito.lenient().when(governanceService.getOrDefault(org.mockito.ArgumentMatchers.any()))
+                .thenAnswer(inv -> new io.github.matrixlane.metadataregistry.ext.basicandcore.LanguageGovernance());
+    }
 
     @AfterEach
     void resetLocale() {
@@ -38,7 +47,6 @@ class LanguageIdentificationServiceTest {
         entity.setLanguageIdentifier(languageIdentifier);
         entity.setScriptIdentifier("Hans");
         entity.setGeopoliticalTerritoryIdentifier(territoryIdentifier);
-        entity.setEnabled(true);
         return entity;
     }
 

@@ -34,6 +34,7 @@ public class ReferenceDocumentService {
     private final ReferenceDocumentRepository repository;
     private final DocumentTypeRepository documentTypeRepository;
     private final LanguageIdentificationRepository languageRepository;
+    private final LanguageGovernanceService governanceService;
 
     @Transactional(readOnly = true)
     public Page<ReferenceDocumentResponse> list(String keyword, Pageable pageable) {
@@ -123,7 +124,7 @@ public class ReferenceDocumentService {
                         new ArrayList<>(li.getVariantIdentifier()),
                         new ArrayList<>(li.getExtensionIdentifier()),
                         li.getPrivateUseQualifier(),
-                        li.getEnabled()));
+                        governanceService.getOrDefault(li.getId()).getEnabled()));
             }
         }
         return new ReferenceDocumentResponse(

@@ -67,7 +67,6 @@ class NamespaceGateIntegrationTest {
         lang.setLanguageIdentifier("zh-CN");
         lang.setScriptIdentifier("Hans");
         lang.setGeopoliticalTerritoryIdentifier("CN");
-        lang.setEnabled(true);
         languageId = languageRepository.save(lang).getId();
     }
 
