@@ -54,8 +54,8 @@
 
 ## 7. 验证与提交
 
-- [ ] 7.1 `./mvnw.cmd -pl metadata-registry-common-facilities,metadata-registry-data-specification,metadata-registry-web test` 全绿
-- [ ] 7.2 打包重启连 SQL Server 库,数据元/值域/概念域/注册项页面人工过一遍
-- [ ] 7.3 GitNexus detect_changes 无 HIGH/CRITICAL
-- [ ] 7.4 openspec validate 2026-09-01-mdr-standard-conformance --strict 通过
-- [ ] 7.5 提交(commit message 遵循约定)
+- [x] 7.1 `./mvnw.cmd -pl metadata-registry-common-facilities,metadata-registry-data-specification,metadata-registry-web test` 全绿
+- [x] 7.2 打包重启连 SQL Server 库,数据元/值域/概念域/注册项页面人工过一遍
+- [x] 7.3 GitNexus detect_changes 无 HIGH/CRITICAL
+- [x] 7.4 openspec validate 2026-09-01-mdr-standard-conformance --strict 通过
+- [x] 7.5 提交(commit message 遵循约定)

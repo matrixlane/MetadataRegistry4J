@@ -7,6 +7,31 @@
 
 ---
 
+## 处置状态(2026-09-01 更新)
+
+阶段 1(`openspec/changes/2026-09-01-mdr-standard-conformance`)已处置完毕,按提交对应:
+
+| 报告条目 | 处置 | 提交 |
+|---|---|---|
+| 0.1 RegistrationStatus 枚举相悖 | ✅ 已修正(SUBMITTED→CANDIDATE、PREFERRED→PREFERRED_STANDARD、迁移纠正、大小写不敏感读取) | e7f01d8、05fd236 |
+| 3.1 枚举/取值级 #1 | ✅ 同上 | e7f01d8 |
+| 3.2 类型级 #3–#9 | ✅ 已修正(含 defaultTimeZone 格式校验+显式妥协声明) | bafe69a |
+| 3.3 多重性级 #10–#16 | ✅ 已收紧(核库无 NULL 存量后落约束;Slot.value→List、Role 集合、Item↔IdentifiedItem OneToOne、级联删除) | 26abaf7 |
+| 3.4 结构级 #17–#19 | ✅ 抽象类修正(Concept 恢复可实例化) | f703311 |
+| 3.4 结构级 #20(value_domain_meaning 归基类) | ✅ 提升到 ValueDomain 基类,子类改类型化视图,存量 16 行无损迁移 | dc5a3da(5.6) |
+| 3.4 结构级 #21(NaturalRange) | ✅ 已修正 | bafe69a |
+| 3.5 条款号错位 | ✅ 14 处错位更正 + 6 类补注 + Entity 虚假引用删除 | 6f108f9 |
+| 4.1 属性级缺失 1–6 | ✅ 全部补齐(permitted_value 必填回填、valid_period/dimensionality、两个 datetime、annotation、派生 getter) | dc5a3da |
+
+**尚未处置(后续阶段/变更):**
+
+- 0.2 ClassificationScheme/ClassificationNode 放错模块 → 阶段 2 先迁 `metadata-registry-ext`,第 10 章标准模型重建另立变更
+- 0.3 Item_Mapping 第 11 章一致性审计 → 列入阶段 2(`ext-extraction`)tasks
+- 第 2 节多余扩展项(56 类/属性)→ 阶段 2 剥离/删除、阶段 3 归 EXT schema
+- 4.2 类/关联级缺失(11179-31 §7.7/§7.8/§7.9 区域、9 个 Constraint_Set 子类等)→ 待用户决策后另立变更
+
+---
+
 ## 0. 重大发现(最高优先级)
 
 ### 0.1 RegistrationStatus 枚举与标准相悖【最严重】
