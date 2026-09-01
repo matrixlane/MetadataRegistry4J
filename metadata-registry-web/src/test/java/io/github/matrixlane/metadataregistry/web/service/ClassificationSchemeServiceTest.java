@@ -1,7 +1,7 @@
 package io.github.matrixlane.metadataregistry.web.service;
 
-import io.github.matrixlane.metadataregistry.dataspecification.ClassificationNode;
-import io.github.matrixlane.metadataregistry.dataspecification.ClassificationScheme;
+import io.github.matrixlane.metadataregistry.ext.classification.ClassificationNode;
+import io.github.matrixlane.metadataregistry.ext.classification.ClassificationScheme;
 import io.github.matrixlane.metadataregistry.web.common.ApiCodes;
 import io.github.matrixlane.metadataregistry.web.common.BusinessException;
 import io.github.matrixlane.metadataregistry.web.dto.classification.ClassificationNodeRequest;

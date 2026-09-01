@@ -1,6 +1,6 @@
 package io.github.matrixlane.metadataregistry.web.repository;
 
-import io.github.matrixlane.metadataregistry.dataspecification.ClassificationNode;
+import io.github.matrixlane.metadataregistry.ext.classification.ClassificationNode;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;

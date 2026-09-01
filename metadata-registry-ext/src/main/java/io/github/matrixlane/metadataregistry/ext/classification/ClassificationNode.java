@@ -1,4 +1,4 @@
-package io.github.matrixlane.metadataregistry.dataspecification;
+package io.github.matrixlane.metadataregistry.ext.classification;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -19,6 +19,9 @@ import java.util.UUID;
 
 /**
  * Classification Node (ISO 11179-3 Clause 10).
+ *
+ * <p>妥协声明:本实现为简化的分类节点模型,未按 ISO/IEC 11179-3:2023
+ * 第 10 章元模型重建(标准模型重建另立 change 处理),暂归入 ext 模块。
  * <p>
  * A node within a Classification Scheme. Nodes form a hierarchical tree structure
  * via the parent reference. Root nodes have a null parent.

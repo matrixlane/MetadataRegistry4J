@@ -1,4 +1,4 @@
-package io.github.matrixlane.metadataregistry.dataspecification;
+package io.github.matrixlane.metadataregistry.ext.classification;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -16,6 +16,9 @@ import java.util.UUID;
 
 /**
  * Classification Scheme (ISO 11179-3 Clause 10).
+ *
+ * <p>妥协声明:本实现为简化的分类方案模型,未按 ISO/IEC 11179-3:2023
+ * 第 10 章元模型重建(标准模型重建另立 change 处理),暂归入 ext 模块。
  * <p>
  * A Classification Scheme is a collection of categories used to classify administered items.
  * It consists of a set of ClassificationNodes organized in a hierarchical structure.
