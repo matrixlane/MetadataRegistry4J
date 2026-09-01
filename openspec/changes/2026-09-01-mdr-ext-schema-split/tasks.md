@@ -17,6 +17,8 @@
 
 - [x] 3.1 排查 nativeQuery/JdbcTemplate/Statement 引用 23 张 EXT 表的位置,team 方言下改显式 `ext.` 前缀(必要时 DatabaseEnvironment 加 extQualify())
 
+- [x] 2.4 补遗 V20260901015:interop_data_set/interop_data_element 补迁 ext(orm-team.xml 25 实体)+ 17 张孤儿表/3 张测试垃圾表物理清理(三方言)
+
 ## 4. 验证与提交
 
 - [x] 4.1 全模块编译 + 全量测试绿(1488:178/122/0/367/821,含新增 OrmTeamXmlTest)

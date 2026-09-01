@@ -14,7 +14,7 @@ import java.util.UUID;
 @Component
 public class DatabaseEnvironment {
 
-    /** 扩展(EXT)表集:归 ext schema;与 orm/orm-team.xml 清单一致(OrmTeamXmlTest 守卫)。 */
+    /** 扩展(EXT)表集:归 ext schema;与 orm/orm-team.xml 清单一致(OrmTeamXmlTest 守卫;含 V20260901015 补迁的 interop 两表)。 */
     private static final java.util.Set<String> EXT_TABLES = java.util.Set.of(
             "classification_scheme", "classification_node",
             "identifier_strategy_config", "identifier_sequence_registry", "identifier_version_history",
@@ -22,6 +22,7 @@ public class DatabaseEnvironment {
             "contact_account_binding", "language_governance", "naming_convention_rules",
             "account",
             "mapping_scheme", "mapping_subscription", "fhir_element_mapping", "interop_mapping",
+            "interop_data_set", "interop_data_element",
             "item_link", "merge_request", "merge_request_item",
             "namespace_permission", "registry_node", "sync_watermark", "system_setting", "version_history");
 

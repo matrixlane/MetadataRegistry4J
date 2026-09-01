@@ -1,0 +1,21 @@
+-- 孤儿表清理(无 schema,直删;interop 两表留 main 不动)。
+DROP TABLE IF EXISTS approval_template;
+DROP TABLE IF EXISTS approval_process_instance;
+DROP TABLE IF EXISTS approval_step;
+DROP TABLE IF EXISTS approval_step_record;
+DROP TABLE IF EXISTS approval_record;
+DROP TABLE IF EXISTS notification_preference;
+DROP TABLE IF EXISTS notification_record;
+DROP TABLE IF EXISTS data_quality_task;
+DROP TABLE IF EXISTS export_task;
+DROP TABLE IF EXISTS definition_audit_log;
+DROP TABLE IF EXISTS fhir_code_system;
+DROP TABLE IF EXISTS fhir_element;
+DROP TABLE IF EXISTS fhir_resource;
+DROP TABLE IF EXISTS fhir_value_set;
+DROP TABLE IF EXISTS designation_context;
+DROP TABLE IF EXISTS definition_context;
+DROP TABLE IF EXISTS definition_namespace;
+DROP TABLE IF EXISTS "definition_service_test$test_item";
+DROP TABLE IF EXISTS "designation_service_test$test_item";
+DROP TABLE IF EXISTS "item_administration_service_test$test_item";

@@ -2,10 +2,14 @@
 <!--
   team profile 专属:扩展(EXT)实体的 schema 覆盖(合并模式,仅覆盖 <table> 的 schema,
   其余映射继承注解)。SQLite profile 不加载本文件,实体注解保持无 schema。
-  清单依据 openspec/changes/2026-09-01-mdr-ext-schema-split/design.md 第 3 节(23 实体);
+  清单依据 openspec/changes/2026-09-01-mdr-ext-schema-split/design.md 第 3 节(25 实体,含 V20260901015 补迁);
   漂移由 OrmTeamXmlTest 校验。
 -->
 <entity-mappings xmlns="https://jakarta.ee/xml/ns/persistence/orm" version="3.1">
+
+    <!-- data-set-registration 模块(2,V20260901015 补迁) -->
+    <entity class="io.github.matrixlane.metadataregistry.datasetregistration.entity.InteropDataSet"><table schema="ext"/></entity>
+    <entity class="io.github.matrixlane.metadataregistry.datasetregistration.entity.InteropDataElement"><table schema="ext"/></entity>
 
     <!-- ext 模块(10) -->
     <entity class="io.github.matrixlane.metadataregistry.ext.classification.ClassificationScheme"><table schema="ext"/></entity>

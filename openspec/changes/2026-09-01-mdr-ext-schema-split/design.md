@@ -15,7 +15,7 @@
 
 选定 B。orm.xml 为合并模式(不写 `xml-mapping-metadata-complete`),只覆盖 `<table>` 的 schema 属性,其余映射继承注解。
 
-## 3. orm-team.xml 清单(23 实体)
+## 3. orm-team.xml 清单(25 实体,含 V20260901015 补迁 2)
 
 | 模块 | 类 | 表 |
 |---|---|---|
@@ -30,6 +30,8 @@
 | ext | LanguageGovernance | language_governance |
 | ext | NamingConventionRules | naming_convention_rules |
 | common-facilities | Account | account |
+| data-set-registration | InteropDataSet | interop_data_set |
+| data-set-registration | InteropDataElement | interop_data_element |
 | item-mapping | MappingScheme | mapping_scheme |
 | item-mapping | MappingSubscription | mapping_subscription |
 | item-mapping | FhirElementMapping | fhir_element_mapping |
@@ -94,6 +96,12 @@ PL/SQL 块 + EXCEPTION WHEN OTHERS THEN NULL;EXT 模式不存在时整表跳过(
 2. 编译期核对 orm-team.xml 23 个 class 全限定名存在(写一次性校验测试:解析 XML→Class.forName,防类名漂移);
 3. detect_changes 无 partial/truncated;
 4. team profile 的 sqlserver/dm 实测由用户部署时验证(本地无实例)。
+
+## 7.1 补遗(2026-09-01,V20260901015)
+
+- 盘点遗漏:data-set-registration 模块 InteropDataSet/InteropDataElement 两实体补入 orm-team.xml 并迁 ext;
+- 顺带物理删除阶段 2 已删功能的无实体孤儿表(approval_*/notification_*/data_quality_task/export_task/definition_audit_log/fhir_code_system/fhir_element/fhir_resource/fhir_value_set/designation_context/definition_context/definition_namespace)与 3 张测试垃圾表(*_service_test$test_item);均经实体源码核实无引用;
+- definition_bak_20260901/designation_bak_20260901 含数据,删除与否留待用户决策。
 
 ## 8. 不做的事
 

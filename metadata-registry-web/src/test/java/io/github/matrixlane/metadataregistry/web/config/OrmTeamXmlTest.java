@@ -14,8 +14,8 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * orm-team.xml 漂移守卫:23 个 EXT 实体全限定名可达、表名与实体解析一致、
- * 全部落在 ext schema。清单依据 design.md 第 3 节。
+ * orm-team.xml 漂移守卫:25 个 EXT 实体全限定名可达、表名与实体解析一致、
+ * 全部落在 ext schema。清单依据 design.md 第 3 节(含 V20260901015 补迁的 interop 两表)。
  */
 class OrmTeamXmlTest {
 
@@ -35,6 +35,8 @@ class OrmTeamXmlTest {
             Map.entry("io.github.matrixlane.metadataregistry.itemmapping.notification.MappingSubscription", "mapping_subscription"),
             Map.entry("io.github.matrixlane.metadataregistry.itemmapping.entity.FhirElementMapping", "fhir_element_mapping"),
             Map.entry("io.github.matrixlane.metadataregistry.itemmapping.entity.InteropMapping", "interop_mapping"),
+            Map.entry("io.github.matrixlane.metadataregistry.datasetregistration.entity.InteropDataSet", "interop_data_set"),
+            Map.entry("io.github.matrixlane.metadataregistry.datasetregistration.entity.InteropDataElement", "interop_data_element"),
             Map.entry("io.github.matrixlane.metadataregistry.web.federation.ItemLink", "item_link"),
             Map.entry("io.github.matrixlane.metadataregistry.web.federation.MergeRequest", "merge_request"),
             Map.entry("io.github.matrixlane.metadataregistry.web.federation.MergeRequestItem", "merge_request_item"),
