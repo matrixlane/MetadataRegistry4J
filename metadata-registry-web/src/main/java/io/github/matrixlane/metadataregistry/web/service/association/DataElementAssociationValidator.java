@@ -1,4 +1,4 @@
-package io.github.matrixlane.metadataregistry.dataspecification.association;
+package io.github.matrixlane.metadataregistry.web.service.association;
 
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.Item;
 import io.github.matrixlane.metadataregistry.dataspecification.DataElement;

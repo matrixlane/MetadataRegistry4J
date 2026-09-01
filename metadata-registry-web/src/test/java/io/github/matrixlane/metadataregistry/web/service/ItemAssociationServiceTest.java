@@ -8,7 +8,7 @@ import io.github.matrixlane.metadataregistry.dataspecification.DescribedValueDom
 import io.github.matrixlane.metadataregistry.dataspecification.LocalEnumeratedConceptualDomain;
 import io.github.matrixlane.metadataregistry.dataspecification.LocalEnumeratedValueDomain;
 import io.github.matrixlane.metadataregistry.dataspecification.ValueDomain;
-import io.github.matrixlane.metadataregistry.dataspecification.association.MetadataAssociationValidationException;
+import io.github.matrixlane.metadataregistry.web.service.association.MetadataAssociationValidationException;
 import io.github.matrixlane.metadataregistry.web.common.ResourceNotFoundException;
 import io.github.matrixlane.metadataregistry.web.dto.association.AssociationMutationRequest;
 import io.github.matrixlane.metadataregistry.web.dto.association.ItemAssociationEntry;

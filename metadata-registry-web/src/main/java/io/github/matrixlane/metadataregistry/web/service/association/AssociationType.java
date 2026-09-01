@@ -1,4 +1,4 @@
-package io.github.matrixlane.metadataregistry.dataspecification.association;
+package io.github.matrixlane.metadataregistry.web.service.association;
 
 /**
  * 允许的元数据对象关联类型。

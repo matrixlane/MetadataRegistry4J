@@ -1,4 +1,4 @@
-package io.github.matrixlane.metadataregistry.dataspecification.association;
+package io.github.matrixlane.metadataregistry.web.service.association;
 
 /**
  * 元数据对象关联操作的基础运行时异常。

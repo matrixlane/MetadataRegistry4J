@@ -13,9 +13,9 @@ import io.github.matrixlane.metadataregistry.dataspecification.ReferenceEnumerat
 import io.github.matrixlane.metadataregistry.dataspecification.ReferenceEnumeratedValueDomain;
 import io.github.matrixlane.metadataregistry.dataspecification.UnitOfMeasure;
 import io.github.matrixlane.metadataregistry.dataspecification.ValueDomain;
-import io.github.matrixlane.metadataregistry.dataspecification.association.AssociationType;
-import io.github.matrixlane.metadataregistry.dataspecification.association.MetadataObjectAssociationService;
-import io.github.matrixlane.metadataregistry.dataspecification.association.ValueDomainConceptualDomains;
+import io.github.matrixlane.metadataregistry.web.service.association.AssociationType;
+import io.github.matrixlane.metadataregistry.web.service.association.MetadataObjectAssociationService;
+import io.github.matrixlane.metadataregistry.web.service.association.ValueDomainConceptualDomains;
 import io.github.matrixlane.metadataregistry.web.common.BusinessException;
 import io.github.matrixlane.metadataregistry.web.common.ResourceNotFoundException;
 import io.github.matrixlane.metadataregistry.web.dto.valuedomain.PermissibleValueEntry;
