@@ -14,7 +14,7 @@
 
 ## 2. 新建 metadata-registry-ext 模块
 
-- [ ] 2.1 建模块骨架(pom、包 io.github.matrixlane.metadataregistry.ext、根 pom 注册、web 依赖之)
+- [x] 2.1 建模块骨架(pom、包 io.github.matrixlane.metadataregistry.ext、根 pom 注册、web 依赖之)
 - [ ] 2.2 标识符策略框架 35 类迁入(策略族、segment/ 19 类、IdentifierStrategyConfig/SequenceRegistry/IdentifierVersionHistory 实体、VersionStatus/VersioningPolicy/Versions/SemVerValidator、IdentifierCreationMode/IdentifierInputMode)
 - [ ] 2.3 Namespace 扩展字段剥为 NamespaceIdentifierPolicy 卫星实体(versioningPolicy/identifierInputMode/versionInputMode/manualIdentifierPattern);NamespaceService/IdentifierInputPolicyService/InitWizardService/联邦包改读写卫星实体,DTO/前端不变
 - [ ] 2.4 ScopedIdentifier 扩展字段剥为 ScopedIdentifierLifecycle 卫星实体(creationMode/versionStatus/4 时间戳);ScopedIdentifierService 适配
