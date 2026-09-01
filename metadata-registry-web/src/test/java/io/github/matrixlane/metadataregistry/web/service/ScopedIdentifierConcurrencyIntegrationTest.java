@@ -25,7 +25,17 @@ import java.util.concurrent.*;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK, properties = {
+        // 取消用户主目录 application-local.yml 导入并显式锁定内存 SQLite,
+        // 使本测试与宿主机数据源配置无关(导入的配置优先级高于非 profile 默认值)。
+        "spring.config.import=",
+        "spring.datasource.url=jdbc:sqlite:file:scoped-id-concurrency-it?mode=memory&cache=shared",
+        "spring.datasource.driver-class-name=org.sqlite.JDBC",
+        "spring.datasource.username=",
+        "spring.datasource.password=",
+        "spring.jpa.properties.hibernate.dialect=org.hibernate.community.dialect.SQLiteDialect",
+        "spring.jpa.properties.hibernate.default_schema=main"
+})
 @ActiveProfiles("test")
 class ScopedIdentifierConcurrencyIntegrationTest {
 

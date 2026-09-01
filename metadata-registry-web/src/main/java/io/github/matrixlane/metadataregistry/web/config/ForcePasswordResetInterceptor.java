@@ -4,17 +4,22 @@ import io.github.matrixlane.metadataregistry.web.auth.AuthenticatedUser;
 import io.github.matrixlane.metadataregistry.web.service.SystemSettingService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import lombok.RequiredArgsConstructor;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
 
 @Component
-@RequiredArgsConstructor
 public class ForcePasswordResetInterceptor implements HandlerInterceptor {
 
     private final SystemSettingService systemSettingService;
+
+    // @Lazy:@WebMvcTest 切片会实例化 HandlerInterceptor,但不包含 SystemSettingService;
+    // 延迟代理使切片上下文无需该服务即可加载(切片请求不会走到调用它的分支)。
+    public ForcePasswordResetInterceptor(@Lazy SystemSettingService systemSettingService) {
+        this.systemSettingService = systemSettingService;
+    }
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
