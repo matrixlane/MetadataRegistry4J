@@ -1,7 +1,6 @@
 package io.github.matrixlane.metadataregistry.web.service;
 
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.Sign;
-import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.EmailAddress;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifierStrategyConfig;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationAuthority;
@@ -170,7 +169,7 @@ public class InitWizardService {
             ra.getName().add(Sign.of(request.registrationAuthorityEnglishName()));
         }
         if (request.registrationAuthorityEmail() != null && !request.registrationAuthorityEmail().isBlank()) {
-            ra.getEmailAddress().add(EmailAddress.of(request.registrationAuthorityEmail()));
+            ra.getEmailAddress().add(request.registrationAuthorityEmail());
         }
 
         RegistrationAuthorityIdentifier rai = new RegistrationAuthorityIdentifier();

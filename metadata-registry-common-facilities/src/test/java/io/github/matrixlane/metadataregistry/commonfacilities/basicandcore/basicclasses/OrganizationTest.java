@@ -1,6 +1,5 @@
 package io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses;
 
-import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.EmailAddress;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.PhoneNumber;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.Sign;
 import org.junit.jupiter.api.Test;
@@ -14,7 +13,7 @@ class OrganizationTest {
         Organization org = new Organization();
         org.getName().add(Sign.of("Acme Corp"));
         org.getMailAddress().setValue("123 Business Rd");
-        org.getEmailAddress().add(EmailAddress.of("info@acme.com"));
+        org.getEmailAddress().add("info@acme.com");
         org.getPhoneNumber().add(PhoneNumber.of("+1-555-0000"));
         org.setWebAddress("https://acme.com");
 

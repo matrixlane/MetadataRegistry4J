@@ -1,6 +1,6 @@
 package io.github.matrixlane.metadataregistry.web.service;
 
-import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.DataTimePeriod;
+import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Datetime_Period;
 import io.github.matrixlane.metadataregistry.dataspecification.PermissibleValue;
 import io.github.matrixlane.metadataregistry.dataspecification.PermissibleValueMeaning;
 import io.github.matrixlane.metadataregistry.dataspecification.ValueMeaning;
@@ -16,6 +16,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -52,9 +55,9 @@ public class PermissibleValueMeaningService {
 
         PermissibleValueMeaning pvm = new PermissibleValueMeaning();
         pvm.setValueMeaning(vm);
-        DataTimePeriod period = new DataTimePeriod();
-        period.setStartDateTime(request.validPeriodStart());
-        period.setEndDateTime(request.validPeriodEnd());
+        Datetime_Period period = new Datetime_Period();
+        period.setStartDateTime(toOffset(request.validPeriodStart()));
+        period.setEndDateTime(toOffset(request.validPeriodEnd()));
         pvm.setValidPeriod(period);
         itemAdministrationService.ensureAdministeredItem(pvm, request.registration());
 
@@ -75,9 +78,9 @@ public class PermissibleValueMeaningService {
             pvm.setValueMeaning(vm);
         }
 
-        DataTimePeriod period = new DataTimePeriod();
-        period.setStartDateTime(request.validPeriodStart());
-        period.setEndDateTime(request.validPeriodEnd());
+        Datetime_Period period = new Datetime_Period();
+        period.setStartDateTime(toOffset(request.validPeriodStart()));
+        period.setEndDateTime(toOffset(request.validPeriodEnd()));
         pvm.setValidPeriod(period);
 
         // Find associated PV for overlap check
@@ -107,13 +110,25 @@ public class PermissibleValueMeaningService {
                 .orElseThrow(() -> new ResourceNotFoundException("PermissibleValueMeaning", id));
     }
 
+    /**
+     * DTO 边界转换:前端日期时间不含时区(LocalDateTime),按系统默认时区
+     * 补齐为 OffsetDateTime(11179-3:2023 6.2.3 Datetime 含时区)。
+     */
+    private static OffsetDateTime toOffset(LocalDateTime value) {
+        return value == null ? null : value.atZone(ZoneId.systemDefault()).toOffsetDateTime();
+    }
+
+    private static LocalDateTime toLocal(OffsetDateTime value) {
+        return value == null ? null : value.toLocalDateTime();
+    }
+
     private void checkOverlap(UUID permissibleValueId, UUID excludeId,
-                               java.time.LocalDateTime start, java.time.LocalDateTime end) {
+                               LocalDateTime start, LocalDateTime end) {
         List<PermissibleValueMeaning> existing = repository.findByPermissibleValues_Id(permissibleValueId);
-        List<DataTimePeriod> periods = new ArrayList<>();
-        DataTimePeriod newPeriod = new DataTimePeriod();
-        newPeriod.setStartDateTime(start);
-        newPeriod.setEndDateTime(end);
+        List<Datetime_Period> periods = new ArrayList<>();
+        Datetime_Period newPeriod = new Datetime_Period();
+        newPeriod.setStartDateTime(toOffset(start));
+        newPeriod.setEndDateTime(toOffset(end));
         periods.add(newPeriod);
         for (PermissibleValueMeaning pvm : existing) {
             if (excludeId != null && excludeId.equals(pvm.getId())) continue;
@@ -127,14 +142,14 @@ public class PermissibleValueMeaningService {
     private PermissibleValueMeaningResponse toResponse(PermissibleValueMeaning pvm) {
         PermissibleValue pv = pvm.getPermissibleValues().isEmpty() ? null : pvm.getPermissibleValues().get(0);
         ValueMeaning vm = pvm.getValueMeaning();
-        DataTimePeriod period = pvm.getValidPeriod();
+        Datetime_Period period = pvm.getValidPeriod();
         return new PermissibleValueMeaningResponse(
                 pvm.getId(),
                 pv == null ? null : pv.getId(),
                 pv == null ? null : ItemNamingHelper.preferredDesignation(pv),
                 vm == null ? null : vm.getId(),
                 vm == null ? null : ItemNamingHelper.preferredDesignation(vm),
-                period == null ? null : period.getStartDateTime(),
-                period == null ? null : period.getEndDateTime());
+                period == null ? null : toLocal(period.getStartDateTime()),
+                period == null ? null : toLocal(period.getEndDateTime()));
     }
 }

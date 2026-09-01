@@ -69,7 +69,7 @@ public class SystemDefaultNamespaceInitializer implements ApplicationRunner {
 
            Namespace ns = new Namespace();
            ns.setShorthandPrefix(SYSTEM_DEFAULT_PREFIX);
-           ns.setSchemeReference(SYSTEM_DEFAULT_SCHEME);
+           ns.setSchemeReference(Sign.of(SYSTEM_DEFAULT_SCHEME));
             UUID systemOrgId = UUID.fromString("00000000-0000-0000-0000-000000000001");
             Organization systemOrg = organizationRepository.findById(systemOrgId)
                     .orElseGet(() -> {

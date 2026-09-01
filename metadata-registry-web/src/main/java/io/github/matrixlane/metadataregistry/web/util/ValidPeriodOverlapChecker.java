@@ -1,21 +1,21 @@
 package io.github.matrixlane.metadataregistry.web.util;
 
-import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.DataTimePeriod;
+import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Datetime_Period;
 import io.github.matrixlane.metadataregistry.web.common.BusinessException;
 
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.List;
 
 public class ValidPeriodOverlapChecker {
 
-    public static void checkNoOverlaps(List<DataTimePeriod> periods) {
+    public static void checkNoOverlaps(List<Datetime_Period> periods) {
         if (periods == null || periods.size() < 2) {
             return;
         }
         for (int i = 0; i < periods.size(); i++) {
-            DataTimePeriod a = periods.get(i);
+            Datetime_Period a = periods.get(i);
             for (int j = i + 1; j < periods.size(); j++) {
-                DataTimePeriod b = periods.get(j);
+                Datetime_Period b = periods.get(j);
                 if (overlaps(a, b)) {
                     throw new BusinessException("有效时间段存在重叠");
                 }
@@ -23,11 +23,11 @@ public class ValidPeriodOverlapChecker {
         }
     }
 
-    private static boolean overlaps(DataTimePeriod a, DataTimePeriod b) {
-        LocalDateTime aStart = a.getStartDateTime();
-        LocalDateTime aEnd = a.getEndDateTime();
-        LocalDateTime bStart = b.getStartDateTime();
-        LocalDateTime bEnd = b.getEndDateTime();
+    private static boolean overlaps(Datetime_Period a, Datetime_Period b) {
+        OffsetDateTime aStart = a.getStartDateTime();
+        OffsetDateTime aEnd = a.getEndDateTime();
+        OffsetDateTime bStart = b.getStartDateTime();
+        OffsetDateTime bEnd = b.getEndDateTime();
 
         // Open-ended periods: if both ends are null, they always overlap
         // If one end is null, it extends to infinity

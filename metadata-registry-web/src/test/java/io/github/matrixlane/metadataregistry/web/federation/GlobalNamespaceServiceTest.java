@@ -1,5 +1,6 @@
 package io.github.matrixlane.metadataregistry.web.federation;
 
+import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.Sign;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.LanguageIdentification;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifierGenerationStrategyRegistry;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifierStrategyConfig;
@@ -87,7 +88,7 @@ class GlobalNamespaceServiceTest {
 
         global = service.ensureGlobalNamespace();
 
-        assertThat(global.getSchemeReference()).isEqualTo(GlobalNamespaceService.GLOBAL_NAMESPACE_SCHEME);
+        assertThat(global.getSchemeReference().getValue()).isEqualTo(GlobalNamespaceService.GLOBAL_NAMESPACE_SCHEME);
         assertThat(global.getShorthandPrefix()).isEqualTo(GlobalNamespaceService.GLOBAL_NAMESPACE_PREFIX);
         assertThat(global.getRegistrationAuthority()).isNull();
         assertThat(global.getDesignations()).anyMatch(d -> "全局命名空间".equals(d.getSign().getValue()));
@@ -110,7 +111,7 @@ class GlobalNamespaceServiceTest {
     void ensureNamespaceGlobalIdentifier_wrapsNamespaceAndAssignsUuid_thenReuses() {
         Namespace global = new Namespace();
         global.setId(UUID.randomUUID());
-        global.setSchemeReference(GlobalNamespaceService.GLOBAL_NAMESPACE_SCHEME);
+        global.setSchemeReference(Sign.of(GlobalNamespaceService.GLOBAL_NAMESPACE_SCHEME));
         when(namespaceRepository.findBySchemeReference(GlobalNamespaceService.GLOBAL_NAMESPACE_SCHEME))
                 .thenReturn(Optional.of(global));
 
@@ -145,7 +146,7 @@ class GlobalNamespaceServiceTest {
     void ensureNamespaceCopy_createsCopyWithSameUuid_thenReuses() {
         Namespace global = new Namespace();
         global.setId(UUID.randomUUID());
-        global.setSchemeReference(GlobalNamespaceService.GLOBAL_NAMESPACE_SCHEME);
+        global.setSchemeReference(Sign.of(GlobalNamespaceService.GLOBAL_NAMESPACE_SCHEME));
         when(namespaceRepository.findBySchemeReference(GlobalNamespaceService.GLOBAL_NAMESPACE_SCHEME))
                 .thenReturn(Optional.of(global));
         when(scopedIdentifierRepository.findByNamespaceIdAndIdentifier(global.getId(), "uuid-src-1"))
@@ -156,7 +157,7 @@ class GlobalNamespaceServiceTest {
 
         Namespace copy = service.ensureNamespaceCopy("uuid-src-1", "来源命名空间", sourceRa);
 
-        assertThat(copy.getSchemeReference())
+        assertThat(copy.getSchemeReference().getValue())
                 .isEqualTo(GlobalNamespaceService.IMPORTED_NAMESPACE_SCHEME_PREFIX + "uuid-src-1");
         assertThat(copy.getRegistrationAuthority()).isNull(); // 副本不关联注册机构
         assertThat(copy.getNamingAuthority()).isSameAs(sourceRa); // naming_authority 记录来源机构
@@ -183,7 +184,7 @@ class GlobalNamespaceServiceTest {
     void ensureNamespaceCopy_multipleSources_shareOneGlobalNamespace() {
         Namespace global = new Namespace();
         global.setId(UUID.randomUUID());
-        global.setSchemeReference(GlobalNamespaceService.GLOBAL_NAMESPACE_SCHEME);
+        global.setSchemeReference(Sign.of(GlobalNamespaceService.GLOBAL_NAMESPACE_SCHEME));
         when(namespaceRepository.findBySchemeReference(GlobalNamespaceService.GLOBAL_NAMESPACE_SCHEME))
                 .thenReturn(Optional.of(global));
         when(scopedIdentifierRepository.findByNamespaceIdAndIdentifier(any(), any()))
@@ -208,14 +209,14 @@ class GlobalNamespaceServiceTest {
 
         // 全程只复用同一个全局命名空间，从未新建
         verify(namespaceRepository, never()).save(argThat(ns ->
-                GlobalNamespaceService.GLOBAL_NAMESPACE_SCHEME.equals(ns.getSchemeReference())));
+                GlobalNamespaceService.GLOBAL_NAMESPACE_SCHEME.equals(ns.getSchemeReference().getValue())));
     }
 
     @Test
     void findNamespaceByGlobalId_locatesCopyViaSharedUuid() {
         Namespace global = new Namespace();
         global.setId(UUID.randomUUID());
-        global.setSchemeReference(GlobalNamespaceService.GLOBAL_NAMESPACE_SCHEME);
+        global.setSchemeReference(Sign.of(GlobalNamespaceService.GLOBAL_NAMESPACE_SCHEME));
         when(namespaceRepository.findBySchemeReference(GlobalNamespaceService.GLOBAL_NAMESPACE_SCHEME))
                 .thenReturn(Optional.of(global));
 

@@ -1,6 +1,6 @@
 package io.github.matrixlane.metadataregistry.dataspecification;
 
-import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.DataTimePeriod;
+import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Datetime_Period;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.Item;
 import jakarta.persistence.Embedded;
 import jakarta.persistence.JoinColumn;
@@ -20,7 +20,7 @@ import java.util.List;
 public class PermissibleValueMeaning extends Item {
 
     @Embedded
-    private DataTimePeriod validPeriod;
+    private Datetime_Period validPeriod;
 
     @ManyToOne
     @JoinColumn(name = "value_meaning_id")

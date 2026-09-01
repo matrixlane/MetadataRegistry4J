@@ -5,6 +5,9 @@ import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basic
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.Context;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.Item;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.Sign;
+import jakarta.persistence.AttributeOverride;
+import jakarta.persistence.AttributeOverrides;
+import jakarta.persistence.Embedded;
 import jakarta.persistence.Column;
 import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
@@ -33,8 +36,14 @@ import java.util.List;
 @NoArgsConstructor
 public class RegistrySpecification extends Item {
 
-    @Column(name = "name", nullable = true, length = 255)
-    private String name;
+    /**
+     * ISO/IEC 11179-3:2023 表 28(Registry_Specification):name 1 Sign (6.2.10),必备。
+     */
+    @Embedded
+    @AttributeOverrides({
+            @AttributeOverride(name = "value", column = @Column(name = "name", nullable = false, length = 255))
+    })
+    private Sign name;
 
     @Column(name = "comment", length = 4000)
     private String comment;
@@ -89,6 +98,22 @@ public class RegistrySpecification extends Item {
     @Column(name = "excluded_features", length = 4000)
     private String excludedFeatures;
 
+    /**
+     * ISO/IEC 11179-3:2023 表 28:default_time_zone 0..1 Datetime(仅时、分,
+     * 格式 "-0230":前导符号、时分无分隔、小时前导零)。
+     * <b>妥协声明</b>:实现保持 String 存储,不加时区偏移语义,仅校验 [-+]HHMM 格式。
+     */
     @Column(name = "default_time_zone", length = 8)
     private String defaultTimeZone;
+
+    /**
+     * 设置默认时区,校验 [-+]HHMM 格式(如 "+0800"、"-0230");null 放行(0..1)。
+     */
+    public void setDefaultTimeZone(String defaultTimeZone) {
+        if (defaultTimeZone != null && !defaultTimeZone.matches("[+-][0-9]{2}[0-9]{2}")) {
+            throw new IllegalArgumentException(
+                    "default_time_zone 必须为 [-+]HHMM 格式(如 \"-0230\"),实际: " + defaultTimeZone);
+        }
+        this.defaultTimeZone = defaultTimeZone;
+    }
 }

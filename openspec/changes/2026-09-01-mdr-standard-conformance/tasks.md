@@ -18,14 +18,14 @@
 
 ## 3. 类型修正
 
-- [ ] 3.1 RegistrySpecification.name → Sign @Embedded nullable=false
-- [ ] 3.2 Namespace.schemeReference → Sign @Embedded
-- [ ] 3.3 DataTypeScheme.reference → schemeReference @ManyToOne Reference_Document
-- [ ] 3.4 Datetime_Period.start/end → Datetime(OffsetDateTime 含时区)
-- [ ] 3.5 Dimensionality.coordinateIndicator → Boolean 三态
-- [ ] 3.6 email_address → String(Individual/Organization/Role),删 EmailAddress 类
-- [ ] 3.7 NaturalRange 语义修正(min 必备非负、max 可无且>min)+校验
-- [ ] 3.8 defaultTimeZone 加 [-+]HHMM 格式校验 + javadoc 妥协声明
+- [x] 3.1 RegistrySpecification.name → Sign @Embedded nullable=false
+- [x] 3.2 Namespace.schemeReference → Sign @Embedded
+- [x] 3.3 DataTypeScheme.reference → schemeReference @ManyToOne Reference_Document
+- [x] 3.4 Datetime_Period.start/end → Datetime(OffsetDateTime 含时区)
+- [x] 3.5 Dimensionality.coordinateIndicator → Boolean 三态
+- [x] 3.6 email_address → String(Individual/Organization/Role),删 EmailAddress 类
+- [x] 3.7 NaturalRange 语义修正(min 必备非负、max 可无且>min)+校验
+- [x] 3.8 defaultTimeZone 加 [-+]HHMM 格式校验 + javadoc 妥协声明
 
 ## 4. 多重性修正(每项先核库)
 

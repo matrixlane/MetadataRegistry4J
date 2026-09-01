@@ -85,7 +85,7 @@ public class NotificationRetryService {
         return accountRepository.findByUsername(recipientId)
                 .map(account -> {
                     if (account.getIndividual() != null && !account.getIndividual().getEmailAddress().isEmpty()) {
-                        return account.getIndividual().getEmailAddress().get(0).getValue();
+                        return account.getIndividual().getEmailAddress().get(0);
                     }
                     return null;
                 })

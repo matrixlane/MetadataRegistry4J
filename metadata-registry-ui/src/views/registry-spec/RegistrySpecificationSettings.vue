@@ -64,7 +64,7 @@
           <el-input v-model="form.excludedFeatures" type="textarea" :rows="2" />
         </el-form-item>
         <el-form-item label="默认时区">
-          <el-input v-model="form.defaultTimeZone" placeholder="+08:00" />
+          <el-input v-model="form.defaultTimeZone" placeholder="+0800" />
         </el-form-item>
         <el-form-item label="默认语言">
           <el-select v-model="form.defaultLanguageId" clearable placeholder="选择默认语言" style="width: 100%;">

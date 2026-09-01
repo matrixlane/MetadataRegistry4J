@@ -381,7 +381,7 @@ public class AuthService {
         entity.getEmailAddress().clear();
         if (request.emailAddress() != null) {
             for (String e : request.emailAddress()) {
-                entity.getEmailAddress().add(io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.EmailAddress.of(e));
+                entity.getEmailAddress().add(e);
             }
         }
         entity.getPhoneNumber().clear();
@@ -398,7 +398,7 @@ public class AuthService {
                 entity.getName() == null ? null : entity.getName().getValue(),
                 entity.getTitle(),
                 entity.getMailAddress() == null ? null : entity.getMailAddress().getValue(),
-                entity.getEmailAddress().stream().map(io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.EmailAddress::getValue).toList(),
+                entity.getEmailAddress().stream().toList(),
                 entity.getPhoneNumber().stream().map(io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.PhoneNumber::getValue).toList());
     }
 

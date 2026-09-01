@@ -1,6 +1,11 @@
 package io.github.matrixlane.metadataregistry.commonfacilities.identification;
 
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.Item;
+import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.Sign;
+import jakarta.persistence.AttributeOverride;
+import jakarta.persistence.AttributeOverrides;
+import jakarta.persistence.Column;
+import jakarta.persistence.Embedded;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Organization;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationAuthority;
 import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.NamingConvention;
@@ -33,11 +38,14 @@ public class Namespace extends Item {
     private String shorthandPrefix;
 
     /**
-     * URN-style scheme reference for this namespace.
-     * Example: "urn:metadata-registry:system-default"
+     * ISO/IEC 11179-3:2023 表 13(Namespace):scheme_reference 0..1 Sign (6.2.10),
+     * IRI 形式的方案引用。例:"urn:metadata-registry:system-default"
      */
-    @jakarta.persistence.Column(name = "scheme_reference", length = 255)
-    private String schemeReference;
+    @Embedded
+    @AttributeOverrides({
+            @AttributeOverride(name = "value", column = @Column(name = "scheme_reference", length = 255))
+    })
+    private Sign schemeReference;
 
     /**
      * 版本生成策略（如 SEMVER / SEQUENTIAL / DATE）。

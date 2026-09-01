@@ -4,7 +4,9 @@ import io.github.matrixlane.metadataregistry.dataspecification.DataTypeScheme;
 import io.github.matrixlane.metadataregistry.web.common.ResourceNotFoundException;
 import io.github.matrixlane.metadataregistry.web.dto.datatype.DataTypeSchemeRequest;
 import io.github.matrixlane.metadataregistry.web.dto.datatype.DataTypeSchemeResponse;
+import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.ReferenceDocument;
 import io.github.matrixlane.metadataregistry.web.repository.DataTypeSchemeRepository;
+import io.github.matrixlane.metadataregistry.web.repository.ReferenceDocumentRepository;
 import io.github.matrixlane.metadataregistry.web.util.ItemNamingHelper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -21,6 +23,7 @@ import java.util.UUID;
 public class DataTypeSchemeService {
 
     private final DataTypeSchemeRepository repository;
+    private final ReferenceDocumentRepository referenceDocumentRepository;
     private final ItemAdministrationService itemAdministrationService;
 
     @Transactional(readOnly = true)
@@ -59,7 +62,9 @@ public class DataTypeSchemeService {
     }
 
     private void applyRequest(DataTypeScheme entity, DataTypeSchemeRequest request) {
-        entity.setReference(request.reference());
+        entity.setSchemeReference(request.schemeReferenceId() == null ? null
+                : referenceDocumentRepository.findById(request.schemeReferenceId())
+                        .orElseThrow(() -> new ResourceNotFoundException("ReferenceDocument", request.schemeReferenceId())));
         itemAdministrationService.applyDesignations(
                 entity, request.designations(),
                 request.registration() == null ? null : request.registration().namespaceId());
@@ -73,7 +78,7 @@ public class DataTypeSchemeService {
         return new DataTypeSchemeResponse(
                 entity.getId(),
                 ItemNamingHelper.preferredDesignation(entity),
-                entity.getReference(),
+                entity.getSchemeReference() == null ? null : entity.getSchemeReference().getId(),
                 itemAdministrationService.mapDesignations(entity),
                 itemAdministrationService.mapDefinitions(entity),
                 itemAdministrationService.buildItemMeta(entity));

@@ -6,25 +6,28 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 
 /**
- * ISO/IEC 11179-3:2023, 6.3.9 — Datetime_Period
+ * ISO/IEC 11179-3:2023, 6.3.10 — Datetime_Period
  * <p>
  * A period of time defined by a start and an end datetime.
+ * <p>
+ * start/end 的类型为 6.2.3 Datetime,含时区(ISO 8601 basic format),
+ * 以 {@link java.time.OffsetDateTime} 对应。
  */
-@StandardReference("ISO/IEC 11179-3:2023, 6.3.9")
+@StandardReference("ISO/IEC 11179-3:2023, 6.3.10")
 @Embeddable
 @Getter
 @Setter
 @NoArgsConstructor
 public class Datetime_Period {
 
-    private LocalDateTime startDateTime;
+    private OffsetDateTime startDateTime;
 
-    private LocalDateTime endDateTime;
+    private OffsetDateTime endDateTime;
 
-    public Datetime_Period(LocalDateTime startDateTime, LocalDateTime endDateTime) {
+    public Datetime_Period(OffsetDateTime startDateTime, OffsetDateTime endDateTime) {
         this.startDateTime = startDateTime;
         this.endDateTime = endDateTime;
     }
@@ -32,7 +35,7 @@ public class Datetime_Period {
     /**
      * Returns true if this period contains the given point in time.
      */
-    public boolean contains(LocalDateTime point) {
+    public boolean contains(OffsetDateTime point) {
         if (point == null) {
             return false;
         }

@@ -2,7 +2,6 @@ package io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basi
 
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.StandardReference;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.Entity;
-import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.EmailAddress;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.PhoneNumber;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.PostalAddress;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.Sign;
@@ -46,9 +45,11 @@ public class Organization extends Entity {
     })
     private PostalAddress mailAddress = new PostalAddress();
 
+    /** 11179-3:2023 表 3:email_address 0..*,String (6.2.11)。 */
     @ElementCollection
     @CollectionTable(name = "organization_email", joinColumns = @JoinColumn(name = "organization_id"))
-    private List<EmailAddress> emailAddress = new ArrayList<>();
+    @Column(name = "value")
+    private List<String> emailAddress = new ArrayList<>();
 
     @ElementCollection
     @CollectionTable(name = "organization_phone", joinColumns = @JoinColumn(name = "organization_id"))

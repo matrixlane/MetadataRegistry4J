@@ -2,7 +2,8 @@
  
  import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.LanguageIdentification;
  import io.github.matrixlane.metadataregistry.commonfacilities.registration.DegreeOfConformance;
- import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrySpecification;
+ import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.Sign;
+import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrySpecification;
  import io.github.matrixlane.metadataregistry.web.common.ResourceNotFoundException;
  import io.github.matrixlane.metadataregistry.web.dto.common.TextLine;
  import io.github.matrixlane.metadataregistry.web.dto.registries.RegistrySpecificationRequest;
@@ -95,7 +96,7 @@
          UUID id = UUID.randomUUID();
          RegistrySpecification existing = new RegistrySpecification();
          existing.setId(id);
-         existing.setName("Old");
+         existing.setName(Sign.of("Old"));
          existing.setCharacterRepertoire("ASCII");
          when(repository.findById(id)).thenReturn(Optional.of(existing));
          when(repository.save(any(RegistrySpecification.class))).thenAnswer(inv -> inv.getArgument(0));

@@ -9,7 +9,7 @@ import java.util.UUID;
 public record DataTypeSchemeResponse(
         UUID id,
         String label,
-        String reference,
+        UUID schemeReferenceId,
         List<TextLineResponse> designations,
         List<TextLineResponse> definitions,
         ItemMetaResponse meta) {

@@ -1,6 +1,6 @@
 package io.github.matrixlane.metadataregistry.web.service;
 
-import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.DataTimePeriod;
+import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Datetime_Period;
 import io.github.matrixlane.metadataregistry.dataspecification.ConceptualDomain;
 import io.github.matrixlane.metadataregistry.dataspecification.DescribedConceptualDomain;
 import io.github.matrixlane.metadataregistry.dataspecification.EnumeratedConceptualDomain;
@@ -26,6 +26,9 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -194,17 +197,29 @@ public class ConceptualDomainService {
         for (ValueMeaningSet vms : sets) {
             ValueMeaning vm = vms.getValueMeaning();
             if (vm == null) continue;
-            DataTimePeriod period = vms.getValidPeriod();
+            Datetime_Period period = vms.getValidPeriod();
             out.add(new ValueMeaningResponse(
                     vm.getId(),
                     ItemNamingHelper.preferredDesignation(vm),
                     itemAdministrationService.mapDesignations(vm),
                     itemAdministrationService.mapDefinitions(vm),
-                    period == null ? null : period.getStartDateTime(),
-                    period == null ? null : period.getEndDateTime(),
+                    period == null ? null : toLocal(period.getStartDateTime()),
+                    period == null ? null : toLocal(period.getEndDateTime()),
                     itemAdministrationService.buildItemMeta(vm)));
         }
         return out;
+    }
+
+    /**
+     * DTO 边界转换:前端日期时间不含时区(LocalDateTime),按系统默认时区
+     * 补齐为 OffsetDateTime(11179-3:2023 6.2.3 Datetime 含时区)。
+     */
+    private static OffsetDateTime toOffset(LocalDateTime value) {
+        return value == null ? null : value.atZone(ZoneId.systemDefault()).toOffsetDateTime();
+    }
+
+    private static LocalDateTime toLocal(OffsetDateTime value) {
+        return value == null ? null : value.toLocalDateTime();
     }
 
     private void applyValueMeanings(LocalEnumeratedConceptualDomain lecd, List<ValueMeaningEntry> entries) {
@@ -212,11 +227,11 @@ public class ConceptualDomainService {
         if (entries == null || entries.isEmpty()) {
             return;
         }
-        List<DataTimePeriod> periods = new ArrayList<>();
+        List<Datetime_Period> periods = new ArrayList<>();
         for (ValueMeaningEntry entry : entries) {
-            DataTimePeriod p = new DataTimePeriod();
-            p.setStartDateTime(entry.validPeriodStart());
-            p.setEndDateTime(entry.validPeriodEnd());
+            Datetime_Period p = new Datetime_Period();
+            p.setStartDateTime(toOffset(entry.validPeriodStart()));
+            p.setEndDateTime(toOffset(entry.validPeriodEnd()));
             periods.add(p);
         }
         ValidPeriodOverlapChecker.checkNoOverlaps(periods);
@@ -230,9 +245,9 @@ public class ConceptualDomainService {
             ValueMeaningSet vms = new ValueMeaningSet();
             vms.setValueMeaning(vm);
             vms.setLocalEnumeratedConceptualDomain(lecd);
-            DataTimePeriod period = new DataTimePeriod();
-            period.setStartDateTime(entry.validPeriodStart());
-            period.setEndDateTime(entry.validPeriodEnd());
+            Datetime_Period period = new Datetime_Period();
+            period.setStartDateTime(toOffset(entry.validPeriodStart()));
+            period.setEndDateTime(toOffset(entry.validPeriodEnd()));
             vms.setValidPeriod(period);
             valueMeaningSetRepository.save(vms);
         }

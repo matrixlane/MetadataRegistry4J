@@ -56,12 +56,14 @@ public class GlobalNamespaceService {
     private final OrganizationRepository organizationRepository;
 
     public static boolean isGlobalNamespace(Namespace ns) {
-        return ns != null && GLOBAL_NAMESPACE_SCHEME.equals(ns.getSchemeReference());
+        return ns != null && ns.getSchemeReference() != null
+                && GLOBAL_NAMESPACE_SCHEME.equals(ns.getSchemeReference().getValue());
     }
 
     public static boolean isImportedNamespace(Namespace ns) {
         return ns != null && ns.getSchemeReference() != null
-                && ns.getSchemeReference().startsWith(IMPORTED_NAMESPACE_SCHEME_PREFIX);
+                && ns.getSchemeReference().getValue() != null
+                && ns.getSchemeReference().getValue().startsWith(IMPORTED_NAMESPACE_SCHEME_PREFIX);
     }
 
     /**
@@ -131,7 +133,7 @@ public class GlobalNamespaceService {
             return existing.get();
         }
         Namespace copy = new Namespace();
-        copy.setSchemeReference(IMPORTED_NAMESPACE_SCHEME_PREFIX + mappingId);
+        copy.setSchemeReference(Sign.of(IMPORTED_NAMESPACE_SCHEME_PREFIX + mappingId));
         copy.setNamingAuthority(namingAuthority);
         addDesignation(copy,
                 (sourceName == null || sourceName.isBlank()) ? "imported-namespace" : sourceName,
@@ -173,7 +175,7 @@ public class GlobalNamespaceService {
     private Namespace createGlobalNamespace() {
         Namespace ns = new Namespace();
         ns.setShorthandPrefix(GLOBAL_NAMESPACE_PREFIX);
-        ns.setSchemeReference(GLOBAL_NAMESPACE_SCHEME);
+        ns.setSchemeReference(Sign.of(GLOBAL_NAMESPACE_SCHEME));
         ns.setVersioningPolicy("SEQUENTIAL");
         addDesignation(ns, "global", "en-US", "Latn", "US");
         addDesignation(ns, "全局命名空间", "zh-CN", "Hans", "CN");

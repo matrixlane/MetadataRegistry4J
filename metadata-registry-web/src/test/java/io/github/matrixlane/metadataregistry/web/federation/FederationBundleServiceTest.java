@@ -143,7 +143,7 @@ class FederationBundleServiceTest {
         // 全局命名空间下的标识不作为来源身份
         Namespace global = new Namespace();
         global.setId(UUID.randomUUID());
-        global.setSchemeReference(GlobalNamespaceService.GLOBAL_NAMESPACE_SCHEME);
+        global.setSchemeReference(Sign.of(GlobalNamespaceService.GLOBAL_NAMESPACE_SCHEME));
         ai.getScopedIdentifiers().add(new ScopedIdentifier("glob-1", global, ai));
 
         RegistryNode node = node("RAI-1");
@@ -172,7 +172,7 @@ class FederationBundleServiceTest {
         // 无注册机构自有命名空间标识时，取外部（非全局、非迁入副本）命名空间标识
         Namespace externalNs = new Namespace();
         externalNs.setId(UUID.randomUUID());
-        externalNs.setSchemeReference("urn:example:external-standard");
+        externalNs.setSchemeReference(Sign.of("urn:example:external-standard"));
 
         DataElement item = new DataElement();
         item.setId(UUID.randomUUID());
@@ -184,7 +184,7 @@ class FederationBundleServiceTest {
         // 迁入副本命名空间下的标识同样不作为来源身份
         Namespace importedNs = new Namespace();
         importedNs.setId(UUID.randomUUID());
-        importedNs.setSchemeReference(GlobalNamespaceService.IMPORTED_NAMESPACE_SCHEME_PREFIX + "uuid-x");
+        importedNs.setSchemeReference(Sign.of(GlobalNamespaceService.IMPORTED_NAMESPACE_SCHEME_PREFIX + "uuid-x"));
         ai.getScopedIdentifiers().add(new ScopedIdentifier("IMP-1", importedNs, ai));
 
         RegistryNode node = node("RAI-1");
@@ -211,7 +211,7 @@ class FederationBundleServiceTest {
         AdministeredItem globalOnly = new AdministeredItem(item);
         Namespace global = new Namespace();
         global.setId(UUID.randomUUID());
-        global.setSchemeReference(GlobalNamespaceService.GLOBAL_NAMESPACE_SCHEME);
+        global.setSchemeReference(Sign.of(GlobalNamespaceService.GLOBAL_NAMESPACE_SCHEME));
         globalOnly.getScopedIdentifiers().add(new ScopedIdentifier("glob-1", global, globalOnly));
         assertThat(service.toSnapshot(globalOnly, node("RAI-1"), Map.of())).isNull();
     }

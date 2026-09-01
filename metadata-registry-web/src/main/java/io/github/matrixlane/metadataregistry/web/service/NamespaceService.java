@@ -143,7 +143,7 @@ public class NamespaceService {
             entity.setShorthandPrefix(request.shorthandPrefix());
         }
         if (request.schemeReference() != null) {
-            entity.setSchemeReference(request.schemeReference());
+            entity.setSchemeReference(Sign.of(request.schemeReference()));
         }
         if (request.mandatoryNamingConventionIndicator() != null) {
             entity.setMandatoryNamingConventionIndicator(request.mandatoryNamingConventionIndicator());
@@ -186,7 +186,7 @@ public class NamespaceService {
             entity.setShorthandPrefix(request.shorthandPrefix());
         }
         if (request.schemeReference() != null) {
-            entity.setSchemeReference(request.schemeReference());
+            entity.setSchemeReference(Sign.of(request.schemeReference()));
         }
         if (request.mandatoryNamingConventionIndicator() != null) {
             entity.setMandatoryNamingConventionIndicator(request.mandatoryNamingConventionIndicator());
@@ -339,7 +339,7 @@ public class NamespaceService {
                 itemAdministrationService.mapDesignations(entity),
                 itemAdministrationService.mapDefinitions(entity),
                 entity.getShorthandPrefix(),
-                entity.getSchemeReference(),
+                entity.getSchemeReference() == null ? null : entity.getSchemeReference().getValue(),
                 entity.getMandatoryNamingConventionIndicator(),
                 namingConventionIds,
                 entity.getOneNamePerItemIndicator(),
@@ -374,7 +374,7 @@ public class NamespaceService {
                 itemAdministrationService.mapDesignations(entity),
                 itemAdministrationService.mapDefinitions(entity),
                 entity.getShorthandPrefix(),
-                entity.getSchemeReference(),
+                entity.getSchemeReference() == null ? null : entity.getSchemeReference().getValue(),
                 entity.getMandatoryNamingConventionIndicator(),
                 namingConventionIds,
                 entity.getOneNamePerItemIndicator(),

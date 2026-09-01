@@ -1,6 +1,6 @@
 package io.github.matrixlane.metadataregistry.dataspecification;
 
-import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.DataTimePeriod;
+import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Datetime_Period;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.Item;
 import jakarta.persistence.Embedded;
 import jakarta.persistence.JoinColumn;
@@ -24,7 +24,7 @@ public abstract class ValueDomain extends Item {
     private DataType dataType;
 
     @Embedded
-    private DataTimePeriod validPeriod;
+    private Datetime_Period validPeriod;
 
     private Integer maximumCharacterQuantity;
 

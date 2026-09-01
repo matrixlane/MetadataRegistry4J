@@ -1,5 +1,6 @@
 package io.github.matrixlane.metadataregistry.web.service;
 
+import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.Sign;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.LanguageIdentification;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.Item;
 import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.Acceptability;
@@ -322,7 +323,7 @@ class ItemAdministrationServiceTest {
         UUID namespaceId = UUID.randomUUID();
         Namespace ns = new Namespace();
         ns.setId(namespaceId);
-        ns.setSchemeReference(SystemDefaultNamespaceInitializer.SYSTEM_DEFAULT_SCHEME);
+        ns.setSchemeReference(Sign.of(SystemDefaultNamespaceInitializer.SYSTEM_DEFAULT_SCHEME));
         when(namespaceRepository.findById(namespaceId)).thenReturn(Optional.of(ns));
         when(namespaceRepository.existsByRegistrationAuthorityIsNotNull()).thenReturn(false);
 
@@ -341,7 +342,7 @@ class ItemAdministrationServiceTest {
         UUID namespaceId = UUID.randomUUID();
         Namespace ns = new Namespace();
         ns.setId(namespaceId);
-        ns.setSchemeReference("urn:example:external-standard");
+        ns.setSchemeReference(Sign.of("urn:example:external-standard"));
         when(namespaceRepository.findById(namespaceId)).thenReturn(Optional.of(ns));
 
         ItemRegistrationRequest req = new ItemRegistrationRequest(
@@ -482,7 +483,7 @@ class ItemAdministrationServiceTest {
         RegistrationAuthority ra = newRa();
         Namespace ns = new Namespace();
         ns.setId(UUID.randomUUID());
-        ns.setSchemeReference("urn:example:external-standard");
+        ns.setSchemeReference(Sign.of("urn:example:external-standard"));
         when(namespaceRepository.findById(ns.getId())).thenReturn(Optional.of(ns));
         UUID accountId = UUID.randomUUID();
         when(activeRegistrarService.currentAccountIdOrNull()).thenReturn(accountId);
@@ -501,7 +502,7 @@ class ItemAdministrationServiceTest {
     void ensureAdministeredItem_create_rejectsNonRegistrar() {
         Namespace ns = new Namespace();
         ns.setId(UUID.randomUUID());
-        ns.setSchemeReference("urn:example:external-standard");
+        ns.setSchemeReference(Sign.of("urn:example:external-standard"));
         when(namespaceRepository.findById(ns.getId())).thenReturn(Optional.of(ns));
         UUID accountId = UUID.randomUUID();
         when(activeRegistrarService.currentAccountIdOrNull()).thenReturn(accountId);
@@ -576,7 +577,7 @@ class ItemAdministrationServiceTest {
         RegistrationAuthority targetRa = newRa();
         Namespace ns = new Namespace();
         ns.setId(UUID.randomUUID());
-        ns.setSchemeReference("urn:example:external-standard");
+        ns.setSchemeReference(Sign.of("urn:example:external-standard"));
         when(namespaceRepository.findById(ns.getId())).thenReturn(Optional.of(ns));
 
         ItemRegistrationRequest req = new ItemRegistrationRequest(
@@ -803,7 +804,7 @@ class ItemAdministrationServiceTest {
         targetNs.setVersioningPolicy("SEQUENTIAL");
         Namespace sourceCopy = new Namespace();
         sourceCopy.setId(UUID.randomUUID());
-        sourceCopy.setSchemeReference("urn:metadata-registry:imported:uuid-1");
+        sourceCopy.setSchemeReference(Sign.of("urn:metadata-registry:imported:uuid-1"));
         when(namespaceRepository.findById(targetNs.getId())).thenReturn(Optional.of(targetNs));
 
         AdministeredItem ai = new AdministeredItem(item);
@@ -834,7 +835,7 @@ class ItemAdministrationServiceTest {
         raNs.setVersioningPolicy("SEQUENTIAL");
         Namespace sourceCopy = new Namespace();
         sourceCopy.setId(UUID.randomUUID());
-        sourceCopy.setSchemeReference("urn:metadata-registry:imported:uuid-1");
+        sourceCopy.setSchemeReference(Sign.of("urn:metadata-registry:imported:uuid-1"));
         when(namespaceRepository.existsByRegistrationAuthorityIsNotNull()).thenReturn(true);
 
         AdministeredItem ai = new AdministeredItem(item);

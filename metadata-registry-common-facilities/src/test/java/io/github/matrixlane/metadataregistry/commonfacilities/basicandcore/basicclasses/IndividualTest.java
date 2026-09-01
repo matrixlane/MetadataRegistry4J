@@ -1,6 +1,5 @@
 package io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses;
 
-import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.EmailAddress;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.PhoneNumber;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.Sign;
 import org.junit.jupiter.api.Test;
@@ -15,7 +14,7 @@ class IndividualTest {
         ind.setTitle("Dr.");
         ind.getName().setValue("Jane Doe");
         ind.getMailAddress().setValue("123 Main St");
-        ind.getEmailAddress().add(EmailAddress.of("jane@example.com"));
+        ind.getEmailAddress().add("jane@example.com");
         ind.getPhoneNumber().add(PhoneNumber.of("+86-138-0000-0000"));
 
         assertThat(ind.getTitle()).isEqualTo("Dr.");

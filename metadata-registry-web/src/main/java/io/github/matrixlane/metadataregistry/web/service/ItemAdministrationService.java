@@ -447,7 +447,8 @@ public class ItemAdministrationService {
     private void enforceRaNamespacePrecondition(Namespace ns) {
         boolean externalNamespace = ns != null
                 && ns.getRegistrationAuthority() == null
-                && !SystemDefaultNamespaceInitializer.SYSTEM_DEFAULT_SCHEME.equals(ns.getSchemeReference());
+                && !(ns.getSchemeReference() != null
+                && SystemDefaultNamespaceInitializer.SYSTEM_DEFAULT_SCHEME.equals(ns.getSchemeReference().getValue()));
         if (externalNamespace) {
             return;
         }

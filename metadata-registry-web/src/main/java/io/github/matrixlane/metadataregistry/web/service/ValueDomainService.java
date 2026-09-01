@@ -1,6 +1,6 @@
 package io.github.matrixlane.metadataregistry.web.service;
 
-import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.DataTimePeriod;
+import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Datetime_Period;
 import io.github.matrixlane.metadataregistry.dataspecification.DataType;
 import io.github.matrixlane.metadataregistry.dataspecification.DescribedConceptualDomain;
 import io.github.matrixlane.metadataregistry.dataspecification.DescribedValueDomain;
@@ -38,6 +38,9 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -181,15 +184,27 @@ public class ValueDomainService {
                 .orElseThrow(() -> new ResourceNotFoundException("ValueDomain", id));
     }
 
+    /**
+     * DTO 边界转换:前端日期时间不含时区(LocalDateTime),按系统默认时区
+     * 补齐为 OffsetDateTime(11179-3:2023 6.2.3 Datetime 含时区)。
+     */
+    private static OffsetDateTime toOffset(LocalDateTime value) {
+        return value == null ? null : value.atZone(ZoneId.systemDefault()).toOffsetDateTime();
+    }
+
+    private static LocalDateTime toLocal(OffsetDateTime value) {
+        return value == null ? null : value.toLocalDateTime();
+    }
+
     private void applyCommon(ValueDomain entity, ValueDomainRequest request) {
         applyDataType(entity, request.dataTypeId());
         applyUnitOfMeasure(entity, request.unitOfMeasureId());
         entity.setMaximumCharacterQuantity(request.maximumCharacterQuantity());
         entity.setFormat(request.format());
         if (request.validPeriodStart() != null || request.validPeriodEnd() != null) {
-            DataTimePeriod period = new DataTimePeriod();
-            period.setStartDateTime(request.validPeriodStart());
-            period.setEndDateTime(request.validPeriodEnd());
+            Datetime_Period period = new Datetime_Period();
+            period.setStartDateTime(toOffset(request.validPeriodStart()));
+            period.setEndDateTime(toOffset(request.validPeriodEnd()));
             entity.setValidPeriod(period);
         } else {
             entity.setValidPeriod(null);
@@ -278,11 +293,11 @@ public class ValueDomainService {
         if (entries == null || entries.isEmpty()) {
             return;
         }
-        List<DataTimePeriod> periods = new ArrayList<>();
+        List<Datetime_Period> periods = new ArrayList<>();
         for (PermissibleValueEntry entry : entries) {
-            DataTimePeriod p = new DataTimePeriod();
-            p.setStartDateTime(entry.validPeriodStart());
-            p.setEndDateTime(entry.validPeriodEnd());
+            Datetime_Period p = new Datetime_Period();
+            p.setStartDateTime(toOffset(entry.validPeriodStart()));
+            p.setEndDateTime(toOffset(entry.validPeriodEnd()));
             periods.add(p);
         }
         ValidPeriodOverlapChecker.checkNoOverlaps(periods);
@@ -296,9 +311,9 @@ public class ValueDomainService {
             PermissibleValueSet pvs = new PermissibleValueSet();
             pvs.setPermissibleValue(pv);
             pvs.setLocalEnumeratedValueDomain(levd);
-            DataTimePeriod period = new DataTimePeriod();
-            period.setStartDateTime(entry.validPeriodStart());
-            period.setEndDateTime(entry.validPeriodEnd());
+            Datetime_Period period = new Datetime_Period();
+            period.setStartDateTime(toOffset(entry.validPeriodStart()));
+            period.setEndDateTime(toOffset(entry.validPeriodEnd()));
             pvs.setValidPeriod(period);
             permissibleValueSetRepository.save(pvs);
         }
@@ -349,7 +364,7 @@ public class ValueDomainService {
         }
         DataType dt = entity.getDataType();
         UnitOfMeasure uom = entity.getUnitOfMeasure();
-        DataTimePeriod period = entity.getValidPeriod();
+        Datetime_Period period = entity.getValidPeriod();
         io.github.matrixlane.metadataregistry.dataspecification.ConceptualDomain unifiedCd =
                 ValueDomainConceptualDomains.get(entity);
         return new ValueDomainResponse(
@@ -362,8 +377,8 @@ public class ValueDomainService {
                 uom == null ? null : ItemNamingHelper.preferredDesignation(uom),
                 entity.getMaximumCharacterQuantity(),
                 entity.getFormat(),
-                period == null ? null : period.getStartDateTime(),
-                period == null ? null : period.getEndDateTime(),
+                period == null ? null : toLocal(period.getStartDateTime()),
+                period == null ? null : toLocal(period.getEndDateTime()),
                 dcdId,
                 dcdLabel,
                 lecdId,
@@ -409,14 +424,14 @@ public class ValueDomainService {
         for (PermissibleValueSet pvs : sets) {
             PermissibleValue pv = pvs.getPermissibleValue();
             if (pv == null) continue;
-            DataTimePeriod period = pvs.getValidPeriod();
+            Datetime_Period period = pvs.getValidPeriod();
             out.add(new PermissibleValueResponse(
                     pv.getId(),
                     ItemNamingHelper.preferredDesignation(pv),
                     itemAdministrationService.mapDesignations(pv),
                     itemAdministrationService.mapDefinitions(pv),
-                    period == null ? null : period.getStartDateTime(),
-                    period == null ? null : period.getEndDateTime(),
+                    period == null ? null : toLocal(period.getStartDateTime()),
+                    period == null ? null : toLocal(period.getEndDateTime()),
                     itemAdministrationService.buildItemMeta(pv)));
         }
         return out;

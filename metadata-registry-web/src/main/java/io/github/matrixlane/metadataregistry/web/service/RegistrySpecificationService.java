@@ -1,5 +1,6 @@
 package io.github.matrixlane.metadataregistry.web.service;
 
+import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.Sign;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.LanguageIdentification;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.Context;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.Item;
@@ -121,7 +122,7 @@ public class RegistrySpecificationService {
                 null,
                 null,
                 null,
-                "UTC+8",
+                "+0800",
                 List.of(new io.github.matrixlane.metadataregistry.web.dto.common.TextLine(languageId, effectiveName, null, null, null, true)),
                 null,
                 null);
@@ -143,7 +144,7 @@ public class RegistrySpecificationService {
    }
 
     private void applyRequest(RegistrySpecification entity, RegistrySpecificationRequest request) {
-        entity.setName(request.name());
+        entity.setName(Sign.of(request.name()));
         entity.setComment(request.comment());
         entity.setWebAddress(request.webAddress());
         entity.setCharacterRepertoire(request.characterRepertoire());
@@ -216,7 +217,7 @@ public class RegistrySpecificationService {
         return new RegistrySpecificationResponse(
                 entity.getId(),
                 ItemNamingHelper.preferredDesignation(entity),
-                entity.getName(),
+                entity.getName() == null ? null : entity.getName().getValue(),
                 entity.getComment(),
                 entity.getWebAddress(),
                 defaultLang == null ? null : defaultLang.getId(),

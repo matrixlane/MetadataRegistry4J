@@ -1,5 +1,6 @@
 package io.github.matrixlane.metadataregistry.web.seed;
 
+import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.Sign;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Organization;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.LanguageIdentification;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace;
@@ -97,7 +98,7 @@ class SystemDefaultNamespaceInitializerTest {
         Namespace saved = nsCaptor.getValue();
 
         assertThat(saved.getShorthandPrefix()).isEqualTo("sys:");
-        assertThat(saved.getSchemeReference()).isEqualTo("urn:metadata-registry:system-default");
+        assertThat(saved.getSchemeReference().getValue()).isEqualTo("urn:metadata-registry:system-default");
         assertThat(saved.getNamingAuthority()).isNotNull();
         assertThat(saved.getNamingAuthority().getName().get(0).getValue()).isEqualTo("system");
         assertThat(saved.getDesignations()).isNotEmpty();

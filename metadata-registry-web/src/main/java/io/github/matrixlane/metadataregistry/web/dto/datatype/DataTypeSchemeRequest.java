@@ -5,9 +5,10 @@ import io.github.matrixlane.metadataregistry.web.dto.common.TextLine;
 import jakarta.validation.Valid;
 
 import java.util.List;
+import java.util.UUID;
 
 public record DataTypeSchemeRequest(
-        String reference,
+        UUID schemeReferenceId,
         @Valid
         List<TextLine> designations,
         @Valid

@@ -1,7 +1,6 @@
 package io.github.matrixlane.metadataregistry.web.service;
 
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Organization;
-import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.EmailAddress;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.PhoneNumber;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.PostalAddress;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.Sign;
@@ -86,7 +85,7 @@ public class OrganizationService {
         entity.getEmailAddress().clear();
         if (request.emailAddress() != null) {
             for (String e : request.emailAddress()) {
-                entity.getEmailAddress().add(EmailAddress.of(e));
+                entity.getEmailAddress().add(e);
             }
         }
 
@@ -120,7 +119,7 @@ public class OrganizationService {
                 englishName,
                 additional,
                 entity.getMailAddress() == null ? null : entity.getMailAddress().getValue(),
-                entity.getEmailAddress().stream().map(EmailAddress::getValue).toList(),
+                entity.getEmailAddress().stream().toList(),
                 entity.getPhoneNumber().stream().map(PhoneNumber::getValue).toList(),
                 entity.getWebAddress());
     }

@@ -86,7 +86,7 @@ class NamespaceGateIntegrationTest {
         // system-default 命名空间不计入前置条件。
         Namespace systemDefault = new Namespace();
         systemDefault.setShorthandPrefix(SystemDefaultNamespaceInitializer.SYSTEM_DEFAULT_PREFIX);
-        systemDefault.setSchemeReference(SystemDefaultNamespaceInitializer.SYSTEM_DEFAULT_SCHEME);
+        systemDefault.setSchemeReference(Sign.of(SystemDefaultNamespaceInitializer.SYSTEM_DEFAULT_SCHEME));
         namespaceRepository.save(systemDefault);
 
         assertThatThrownBy(() -> dataElementService.create(requestFor(systemDefault.getId())))
@@ -109,7 +109,7 @@ class NamespaceGateIntegrationTest {
     void createDataElement_externalNamespace_notBlocked() {
         // 外部命名空间（无关联注册机构）用于导入/编目外部数据标准，不受门槛限制。
         Namespace external = new Namespace();
-        external.setSchemeReference("urn:example:external-standard");
+        external.setSchemeReference(Sign.of("urn:example:external-standard"));
         namespaceRepository.save(external);
         assertThat(namespaceRepository.existsByRegistrationAuthorityIsNotNull()).isFalse();
 

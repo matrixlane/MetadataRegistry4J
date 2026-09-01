@@ -18,7 +18,7 @@ public interface NamespaceRepository
 
     boolean existsByRegistrationAuthorityIsNotNull();
 
-    @Query("SELECT ns FROM Namespace ns WHERE ns.schemeReference = :schemeReference")
+    @Query("SELECT ns FROM Namespace ns WHERE ns.schemeReference.value = :schemeReference")
     Optional<Namespace> findBySchemeReference(@Param("schemeReference") String schemeReference);
 
     /**
@@ -26,6 +26,9 @@ public interface NamespaceRepository
      * 的自有命名空间。1:1 不变量由 active-registrar-ownership 能力保障。
      * 用于 ItemAdministrationService 默认命名空间推导。
      */
+    @Query("SELECT ns FROM Namespace ns WHERE ns.registrationAuthority.id = :registrationAuthorityId"
+            + " AND ns.schemeReference.value <> :schemeReference")
     Optional<Namespace> findFirstByRegistrationAuthority_IdAndSchemeReferenceNot(
-            UUID registrationAuthorityId, String schemeReference);
+            @Param("registrationAuthorityId") UUID registrationAuthorityId,
+            @Param("schemeReference") String schemeReference);
 }

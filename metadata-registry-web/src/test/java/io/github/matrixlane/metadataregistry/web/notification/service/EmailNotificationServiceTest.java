@@ -64,7 +64,7 @@ class EmailNotificationServiceTest {
         Account user = new Account();
         user.setUsername("user1");
         Individual ind = new Individual();
-        ind.getEmailAddress().add(io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.EmailAddress.of("user1@example.com"));
+        ind.getEmailAddress().add("user1@example.com");
         user.setIndividual(ind);
 
         when(accountRepository.findByUsername("user1")).thenReturn(Optional.of(user));
@@ -110,7 +110,7 @@ class EmailNotificationServiceTest {
         Account user = new Account();
         user.setUsername("user1");
         Individual ind = new Individual();
-        ind.getEmailAddress().add(io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.EmailAddress.of("user1@example.com"));
+        ind.getEmailAddress().add("user1@example.com");
         user.setIndividual(ind);
 
         when(accountRepository.findByUsername("user1")).thenReturn(Optional.of(user));
@@ -130,7 +130,7 @@ class EmailNotificationServiceTest {
         Account user = new Account();
         user.setUsername("user1");
         Individual ind = new Individual();
-        ind.getEmailAddress().add(io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.EmailAddress.of("user1@example.com"));
+        ind.getEmailAddress().add("user1@example.com");
         user.setIndividual(ind);
 
         when(accountRepository.findByUsername("user1")).thenReturn(Optional.of(user));

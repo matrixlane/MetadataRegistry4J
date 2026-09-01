@@ -133,7 +133,7 @@ class InitWizardServiceIntegrationTest {
         assertThat(createdRa.getName().size()).isEqualTo(2);
         assertThat(createdRa.getName().get(1).getValue()).isEqualTo("Integration Test RA English");
         assertThat(createdRa.getEmailAddress()).isNotEmpty();
-        assertThat(createdRa.getEmailAddress().get(0).getValue()).isEqualTo("ra@integration.com");
+        assertThat(createdRa.getEmailAddress().get(0)).isEqualTo("ra@integration.com");
 
         // 3. Verify Default Namespace is created
         List<Namespace> namespaces = namespaceRepository.findAll();

@@ -17,7 +17,8 @@ import java.util.List;
 @NoArgsConstructor
 public class Dimensionality extends Concept {
 
-    private boolean coordinateIndicator;
+    /** 0..1 三态 Boolean(11179-31:2023 Table 22):NULL 表示 Not applicable。 */
+    private Boolean coordinateIndicator;
 
     @ManyToMany
     @JoinTable(
