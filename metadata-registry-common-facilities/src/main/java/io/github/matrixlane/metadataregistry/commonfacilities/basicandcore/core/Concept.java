@@ -6,11 +6,11 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 /**
- * ISO/IEC 11179-3:2023, 6.4.2 — Concept
+ * ISO/IEC 11179-3:2023, 6.4.2.2 — Concept
  *
  * <p>A unit of knowledge created by a unique combination of characteristics.
  */
-@StandardReference("ISO/IEC 11179-3:2023, 6.4.2")
+@StandardReference("ISO/IEC 11179-3:2023, 6.4.2.2")
 @jakarta.persistence.Entity
 @Getter
 @Setter

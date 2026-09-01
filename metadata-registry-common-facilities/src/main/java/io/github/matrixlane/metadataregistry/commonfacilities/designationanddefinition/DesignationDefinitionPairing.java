@@ -1,5 +1,7 @@
 package io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition;
 
+import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.StandardReference;
+
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.Context;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -12,6 +14,7 @@ import lombok.Setter;
 
 import java.util.UUID;
 
+@StandardReference("ISO/IEC 11179-3:2023, 8.4.3")
 @jakarta.persistence.Entity
 @Getter
 @Setter

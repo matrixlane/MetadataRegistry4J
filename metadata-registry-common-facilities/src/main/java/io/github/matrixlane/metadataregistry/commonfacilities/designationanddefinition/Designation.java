@@ -1,5 +1,7 @@
 package io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition;
 
+import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.StandardReference;
+
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.LanguageIdentification;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.ReferenceDocument;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.Context;
@@ -20,6 +22,7 @@ import lombok.Setter;
 import java.util.ArrayList;
 import java.util.List;
 
+@StandardReference("ISO/IEC 11179-3:2023, 8.4.1")
 @jakarta.persistence.Entity
 @jakarta.persistence.Table(name = "designation", indexes = {
         @jakarta.persistence.Index(name = "idx_designation_item_id", columnList = "item_id"),

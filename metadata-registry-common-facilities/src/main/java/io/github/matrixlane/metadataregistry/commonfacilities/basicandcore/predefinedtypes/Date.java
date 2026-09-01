@@ -11,12 +11,12 @@ import java.time.LocalDate;
 import java.util.Objects;
 
 /**
- * ISO/IEC 11179-3:2023, 6.2.2 — Date
+ * ISO/IEC 11179-3:2023, 6.2.4 — Date
  * <p>
  * A calendar date represented as year, month, and day,
  * conforming to ISO 8601.
  */
-@StandardReference("ISO/IEC 11179-3:2023, 6.2.2")
+@StandardReference("ISO/IEC 11179-3:2023, 6.2.4")
 @Embeddable
 @Getter
 @Setter

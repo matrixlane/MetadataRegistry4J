@@ -12,7 +12,7 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 public @interface StandardReference {
     /**
-     * The standard clause reference, e.g. "ISO/IEC 11179-3:2023, 6.2.1"
+     * The standard clause reference, e.g. "ISO/IEC 11179-3:2023, 6.4.2.1"
      */
     String value();
 

@@ -13,12 +13,12 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * ISO/IEC 11179-3:2023, 6.4.3 — Context
+ * ISO/IEC 11179-3:2023, 6.4.2.3 — Context
  *
  * <p>A delimited area in which terms, definitions, or other designations
  * are used with specific meanings.
  */
-@StandardReference("ISO/IEC 11179-3:2023, 6.4.3")
+@StandardReference("ISO/IEC 11179-3:2023, 6.4.2.3")
 @jakarta.persistence.Entity
 @Getter
 @Setter

@@ -45,7 +45,7 @@ public class Individual extends Entity {
     })
     private PostalAddress mailAddress = new PostalAddress();
 
-    /** 11179-3:2023 表 2:email_address 0..*,String (6.2.11)。 */
+    /** 11179-3:2023 表 1:email_address 0..*,String (6.2.11)。 */
     @ElementCollection
     @CollectionTable(name = "individual_email", joinColumns = @JoinColumn(name = "individual_id"))
     @Column(name = "value")

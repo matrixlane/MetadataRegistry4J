@@ -20,12 +20,12 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * ISO/IEC 11179-3:2023, 6.4.6 — Slot
+ * ISO/IEC 11179-3:2023, 6.4.2.4 — Slot
  * <p>
  * A dynamic extension mechanism for {@link Item}, providing name-value-datatype
  * triples. The combination of an Item and a Slot name must be unique.
  */
-@StandardReference("ISO/IEC 11179-3:2023, 6.4.6")
+@StandardReference("ISO/IEC 11179-3:2023, 6.4.2.4")
 @jakarta.persistence.Entity
 @Table(
         name = "slot",

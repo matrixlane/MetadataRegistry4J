@@ -17,11 +17,11 @@ import lombok.Setter;
 import java.util.UUID;
 
 /**
- * ISO/IEC 11179-3:2023, 6.3.5 — Document_Type
+ * ISO/IEC 11179-3:2023, 6.3.6 — Document_Type
  *
  * <p>A classification of reference documents.
  */
-@StandardReference("ISO/IEC 11179-3:2023, 6.3.5")
+@StandardReference("ISO/IEC 11179-3:2023, 6.3.6")
 @jakarta.persistence.Entity
 @Getter
 @Setter

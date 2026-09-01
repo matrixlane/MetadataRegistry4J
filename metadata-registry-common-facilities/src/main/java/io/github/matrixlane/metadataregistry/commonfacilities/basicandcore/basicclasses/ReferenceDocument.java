@@ -23,11 +23,11 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * ISO/IEC 11179-3:2023, 6.3.7 — Reference_Document
+ * ISO/IEC 11179-3:2023, 6.3.8 — Reference_Document
  *
  * <p>A document that provides information supporting the content of a registry item.
  */
-@StandardReference("ISO/IEC 11179-3:2023, 6.3.7")
+@StandardReference("ISO/IEC 11179-3:2023, 6.3.8")
 @jakarta.persistence.Entity
 @Getter
 @Setter

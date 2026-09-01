@@ -10,11 +10,11 @@ import lombok.Setter;
 import java.util.Objects;
 
 /**
- * ISO/IEC 11179-3:2023, 6.2.10 — String
+ * ISO/IEC 11179-3:2023, 6.2.11 — String
  * <p>
  * A finite sequence of characters from a specific character set.
  */
-@StandardReference("ISO/IEC 11179-3:2023, 6.2.10")
+@StandardReference("ISO/IEC 11179-3:2023, 6.2.11")
 @Embeddable
 @Getter
 @Setter

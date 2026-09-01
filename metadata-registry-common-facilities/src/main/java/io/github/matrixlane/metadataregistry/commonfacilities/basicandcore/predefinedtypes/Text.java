@@ -10,15 +10,12 @@ import lombok.Setter;
 import java.util.Objects;
 
 /**
- * ISO/IEC 11179-3:2023, 6.2.11 — Text
+ * ISO/IEC 11179-3:2023, 6.2.12 — Text
  *
  * <p>Natural language text, distinct from a character string in that it carries
  * linguistic semantics.
- *
- * <p>DEVIATION: The standard lists Sign and Text together in 6.2.11. This class
- * represents the Text specialization.
  */
-@StandardReference("ISO/IEC 11179-3:2023, 6.2.11")
+@StandardReference("ISO/IEC 11179-3:2023, 6.2.12")
 @Embeddable
 @Getter
 @Setter

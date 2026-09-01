@@ -15,12 +15,12 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 /**
- * ISO/IEC 11179-3:2023, 6.3.6 — Language_Identification
+ * ISO/IEC 11179-3:2023, 6.3.7 — Language_Identification
  *
  * <p>Identifies a natural language using the BCP 47 tag system,
  * comprising language, script, region, variant, extension, and private-use subtags.
  */
-@StandardReference("ISO/IEC 11179-3:2023, 6.3.6")
+@StandardReference("ISO/IEC 11179-3:2023, 6.3.7")
 @jakarta.persistence.Entity
 @Getter
 @Setter

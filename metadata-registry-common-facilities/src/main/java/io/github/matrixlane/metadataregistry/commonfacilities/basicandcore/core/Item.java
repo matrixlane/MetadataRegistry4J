@@ -17,11 +17,11 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * ISO/IEC 11179-3:2023, 6.4.1 — Item
+ * ISO/IEC 11179-3:2023, 6.4.2.1 — Item
  *
  * <p>The abstract superclass of all registry entries.
  */
-@StandardReference("ISO/IEC 11179-3:2023, 6.4.1")
+@StandardReference("ISO/IEC 11179-3:2023, 6.4.2.1")
 @jakarta.persistence.Entity
 @Inheritance(strategy = InheritanceType.JOINED)
 @Getter

@@ -48,9 +48,9 @@
 
 ## 6. 条款号更正
 
-- [ ] 6.1 按审计报告 3.5 节批量更正 16 处错位引用
-- [ ] 6.2 Entity 删除虚假 "6.4.5" 引用
-- [ ] 6.3 Designation/Definition/DesignationContext/DefinitionContext/Pairing/Acceptability 补 @StandardReference
+- [x] 6.1 按审计报告 3.5 节批量更正 16 处错位引用
+- [x] 6.2 Entity 删除虚假 "6.4.5" 引用
+- [x] 6.3 Designation/Definition/DesignationContext/DefinitionContext/Pairing/Acceptability 补 @StandardReference
 
 ## 7. 验证与提交
 

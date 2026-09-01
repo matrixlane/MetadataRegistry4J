@@ -14,21 +14,21 @@ class StandardReferenceTest {
     void itemShouldHaveStandardReference() {
         StandardReference ann = Item.class.getAnnotation(StandardReference.class);
         assertThat(ann).isNotNull();
-        assertThat(ann.value()).isEqualTo("ISO/IEC 11179-3:2023, 6.4.1");
+        assertThat(ann.value()).isEqualTo("ISO/IEC 11179-3:2023, 6.4.2.1");
     }
 
     @Test
     void slotShouldHaveStandardReference() {
         StandardReference ann = Slot.class.getAnnotation(StandardReference.class);
         assertThat(ann).isNotNull();
-        assertThat(ann.value()).isEqualTo("ISO/IEC 11179-3:2023, 6.4.6");
+        assertThat(ann.value()).isEqualTo("ISO/IEC 11179-3:2023, 6.4.2.4");
     }
 
     @Test
     void booleanTypeShouldHaveStandardReference() {
         StandardReference ann = BooleanType.class.getAnnotation(StandardReference.class);
         assertThat(ann).isNotNull();
-        assertThat(ann.value()).isEqualTo("ISO/IEC 11179-3:2023, 6.2.1");
+        assertThat(ann.value()).isEqualTo("ISO/IEC 11179-3:2023, 6.2.2");
     }
 
     @Test

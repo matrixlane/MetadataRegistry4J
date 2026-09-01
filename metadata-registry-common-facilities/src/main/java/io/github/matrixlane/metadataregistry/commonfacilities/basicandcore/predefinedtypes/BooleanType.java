@@ -10,11 +10,11 @@ import lombok.Setter;
 import java.util.Objects;
 
 /**
- * ISO/IEC 11179-3:2023, 6.2.1 — Boolean
+ * ISO/IEC 11179-3:2023, 6.2.2 — Boolean
  * <p>
  * A logical data type that can have one of two values: true or false.
  */
-@StandardReference("ISO/IEC 11179-3:2023, 6.2.1")
+@StandardReference("ISO/IEC 11179-3:2023, 6.2.2")
 @Embeddable
 @Getter
 @Setter

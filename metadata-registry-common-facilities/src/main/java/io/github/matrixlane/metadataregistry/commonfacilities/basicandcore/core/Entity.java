@@ -1,6 +1,5 @@
 package io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core;
 
-import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.StandardReference;
 import jakarta.persistence.Column;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -15,14 +14,11 @@ import java.util.UUID;
 /**
  * Technical base class providing JPA identity for all registry entities.
  *
- * <p>DEVIATION: In ISO/IEC 11179-3:2023, 6.4.5, {@code Entity} is a domain
- * concept that extends {@link Item}. This class is a {@code MappedSuperclass}
- * used as a technical JPA foundation and should not be confused with the
- * standard's {@code Entity}. The standard's {@code Entity} concept is
- * represented by {@link Item} and its subclasses in this implementation.
+ * <p>DEVIATION: 本类是纯技术基类({@code MappedSuperclass}),在 ISO/IEC
+ * 11179-3:2023 中无对应条款(2023 版无 "Entity" 领域概念,此前引用的 6.4.5
+ * 系沿用旧版编号,已删除)。标准中的实体语义由 {@link Item}(6.4.2.1)及其
+ * 子类承载。
  */
-@StandardReference(value = "ISO/IEC 11179-3:2023, 6.4.5",
-        deviation = "Used as JPA MappedSuperclass instead of a domain subclass of Item. See class javadoc.")
 @MappedSuperclass
 @Getter
 @Setter

@@ -10,14 +10,14 @@ import lombok.Setter;
 import java.util.Objects;
 
 /**
- * ISO/IEC 11179-3:2023, 6.2.12 — Value
+ * ISO/IEC 11179-3:2023, 6.2.13 — Value
  * <p>
  * A data value representation that may carry any primitive value.
  * This embeddable holds the value as a String together with an optional
  * datatype URI hint; it does not restrict the data types available in
  * the registry content.
  */
-@StandardReference("ISO/IEC 11179-3:2023, 6.2.12")
+@StandardReference("ISO/IEC 11179-3:2023, 6.2.13")
 @Embeddable
 @Getter
 @Setter

@@ -9,12 +9,12 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 /**
- * ISO/IEC 11179-3:2023, 6.3.1 — Contact
+ * ISO/IEC 11179-3:2023, 6.3.5 — Contact
  *
  * <p>Contact information linking an {@link Individual}, an {@link Organization},
  * and a {@link Role}.
  */
-@StandardReference("ISO/IEC 11179-3:2023, 6.3.1")
+@StandardReference("ISO/IEC 11179-3:2023, 6.3.5")
 @jakarta.persistence.Entity
 @jakarta.persistence.Inheritance(strategy = jakarta.persistence.InheritanceType.JOINED)
 @Getter

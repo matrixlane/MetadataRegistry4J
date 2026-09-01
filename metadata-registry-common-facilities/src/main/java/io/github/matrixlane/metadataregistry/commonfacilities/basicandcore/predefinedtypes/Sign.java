@@ -10,12 +10,12 @@ import lombok.Setter;
 import java.util.Objects;
 
 /**
- * ISO/IEC 11179-3:2023, 6.2.11 — Sign
+ * ISO/IEC 11179-3:2023, 6.2.10 — Sign
  *
  * <p>A perceptible representation, such as a symbol, graphic, or sound fragment,
  * used to convey meaning.
  */
-@StandardReference("ISO/IEC 11179-3:2023, 6.2.11")
+@StandardReference("ISO/IEC 11179-3:2023, 6.2.10")
 @Embeddable
 @Getter
 @Setter
