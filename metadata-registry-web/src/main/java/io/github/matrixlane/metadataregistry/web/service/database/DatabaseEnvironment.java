@@ -14,19 +14,38 @@ import java.util.UUID;
 @Component
 public class DatabaseEnvironment {
 
+    /** 扩展(EXT)表集:归 ext schema;与 META-INF/orm-team.xml 清单一致(OrmTeamXmlTest 守卫)。 */
+    private static final java.util.Set<String> EXT_TABLES = java.util.Set.of(
+            "classification_scheme", "classification_node",
+            "identifier_strategy_config", "identifier_sequence_registry", "identifier_version_history",
+            "scoped_identifier_lifecycle", "namespace_identifier_settings",
+            "contact_account_binding", "language_governance", "naming_convention_rules",
+            "account",
+            "mapping_scheme", "mapping_subscription", "fhir_element_mapping", "interop_mapping",
+            "item_link", "merge_request", "merge_request_item",
+            "namespace_permission", "registry_node", "sync_watermark", "system_setting", "version_history");
+
     private final DatabaseVendor vendor;
     private final String schema;
+    private final String extSchema;
 
     public DatabaseEnvironment(
             @Value("${DB_VENDOR:}") String vendor,
             @Value("${spring.datasource.url:}") String jdbcUrl,
-            @Value("${DB_DEFAULT_SCHEMA:}") String schema) {
+            @Value("${DB_DEFAULT_SCHEMA:}") String schema,
+            @Value("${DB_EXT_SCHEMA:}") String extSchema) {
         this.vendor = DatabaseVendor.resolve(vendor, jdbcUrl);
         String explicit = (schema == null || schema.isBlank()) ? null : schema.trim();
         this.schema = switch (this.vendor) {
             case SQLITE -> null;
             case DM -> explicit != null ? explicit : "MDR";
             case SQLSERVER -> explicit != null ? explicit : "mdr";
+        };
+        String extExplicit = (extSchema == null || extSchema.isBlank()) ? null : extSchema.trim();
+        this.extSchema = switch (this.vendor) {
+            case SQLITE -> null;
+            case DM -> extExplicit != null ? extExplicit : "EXT";
+            case SQLSERVER -> extExplicit != null ? extExplicit : "ext";
         };
     }
 
@@ -49,6 +68,29 @@ public class DatabaseEnvironment {
     public String qualify(String tableName) {
         String quoted = "\"" + tableName + "\"";
         return schema == null ? quoted : "\"" + schema + "\"." + quoted;
+    }
+
+    /** 扩展 schema(SQLite 为 null)。 */
+    public String extSchema() {
+        return extSchema;
+    }
+
+    /** EXT 表的限定引用。 */
+    public String qualifyExt(String tableName) {
+        String quoted = "\"" + tableName + "\"";
+        return extSchema == null ? quoted : "\"" + extSchema + "\"." + quoted;
+    }
+
+    /** 表所属 schema(EXT 表返回 extSchema,其余返回 schema;JDBC 元数据查询用)。 */
+    public String schemaOf(String tableName) {
+        return EXT_TABLES.contains(tableName.toLowerCase(java.util.Locale.ROOT)) ? extSchema : schema;
+    }
+
+    /** 按表名自动选择 schema:EXT 表走 {@link #qualifyExt},其余走 {@link #qualify}。 */
+    public String qualifyAuto(String tableName) {
+        return EXT_TABLES.contains(tableName.toLowerCase(java.util.Locale.ROOT))
+                ? qualifyExt(tableName)
+                : qualify(tableName);
     }
 
     /**

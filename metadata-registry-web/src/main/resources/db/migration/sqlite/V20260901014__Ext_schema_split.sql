@@ -1,0 +1,1 @@
+-- 占位:SQLite 无 schema,EXT 表留 main,无操作。

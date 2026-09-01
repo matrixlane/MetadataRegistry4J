@@ -101,7 +101,7 @@ public class FactoryResetService {
         String encodedPassword = passwordEncoder.encode("Admin@123");
 
         jdbcTemplate.update(
-                "INSERT INTO " + databaseEnvironment.qualify("account") +
+                "INSERT INTO " + databaseEnvironment.qualifyExt("account") +
                         " (id, username, password_hash, sys_role, enabled, created_at, force_password_reset, temp_password_used) " +
                         "VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?, ?)",
                 databaseEnvironment.toJdbcUuid(adminId), "admin", encodedPassword, "SUPER_ADMIN", true, false, false

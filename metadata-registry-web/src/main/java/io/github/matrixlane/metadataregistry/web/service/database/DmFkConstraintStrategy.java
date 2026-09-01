@@ -44,7 +44,7 @@ public class DmFkConstraintStrategy implements FkConstraintStrategy {
         List<String[]> constraints = findFkConstraints(conn, tables);
         try (Statement st = conn.createStatement()) {
             for (String[] pair : constraints) {
-                st.execute("ALTER TABLE " + env.qualify(pair[0])
+                st.execute("ALTER TABLE " + env.qualifyAuto(pair[0])
                         + " " + action + " CONSTRAINT \"" + pair[1] + "\"");
             }
         }
@@ -54,7 +54,7 @@ public class DmFkConstraintStrategy implements FkConstraintStrategy {
         DatabaseMetaData md = conn.getMetaData();
         List<String[]> result = new ArrayList<>();
         for (String table : tables) {
-            try (ResultSet rs = md.getImportedKeys(conn.getCatalog(), env.schema(), table)) {
+            try (ResultSet rs = md.getImportedKeys(conn.getCatalog(), env.schemaOf(table), table)) {
                 while (rs.next()) {
                     result.add(new String[]{table, rs.getString("FK_NAME")});
                 }

@@ -57,6 +57,7 @@ class MetadataSearchServiceTest {
     void setUp() {
         lenient().when(env.vendor()).thenReturn(DatabaseVendor.SQLSERVER);
         lenient().when(env.qualify(anyString())).thenAnswer(inv -> "mdr." + inv.getArgument(0));
+        lenient().when(env.qualifyAuto(anyString())).thenAnswer(inv -> "mdr." + inv.getArgument(0));
         searchService = new MetadataSearchService(jdbcTemplate, env);
         sampleResponse = new AdministeredItemResponse(
                 UUID.randomUUID(),

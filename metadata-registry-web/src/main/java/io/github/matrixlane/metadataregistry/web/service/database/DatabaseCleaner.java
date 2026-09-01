@@ -113,7 +113,16 @@ public class DatabaseCleaner {
                 .collect(Collectors.toSet());
         DatabaseMetaData md = conn.getMetaData();
         List<String> tables = new ArrayList<>();
-        try (ResultSet rs = md.getTables(conn.getCatalog(), env.schema(), null, new String[]{"TABLE"})) {
+        discoverTablesInSchema(conn, md, env.schema(), preserve, tables);
+        if (env.extSchema() != null && !env.extSchema().equalsIgnoreCase(env.schema() == null ? "" : env.schema())) {
+            discoverTablesInSchema(conn, md, env.extSchema(), preserve, tables);
+        }
+        return tables;
+    }
+
+    private void discoverTablesInSchema(Connection conn, DatabaseMetaData md, String schema,
+            Set<String> preserve, List<String> tables) throws SQLException {
+        try (ResultSet rs = md.getTables(conn.getCatalog(), schema, null, new String[]{"TABLE"})) {
             while (rs.next()) {
                 String name = rs.getString("TABLE_NAME");
                 if (name == null) {
@@ -134,7 +143,6 @@ public class DatabaseCleaner {
                 tables.add(name);
             }
         }
-        return tables;
     }
 
     private void deleteWithRetry(Connection conn, List<String> tables) throws SQLException {
@@ -143,7 +151,7 @@ public class DatabaseCleaner {
             List<String> failed = new ArrayList<>();
             for (String table : remaining) {
                 try (Statement st = conn.createStatement()) {
-                    int deleted = st.executeUpdate("DELETE FROM " + env.qualify(table));
+                    int deleted = st.executeUpdate("DELETE FROM " + env.qualifyAuto(table));
                     log.debug("database-cleaner: deleted {} rows from [{}]", deleted, table);
                 } catch (SQLException e) {
                     log.debug("database-cleaner: delete from [{}] failed on pass {}: {}", table, pass, e.getMessage());

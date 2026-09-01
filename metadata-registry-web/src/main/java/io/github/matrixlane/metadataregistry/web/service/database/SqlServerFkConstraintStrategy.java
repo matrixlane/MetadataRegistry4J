@@ -38,7 +38,7 @@ public class SqlServerFkConstraintStrategy implements FkConstraintStrategy {
     private void executeOnEach(Connection conn, List<String> tables, String suffix) throws SQLException {
         try (Statement st = conn.createStatement()) {
             for (String table : tables) {
-                st.execute("ALTER TABLE " + env.qualify(table) + suffix);
+                st.execute("ALTER TABLE " + env.qualifyAuto(table) + suffix);
             }
         }
     }

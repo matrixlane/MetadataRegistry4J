@@ -2,3 +2,4 @@
 -- 该机制保证先于 EntityManagerFactory 运行）。
 -- 达梦会报语法错误，由 continue-on-error 跳过（DM 用户即模式，无需创建）。
 IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = 'mdr') EXEC('CREATE SCHEMA mdr')
+IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = 'ext') EXEC('CREATE SCHEMA ext')

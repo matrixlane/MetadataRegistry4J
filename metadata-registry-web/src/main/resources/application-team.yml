@@ -12,6 +12,8 @@ spring:
       maximum-pool-size: 20
       minimum-idle: 5
   jpa:
+    # EXT 实体(23 个)的 schema="ext" 覆盖;SQLite profile 不加载(实体注解无 schema,见 orm-team.xml 头注)
+    mapping-resources: classpath:META-INF/orm-team.xml
     properties:
       hibernate:
         default_schema: ${DB_DEFAULT_SCHEMA:mdr}

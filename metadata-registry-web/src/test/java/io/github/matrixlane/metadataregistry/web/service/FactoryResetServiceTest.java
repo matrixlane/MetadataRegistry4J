@@ -79,6 +79,8 @@ class FactoryResetServiceTest {
         adminUser.setEnabled(true);
         lenient().when(databaseEnvironment.qualify(anyString()))
                 .thenAnswer(inv -> "mdr." + inv.getArgument(0));
+        lenient().when(databaseEnvironment.qualifyExt(anyString()))
+                .thenAnswer(inv -> "ext." + inv.getArgument(0));
         lenient().when(databaseEnvironment.toJdbcUuid(any(UUID.class)))
                 .thenAnswer(inv -> inv.getArgument(0).toString());
     }
@@ -124,7 +126,7 @@ class FactoryResetServiceTest {
 
         // 重建管理员：方言限定表名 + 可移植时间函数 + 完整布尔列
         verify(jdbcTemplate).update(
-                eq("INSERT INTO mdr.account (id, username, password_hash, sys_role, enabled, created_at, force_password_reset, temp_password_used) " +
+                eq("INSERT INTO ext.account (id, username, password_hash, sys_role, enabled, created_at, force_password_reset, temp_password_used) " +
                    "VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?, ?)"),
                 any(), eq("admin"), eq("$2a$10$newHashedPassword"),
                 eq("SUPER_ADMIN"), eq(true), eq(false), eq(false)
@@ -162,7 +164,7 @@ class FactoryResetServiceTest {
 
         verify(databaseCleaner).clearTables(java.util.Set.of("flyway_schema_history"));
 
-        verify(jdbcTemplate).update(startsWith("INSERT INTO mdr.account"), any(Object[].class));
+        verify(jdbcTemplate).update(startsWith("INSERT INTO ext.account"), any(Object[].class));
     }
 
     private static String startsWith(String prefix) {

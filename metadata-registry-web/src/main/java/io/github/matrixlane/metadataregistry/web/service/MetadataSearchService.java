@@ -42,9 +42,9 @@ public class MetadataSearchService {
     private final JdbcTemplate jdbcTemplate;
     private final DatabaseEnvironment env;
 
-    /** 表名按当前方言/schema 限定。 */
+    /** 表名按当前方言/schema 限定(EXT 表自动走 ext schema,如 classification_scheme)。 */
     private String t(String table) {
-        return env.qualify(table);
+        return env.qualifyAuto(table);
     }
 
     /** "取第一行"标量子查询：SQL Server 用 TOP 1，其余方言用 LIMIT 1。 */
