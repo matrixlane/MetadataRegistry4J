@@ -146,8 +146,24 @@ async function handleAudit(row: Record<string, unknown>, enabled: boolean) {
 }
 
 async function handleDelete(row: Record<string, unknown>) {
-  await appUserApi.delete(row.id as string);
-  tableRef.value?.fetchData();
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除用户 "${row.username}" 吗？删除后不可恢复。`,
+      '删除确认',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning',
+      }
+    );
+    await appUserApi.delete(row.id as string);
+    ElMessage.success('用户删除成功');
+    tableRef.value?.fetchData();
+  } catch (err) {
+    if (err !== 'cancel') {
+      // Error details are displayed by interceptor
+    }
+  }
 }
 
 async function handleResetPassword(row: Record<string, unknown>) {
