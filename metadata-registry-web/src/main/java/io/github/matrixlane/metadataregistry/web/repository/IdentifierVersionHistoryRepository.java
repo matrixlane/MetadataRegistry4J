@@ -1,6 +1,6 @@
 package io.github.matrixlane.metadataregistry.web.repository;
 
-import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifierVersionHistory;
+import io.github.matrixlane.metadataregistry.ext.identification.IdentifierVersionHistory;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 

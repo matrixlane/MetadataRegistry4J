@@ -1,7 +1,8 @@
 package io.github.matrixlane.metadataregistry.web.service;
 
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.ScopedIdentifier;
-import io.github.matrixlane.metadataregistry.commonfacilities.identification.VersionStatus;
+import io.github.matrixlane.metadataregistry.ext.identification.ScopedIdentifierLifecycle;
+import io.github.matrixlane.metadataregistry.ext.identification.VersionStatus;
 import io.github.matrixlane.metadataregistry.web.common.BusinessException;
 import io.github.matrixlane.metadataregistry.web.dto.scopedidentifier.ScopedIdentifierResponse;
 import io.github.matrixlane.metadataregistry.web.repository.ScopedIdentifierRepository;
@@ -25,6 +26,10 @@ import java.util.UUID;
 public class IdentifierResolutionService {
 
     private final ScopedIdentifierRepository scopedIdentifierRepository;
+    private final ScopedIdentifierLifecycleService lifecycleService;
+
+    /** 卫星行缺失时的默认值(语义同字段时代初始值)。 */
+    private static final ScopedIdentifierLifecycle DEFAULT_LIFECYCLE = new ScopedIdentifierLifecycle();
 
     /**
      * Resolves an identifier within a specific namespace and optional version.
@@ -60,9 +65,13 @@ public class IdentifierResolutionService {
                     .findFirst()
                     .orElse(null);
         } else {
+            var lifecycles = lifecycleService.mapByScopedIdentifierIds(
+                    matches.stream().map(ScopedIdentifier::getId).toList());
             selected = matches.stream()
-                    .filter(si -> si.getVersionStatus() != VersionStatus.OBSOLETE)
-                    .max(Comparator.comparing(ScopedIdentifier::getCreatedAt,
+                    .filter(si -> lifecycles.getOrDefault(si.getId(), DEFAULT_LIFECYCLE)
+                            .getVersionStatus() != VersionStatus.OBSOLETE)
+                    .max(Comparator.comparing(
+                            si -> lifecycles.getOrDefault(si.getId(), DEFAULT_LIFECYCLE).getCreatedAt(),
                             Comparator.nullsFirst(Comparator.naturalOrder())))
                     .orElse(matches.get(0));
         }
@@ -86,6 +95,7 @@ public class IdentifierResolutionService {
     private ScopedIdentifierResponse toResponse(ScopedIdentifier si) {
         var ns = si.getNamespace();
         var ii = si.getIdentifiedItem();
+        var lifecycle = lifecycleService.getOrDefault(si.getId());
 
         UUID identifiedItemId = null;
         String identifiedItemType = null;
@@ -105,16 +115,16 @@ public class IdentifierResolutionService {
                 ns == null ? null : ItemNamingHelper.preferredDesignation(ns),
                 si.getIdentifier(),
                 si.getVersion(),
-                si.getVersionStatus(),
+                lifecycle.getVersionStatus(),
                 identifiedItemId,
                 identifiedItemType,
                 identifiedItemLabel,
-                si.getCreatedAt(),
-                si.getPublishedAt(),
-                si.getDeprecatedAt(),
-                si.getObsoleteAt(),
-                si.getIdentifierCreationMode(),
-                si.getVersionCreationMode()
+                lifecycle.getCreatedAt(),
+                lifecycle.getPublishedAt(),
+                lifecycle.getDeprecatedAt(),
+                lifecycle.getObsoleteAt(),
+                lifecycle.getIdentifierCreationMode(),
+                lifecycle.getVersionCreationMode()
         );
     }
 }

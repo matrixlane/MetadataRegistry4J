@@ -1,6 +1,6 @@
 package io.github.matrixlane.metadataregistry.web.config;
 
-import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifierStrategyConfigService;
+import io.github.matrixlane.metadataregistry.ext.identification.IdentifierStrategyConfigService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 

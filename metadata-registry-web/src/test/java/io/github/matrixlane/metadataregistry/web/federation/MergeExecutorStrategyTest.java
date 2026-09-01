@@ -1,8 +1,8 @@
 package io.github.matrixlane.metadataregistry.web.federation;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifierStrategyConfigService;
-import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifierVersionHistory;
+import io.github.matrixlane.metadataregistry.ext.identification.IdentifierStrategyConfigService;
+import io.github.matrixlane.metadataregistry.ext.identification.IdentifierVersionHistory;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.ScopedIdentifier;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.AdministeredItem;

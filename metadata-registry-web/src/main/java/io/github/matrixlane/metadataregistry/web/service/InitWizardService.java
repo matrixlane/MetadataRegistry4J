@@ -2,7 +2,7 @@ package io.github.matrixlane.metadataregistry.web.service;
 
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.Sign;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace;
-import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifierStrategyConfig;
+import io.github.matrixlane.metadataregistry.ext.identification.IdentifierStrategyConfig;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationAuthority;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrySpecification;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Account;
@@ -285,16 +285,16 @@ public class InitWizardService {
 
     private static void validateSegmentTemplate(String templateJson) {
         try {
-            io.github.matrixlane.metadataregistry.commonfacilities.identification.segment.SegmentTemplate template =
-                    io.github.matrixlane.metadataregistry.commonfacilities.identification.segment.SegmentTemplate.fromJson(templateJson);
+            io.github.matrixlane.metadataregistry.ext.identification.segment.SegmentTemplate template =
+                    io.github.matrixlane.metadataregistry.ext.identification.segment.SegmentTemplate.fromJson(templateJson);
             java.util.List<String> errors =
-                    new io.github.matrixlane.metadataregistry.commonfacilities.identification.segment.SegmentTemplateEngine()
+                    new io.github.matrixlane.metadataregistry.ext.identification.segment.SegmentTemplateEngine()
                             .validate(template);
             if (!errors.isEmpty()) {
                 throw new BusinessException(ApiCodes.VALIDATION_FAILED,
                         "段模板校验失败：" + String.join("；", errors));
             }
-        } catch (io.github.matrixlane.metadataregistry.commonfacilities.identification.segment.SegmentTemplateException e) {
+        } catch (io.github.matrixlane.metadataregistry.ext.identification.segment.SegmentTemplateException e) {
             throw new BusinessException(ApiCodes.VALIDATION_FAILED, "段模板解析失败：" + e.getMessage());
         }
     }

@@ -3,7 +3,8 @@ package io.github.matrixlane.metadataregistry.web.service;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifiedItem;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.ScopedIdentifier;
-import io.github.matrixlane.metadataregistry.commonfacilities.identification.VersionStatus;
+import io.github.matrixlane.metadataregistry.ext.identification.ScopedIdentifierLifecycle;
+import io.github.matrixlane.metadataregistry.ext.identification.VersionStatus;
 import io.github.matrixlane.metadataregistry.web.dto.scopedidentifier.ScopedIdentifierResponse;
 import io.github.matrixlane.metadataregistry.web.repository.ScopedIdentifierRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -14,7 +15,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -26,17 +29,34 @@ class IdentifierResolutionServiceTest {
 
     @Mock
     private ScopedIdentifierRepository scopedIdentifierRepository;
+    @Mock
+    private ScopedIdentifierLifecycleService lifecycleService;
 
     @InjectMocks
     private IdentifierResolutionService service;
 
     private UUID namespaceId;
     private UUID identifiedItemId;
+    private Map<UUID, ScopedIdentifierLifecycle> lifecycles;
 
     @BeforeEach
     void setUp() {
         namespaceId = UUID.randomUUID();
         identifiedItemId = UUID.randomUUID();
+        lifecycles = new HashMap<>();
+        org.mockito.Mockito.lenient().when(lifecycleService.getOrDefault(org.mockito.ArgumentMatchers.any()))
+                .thenAnswer(inv -> lifecycles.getOrDefault(inv.getArgument(0), new ScopedIdentifierLifecycle()));
+        org.mockito.Mockito.lenient().when(lifecycleService.mapByScopedIdentifierIds(org.mockito.ArgumentMatchers.anyCollection()))
+                .thenAnswer(inv -> {
+                    java.util.Collection<UUID> ids = inv.getArgument(0);
+                    Map<UUID, ScopedIdentifierLifecycle> result = new HashMap<>();
+                    lifecycles.forEach((id, lc) -> {
+                        if (ids.contains(id)) {
+                            result.put(id, lc);
+                        }
+                    });
+                    return result;
+                });
     }
 
     @Test
@@ -75,9 +95,9 @@ class IdentifierResolutionServiceTest {
     @Test
     void resolveGlobally_shouldFindLatestNonObsolete() {
         ScopedIdentifier si1 = createScopedIdentifier("id-1", "1.0.0", VersionStatus.OBSOLETE);
-        si1.setCreatedAt(LocalDateTime.now().minusDays(2));
+        lifecycles.get(si1.getId()).setCreatedAt(LocalDateTime.now().minusDays(2));
         ScopedIdentifier si2 = createScopedIdentifier("id-1", "2.0.0", VersionStatus.PUBLISHED);
-        si2.setCreatedAt(LocalDateTime.now().minusDays(1));
+        lifecycles.get(si2.getId()).setCreatedAt(LocalDateTime.now().minusDays(1));
         when(scopedIdentifierRepository.findByIdentifier("id-1")).thenReturn(List.of(si1, si2));
 
         Optional<ScopedIdentifierResponse> result = service.resolveGlobally("id-1", null);
@@ -143,12 +163,15 @@ class IdentifierResolutionServiceTest {
         si.setId(UUID.randomUUID());
         si.setIdentifier(identifier);
         si.setVersion(version);
-        si.setVersionStatus(status);
         si.setNamespace(new Namespace());
         si.getNamespace().setId(namespaceId);
         si.setIdentifiedItem(new IdentifiedItem());
         si.getIdentifiedItem().setId(identifiedItemId);
-        si.setCreatedAt(LocalDateTime.now());
+        ScopedIdentifierLifecycle lc = new ScopedIdentifierLifecycle();
+        lc.setScopedIdentifierId(si.getId());
+        lc.setVersionStatus(status);
+        lc.setCreatedAt(LocalDateTime.now());
+        lifecycles.put(si.getId(), lc);
         return si;
     }
 }

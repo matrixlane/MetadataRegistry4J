@@ -11,10 +11,11 @@ import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefi
 import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.DesignationContext;
 import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.NamingConvention;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifiedItem;
-import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifierCreationMode;
+import io.github.matrixlane.metadataregistry.ext.identification.IdentifierCreationMode;
+import io.github.matrixlane.metadataregistry.ext.identification.ScopedIdentifierLifecycle;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.ScopedIdentifier;
-import io.github.matrixlane.metadataregistry.commonfacilities.identification.Versions;
+import io.github.matrixlane.metadataregistry.ext.identification.Versions;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.AdministeredItem;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationAuthority;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationState;
@@ -76,6 +77,7 @@ public class ItemAdministrationService {
     private final NamespaceConstraintValidator namespaceConstraintValidator;
     private final ActiveRegistrarService activeRegistrarService;
     private final RegistrySpecificationRepository registrySpecificationRepository;
+    private final ScopedIdentifierLifecycleService lifecycleService;
 
     public void applyDesignations(Item item, List<TextLine> designations) {
         applyDesignations(item, designations, null);
@@ -257,19 +259,23 @@ public class ItemAdministrationService {
             try {
                 identifier = identifierInputPolicyService.resolveIdentifier(ns, req.identifier(),
                         org.hibernate.Hibernate.getClass(item).getSimpleName(), req.variables());
-            } catch (io.github.matrixlane.metadataregistry.commonfacilities.identification.segment.SegmentTemplateException e) {
+            } catch (io.github.matrixlane.metadataregistry.ext.identification.segment.SegmentTemplateException e) {
                 throw new BusinessException("标识生成失败：" + e.getMessage());
             }
             si.setIdentifier(identifier);
             si.setVersion(identifierInputPolicyService.resolveVersion(ns, req.version()));
             // 持久化创建时用户选择的 AUTO/MANUAL：请求未携带 mode 时按 identifier / version
             // 是否有显式值反推（空 → AUTO，非空 → MANUAL）。mode 创建即固化，后续编辑不变更。
-            si.setIdentifierCreationMode(req.identifierMode() != null
+            // 创建方式与生命周期属性写入卫星实体（级联 SI 提交前才有 ID，经 stageNew 延迟落库）。
+            ScopedIdentifierLifecycle lifecycle = new ScopedIdentifierLifecycle();
+            lifecycle.setIdentifierCreationMode(req.identifierMode() != null
                     ? req.identifierMode()
                     : ItemRegistrationRequest.resolveMode(req.identifier()));
-            si.setVersionCreationMode(req.versionMode() != null
+            lifecycle.setVersionCreationMode(req.versionMode() != null
                     ? req.versionMode()
                     : ItemRegistrationRequest.resolveMode(req.version()));
+            lifecycle.setCreatedAt(java.time.LocalDateTime.now());
+            lifecycleService.stageNew(si, lifecycle);
             si.setNamespace(ns);
             si.setIdentifiedItem(ai);
             ai.getScopedIdentifiers().add(si);
@@ -280,7 +286,7 @@ public class ItemAdministrationService {
             String requestedIdentifier = req.identifier();
             if (requestedIdentifier != null && !requestedIdentifier.isBlank()
                     && !Objects.equals(requestedIdentifier, si.getIdentifier())) {
-                if (si.getIdentifierCreationMode() == IdentifierCreationMode.AUTO) {
+                if (lifecycleService.getOrDefault(si.getId()).getIdentifierCreationMode() == IdentifierCreationMode.AUTO) {
                     throw new BusinessException(ApiCodes.VALIDATION_FAILED,
                             "该标识符创建时选择自动生成，不允许手动修改");
                 }
@@ -293,7 +299,7 @@ public class ItemAdministrationService {
             // 接受显式值并按策略校验，空则递增（registry-merge-strategy D4/D5）。
             // 联邦合并路径不经由此处，版本由合并执行器显式维护。
             String requestedVersion = req.version();
-            if (si.getVersionCreationMode() == IdentifierCreationMode.AUTO) {
+            if (lifecycleService.getOrDefault(si.getId()).getVersionCreationMode() == IdentifierCreationMode.AUTO) {
                 si.setVersion(Versions.bump(si.getVersion(), ns != null ? ns.getVersioningPolicy() : null));
             } else if (requestedVersion != null && !requestedVersion.isBlank()
                     && !requestedVersion.equals(si.getVersion())) {
@@ -465,8 +471,9 @@ public class ItemAdministrationService {
             ScopedIdentifier si = preferPrimaryIdentifier(siList);
             identifier = si.getIdentifier();
             version = si.getVersion();
-            identifierCreationMode = si.getIdentifierCreationMode();
-            versionCreationMode = si.getVersionCreationMode();
+            var siLifecycle = lifecycleService.getOrDefault(si.getId());
+            identifierCreationMode = siLifecycle.getIdentifierCreationMode();
+            versionCreationMode = siLifecycle.getVersionCreationMode();
             if (si.getNamespace() != null) {
                 nsId = si.getNamespace().getId();
                 nsLabel = ItemNamingHelper.preferredDesignation(si.getNamespace());

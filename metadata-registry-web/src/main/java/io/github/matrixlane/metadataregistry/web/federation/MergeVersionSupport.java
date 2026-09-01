@@ -2,7 +2,7 @@ package io.github.matrixlane.metadataregistry.web.federation;
 
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.ScopedIdentifier;
-import io.github.matrixlane.metadataregistry.commonfacilities.identification.Versions;
+import io.github.matrixlane.metadataregistry.ext.identification.Versions;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.AdministeredItem;
 import io.github.matrixlane.metadataregistry.web.entity.VersionHistory;
 import io.github.matrixlane.metadataregistry.web.repository.AdministeredItemRepository;

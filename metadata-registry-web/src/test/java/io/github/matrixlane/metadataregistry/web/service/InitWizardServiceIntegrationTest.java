@@ -1,7 +1,7 @@
 package io.github.matrixlane.metadataregistry.web.service;
 
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace;
-import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifierStrategyConfig;
+import io.github.matrixlane.metadataregistry.ext.identification.IdentifierStrategyConfig;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationAuthority;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Account;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.SystemRole;

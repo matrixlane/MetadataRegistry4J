@@ -4,8 +4,8 @@ import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basic
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Organization;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.Sign;
 import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.Designation;
-import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifierGenerationStrategyRegistry;
-import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifierStrategyConfig;
+import io.github.matrixlane.metadataregistry.ext.identification.IdentifierGenerationStrategyRegistry;
+import io.github.matrixlane.metadataregistry.ext.identification.IdentifierStrategyConfig;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.ScopedIdentifier;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.AdministeredItem;
@@ -48,6 +48,7 @@ public class GlobalNamespaceService {
     /** 迁移生成的来源命名空间副本的方案引用前缀。 */
     public static final String IMPORTED_NAMESPACE_SCHEME_PREFIX = "urn:metadata-registry:imported:";
 
+    private final io.github.matrixlane.metadataregistry.web.service.ScopedIdentifierLifecycleService lifecycleService;
     private final NamespaceRepository namespaceRepository;
     private final AdministeredItemRepository administeredItemRepository;
     private final ScopedIdentifierRepository scopedIdentifierRepository;
@@ -94,9 +95,9 @@ public class GlobalNamespaceService {
         AdministeredItem wrapper = wrapperOf(contentNamespace);
         ScopedIdentifier si = new ScopedIdentifier(UUID.randomUUID().toString(), global, wrapper);
         si.setVersion("1");
-        si.setCreatedAt(LocalDateTime.now());
         wrapper.getScopedIdentifiers().add(si);
         administeredItemRepository.save(wrapper);
+        lifecycleService.stageNew(si, createdNow());
         return si.getIdentifier();
     }
 
@@ -143,9 +144,9 @@ public class GlobalNamespaceService {
         AdministeredItem wrapper = wrapperOf(saved);
         ScopedIdentifier si = new ScopedIdentifier(mappingId, ensureGlobalNamespace(), wrapper);
         si.setVersion("1");
-        si.setCreatedAt(LocalDateTime.now());
         wrapper.getScopedIdentifiers().add(si);
         administeredItemRepository.save(wrapper);
+        lifecycleService.stageNew(si, createdNow());
         return saved;
     }
 
@@ -224,5 +225,11 @@ public class GlobalNamespaceService {
         designation.setSign(Sign.of(text));
         designation.setLanguage(lang);
         ns.getDesignations().add(designation);
+    }
+
+    private static io.github.matrixlane.metadataregistry.ext.identification.ScopedIdentifierLifecycle createdNow() {
+        var lc = new io.github.matrixlane.metadataregistry.ext.identification.ScopedIdentifierLifecycle();
+        lc.setCreatedAt(LocalDateTime.now());
+        return lc;
     }
 }

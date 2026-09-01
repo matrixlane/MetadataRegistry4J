@@ -1,15 +1,15 @@
 package io.github.matrixlane.metadataregistry.web.service.identifier;
 
-import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifierInputMode;
-import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifierGenerationStrategyRegistry;
-import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifierStrategyConfig;
-import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifierStrategyConfigService;
+import io.github.matrixlane.metadataregistry.ext.identification.IdentifierInputMode;
+import io.github.matrixlane.metadataregistry.ext.identification.IdentifierGenerationStrategyRegistry;
+import io.github.matrixlane.metadataregistry.ext.identification.IdentifierStrategyConfig;
+import io.github.matrixlane.metadataregistry.ext.identification.IdentifierStrategyConfigService;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace;
-import io.github.matrixlane.metadataregistry.commonfacilities.identification.SemVerValidator;
-import io.github.matrixlane.metadataregistry.commonfacilities.identification.VersioningPolicy;
-import io.github.matrixlane.metadataregistry.commonfacilities.identification.segment.SegmentTemplate;
-import io.github.matrixlane.metadataregistry.commonfacilities.identification.segment.SegmentTemplateEngine;
-import io.github.matrixlane.metadataregistry.commonfacilities.identification.segment.SegmentTemplateException;
+import io.github.matrixlane.metadataregistry.ext.identification.SemVerValidator;
+import io.github.matrixlane.metadataregistry.ext.identification.VersioningPolicy;
+import io.github.matrixlane.metadataregistry.ext.identification.segment.SegmentTemplate;
+import io.github.matrixlane.metadataregistry.ext.identification.segment.SegmentTemplateEngine;
+import io.github.matrixlane.metadataregistry.ext.identification.segment.SegmentTemplateException;
 import io.github.matrixlane.metadataregistry.web.common.ApiCodes;
 import io.github.matrixlane.metadataregistry.web.common.BusinessException;
 import io.github.matrixlane.metadataregistry.web.service.namespace.NamespaceOwnershipService;

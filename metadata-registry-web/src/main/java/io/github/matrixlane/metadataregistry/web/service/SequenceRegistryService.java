@@ -1,9 +1,9 @@
 package io.github.matrixlane.metadataregistry.web.service;
 
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace;
-import io.github.matrixlane.metadataregistry.commonfacilities.identification.segment.SequenceOverflowException;
-import io.github.matrixlane.metadataregistry.commonfacilities.identification.SequenceProvider;
-import io.github.matrixlane.metadataregistry.commonfacilities.identification.SequenceRegistry;
+import io.github.matrixlane.metadataregistry.ext.identification.segment.SequenceOverflowException;
+import io.github.matrixlane.metadataregistry.ext.identification.SequenceProvider;
+import io.github.matrixlane.metadataregistry.ext.identification.SequenceRegistry;
 import io.github.matrixlane.metadataregistry.web.repository.SequenceRegistryRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;

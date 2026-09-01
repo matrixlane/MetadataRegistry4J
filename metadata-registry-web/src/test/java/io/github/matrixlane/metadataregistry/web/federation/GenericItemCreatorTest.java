@@ -1,8 +1,8 @@
 package io.github.matrixlane.metadataregistry.web.federation;
 
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Organization;
-import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifierStrategyConfigService;
-import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifierVersionHistory;
+import io.github.matrixlane.metadataregistry.ext.identification.IdentifierStrategyConfigService;
+import io.github.matrixlane.metadataregistry.ext.identification.IdentifierVersionHistory;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.ScopedIdentifier;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.AdministeredItem;
@@ -52,6 +52,7 @@ class GenericItemCreatorTest {
     @Mock private IdentifierVersionHistoryRepository identifierVersionHistoryRepository;
     @Mock private IdentifierStrategyConfigService identifierStrategyConfigService;
     @Mock private GlobalNamespaceService globalNamespaceService;
+    @Mock private io.github.matrixlane.metadataregistry.web.service.ScopedIdentifierLifecycleService lifecycleService;
 
     @InjectMocks
     private GenericItemCreator creator;

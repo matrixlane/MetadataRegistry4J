@@ -1,10 +1,10 @@
 package io.github.matrixlane.metadataregistry.web.service;
 
-import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifierVersionHistory;
+import io.github.matrixlane.metadataregistry.ext.identification.IdentifierVersionHistory;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifiedItem;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.ScopedIdentifier;
-import io.github.matrixlane.metadataregistry.commonfacilities.identification.VersionStatus;
+import io.github.matrixlane.metadataregistry.ext.identification.VersionStatus;
 import io.github.matrixlane.metadataregistry.web.common.ApiCodes;
 import io.github.matrixlane.metadataregistry.web.common.BusinessException;
 import io.github.matrixlane.metadataregistry.web.common.ResourceNotFoundException;
@@ -27,6 +27,8 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
+
+import io.github.matrixlane.metadataregistry.ext.identification.ScopedIdentifierLifecycle;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -54,6 +56,8 @@ class ScopedIdentifierServiceTest {
 
     @Mock
     private NamespaceConstraintValidator namespaceConstraintValidator;
+    @Mock
+    private ScopedIdentifierLifecycleService lifecycleService;
 
     @InjectMocks
     private ScopedIdentifierService service;
@@ -75,6 +79,10 @@ class ScopedIdentifierServiceTest {
 
         identifiedItem = new IdentifiedItem();
         identifiedItem.setId(identifiedItemId);
+
+        // 卫星实体默认行为：无卫星行时返回默认值(语义同字段时代初始值)
+        lenient().when(lifecycleService.getOrDefault(any()))
+                .thenAnswer(inv -> new ScopedIdentifierLifecycle());
     }
 
     @Test
@@ -273,9 +281,11 @@ class ScopedIdentifierServiceTest {
     void update_autoMode_rejectsIdentifierChange() {
         // identifierCreationMode 为 AUTO → 后端 MUST 拒绝 identifier 修改。
         ScopedIdentifier si = createScopedIdentifier("id-1", "1.0.0");
-        si.setIdentifierCreationMode(io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifierCreationMode.AUTO);
         si.setNamespace(namespace);
         si.setIdentifiedItem(identifiedItem);
+        ScopedIdentifierLifecycle lc = new ScopedIdentifierLifecycle();
+        lc.setIdentifierCreationMode(io.github.matrixlane.metadataregistry.ext.identification.IdentifierCreationMode.AUTO);
+        when(lifecycleService.getOrDefault(scopedIdentifierId)).thenReturn(lc);
         when(scopedIdentifierRepository.findById(scopedIdentifierId)).thenReturn(Optional.of(si));
 
         ScopedIdentifierCreateRequest request = new ScopedIdentifierCreateRequest(
@@ -289,9 +299,16 @@ class ScopedIdentifierServiceTest {
     @Test
     void transition_shouldPublishFromDraft() {
         ScopedIdentifier si = createScopedIdentifier("id-1", "1.0.0");
-        si.setVersionStatus(VersionStatus.DRAFT);
         si.setNamespace(namespace);
         si.setIdentifiedItem(identifiedItem);
+        ScopedIdentifierLifecycle lc = new ScopedIdentifierLifecycle();
+        lc.setVersionStatus(VersionStatus.DRAFT);
+        when(lifecycleService.getOrDefault(scopedIdentifierId)).thenReturn(lc);
+        lenient().when(lifecycleService.mutate(eq(scopedIdentifierId), any())).thenAnswer(inv -> {
+            java.util.function.Consumer<ScopedIdentifierLifecycle> c = inv.getArgument(1);
+            c.accept(lc);
+            return lc;
+        });
         when(scopedIdentifierRepository.findById(scopedIdentifierId)).thenReturn(Optional.of(si));
         when(scopedIdentifierRepository.save(si)).thenReturn(si);
         when(historyRepository.save(any(IdentifierVersionHistory.class))).thenAnswer(i -> i.getArgument(0));
@@ -300,15 +317,22 @@ class ScopedIdentifierServiceTest {
         ScopedIdentifierResponse result = service.transition(scopedIdentifierId, request);
 
         assertThat(result.versionStatus()).isEqualTo(VersionStatus.PUBLISHED);
-        assertThat(si.getPublishedAt()).isNotNull();
+        assertThat(lc.getPublishedAt()).isNotNull();
     }
 
     @Test
     void transition_shouldDeprecateFromPublished() {
         ScopedIdentifier si = createScopedIdentifier("id-1", "1.0.0");
-        si.setVersionStatus(VersionStatus.PUBLISHED);
         si.setNamespace(namespace);
         si.setIdentifiedItem(identifiedItem);
+        ScopedIdentifierLifecycle lc = new ScopedIdentifierLifecycle();
+        lc.setVersionStatus(VersionStatus.PUBLISHED);
+        when(lifecycleService.getOrDefault(scopedIdentifierId)).thenReturn(lc);
+        lenient().when(lifecycleService.mutate(eq(scopedIdentifierId), any())).thenAnswer(inv -> {
+            java.util.function.Consumer<ScopedIdentifierLifecycle> c = inv.getArgument(1);
+            c.accept(lc);
+            return lc;
+        });
         when(scopedIdentifierRepository.findById(scopedIdentifierId)).thenReturn(Optional.of(si));
         when(scopedIdentifierRepository.save(si)).thenReturn(si);
         when(historyRepository.save(any(IdentifierVersionHistory.class))).thenAnswer(i -> i.getArgument(0));
@@ -317,15 +341,22 @@ class ScopedIdentifierServiceTest {
         ScopedIdentifierResponse result = service.transition(scopedIdentifierId, request);
 
         assertThat(result.versionStatus()).isEqualTo(VersionStatus.DEPRECATED);
-        assertThat(si.getDeprecatedAt()).isNotNull();
+        assertThat(lc.getDeprecatedAt()).isNotNull();
     }
 
     @Test
     void transition_shouldObsoleteFromDeprecated() {
         ScopedIdentifier si = createScopedIdentifier("id-1", "1.0.0");
-        si.setVersionStatus(VersionStatus.DEPRECATED);
         si.setNamespace(namespace);
         si.setIdentifiedItem(identifiedItem);
+        ScopedIdentifierLifecycle lc = new ScopedIdentifierLifecycle();
+        lc.setVersionStatus(VersionStatus.DEPRECATED);
+        when(lifecycleService.getOrDefault(scopedIdentifierId)).thenReturn(lc);
+        lenient().when(lifecycleService.mutate(eq(scopedIdentifierId), any())).thenAnswer(inv -> {
+            java.util.function.Consumer<ScopedIdentifierLifecycle> c = inv.getArgument(1);
+            c.accept(lc);
+            return lc;
+        });
         when(scopedIdentifierRepository.findById(scopedIdentifierId)).thenReturn(Optional.of(si));
         when(scopedIdentifierRepository.save(si)).thenReturn(si);
         when(historyRepository.save(any(IdentifierVersionHistory.class))).thenAnswer(i -> i.getArgument(0));
@@ -334,15 +365,22 @@ class ScopedIdentifierServiceTest {
         ScopedIdentifierResponse result = service.transition(scopedIdentifierId, request);
 
         assertThat(result.versionStatus()).isEqualTo(VersionStatus.OBSOLETE);
-        assertThat(si.getObsoleteAt()).isNotNull();
+        assertThat(lc.getObsoleteAt()).isNotNull();
     }
 
     @Test
     void transition_shouldRejectInvalidTransition() {
         ScopedIdentifier si = createScopedIdentifier("id-1", "1.0.0");
-        si.setVersionStatus(VersionStatus.OBSOLETE);
         si.setNamespace(namespace);
         si.setIdentifiedItem(identifiedItem);
+        ScopedIdentifierLifecycle lc = new ScopedIdentifierLifecycle();
+        lc.setVersionStatus(VersionStatus.OBSOLETE);
+        when(lifecycleService.getOrDefault(scopedIdentifierId)).thenReturn(lc);
+        lenient().when(lifecycleService.mutate(eq(scopedIdentifierId), any())).thenAnswer(inv -> {
+            java.util.function.Consumer<ScopedIdentifierLifecycle> c = inv.getArgument(1);
+            c.accept(lc);
+            return lc;
+        });
         when(scopedIdentifierRepository.findById(scopedIdentifierId)).thenReturn(Optional.of(si));
 
         VersionTransitionRequest request = new VersionTransitionRequest(VersionStatus.PUBLISHED, "No");
@@ -387,8 +425,6 @@ class ScopedIdentifierServiceTest {
         si.setId(scopedIdentifierId);
         si.setIdentifier(identifier);
         si.setVersion(version);
-        si.setVersionStatus(VersionStatus.DRAFT);
-        si.setCreatedAt(LocalDateTime.now());
         return si;
     }
 }

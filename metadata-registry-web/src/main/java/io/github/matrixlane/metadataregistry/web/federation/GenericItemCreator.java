@@ -3,11 +3,11 @@ package io.github.matrixlane.metadataregistry.web.federation;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.Context;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.Item;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Organization;
-import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifierStrategyConfigService;
-import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifierVersionHistory;
+import io.github.matrixlane.metadataregistry.ext.identification.IdentifierStrategyConfigService;
+import io.github.matrixlane.metadataregistry.ext.identification.IdentifierVersionHistory;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.ScopedIdentifier;
-import io.github.matrixlane.metadataregistry.commonfacilities.identification.Versions;
+import io.github.matrixlane.metadataregistry.ext.identification.Versions;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.AdministeredItem;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationAuthority;
 import io.github.matrixlane.metadataregistry.dataspecification.DataElement;
@@ -79,6 +79,7 @@ public class GenericItemCreator {
     private final ScopedIdentifierRepository scopedIdentifierRepository;
     private final IdentifierVersionHistoryRepository identifierVersionHistoryRepository;
     private final IdentifierStrategyConfigService identifierStrategyConfigService;
+    private final io.github.matrixlane.metadataregistry.web.service.ScopedIdentifierLifecycleService lifecycleService;
     private final GlobalNamespaceService globalNamespaceService;
 
     public AdministeredItem create(BundleItemSnapshot snapshot, UUID targetNamespaceId, RegistryNode node) {
@@ -123,13 +124,17 @@ public class GenericItemCreator {
         ScopedIdentifier targetSi = new ScopedIdentifier(
                 identifierStrategyConfigService.generateIdentifier(targetNs, null), targetNs, ai);
         targetSi.setVersion(Versions.initial(targetNs.getVersioningPolicy()));
-        targetSi.setCreatedAt(LocalDateTime.now());
         ai.getScopedIdentifiers().add(targetSi);
         itemRepository.save(item);
+        // 生命周期扩展属性(createdAt 等)写入卫星实体;SI 经级联已持久化,ID 可用
+        io.github.matrixlane.metadataregistry.ext.identification.ScopedIdentifierLifecycle targetLc =
+                new io.github.matrixlane.metadataregistry.ext.identification.ScopedIdentifierLifecycle();
+        targetLc.setCreatedAt(LocalDateTime.now());
+        lifecycleService.stageNew(targetSi, targetLc);
 
         // MERGE 标记：记录本次迁移后目的方标识版本，供后续本地编辑检测
         identifierVersionHistoryRepository.save(new IdentifierVersionHistory(
-                targetSi, targetSi.getVersion(), targetSi.getVersionStatus(),
+                targetSi, targetSi.getVersion(), io.github.matrixlane.metadataregistry.ext.identification.VersionStatus.DRAFT,
                 "system", MergeVersionSupport.MERGE_MARKER + " 迁移创建"));
         return ai;
     }

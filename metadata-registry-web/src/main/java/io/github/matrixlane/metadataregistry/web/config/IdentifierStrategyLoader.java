@@ -1,10 +1,10 @@
 package io.github.matrixlane.metadataregistry.web.config;
 
-import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifierGenerationStrategyRegistry;
-import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifierStrategyConfig;
-import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifierStrategyConfigService;
-import io.github.matrixlane.metadataregistry.commonfacilities.identification.SequenceGenerationStrategy;
-import io.github.matrixlane.metadataregistry.commonfacilities.identification.TemplateGenerationStrategy;
+import io.github.matrixlane.metadataregistry.ext.identification.IdentifierGenerationStrategyRegistry;
+import io.github.matrixlane.metadataregistry.ext.identification.IdentifierStrategyConfig;
+import io.github.matrixlane.metadataregistry.ext.identification.IdentifierStrategyConfigService;
+import io.github.matrixlane.metadataregistry.ext.identification.SequenceGenerationStrategy;
+import io.github.matrixlane.metadataregistry.ext.identification.TemplateGenerationStrategy;
 import io.github.matrixlane.metadataregistry.web.repository.IdentifierStrategyConfigRepository;
 import io.github.matrixlane.metadataregistry.web.service.SequenceRegistryService;
 import lombok.RequiredArgsConstructor;

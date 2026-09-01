@@ -1,8 +1,8 @@
 package io.github.matrixlane.metadataregistry.web.service.identifier;
 
-import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifierInputMode;
+import io.github.matrixlane.metadataregistry.ext.identification.IdentifierInputMode;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace;
-import io.github.matrixlane.metadataregistry.commonfacilities.identification.VersioningPolicy;
+import io.github.matrixlane.metadataregistry.ext.identification.VersioningPolicy;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 

@@ -1,9 +1,9 @@
 package io.github.matrixlane.metadataregistry.web.config;
 
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.SystemRole;
-import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifierCreationMode;
-import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifierStrategyConfig.StrategyStatus;
-import io.github.matrixlane.metadataregistry.commonfacilities.identification.VersionStatus;
+import io.github.matrixlane.metadataregistry.ext.identification.IdentifierCreationMode;
+import io.github.matrixlane.metadataregistry.ext.identification.IdentifierStrategyConfig.StrategyStatus;
+import io.github.matrixlane.metadataregistry.ext.identification.VersionStatus;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.DegreeOfConformance;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationStatus;
 import io.github.matrixlane.metadataregistry.datasetregistration.entity.InteropDataElement.MappingStatus;

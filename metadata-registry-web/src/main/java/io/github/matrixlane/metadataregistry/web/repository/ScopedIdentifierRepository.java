@@ -34,24 +34,27 @@ public interface ScopedIdentifierRepository extends JpaRepository<ScopedIdentifi
 
     @Query("""
             SELECT si FROM ScopedIdentifier si
+            LEFT JOIN ScopedIdentifierLifecycle lc ON lc.scopedIdentifierId = si.id
             WHERE si.namespace.id = :namespaceId
             AND si.identifier = :identifier
-            ORDER BY si.createdAt DESC
+            ORDER BY lc.createdAt DESC
             """)
     List<ScopedIdentifier> findAllByNamespaceIdAndIdentifier(@Param("namespaceId") UUID namespaceId,
                                                              @Param("identifier") String identifier);
 
     @Query("""
             SELECT si FROM ScopedIdentifier si
+            LEFT JOIN ScopedIdentifierLifecycle lc ON lc.scopedIdentifierId = si.id
             WHERE si.identifier = :identifier
-            ORDER BY si.createdAt DESC
+            ORDER BY lc.createdAt DESC
             """)
     List<ScopedIdentifier> findByIdentifier(@Param("identifier") String identifier);
 
     @Query("""
             SELECT si FROM ScopedIdentifier si
+            LEFT JOIN ScopedIdentifierLifecycle lc ON lc.scopedIdentifierId = si.id
             WHERE si.identifiedItem.id = :identifiedItemId
-            ORDER BY si.createdAt DESC
+            ORDER BY lc.createdAt DESC
             """)
     List<ScopedIdentifier> findByIdentifiedItemId(@Param("identifiedItemId") UUID identifiedItemId);
 

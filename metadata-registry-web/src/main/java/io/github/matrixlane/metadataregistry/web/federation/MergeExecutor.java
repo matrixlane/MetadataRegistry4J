@@ -4,11 +4,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.LanguageIdentification;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Organization;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.Item;
-import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifierStrategyConfigService;
-import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifierVersionHistory;
+import io.github.matrixlane.metadataregistry.ext.identification.IdentifierStrategyConfigService;
+import io.github.matrixlane.metadataregistry.ext.identification.IdentifierVersionHistory;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.ScopedIdentifier;
-import io.github.matrixlane.metadataregistry.commonfacilities.identification.Versions;
+import io.github.matrixlane.metadataregistry.ext.identification.Versions;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.AdministeredItem;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationAuthority;
 import io.github.matrixlane.metadataregistry.web.common.ApiCodes;
@@ -58,6 +58,7 @@ public class MergeExecutor {
     private final NamespaceRepository namespaceRepository;
     private final RegistrationAuthorityRepository registrationAuthorityRepository;
     private final ScopedIdentifierRepository scopedIdentifierRepository;
+    private final io.github.matrixlane.metadataregistry.web.service.ScopedIdentifierLifecycleService lifecycleService;
     private final LanguageIdentificationRepository languageRepository;
     private final ItemAdministrationService itemAdministrationService;
     private final VersionHistoryService versionHistoryService;
@@ -233,8 +234,11 @@ public class MergeExecutor {
                 .findFirst()
                 .orElseGet(() -> {
                     ScopedIdentifier created = new ScopedIdentifier(snapshot.identifier(), sourceCopy, ai);
-                    created.setCreatedAt(LocalDateTime.now());
                     ai.getScopedIdentifiers().add(created);
+                    io.github.matrixlane.metadataregistry.ext.identification.ScopedIdentifierLifecycle lc =
+                            new io.github.matrixlane.metadataregistry.ext.identification.ScopedIdentifierLifecycle();
+                    lc.setCreatedAt(LocalDateTime.now());
+                    lifecycleService.stageNew(created, lc);
                     return created;
                 });
         sourceSi.setVersion(snapshot.version());
@@ -249,13 +253,19 @@ public class MergeExecutor {
                     ScopedIdentifier created = new ScopedIdentifier(
                             identifierStrategyConfigService.generateIdentifier(targetNs, null), targetNs, ai);
                     created.setVersion("0");
-                    created.setCreatedAt(LocalDateTime.now());
                     ai.getScopedIdentifiers().add(created);
+                    io.github.matrixlane.metadataregistry.ext.identification.ScopedIdentifierLifecycle lc =
+                            new io.github.matrixlane.metadataregistry.ext.identification.ScopedIdentifierLifecycle();
+                    lc.setCreatedAt(LocalDateTime.now());
+                    lifecycleService.stageNew(created, lc);
                     return created;
                 });
         targetSi.setVersion(Versions.bump(targetSi.getVersion(), targetNs.getVersioningPolicy()));
         identifierVersionHistoryRepository.save(new IdentifierVersionHistory(
-                targetSi, targetSi.getVersion(), targetSi.getVersionStatus(),
+                targetSi, targetSi.getVersion(),
+                targetSi.getId() != null
+                        ? lifecycleService.getOrDefault(targetSi.getId()).getVersionStatus()
+                        : io.github.matrixlane.metadataregistry.ext.identification.VersionStatus.DRAFT,
                 "system", MergeVersionSupport.MERGE_MARKER + " mr=" + mr.getId()));
     }
 

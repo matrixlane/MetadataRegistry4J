@@ -1,6 +1,6 @@
 package io.github.matrixlane.metadataregistry.web.repository;
 
-import io.github.matrixlane.metadataregistry.commonfacilities.identification.SequenceRegistry;
+import io.github.matrixlane.metadataregistry.ext.identification.SequenceRegistry;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;

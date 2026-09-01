@@ -3,8 +3,6 @@ package io.github.matrixlane.metadataregistry.commonfacilities.identification;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.StandardReference;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -17,7 +15,6 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-import java.time.LocalDateTime;
 import java.util.UUID;
 
 /**
@@ -31,6 +28,11 @@ import java.util.UUID;
  * (e.g., one in the local hospital namespace, another mirroring the LOINC
  * external standard). The {@code identifier} value is unique within a single
  * Namespace.
+ *
+ * <p>创建方式、版本状态与生命周期时间戳等扩展属性已剥离至卫星实体
+ * {@code io.github.matrixlane.metadataregistry.ext.identification.ScopedIdentifierLifecycle}
+ * (metadata-registry-ext,表 scoped_identifier_lifecycle),经
+ * {@code ScopedIdentifierLifecycleService} 读写。
  */
 @StandardReference("ISO/IEC 11179-3:2023, Clause 7")
 @Entity
@@ -54,42 +56,9 @@ public class ScopedIdentifier {
     @Column(name = "identifier", nullable = false, length = 255)
     private String identifier;
 
-    /**
-     * 创建时用户选择的标识符生成方式。
-     * AUTO = 创建时按命名空间策略自动生成（编辑态 MUST 锁定）；
-     * MANUAL = 创建时由用户手动录入（编辑态 MUST 可编辑）；
-     * NULL = 迁移前既存记录或外部命名空间下的 SI（按 MANUAL 等价处理）。
-     */
-    @Enumerated(EnumType.STRING)
-    @Column(name = "identifier_creation_mode", length = 16)
-    private IdentifierCreationMode identifierCreationMode;
-
-    /**
-     * 创建时用户选择的版本生成方式。语义与 {@link #identifierCreationMode} 对称。
-     */
-    @Enumerated(EnumType.STRING)
-    @Column(name = "version_creation_mode", length = 16)
-    private IdentifierCreationMode versionCreationMode;
-
     /** ISO/IEC 11179-3:2023 表 12(Scoped_Identifier):version 1,必备。 */
     @Column(name = "version", nullable = false, length = 32)
     private String version;
-
-    @Enumerated(EnumType.STRING)
-    @Column(name = "version_status", length = 16)
-    private VersionStatus versionStatus = VersionStatus.DRAFT;
-
-    @Column(name = "created_at")
-    private LocalDateTime createdAt;
-
-    @Column(name = "published_at")
-    private LocalDateTime publishedAt;
-
-    @Column(name = "deprecated_at")
-    private LocalDateTime deprecatedAt;
-
-    @Column(name = "obsolete_at")
-    private LocalDateTime obsoleteAt;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "namespace_id")

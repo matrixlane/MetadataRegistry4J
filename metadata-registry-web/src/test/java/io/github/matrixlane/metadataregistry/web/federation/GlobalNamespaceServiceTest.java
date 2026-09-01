@@ -2,8 +2,8 @@ package io.github.matrixlane.metadataregistry.web.federation;
 
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.Sign;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.LanguageIdentification;
-import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifierGenerationStrategyRegistry;
-import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifierStrategyConfig;
+import io.github.matrixlane.metadataregistry.ext.identification.IdentifierGenerationStrategyRegistry;
+import io.github.matrixlane.metadataregistry.ext.identification.IdentifierStrategyConfig;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.ScopedIdentifier;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.AdministeredItem;
@@ -48,6 +48,7 @@ class GlobalNamespaceServiceTest {
     @Mock private IdentifierStrategyConfigRepository identifierStrategyConfigRepository;
     @Mock private LanguageIdentificationRepository languageRepository;
     @Mock private OrganizationRepository organizationRepository;
+    @Mock private io.github.matrixlane.metadataregistry.web.service.ScopedIdentifierLifecycleService lifecycleService;
 
     @InjectMocks
     private GlobalNamespaceService service;

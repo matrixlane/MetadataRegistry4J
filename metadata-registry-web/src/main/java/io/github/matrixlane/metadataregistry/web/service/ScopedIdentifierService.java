@@ -1,13 +1,14 @@
 package io.github.matrixlane.metadataregistry.web.service;
 
-import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifierCreationMode;
-import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifierVersionHistory;
+import io.github.matrixlane.metadataregistry.ext.identification.IdentifierCreationMode;
+import io.github.matrixlane.metadataregistry.ext.identification.IdentifierVersionHistory;
+import io.github.matrixlane.metadataregistry.ext.identification.ScopedIdentifierLifecycle;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifiedItem;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.ScopedIdentifier;
-import io.github.matrixlane.metadataregistry.commonfacilities.identification.VersionStatus;
-import io.github.matrixlane.metadataregistry.commonfacilities.identification.segment.SegmentTemplateException;
-import io.github.matrixlane.metadataregistry.commonfacilities.identification.segment.SequenceOverflowException;
+import io.github.matrixlane.metadataregistry.ext.identification.VersionStatus;
+import io.github.matrixlane.metadataregistry.ext.identification.segment.SegmentTemplateException;
+import io.github.matrixlane.metadataregistry.ext.identification.segment.SequenceOverflowException;
 import io.github.matrixlane.metadataregistry.web.common.BusinessException;
 import io.github.matrixlane.metadataregistry.web.common.ResourceNotFoundException;
 import io.github.matrixlane.metadataregistry.web.dto.scopedidentifier.IdentifierVersionHistoryResponse;
@@ -44,6 +45,7 @@ public class ScopedIdentifierService {
     private final IdentifiedItemRepository identifiedItemRepository;
     private final IdentifierInputPolicyService identifierInputPolicyService;
     private final NamespaceConstraintValidator namespaceConstraintValidator;
+    private final ScopedIdentifierLifecycleService lifecycleService;
 
     @Transactional(readOnly = true)
     public Page<ScopedIdentifierResponse> list(Pageable pageable) {
@@ -98,15 +100,17 @@ public class ScopedIdentifierService {
             ScopedIdentifier entity = new ScopedIdentifier();
             entity.setIdentifier(identifier);
             entity.setVersion(version);
-            entity.setVersionStatus(VersionStatus.DRAFT);
             entity.setNamespace(namespace);
             entity.setIdentifiedItem(identifiedItem);
-            entity.setCreatedAt(LocalDateTime.now());
+            // 生命周期扩展属性（创建方式/版本状态/时间戳）写入卫星实体（ext）
+            ScopedIdentifierLifecycle lifecycle = new ScopedIdentifierLifecycle();
+            lifecycle.setVersionStatus(VersionStatus.DRAFT);
+            lifecycle.setCreatedAt(LocalDateTime.now());
             // 持久化创建选择（AUTO/MANUAL）：外部 SI 始终 MANUAL，null；自有名下按输入推导。
-            entity.setIdentifierCreationMode(autoGenerate
+            lifecycle.setIdentifierCreationMode(autoGenerate
                     ? IdentifierCreationMode.AUTO
                     : IdentifierCreationMode.MANUAL);
-            entity.setVersionCreationMode((request.version() == null || request.version().isBlank())
+            lifecycle.setVersionCreationMode((request.version() == null || request.version().isBlank())
                     ? IdentifierCreationMode.AUTO
                     : IdentifierCreationMode.MANUAL);
 
@@ -114,8 +118,9 @@ public class ScopedIdentifierService {
 
             try {
                 ScopedIdentifier saved = scopedIdentifierRepository.save(entity);
+                lifecycleService.stageNew(saved, lifecycle);
                 recordHistory(saved, version, VersionStatus.DRAFT, "Created: " + (request.changeSummary() != null ? request.changeSummary() : "Initial version"));
-                return toCreatedResponse(saved, identifiedItemClass);
+                return toCreatedResponse(saved, identifiedItemClass, lifecycle);
             } catch (DataIntegrityViolationException e) {
                 if (autoGenerate && attempt < maxAttempts) {
                     continue;
@@ -127,11 +132,12 @@ public class ScopedIdentifierService {
 
     public ScopedIdentifierResponse update(UUID id, ScopedIdentifierCreateRequest request) {
         ScopedIdentifier entity = loadOrThrow(id);
+        ScopedIdentifierLifecycle lifecycle = lifecycleService.getOrDefault(id);
 
         // identifier 变更遵循 SI 持久化的 creation_mode：AUTO 拒绝；MANUAL / NULL 接受
         if (request.identifier() != null && !request.identifier().isBlank()
                 && !request.identifier().equals(entity.getIdentifier())) {
-            if (entity.getIdentifierCreationMode() == IdentifierCreationMode.AUTO) {
+            if (lifecycle.getIdentifierCreationMode() == IdentifierCreationMode.AUTO) {
                 throw new BusinessException("该标识符创建时选择自动生成，不允许手动修改");
             }
             entity.setIdentifier(request.identifier());
@@ -140,7 +146,7 @@ public class ScopedIdentifierService {
         // 版本变更遵循 creation_mode：AUTO 忽略显式值；MANUAL / NULL 接受并校验
         if (request.version() != null && !request.version().isBlank()
                 && !request.version().equals(entity.getVersion())) {
-            if (entity.getVersionCreationMode() == IdentifierCreationMode.AUTO) {
+            if (lifecycle.getVersionCreationMode() == IdentifierCreationMode.AUTO) {
                 // 编辑 AUTO 时 MUST 忽略显式 version；保持原值不变（由调用方按策略 bump）
                 // 此处不写值即可，由 ItemAdministrationService 负责按策略递增；
                 // 本路径仅在 SI 独立更新接口被调用时触发。
@@ -175,19 +181,21 @@ public class ScopedIdentifierService {
 
     public ScopedIdentifierResponse transition(UUID id, VersionTransitionRequest request) {
         ScopedIdentifier entity = loadOrThrow(id);
-        VersionStatus current = entity.getVersionStatus();
+        VersionStatus current = lifecycleService.getOrDefault(id).getVersionStatus();
         VersionStatus target = request.toStatus();
 
         validateTransition(current, target);
 
-        entity.setVersionStatus(target);
         LocalDateTime now = LocalDateTime.now();
-        switch (target) {
-            case PUBLISHED -> entity.setPublishedAt(now);
-            case DEPRECATED -> entity.setDeprecatedAt(now);
-            case OBSOLETE -> entity.setObsoleteAt(now);
-            default -> { /* no-op */ }
-        }
+        lifecycleService.mutate(id, lc -> {
+            lc.setVersionStatus(target);
+            switch (target) {
+                case PUBLISHED -> lc.setPublishedAt(now);
+                case DEPRECATED -> lc.setDeprecatedAt(now);
+                case OBSOLETE -> lc.setObsoleteAt(now);
+                default -> { /* no-op */ }
+            }
+        });
 
         ScopedIdentifier saved = scopedIdentifierRepository.save(entity);
         recordHistory(saved, saved.getVersion(), target, request.changeSummary());
@@ -239,7 +247,8 @@ public class ScopedIdentifierService {
      * （Item 联合子类整图 join 在 SQLite 上超出 64 表上限）；类型取自
      * create() 已完成的 type() 探测，标签留空，详情经查询接口获取。
      */
-    private ScopedIdentifierResponse toCreatedResponse(ScopedIdentifier si, Class<?> identifiedItemClass) {
+    private ScopedIdentifierResponse toCreatedResponse(ScopedIdentifier si, Class<?> identifiedItemClass,
+                                                       ScopedIdentifierLifecycle lifecycle) {
         Namespace ns = si.getNamespace();
         return new ScopedIdentifierResponse(
                 si.getId(),
@@ -247,22 +256,23 @@ public class ScopedIdentifierService {
                 ns == null ? null : ItemNamingHelper.preferredDesignation(ns),
                 si.getIdentifier(),
                 si.getVersion(),
-                si.getVersionStatus(),
+                lifecycle.getVersionStatus(),
                 si.getIdentifiedItem() == null ? null : si.getIdentifiedItem().getId(),
                 identifiedItemClass == null ? null : identifiedItemClass.getSimpleName(),
                 null,
-                si.getCreatedAt(),
-                si.getPublishedAt(),
-                si.getDeprecatedAt(),
-                si.getObsoleteAt(),
-                si.getIdentifierCreationMode(),
-                si.getVersionCreationMode()
+                lifecycle.getCreatedAt(),
+                lifecycle.getPublishedAt(),
+                lifecycle.getDeprecatedAt(),
+                lifecycle.getObsoleteAt(),
+                lifecycle.getIdentifierCreationMode(),
+                lifecycle.getVersionCreationMode()
         );
     }
 
     private ScopedIdentifierResponse toResponse(ScopedIdentifier si) {
         Namespace ns = si.getNamespace();
         IdentifiedItem ii = si.getIdentifiedItem();
+        ScopedIdentifierLifecycle lifecycle = lifecycleService.getOrDefault(si.getId());
 
         UUID identifiedItemId = null;
         String identifiedItemType = null;
@@ -282,16 +292,16 @@ public class ScopedIdentifierService {
                 ns == null ? null : ItemNamingHelper.preferredDesignation(ns),
                 si.getIdentifier(),
                 si.getVersion(),
-                si.getVersionStatus(),
+                lifecycle.getVersionStatus(),
                 identifiedItemId,
                 identifiedItemType,
                 identifiedItemLabel,
-                si.getCreatedAt(),
-                si.getPublishedAt(),
-                si.getDeprecatedAt(),
-                si.getObsoleteAt(),
-                si.getIdentifierCreationMode(),
-                si.getVersionCreationMode()
+                lifecycle.getCreatedAt(),
+                lifecycle.getPublishedAt(),
+                lifecycle.getDeprecatedAt(),
+                lifecycle.getObsoleteAt(),
+                lifecycle.getIdentifierCreationMode(),
+                lifecycle.getVersionCreationMode()
         );
     }
 

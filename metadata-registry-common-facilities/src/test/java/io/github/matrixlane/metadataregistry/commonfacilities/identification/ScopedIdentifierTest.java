@@ -17,12 +17,6 @@ class ScopedIdentifierTest {
     }
 
     @Test
-    void shouldDefaultToDraftVersionStatus() {
-        ScopedIdentifier si = new ScopedIdentifier();
-        assertThat(si.getVersionStatus()).isEqualTo(VersionStatus.DRAFT);
-    }
-
-    @Test
     void shouldAllowVersionUpdate() {
         ScopedIdentifier si = new ScopedIdentifier();
         si.setVersion("2.0.0");

@@ -1,8 +1,8 @@
 package io.github.matrixlane.metadataregistry.web.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifierCreationMode;
-import io.github.matrixlane.metadataregistry.commonfacilities.identification.VersionStatus;
+import io.github.matrixlane.metadataregistry.ext.identification.IdentifierCreationMode;
+import io.github.matrixlane.metadataregistry.ext.identification.VersionStatus;
 import io.github.matrixlane.metadataregistry.web.auth.JwtService;
 import io.github.matrixlane.metadataregistry.web.config.AppProperties;
 import io.github.matrixlane.metadataregistry.web.dto.scopedidentifier.ScopedIdentifierCreateRequest;

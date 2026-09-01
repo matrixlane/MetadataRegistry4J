@@ -58,6 +58,7 @@ class ItemAdministrationServiceTest {
     @Mock private io.github.matrixlane.metadataregistry.web.repository.AdministeredItemRepository administeredItemRepository;
     @Mock private ActiveRegistrarService activeRegistrarService;
     @Mock private RegistrySpecificationRepository registrySpecificationRepository;
+    @Mock private ScopedIdentifierLifecycleService lifecycleService;
 
     @InjectMocks
     private ItemAdministrationService itemAdministrationService;
@@ -80,6 +81,10 @@ class ItemAdministrationServiceTest {
 
         item = new TestItem();
         item.setId(itemId);
+
+        // 卫星实体默认行为:无卫星行时返回默认值(语义同字段时代初始值)
+        lenient().when(lifecycleService.getOrDefault(any()))
+                .thenAnswer(inv -> new io.github.matrixlane.metadataregistry.ext.identification.ScopedIdentifierLifecycle());
 
         // 缺省按"透传手动值"裁决，个别用例可覆盖
         lenient().when(identifierInputPolicyService.resolveIdentifier(any(), any(), any(), any()))

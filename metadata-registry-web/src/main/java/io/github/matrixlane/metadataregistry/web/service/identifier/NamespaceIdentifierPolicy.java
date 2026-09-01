@@ -1,7 +1,7 @@
 package io.github.matrixlane.metadataregistry.web.service.identifier;
 
-import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifierInputMode;
-import io.github.matrixlane.metadataregistry.commonfacilities.identification.VersioningPolicy;
+import io.github.matrixlane.metadataregistry.ext.identification.IdentifierInputMode;
+import io.github.matrixlane.metadataregistry.ext.identification.VersioningPolicy;
 
 /**
  * Strongly-typed view of a Namespace's identifier governance policy,
