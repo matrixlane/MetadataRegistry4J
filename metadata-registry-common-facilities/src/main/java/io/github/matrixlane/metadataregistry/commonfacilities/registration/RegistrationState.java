@@ -17,9 +17,13 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 public class RegistrationState extends Entity {
 
+    /** ISO/IEC 11179-3:2023 表 22(Registration_State):registration_status 1,必备。 */
     @Enumerated(EnumType.STRING)
+    @jakarta.persistence.Column(nullable = false)
     private RegistrationStatus registrationStatus;
 
+    /** 表 22:effective_date 1,必备。 */
+    @jakarta.persistence.Column(nullable = false)
     private LocalDateTime effectiveDate;
 
     private LocalDateTime untilDate;

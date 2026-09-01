@@ -102,7 +102,11 @@ public class Namespace extends Item {
     @JoinColumn(name = "naming_authority_id")
     private Organization namingAuthority;
 
-    @OneToMany(mappedBy = "namespace", cascade = CascadeType.ALL)
+    /**
+     * ISO/IEC 11179-3:2023 7.3.2.4:Namespace 删除时,
+     * 经 identifier_scope 关联的 Scoped_Identifier 须一并删除。
+     */
+    @OneToMany(mappedBy = "namespace", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ScopedIdentifier> scopedIdentifiers = new ArrayList<>();
 
     /**

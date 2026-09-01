@@ -19,8 +19,9 @@ import java.util.List;
 @NoArgsConstructor
 public abstract class ValueDomain extends Item {
 
-    @ManyToOne
-    @JoinColumn(name = "data_type_id")
+    /** ISO/IEC 11179-31:2023 表 5(Value_Domain):datatype 1,必备。 */
+    @ManyToOne(optional = false)
+    @JoinColumn(name = "data_type_id", nullable = false)
     private DataType dataType;
 
     @Embedded

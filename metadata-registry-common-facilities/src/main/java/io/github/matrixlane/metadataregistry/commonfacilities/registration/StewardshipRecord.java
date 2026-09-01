@@ -20,11 +20,13 @@ import java.util.List;
 public class StewardshipRecord extends Entity {
 
     @ManyToOne
-    @JoinColumn(name = "organization_id")
+    /** ISO/IEC 11179-3:2023 表 26(Stewardship_Record):organization 1,必备。 */
+    @JoinColumn(name = "organization_id", nullable = false)
     private Organization organization;
 
     @ManyToOne
-    @JoinColumn(name = "contact_id")
+    /** 表 26:contact 1,必备。 */
+    @JoinColumn(name = "contact_id", nullable = false)
     private Contact contact;
 
     @OneToMany(mappedBy = "stewardshipRecord")

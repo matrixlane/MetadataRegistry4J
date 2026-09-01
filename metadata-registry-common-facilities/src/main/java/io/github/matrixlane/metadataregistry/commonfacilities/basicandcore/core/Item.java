@@ -38,20 +38,19 @@ public abstract class Item extends Entity {
     @OneToMany(mappedBy = "item", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Definition> definitions = new ArrayList<>();
 
-    @OneToMany(mappedBy = "item", cascade = CascadeType.ALL, orphanRemoval = true, fetch = jakarta.persistence.FetchType.LAZY)
-    private List<IdentifiedItem> identifiedItems = new ArrayList<>();
+    /**
+     * Item identification 关联(11179-3:2023 7.4.1):0..1。
+     */
+    @jakarta.persistence.OneToOne(mappedBy = "item", cascade = CascadeType.ALL, orphanRemoval = true, fetch = jakarta.persistence.FetchType.LAZY)
+    private IdentifiedItem identifiedItem;
 
     public IdentifiedItem getIdentifiedItem() {
-        return (identifiedItems == null || identifiedItems.isEmpty()) ? null : identifiedItems.get(0);
+        return identifiedItem;
     }
 
     public void setIdentifiedItem(IdentifiedItem identifiedItem) {
-        if (this.identifiedItems == null) {
-            this.identifiedItems = new ArrayList<>();
-        }
-        this.identifiedItems.clear();
+        this.identifiedItem = identifiedItem;
         if (identifiedItem != null) {
-            this.identifiedItems.add(identifiedItem);
             identifiedItem.setItem(this);
         }
     }

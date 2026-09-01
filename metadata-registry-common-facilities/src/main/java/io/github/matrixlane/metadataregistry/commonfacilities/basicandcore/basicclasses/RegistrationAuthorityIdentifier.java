@@ -7,19 +7,23 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 /**
- * ISO/IEC 11179-3:2023, 6.3.8 — Registration_Authority_Identifier
+ * ISO/IEC 11179-3:2023, 6.3.9 — Registration_Authority_Identifier
  *
  * <p>An identifier assigned by a registration authority.
  */
-@StandardReference("ISO/IEC 11179-3:2023, 6.3.8")
+@StandardReference("ISO/IEC 11179-3:2023, 6.3.9")
 @Embeddable
 @Getter
 @Setter
 @NoArgsConstructor
 public class RegistrationAuthorityIdentifier {
 
+    /** 表 8:international_code_designator 1,必备。 */
+    @jakarta.persistence.Column(nullable = false)
     private String internationalCodeDesignator;
 
+    /** 表 8:organization_identifier 1,必备。 */
+    @jakarta.persistence.Column(nullable = false)
     private String organizationIdentifier;
 
     private String organizationPartIdentifier;

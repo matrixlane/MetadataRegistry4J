@@ -173,6 +173,9 @@ public class InitWizardService {
         }
 
         RegistrationAuthorityIdentifier rai = new RegistrationAuthorityIdentifier();
+        // 表 8:international_code_designator 必备。占位值 "0000"(ISO/IEC 6523 未分配段),
+        // 部署方应在注册机构设置中改为本机构真实 ICD。
+        rai.setInternationalCodeDesignator("0000");
         rai.setOrganizationIdentifier("RA");
         ra.setRegistrationAuthorityIdentifier(rai);
 

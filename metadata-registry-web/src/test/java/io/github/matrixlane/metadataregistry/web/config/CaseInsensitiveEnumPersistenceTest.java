@@ -44,7 +44,7 @@ class CaseInsensitiveEnumPersistenceTest {
     @Test
     void readsCapitalizedStandardValueFromDatabase() {
         // 绕过 JPA 直接写入标准格式（首字母大写）的历史导入数据
-        jdbc.update("insert into registration_state (id, registration_status) values (?, ?)",
+        jdbc.update("insert into registration_state (id, registration_status, effective_date) values (?, ?, CURRENT_TIMESTAMP)",
                 UUID.randomUUID().toString(), "Standard");
 
         entityManager.clear();
@@ -56,7 +56,7 @@ class CaseInsensitiveEnumPersistenceTest {
     @Test
     void readsUppercaseJavaEnumNameFromDatabase() {
         // 应用自身写入的大写枚举名也必须继续可读
-        jdbc.update("insert into registration_state (id, registration_status) values (?, ?)",
+        jdbc.update("insert into registration_state (id, registration_status, effective_date) values (?, ?, CURRENT_TIMESTAMP)",
                 UUID.randomUUID().toString(), "RECORDED");
 
         entityManager.clear();

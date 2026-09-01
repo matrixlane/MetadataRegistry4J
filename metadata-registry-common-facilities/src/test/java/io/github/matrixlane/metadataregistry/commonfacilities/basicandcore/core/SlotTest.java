@@ -11,7 +11,7 @@ class SlotTest {
         Item item = new Context();
         Slot slot = new Slot("color", "red", "xsd:string", item);
         assertThat(slot.getName()).isEqualTo("color");
-        assertThat(slot.getValue()).isEqualTo("red");
+        assertThat(slot.getValue()).containsExactly("red");
         assertThat(slot.getValue_datatype()).isEqualTo("xsd:string");
         assertThat(slot.getItem()).isEqualTo(item);
     }
@@ -20,11 +20,11 @@ class SlotTest {
     void shouldSetFields() {
         Slot slot = new Slot();
         slot.setName("size");
-        slot.setValue("42");
+        slot.getValue().add("42");
         slot.setValue_datatype("xsd:integer");
         slot.setType("legacy-type");
         assertThat(slot.getName()).isEqualTo("size");
-        assertThat(slot.getValue()).isEqualTo("42");
+        assertThat(slot.getValue()).containsExactly("42");
         assertThat(slot.getValue_datatype()).isEqualTo("xsd:integer");
         assertThat(slot.getType()).isEqualTo("legacy-type");
     }
@@ -34,7 +34,7 @@ class SlotTest {
         Slot slot = new Slot();
         assertThat(slot.getId()).isNull();
         assertThat(slot.getName()).isNull();
-        assertThat(slot.getValue()).isNull();
+        assertThat(slot.getValue()).isEmpty();
         assertThat(slot.getValue_datatype()).isNull();
         assertThat(slot.getItem()).isNull();
     }
@@ -70,20 +70,21 @@ class SlotTest {
     @Test
     void shouldUpdateValue() {
         Slot slot = new Slot("status", "active", "xsd:string", new Context());
-        slot.setValue("inactive");
-        assertThat(slot.getValue()).isEqualTo("inactive");
+        slot.getValue().clear();
+        slot.getValue().add("inactive");
+        assertThat(slot.getValue()).containsExactly("inactive");
     }
 
     @Test
     void shouldSupportNullValue() {
         Slot slot = new Slot("optional", null, "xsd:string", new Context());
-        assertThat(slot.getValue()).isNull();
+        assertThat(slot.getValue()).isEmpty();
     }
 
     @Test
     void shouldSupportEmptyStringValue() {
         Slot slot = new Slot("empty", "", "xsd:string", new Context());
-        assertThat(slot.getValue()).isEmpty();
+        assertThat(slot.getValue()).containsExactly("");
     }
 
     @Test

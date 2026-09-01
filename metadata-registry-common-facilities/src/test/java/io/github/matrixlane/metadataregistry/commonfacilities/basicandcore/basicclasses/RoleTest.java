@@ -12,13 +12,14 @@ class RoleTest {
         Role role = new Role();
         role.setRoleName("Administrator");
         role.getMailAddress().setValue("admin@example.com");
-        role.setEmailAddress("admin@example.com");
-        role.getPhoneNumber().setValue("+86-138-0000-0000");
+        role.getEmailAddress().add("admin@example.com");
+        role.getPhoneNumber().add(PhoneNumber.of("+86-138-0000-0000"));
 
         assertThat(role.getRoleName()).isEqualTo("Administrator");
         assertThat(role.getMailAddress().getValue()).isEqualTo("admin@example.com");
-        assertThat(role.getEmailAddress()).isEqualTo("admin@example.com");
-        assertThat(role.getPhoneNumber().getValue()).isEqualTo("+86-138-0000-0000");
+        assertThat(role.getEmailAddress()).containsExactly("admin@example.com");
+        assertThat(role.getPhoneNumber()).extracting(PhoneNumber::getValue)
+                .containsExactly("+86-138-0000-0000");
     }
 
     @Test

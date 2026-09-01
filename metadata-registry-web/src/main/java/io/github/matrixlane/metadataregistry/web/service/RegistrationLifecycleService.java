@@ -206,6 +206,10 @@ public class RegistrationLifecycleService {
         AppUserRole currentRole = resolveCurrentRole();
         validateRolePermission(from, to, currentRole);
 
+        // 11179-3:2023 5.1:最小出现次数约束在注册状态 Recorded 及以上时强制;
+        // 11179-31:2023 7.5.3.2:Measure_Class 须关联 1..* Unit_of_Measure。
+        validateMandatoryAssociations(ai.getItem(), to);
+
         LocalDateTime now = LocalDateTime.now();
         if (current != null) {
             current.setUntilDate(now);
@@ -290,6 +294,24 @@ public class RegistrationLifecycleService {
      * @param to   目标状态
      * @throws BusinessException 转换非法时抛出
      */
+    /** 注册状态达到 Recorded 及以上(11179-3:2023 状态层级)。 */
+    private static final java.util.Set<RegistrationStatus> RECORDED_OR_HIGHER =
+            EnumSet.of(RegistrationStatus.RECORDED, RegistrationStatus.QUALIFIED,
+                    RegistrationStatus.STANDARD, RegistrationStatus.PREFERRED_STANDARD);
+
+    private void validateMandatoryAssociations(
+            io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.Item item,
+            RegistrationStatus to) {
+        if (!RECORDED_OR_HIGHER.contains(to)) {
+            return;
+        }
+        if (item instanceof io.github.matrixlane.metadataregistry.dataspecification.MeasureClass mc
+                && mc.getUnitOfMeasures().isEmpty()) {
+            throw new BusinessException(
+                    "Measure_Class 必须关联至少一个 Unit_of_Measure(ISO/IEC 11179-31:2023 7.5.3.2)");
+        }
+    }
+
     void validateTransition(RegistrationStatus from, RegistrationStatus to) {
         if (from == to) {
             throw new BusinessException(ApiCodes.ALREADY_IN_TARGET_STATE,

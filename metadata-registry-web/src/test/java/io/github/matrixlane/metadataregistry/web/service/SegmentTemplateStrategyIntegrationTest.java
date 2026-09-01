@@ -6,6 +6,7 @@ import io.github.matrixlane.metadataregistry.commonfacilities.identification.Ide
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifierStrategyConfig;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.Registrar;
+import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.RegistrationAuthorityIdentifier;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationAuthority;
 import io.github.matrixlane.metadataregistry.dataspecification.DataElement;
 import io.github.matrixlane.metadataregistry.web.auth.AccountRepository;
@@ -124,7 +125,12 @@ class SegmentTemplateStrategyIntegrationTest {
     void setUp() {
         String suffix = UUID.randomUUID().toString().substring(0, 8);
 
-        registrationAuthority = registrationAuthorityRepository.save(new RegistrationAuthority());
+        RegistrationAuthority ra = new RegistrationAuthority();
+        RegistrationAuthorityIdentifier rai = new RegistrationAuthorityIdentifier();
+        rai.setInternationalCodeDesignator("0000");
+        rai.setOrganizationIdentifier("RA-TEST");
+        ra.setRegistrationAuthorityIdentifier(rai);
+        registrationAuthority = registrationAuthorityRepository.save(ra);
 
         account = new Account();
         account.setUsername("it-registrar-" + suffix);

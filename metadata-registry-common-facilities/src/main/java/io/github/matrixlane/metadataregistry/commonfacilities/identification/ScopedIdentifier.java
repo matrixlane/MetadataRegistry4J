@@ -71,7 +71,8 @@ public class ScopedIdentifier {
     @Column(name = "version_creation_mode", length = 16)
     private IdentifierCreationMode versionCreationMode;
 
-    @Column(name = "version", length = 32)
+    /** ISO/IEC 11179-3:2023 表 12(Scoped_Identifier):version 1,必备。 */
+    @Column(name = "version", nullable = false, length = 32)
     private String version;
 
     @Enumerated(EnumType.STRING)

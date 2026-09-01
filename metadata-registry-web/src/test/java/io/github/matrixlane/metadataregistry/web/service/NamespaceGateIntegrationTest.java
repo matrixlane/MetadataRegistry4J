@@ -1,6 +1,7 @@
 package io.github.matrixlane.metadataregistry.web.service;
 
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.LanguageIdentification;
+import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.RegistrationAuthorityIdentifier;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.Sign;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationAuthority;
@@ -122,6 +123,10 @@ class NamespaceGateIntegrationTest {
     private Namespace createRaNamespace() {
         RegistrationAuthority ra = new RegistrationAuthority();
         ra.getName().add(Sign.of("测试注册机构"));
+        RegistrationAuthorityIdentifier rai = new RegistrationAuthorityIdentifier();
+        rai.setInternationalCodeDesignator("0000");
+        rai.setOrganizationIdentifier("RA-TEST");
+        ra.setRegistrationAuthorityIdentifier(rai);
         ra = registrationAuthorityRepository.save(ra);
         Namespace ns = new Namespace();
         ns.setRegistrationAuthority(ra);

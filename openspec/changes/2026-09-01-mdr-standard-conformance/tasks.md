@@ -29,13 +29,13 @@
 
 ## 4. 多重性修正(每项先核库)
 
-- [ ] 4.1 核库:对每项收紧跑 NULL 计数,有存量先补数据
-- [ ] 4.2 ValueDomain.datatype / ScopedIdentifier.version / RegistrationState 必填项 / AdministeredItem.creationDateTime / Stewardship/Submission organization+contact / RegistrationAuthority.identifier / RegistrySpecification.name+characterRepertoire 补非空
-- [ ] 4.3 Slot.value → @ElementCollection List(新表 slot_value)
-- [ ] 4.4 Role.email_address/phone_number → @ElementCollection List
-- [ ] 4.5 Item↔IdentifiedItem → OneToOne(去 List 变通)
-- [ ] 4.6 UnitOfMeasure→MeasureClass 1..* 服务层校验
-- [ ] 4.7 级联删除:7.3.2.4(Namespace→ScopedIdentifier)、9.4.3.5(AdministeredItem→AttachedItem)
+- [x] 4.1 核库:对每项收紧跑 NULL 计数,有存量先补数据
+- [x] 4.2 ValueDomain.datatype / ScopedIdentifier.version / RegistrationState 必填项 / AdministeredItem.creationDateTime / Stewardship/Submission organization+contact / RegistrationAuthority.identifier / RegistrySpecification.name+characterRepertoire 补非空
+- [x] 4.3 Slot.value → @ElementCollection List(新表 slot_value)
+- [x] 4.4 Role.email_address/phone_number → @ElementCollection List
+- [x] 4.5 Item↔IdentifiedItem → OneToOne(去 List 变通)
+- [x] 4.6 UnitOfMeasure→MeasureClass 1..* 服务层校验
+- [x] 4.7 级联删除:7.3.2.4(Namespace→ScopedIdentifier)、9.4.3.5(AdministeredItem→AttachedItem)
 
 ## 5. 补标准缺失属性
 

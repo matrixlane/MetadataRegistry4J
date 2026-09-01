@@ -63,7 +63,8 @@ public class RegistrySpecification extends Item {
     )
     private List<LanguageIdentification> alternativeLanguages = new ArrayList<>();
 
-    @Column(name = "character_repertoire", nullable = true, length = 255)
+    /** 表 28:character_repertoire 1,必备。 */
+    @Column(name = "character_repertoire", nullable = false, length = 255)
     private String characterRepertoire;
 
     @ElementCollection

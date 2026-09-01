@@ -21,11 +21,13 @@ import java.util.List;
 public class SubmissionRecord extends Entity {
 
     @ManyToOne
-    @JoinColumn(name = "organization_id")
+    /** ISO/IEC 11179-3:2023 表 27(Submission_Record):organization 1,必备。 */
+    @JoinColumn(name = "organization_id", nullable = false)
     private Organization organization;
 
     @ManyToOne
-    @JoinColumn(name = "contact_id")
+    /** 表 27:contact 1,必备。 */
+    @JoinColumn(name = "contact_id", nullable = false)
     private Contact contact;
 
     @ManyToMany

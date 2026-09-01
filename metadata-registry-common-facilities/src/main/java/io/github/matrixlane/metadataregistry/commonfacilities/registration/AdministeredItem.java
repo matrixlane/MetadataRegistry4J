@@ -20,6 +20,8 @@ import java.util.List;
 @NoArgsConstructor
 public class AdministeredItem extends RegisteredItem {
 
+    /** ISO/IEC 11179-3:2023 表 21(Administered_Item):creation_datetime 1,必备。 */
+    @jakarta.persistence.Column(nullable = false)
     private LocalDateTime creationDateTime;
 
     private LocalDateTime lastChangeDateTime;
@@ -34,7 +36,11 @@ public class AdministeredItem extends RegisteredItem {
     @JoinColumn(name = "registration_state_id")
     private RegistrationState registrationState;
 
-    @OneToMany(mappedBy = "administeredItem", cascade = CascadeType.ALL)
+    /**
+     * ISO/IEC 11179-3:2023 9.4.3.5:Administered_Item 删除时,
+     * 经 attachment 关联的 Attached_Item 须一并删除。
+     */
+    @OneToMany(mappedBy = "administeredItem", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<AttachedItem> attachedItems = new ArrayList<>();
 
     @ManyToOne

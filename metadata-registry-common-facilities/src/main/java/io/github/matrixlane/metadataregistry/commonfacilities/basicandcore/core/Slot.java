@@ -1,6 +1,9 @@
 package io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core;
 
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.StandardReference;
+import jakarta.persistence.CollectionTable;
+import jakarta.persistence.Column;
+import jakarta.persistence.ElementCollection;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -12,6 +15,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -38,9 +43,17 @@ public class Slot {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
+    /** 表 11:name 1,必备。 */
+    @Column(nullable = false)
     private String name;
 
-    private String value;
+    /**
+     * ISO/IEC 11179-3:2023 表 11(Slot):value 1..* String (6.2.11)。
+     */
+    @ElementCollection
+    @CollectionTable(name = "slot_value", joinColumns = @JoinColumn(name = "slot_id"))
+    @Column(name = "value", nullable = false)
+    private List<String> value = new ArrayList<>();
 
     /**
      * The datatype of the value, as a URI or type identifier.
@@ -65,7 +78,9 @@ public class Slot {
 
     public Slot(String name, String value, String value_datatype, Item item) {
         this.name = name;
-        this.value = value;
+        if (value != null) {
+            this.value.add(value);
+        }
         this.value_datatype = value_datatype;
         this.item = item;
     }
