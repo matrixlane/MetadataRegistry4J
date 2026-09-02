@@ -13,10 +13,13 @@
         <div class="pairing-row">
           <el-select
             v-model="row.designationId"
-            placeholder="选择指称"
+            :placeholder="createDesignation ? '选择既有指称，或输入文本直接新建' : '选择指称'"
             size="small"
             style="flex: 1;"
             filterable
+            allow-create
+            default-first-option
+            @change="(v: string) => onDesignationChange(row, v)"
           >
             <el-option
               v-for="d in designations"
@@ -28,10 +31,13 @@
           <el-icon class="pairing-link"><Link /></el-icon>
           <el-select
             v-model="row.definitionId"
-            placeholder="选择定义"
+            :placeholder="createDefinition ? '选择既有定义，或输入文本直接新建' : '选择定义'"
             size="small"
             style="flex: 1;"
             filterable
+            allow-create
+            default-first-option
+            @change="(v: string) => onDefinitionChange(row, v)"
           >
             <el-option
               v-for="d in definitions"
@@ -130,6 +136,13 @@ interface Props {
   definitions: LineOption[];
   /** 自引用上下文选项（上下文条目关联其自身；新建时值为哨兵 NIL UUID） */
   selfContextOption?: { id: string; label: string };
+  /**
+   * ISO/IEC 11179-3:2023 §8.4.1.4.1/§8.4.2.4.1：指称/定义可仅经
+   * paired_designation/paired_definition 存在，无需先有独立行。
+   * 传入回调后，下拉允许输入新文本，由宿主把新行挂到条目上并返回临时键。
+   */
+  createDesignation?: (value: string) => string;
+  createDefinition?: (value: string) => string;
 }
 
 const props = defineProps<Props>();
@@ -184,6 +197,31 @@ function duplicateError(index: number): boolean {
 
 function lineLabel(line: LineOption): string {
   return line.value || line.id;
+}
+
+/** allow-create：选中的值不是既有选项 id 时，视为新文本，交给宿主建行走 clientKey。 */
+function onDesignationChange(row: PairingForm, val: string) {
+  const v = (val || '').trim();
+  if (!v) {
+    row.designationId = '';
+    return;
+  }
+  const exists = props.designations.some((d) => d.id === v);
+  if (!exists && props.createDesignation) {
+    row.designationId = props.createDesignation(v);
+  }
+}
+
+function onDefinitionChange(row: PairingForm, val: string) {
+  const v = (val || '').trim();
+  if (!v) {
+    row.definitionId = '';
+    return;
+  }
+  const exists = props.definitions.some((d) => d.id === v);
+  if (!exists && props.createDefinition) {
+    row.definitionId = props.createDefinition(v);
+  }
 }
 
 function markTouched(index: number) {

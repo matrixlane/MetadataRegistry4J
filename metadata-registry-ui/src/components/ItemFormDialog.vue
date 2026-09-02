@@ -79,7 +79,8 @@
           </el-form-item>
         </el-tab-pane>
 
-        <!-- Pairings Tab（新建时也可配对：未保存行以 clientKey 临时引用，保存后映射为真实 id） -->
+        <!-- Pairings Tab（新建时也可配对：未保存行以 clientKey 临时引用，保存后映射为真实 id；
+             亦可直接输入新指称/定义文本随配对一并创建，见 createDesignationLine/createDefinitionLine） -->
         <el-tab-pane label="指称-定义配对" name="pairings">
         <DesignationDefinitionPairingEditor
           ref="pairingEditorRef"
@@ -87,6 +88,8 @@
           :designations="designationOptions"
           :definitions="definitionOptions"
           :self-context-option="selfContextOption"
+          :create-designation="createDesignationLine"
+          :create-definition="createDefinitionLine"
         />
         </el-tab-pane>
 
@@ -557,6 +560,31 @@ function newTextLineClientKey(): string {
   return typeof crypto !== 'undefined' && crypto.randomUUID
     ? crypto.randomUUID()
     : `ck-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+/**
+ * 配对下拉里输入新文本时由配对编辑器回调：把新行挂到当前表单的指称/定义列表
+ * （ISO/IEC 11179-3:2023 §8.4.1.4.1/§8.4.2.4.1 允许指称/定义仅经配对存在），
+ * 随条目保存一并持久化，返回 clientKey 供配对行在保存前引用。
+ */
+function createDesignationLine(value: string): string {
+  const key = newTextLineClientKey();
+  form.designations.push({
+    clientKey: key,
+    languageId: defaultLanguageId.value || '',
+    value,
+  });
+  return key;
+}
+
+function createDefinitionLine(value: string): string {
+  const key = newTextLineClientKey();
+  form.definitions.push({
+    clientKey: key,
+    languageId: defaultLanguageId.value || '',
+    value,
+  });
+  return key;
 }
 
 function normalizeTextLines(raw: unknown): TextLineForm[] {
