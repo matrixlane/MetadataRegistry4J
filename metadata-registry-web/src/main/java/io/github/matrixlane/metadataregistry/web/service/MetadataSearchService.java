@@ -277,10 +277,11 @@ public class MetadataSearchService {
             return new PageImpl<>(List.of(), pageable, 0);
         }
 
-        String hasPreferred = "EXISTS (SELECT 1 FROM " + t("designation") + " d_pref " +
+        // EXISTS 不能直接作 SELECT 列表标量表达式(SQL Server 报 156),包一层 CASE WHEN
+        String hasPreferred = "CASE WHEN EXISTS (SELECT 1 FROM " + t("designation") + " d_pref " +
                 "WHERE d_pref.item_id = i.id AND d_pref.acceptability = 'PREFERRED')" +
                 " OR EXISTS (SELECT 1 FROM " + t("definition") + " df_pref " +
-                "WHERE df_pref.item_id = i.id AND df_pref.acceptability = 'PREFERRED')";
+                "WHERE df_pref.item_id = i.id AND df_pref.acceptability = 'PREFERRED') THEN 1 ELSE 0 END";
 
         String itemTypeExpr = itemTypeExprFor(typeFilter);
         String matchTypeLiteral = exactMatch ? "'EXACT'" : "'PARTIAL'";

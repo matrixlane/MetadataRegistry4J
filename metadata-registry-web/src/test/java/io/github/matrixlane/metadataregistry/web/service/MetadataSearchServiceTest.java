@@ -202,7 +202,9 @@ class MetadataSearchServiceTest {
         verify(jdbcTemplate).query(selectSql.capture(), any(RowMapper.class), any(Object[].class));
         String select = selectSql.getValue();
         assertThat(select).contains("'ValueDomain' AS item_type");
-        assertThat(select).doesNotContain("CASE WHEN EXISTS");
+        // has_preferred 的 CASE WHEN EXISTS(d_pref 别名)是 SQL Server 方言兼容写法,不算 item_type 探测;
+        // 这里只断言 item_type 未退回 21 表全量探测(探测表达式的特征是对 item 子类表做 EXISTS)
+        assertThat(select).doesNotContain("CASE WHEN EXISTS (SELECT 1 FROM mdr.namespace");
     }
 
     @Test
