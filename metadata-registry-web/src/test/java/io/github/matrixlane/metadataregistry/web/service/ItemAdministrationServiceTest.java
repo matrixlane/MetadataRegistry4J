@@ -105,6 +105,111 @@ class ItemAdministrationServiceTest {
     }
 
     @Test
+    void applyDesignations_updatesExistingLineById_inPlace() {
+        // 携带 id 的 payload 行就地更新：保留行 id（被配对引用时不会触发重建 DELETE）
+        Designation existing = new Designation();
+        existing.setId(UUID.randomUUID());
+        existing.setSign(Sign.of("旧指称"));
+        existing.setLanguage(lang);
+        existing.setItem(item);
+        item.getDesignations().add(existing);
+
+        when(namingConventionEngine.validate(any())).thenReturn(List.of());
+        when(languageRepository.findById(languageId)).thenReturn(Optional.of(lang));
+
+        TextLine line = new TextLine(existing.getId(), languageId, "新指称", null, null, null, true, null);
+
+        itemAdministrationService.applyDesignations(item, List.of(line));
+
+        assertThat(item.getDesignations()).hasSize(1);
+        assertThat(item.getDesignations().get(0)).isSameAs(existing);
+        assertThat(item.getDesignations().get(0).getId()).isEqualTo(existing.getId());
+        assertThat(item.getDesignations().get(0).getSign().getValue()).isEqualTo("新指称");
+    }
+
+    @Test
+    void applyDesignations_removesUnreferencedExistingLine() {
+        Designation existing = new Designation();
+        existing.setId(UUID.randomUUID());
+        existing.setSign(Sign.of("待删指称"));
+        existing.setLanguage(lang);
+        existing.setItem(item);
+        item.getDesignations().add(existing);
+
+        when(namingConventionEngine.validate(any())).thenReturn(List.of());
+        when(languageRepository.findById(languageId)).thenReturn(Optional.of(lang));
+
+        TextLine line = new TextLine(null, languageId, "保留指称", null, null, null, true, null);
+
+        itemAdministrationService.applyDesignations(item, List.of(line));
+
+        assertThat(item.getDesignations()).hasSize(1);
+        assertThat(item.getDesignations().get(0).getSign().getValue()).isEqualTo("保留指称");
+    }
+
+    @Test
+    void applyDesignations_rejectsRemovalWhenReferencedByPairing() {
+        // 既有指称仍被配对引用时禁止随 payload 删除（否则违反配对外键）
+        Designation existing = new Designation();
+        existing.setId(UUID.randomUUID());
+        existing.setSign(Sign.of("被配对引用"));
+        existing.setLanguage(lang);
+        existing.setItem(item);
+        existing.getDesignationDefinitionPairings().add(new io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.DesignationDefinitionPairing());
+        item.getDesignations().add(existing);
+
+        when(namingConventionEngine.validate(any())).thenReturn(List.of());
+        when(languageRepository.findById(languageId)).thenReturn(Optional.of(lang));
+
+        TextLine line = new TextLine(null, languageId, "另一个指称", null, null, null, true, null);
+
+        assertThatThrownBy(() -> itemAdministrationService.applyDesignations(item, List.of(line)))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("仍被配对引用");
+        assertThat(item.getDesignations()).hasSize(2);
+    }
+
+    @Test
+    void applyDefinitions_updatesExistingLineById_inPlace() {
+        Definition existing = new Definition();
+        existing.setId(UUID.randomUUID());
+        existing.setText(io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.Text.of("旧定义"));
+        existing.setLanguage(lang);
+        existing.setItem(item);
+        item.getDefinitions().add(existing);
+
+        when(languageRepository.findById(languageId)).thenReturn(Optional.of(lang));
+
+        TextLine line = new TextLine(existing.getId(), languageId, "新定义", null, null, null, true, null);
+
+        itemAdministrationService.applyDefinitions(item, List.of(line));
+
+        assertThat(item.getDefinitions()).hasSize(1);
+        assertThat(item.getDefinitions().get(0)).isSameAs(existing);
+        assertThat(item.getDefinitions().get(0).getText().getValue()).isEqualTo("新定义");
+    }
+
+    @Test
+    void applyDefinitions_rejectsRemovalWhenReferencedByPairing() {
+        Definition existing = new Definition();
+        existing.setId(UUID.randomUUID());
+        existing.setText(io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.Text.of("被配对引用"));
+        existing.setLanguage(lang);
+        existing.setItem(item);
+        existing.getDesignationDefinitionPairings().add(new io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.DesignationDefinitionPairing());
+        item.getDefinitions().add(existing);
+
+        when(languageRepository.findById(languageId)).thenReturn(Optional.of(lang));
+
+        TextLine line = new TextLine(null, languageId, "另一个定义", null, null, null, true, null);
+
+        assertThatThrownBy(() -> itemAdministrationService.applyDefinitions(item, List.of(line)))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("仍被配对引用");
+        assertThat(item.getDefinitions()).hasSize(2);
+    }
+
+    @Test
     void applyDesignations_shouldSucceed() {
         when(namingConventionEngine.validate(any())).thenReturn(List.of());
         when(languageRepository.findById(languageId)).thenReturn(Optional.of(lang));

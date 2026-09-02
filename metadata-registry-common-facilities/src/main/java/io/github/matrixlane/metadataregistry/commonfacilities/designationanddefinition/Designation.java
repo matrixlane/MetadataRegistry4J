@@ -58,7 +58,9 @@ public class Designation extends Entity {
     )
     private List<Namespace> namespaces = new ArrayList<>();
 
-    @OneToMany(mappedBy = "designation")
+    // cascade + orphanRemoval：DesignationContext 的持久化由本侧驱动（inverse 集合
+    // 无级联时 flush 从不落库，designation_context_relation 恒为空表）。
+    @OneToMany(mappedBy = "designation", cascade = jakarta.persistence.CascadeType.ALL, orphanRemoval = true)
     private List<DesignationContext> designationContexts = new ArrayList<>();
 
     @OneToMany(mappedBy = "designation")

@@ -92,6 +92,7 @@
           :create-definition="createDefinitionLine"
           :unlink-designation="unlinkDesignationLine"
           :unlink-definition="unlinkDefinitionLine"
+          @delete-saved-row="onDeleteSavedPairing"
         />
         </el-tab-pane>
 
@@ -147,6 +148,32 @@
         <div v-if="allConflicts.length > 5">…等 {{ allConflicts.length }} 项</div>
       </div>
     </el-alert>
+
+    <el-dialog
+      v-model="pairingDeleteVisible"
+      title="删除配对"
+      width="520px"
+      :close-on-click-modal="false"
+      append-to-body
+    >
+      <p>确定删除该配对？请选择删除方式：</p>
+      <el-radio-group v-model="pairingDeleteMode" style="display: flex; flex-direction: column; gap: 8px; margin-top: 8px;">
+        <el-radio value="association">仅删除关联关系（保留指称和定义）</el-radio>
+        <el-radio value="lines">连同配对的指称和定义一并删除</el-radio>
+      </el-radio-group>
+      <div class="pairing-delete-hints">
+        <div v-if="pairingDeleteMode === 'association'">
+          删除后指称/定义仍保留在条目中，且必须仍关联至少一个上下文，否则保存时将被拒绝。
+        </div>
+        <div v-else>
+          若配对的指称或定义仍被其它配对引用，将拒绝删除；此时可改选"仅删除关联关系"。
+        </div>
+      </div>
+      <template #footer>
+        <el-button @click="pairingDeleteVisible = false">取消</el-button>
+        <el-button type="danger" @click="confirmDeleteSavedPairing">删除</el-button>
+      </template>
+    </el-dialog>
 
     <el-dialog
       v-model="isolatedConfirmVisible"
@@ -281,6 +308,46 @@ async function handleRegistrationModeChange(payload: { field: 'identifier' | 've
 }
 
 const invalidFields = ref<Set<string>>(new Set());
+
+/**
+ * 已保存配对待执行的删除（保存时先于条目提交执行，服务端按选项校验约束）：
+ * deleteLines=false 仅删关联；deleteLines=true 连同指称/定义一并删除。
+ */
+const pendingPairingDeletions = ref<{ pairingId: string; deleteLines: boolean }[]>([]);
+const pairingDeleteVisible = ref(false);
+const pairingDeleteTarget = ref<PairingForm | null>(null);
+const pairingDeleteMode = ref<'association' | 'lines'>('association');
+
+function onDeleteSavedPairing(row: PairingForm) {
+  pairingDeleteTarget.value = row;
+  pairingDeleteMode.value = 'association';
+  pairingDeleteVisible.value = true;
+}
+
+/** 确认删除已保存配对：按所选方式从表单移除行/行内实例，并登记待执行删除。 */
+function confirmDeleteSavedPairing() {
+  const target = pairingDeleteTarget.value;
+  if (!target) {
+    pairingDeleteVisible.value = false;
+    return;
+  }
+  const deleteLines = pairingDeleteMode.value === 'lines';
+  if (deleteLines) {
+    // 连同指称/定义一并删除：从条目表单中移除对应实例行（服务端还会校验"被其它配对引用"）
+    if (target.designationId) {
+      const idx = form.designations.findIndex((d) => d.id === target.designationId);
+      if (idx >= 0) form.designations.splice(idx, 1);
+    }
+    if (target.definitionId) {
+      const idx = form.definitions.findIndex((d) => d.id === target.definitionId);
+      if (idx >= 0) form.definitions.splice(idx, 1);
+    }
+  }
+  form.pairings = form.pairings.filter((p) => p.id !== target.id);
+  pendingPairingDeletions.value.push({ pairingId: target.id as string, deleteLines });
+  pairingDeleteVisible.value = false;
+  pairingDeleteTarget.value = null;
+}
 
 function handleFieldValidate(prop: any, isValid: boolean) {
   if (typeof prop === 'string') {
@@ -553,6 +620,9 @@ function reset() {
   form.pairings = [];
   form.registration = {};
   invalidFields.value.clear();
+  pendingPairingDeletions.value = [];
+  pairingDeleteVisible.value = false;
+  pairingDeleteTarget.value = null;
   editingIdentifierCreationMode.value = null;
   editingVersionCreationMode.value = null;
   registrationSectionRef.value?.reset();
@@ -734,10 +804,12 @@ async function handleSubmitInternal() {
         if (p.designationId) pairedLineKeys.add(p.designationId);
         if (p.definitionId) pairedLineKeys.add(p.definitionId);
       });
-      // Normalize designations/definitions for API
+      // Normalize designations/definitions for API（携带已持久化行的 id，
+      // 后端按 id 就地更新，避免重建行触发配对外键冲突）
       payload.designations = form.designations
         .filter((d) => d.value?.trim())
         .map((d) => ({
+          id: d.id || null,
           languageId: d.languageId || defaultLanguageId || null,
           value: d.value.trim(),
           sourceId: d.sourceId || null,
@@ -751,6 +823,7 @@ async function handleSubmitInternal() {
       payload.definitions = form.definitions
         .filter((d) => d.value?.trim())
         .map((d) => ({
+          id: d.id || null,
           languageId: d.languageId || defaultLanguageId || null,
           value: d.value.trim(),
           sourceId: d.sourceId || null,
@@ -768,6 +841,14 @@ async function handleSubmitInternal() {
           throw new Error(varError);
         }
         payload.registration = registrationSectionRef.value?.buildPayload();
+      }
+      // 先执行已保存配对的待删除：服务端按 deleteLines 校验约束（留下的行须仍有
+      // 上下文；一并删除的行须未被其它配对引用）。失败则中断保存，条目本身不变。
+      if (form.id && pendingPairingDeletions.value.length) {
+        for (const pd of pendingPairingDeletions.value) {
+          await pairingApi.delete(form.id as string, pd.pairingId, { deleteLines: pd.deleteLines });
+        }
+        pendingPairingDeletions.value = [];
       }
       const result = await props.submitFn(payload);
       submitAfterConfirm = null;
@@ -821,23 +902,21 @@ async function syncPairings(itemId: string, result?: unknown) {
     return UUID_LIKE.test(resolved) ? resolved : '';
   };
   try {
-    const existing = await pairingApi.list(itemId) as any[];
-    // Delete all existing pairings
-    for (const p of existing) {
-      if (p.id) await pairingApi.delete(itemId, p.id);
-    }
-    // Recreate all current pairings
+    // 已保存配对只随"删除配对"流程移除（服务端按 deleteLines 校验）；
+    // 此处仅创建本次新增的（无 id）配对，已保存配对保持不动。
     for (const p of form.pairings) {
+      if (p.id) continue;
       const designationId = resolveLineId(p.designationId);
       const definitionId = resolveLineId(p.definitionId);
       if (designationId && definitionId) {
-        await pairingApi.create(itemId, {
+        const created = await pairingApi.create(itemId, {
           designationId,
           definitionId,
           // 新建上下文时配对上下文的自引用哨兵，在条目保存后映射为真实 id
           contextId: p.contextId === SELF_CONTEXT_REFERENCE ? itemId : (p.contextId || null),
           acceptability: p.acceptability,
         });
+        p.id = created?.id || p.id;
       }
     }
   } catch {
@@ -878,5 +957,11 @@ defineExpose({ open });
 .isolated-list li {
   margin-bottom: 4px;
   font-size: 13px;
+}
+.pairing-delete-hints {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--el-color-warning);
+  line-height: 1.5;
 }
 </style>

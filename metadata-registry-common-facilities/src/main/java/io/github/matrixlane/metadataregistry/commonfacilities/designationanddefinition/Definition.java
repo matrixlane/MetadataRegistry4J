@@ -45,7 +45,8 @@ public class Definition extends Entity {
     @JoinColumn(name = "item_id")
     private Item item;
 
-    @OneToMany(mappedBy = "definition")
+    // 与 Designation.designationContexts 同理：inverse 侧必须带级联，否则上下文行不落库。
+    @OneToMany(mappedBy = "definition", cascade = jakarta.persistence.CascadeType.ALL, orphanRemoval = true)
     private List<DefinitionContext> definitionContexts = new ArrayList<>();
 
     @jakarta.persistence.Column(name = "acceptability")

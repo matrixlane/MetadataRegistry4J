@@ -165,6 +165,8 @@ interface Props {
 const props = defineProps<Props>();
 const emit = defineEmits<{
   'update:modelValue': [value: PairingForm[]];
+  /** 删除已保存的配对（row.id 存在）：由宿主弹确认（仅删关联 / 连同指称定义一并删除）。 */
+  'deleteSavedRow': [row: PairingForm, index: number];
 }>();
 
 const contextOptions = ref<{ id: string; label: string }[]>([]);
@@ -329,6 +331,11 @@ function addRow() {
 
 function removeRow(index: number) {
   const removed = props.modelValue[index];
+  if (removed?.id) {
+    // 已保存配对：删除须宿主确认（仅删关联 / 连同指称定义一并删除）
+    emit('deleteSavedRow', removed, index);
+    return;
+  }
   const next = props.modelValue.filter((_, i) => i !== index);
   const nextTouched = new Set<number>();
   next.forEach((_, i) => {

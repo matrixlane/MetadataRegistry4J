@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -50,9 +51,12 @@ public class DesignationDefinitionPairingController {
     }
 
     @DeleteMapping("/{id}")
-    @Operation(summary = "删除配对")
-    public ApiResponse<Void> delete(@PathVariable UUID itemId, @PathVariable UUID id) {
-        pairingService.delete(id);
+    @Operation(summary = "删除配对",
+            description = "deleteLines=false 仅删除关联（留下的指称/定义必须仍关联上下文，否则拒绝）；"
+                    + "deleteLines=true 连同指称/定义一并删除（被其它配对引用则拒绝）")
+    public ApiResponse<Void> delete(@PathVariable UUID itemId, @PathVariable UUID id,
+                                    @RequestParam(defaultValue = "false") boolean deleteLines) {
+        pairingService.delete(id, deleteLines);
         return ApiResponse.ok();
     }
 }

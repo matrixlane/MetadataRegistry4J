@@ -240,4 +240,22 @@ describe('DesignationDefinitionPairingEditor', () => {
     expect((events!.at(-1) as any[])[0]).toHaveLength(0);
     expect(unlinkDesignation).toHaveBeenCalledWith('ck-1');
   });
+
+  it('deleting a saved pairing emits deleteSavedRow instead of filtering the list', async () => {
+    const unlinkDesignation = vi.fn();
+    const row = { id: 'p1', designationId: 'd1', definitionId: 'f1', contextId: 'ctx-1', acceptability: 'ADMITTED' };
+    const wrapper = mountComponent({
+      modelValue: [row],
+      unlinkDesignation,
+    });
+    await flushPromises();
+    await wrapper.find('.pairing-delete-button').trigger('click');
+    // 已保存配对不直接移除：交给宿主弹删除确认（仅删关联 / 连同指称定义一并删除）
+    expect(wrapper.emitted('update:modelValue')).toBeUndefined();
+    const events = wrapper.emitted('deleteSavedRow');
+    expect(events).toHaveLength(1);
+    expect((events![0] as any[])[0]).toStrictEqual(row);
+    expect((events![0] as any[])[1]).toBe(0);
+    expect(unlinkDesignation).not.toHaveBeenCalled();
+  });
 });

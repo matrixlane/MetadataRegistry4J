@@ -57,6 +57,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 
 @Slf4j
@@ -88,6 +89,10 @@ public class ItemAdministrationService {
     /**
      * Apply designations to an item and validate them against the given namespace's
      * naming convention constraints when the namespace enforces mandatory naming conventions.
+     *
+     * <p>按 id 就地 reconcile（而非清空重建）：携带 id 的 payload 行就地更新、保留行 id
+     * （被配对引用的行不会因重建被 DELETE，避免触发 designation_definition_pairing
+     * 外键冲突）；未携带 id 的行为新建；既有中未被 payload 保留的行删除前须无配对引用。
      */
     public void applyDesignations(Item item, List<TextLine> designations, UUID namespaceId) {
         if (designations == null) return;
@@ -96,16 +101,31 @@ public class ItemAdministrationService {
         validateNamingConventions(designations);
         validatePreferredUniqueness(designations, resolveLanguages(designations), "指称");
 
-        item.getDesignations().clear();
+        Map<UUID, Designation> existingById = new HashMap<>();
+        for (Designation d : item.getDesignations()) {
+            if (d.getId() != null) {
+                existingById.put(d.getId(), d);
+            }
+        }
+
+        Set<UUID> keptIds = new java.util.HashSet<>();
         for (int i = 0; i < designations.size(); i++) {
             TextLine line = designations.get(i);
-            Designation d = new Designation();
-            d.setItem(item);
+            Designation d = line.id() != null ? existingById.get(line.id()) : null;
+            if (d == null) {
+                d = new Designation();
+                d.setItem(item);
+                item.getDesignations().add(d);
+            } else {
+                keptIds.add(d.getId());
+            }
             d.setSign(Sign.of(line.value()));
             d.setLanguage(resolveLanguage(line.languageId()));
             d.setSource(loadSourceOrNull(line.sourceId()));
+            d.getNamingConventions().clear();
             applyNamingConventions(d, line.namingConventionIds());
             d.setAcceptability(line.acceptability());
+            d.getDesignationContexts().clear();
             if (line.contexts() != null) {
                 for (var ce : line.contexts()) {
                     DesignationContext dc = new DesignationContext();
@@ -115,11 +135,24 @@ public class ItemAdministrationService {
                     d.getDesignationContexts().add(dc);
                 }
             }
-            item.getDesignations().add(d);
             if (namespaceId != null) {
-                namespaceConstraintValidator.validateDesignation(namespaceId, d, null);
+                namespaceConstraintValidator.validateDesignation(namespaceId, d, d.getId());
             }
         }
+
+        List<Designation> toRemove = new ArrayList<>();
+        for (Designation d : item.getDesignations()) {
+            if (d.getId() == null || keptIds.contains(d.getId())) {
+                continue;
+            }
+            if (!d.getDesignationDefinitionPairings().isEmpty()) {
+                throw new BusinessException(ApiCodes.CONFLICT,
+                        "指称「" + (d.getSign() == null ? "" : d.getSign().getValue())
+                                + "」仍被配对引用，不能删除；请先删除相关配对");
+            }
+            toRemove.add(d);
+        }
+        item.getDesignations().removeAll(toRemove);
     }
 
     private void applyNamingConventions(Designation d, List<UUID> ids) {
@@ -184,21 +217,39 @@ public class ItemAdministrationService {
         }
     }
 
+    /**
+     * Apply definitions to an item. 与 {@link #applyDesignations(Item, List, UUID)}
+     * 同构：按 id 就地 reconcile，被配对引用的行不得删除。
+     */
     public void applyDefinitions(Item item, List<TextLine> definitions) {
         if (definitions == null) return;
 
         validateIsolatedLines(definitions, "定义");
         validatePreferredUniqueness(definitions, resolveLanguages(definitions), "定义");
 
-        item.getDefinitions().clear();
+        Map<UUID, Definition> existingById = new HashMap<>();
+        for (Definition d : item.getDefinitions()) {
+            if (d.getId() != null) {
+                existingById.put(d.getId(), d);
+            }
+        }
+
+        Set<UUID> keptIds = new java.util.HashSet<>();
         for (int i = 0; i < definitions.size(); i++) {
             TextLine line = definitions.get(i);
-            Definition d = new Definition();
-            d.setItem(item);
+            Definition d = line.id() != null ? existingById.get(line.id()) : null;
+            if (d == null) {
+                d = new Definition();
+                d.setItem(item);
+                item.getDefinitions().add(d);
+            } else {
+                keptIds.add(d.getId());
+            }
             d.setText(Text.of(line.value()));
             d.setLanguage(resolveLanguage(line.languageId()));
             d.setSource(loadSourceOrNull(line.sourceId()));
             d.setAcceptability(line.acceptability());
+            d.getDefinitionContexts().clear();
             if (line.contexts() != null) {
                 for (var ce : line.contexts()) {
                     DefinitionContext dc = new DefinitionContext();
@@ -208,9 +259,21 @@ public class ItemAdministrationService {
                     d.getDefinitionContexts().add(dc);
                 }
             }
-            item.getDefinitions().add(d);
         }
 
+        List<Definition> toRemove = new ArrayList<>();
+        for (Definition d : item.getDefinitions()) {
+            if (d.getId() == null || keptIds.contains(d.getId())) {
+                continue;
+            }
+            if (!d.getDesignationDefinitionPairings().isEmpty()) {
+                throw new BusinessException(ApiCodes.CONFLICT,
+                        "定义「" + (d.getText() == null ? "" : d.getText().getValue())
+                                + "」仍被配对引用，不能删除；请先删除相关配对");
+            }
+            toRemove.add(d);
+        }
+        item.getDefinitions().removeAll(toRemove);
     }
 
     private String currentUser() {

@@ -245,8 +245,10 @@ export const pairingApi = {
     request.post<any>(`/items/${itemId}/designation-definition-pairings`, data),
   update: (itemId: string, id: string, data: Record<string, unknown>) =>
     request.put<any>(`/items/${itemId}/designation-definition-pairings/${id}`, data),
-  delete: (itemId: string, id: string) =>
-    request.delete(`/items/${itemId}/designation-definition-pairings/${id}`),
+  delete: (itemId: string, id: string, opts?: { deleteLines?: boolean }) =>
+    request.delete(`/items/${itemId}/designation-definition-pairings/${id}`, {
+      params: opts?.deleteLines ? { deleteLines: true } : {},
+    }),
 };
 
 export const itemRelationshipApi = {

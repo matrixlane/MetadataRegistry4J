@@ -63,9 +63,71 @@ public class DesignationDefinitionPairingService {
         return toResponse(pairingRepository.save(pairing));
     }
 
+    /**
+     * 删除配对。
+     *
+     * @param deleteLines false = 仅删除关联关系：留下的指称/定义仍须关联至少一个
+     *                    上下文（自身 designation_contexts 或其它配对），否则拒绝；
+     *                    true  = 连同指称/定义一并删除：若指称/定义仍被其它配对
+     *                    引用则拒绝（可退而仅删关联）。
+     */
     @Transactional
-    public void delete(UUID id) {
-        pairingRepository.deleteById(id);
+    public void delete(UUID id, boolean deleteLines) {
+        DesignationDefinitionPairing pairing = pairingRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("DesignationDefinitionPairing", id));
+        Designation designation = pairing.getDesignation();
+        Definition definition = pairing.getDefinition();
+
+        if (deleteLines) {
+            if (designation != null && hasOtherPairing(designation.getDesignationDefinitionPairings(), id)) {
+                throw new BusinessException(ApiCodes.CONFLICT,
+                        "指称「" + designationValue(designation) + "」仍被其它配对引用，无法一并删除；"
+                                + "可改为仅删除关联关系");
+            }
+            if (definition != null && hasOtherPairing(definition.getDesignationDefinitionPairings(), id)) {
+                throw new BusinessException(ApiCodes.CONFLICT,
+                        "定义「" + definitionValue(definition) + "」仍被其它配对引用，无法一并删除；"
+                                + "可改为仅删除关联关系");
+            }
+        } else {
+            if (designation != null && designation.getDesignationContexts().isEmpty()
+                    && !hasOtherPairing(designation.getDesignationDefinitionPairings(), id)) {
+                throw new BusinessException(ApiCodes.CONFLICT,
+                        "删除关联后，指称「" + designationValue(designation)
+                                + "」将不再关联任何上下文；请改为连同指称一并删除");
+            }
+            if (definition != null && definition.getDefinitionContexts().isEmpty()
+                    && !hasOtherPairing(definition.getDesignationDefinitionPairings(), id)) {
+                throw new BusinessException(ApiCodes.CONFLICT,
+                        "删除关联后，定义「" + definitionValue(definition)
+                                + "」将不再关联任何上下文；请改为连同定义一并删除");
+            }
+        }
+
+        pairingRepository.delete(pairing);
+        if (deleteLines) {
+            if (designation != null) {
+                designationRepository.delete(designation);
+            }
+            if (definition != null) {
+                definitionRepository.delete(definition);
+            }
+        }
+    }
+
+    private boolean hasOtherPairing(List<DesignationDefinitionPairing> pairings, UUID excludeId) {
+        if (pairings == null) {
+            return false;
+        }
+        return pairings.stream().anyMatch(p -> !excludeId.equals(p.getId()));
+    }
+
+    private String designationValue(Designation d) {
+        return d.getSign() == null ? "" : d.getSign().getValue();
+    }
+
+    private String definitionValue(Definition d) {
+        return d.getText() == null ? "" : d.getText().getValue();
     }
 
     private void applyRequest(DesignationDefinitionPairing pairing, DesignationDefinitionPairingRequest request) {
