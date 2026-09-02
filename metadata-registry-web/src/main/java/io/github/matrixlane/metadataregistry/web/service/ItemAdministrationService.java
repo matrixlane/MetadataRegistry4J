@@ -340,6 +340,27 @@ public class ItemAdministrationService {
             state.setEffectiveDate(LocalDateTime.now());
             ai.setRegistrationState(state);
         }
+        // Registration_State 其余属性（ISO/IEC 11179-3:2023 表 22）：NULL = 不变更；
+        // 文本属性空串 = 清空。创建路径先落默认（RECORDED/当前时间），显式值随后覆盖。
+        RegistrationState state = ai.getRegistrationState();
+        if (req.registrationStatus() != null) {
+            state.setRegistrationStatus(req.registrationStatus());
+        }
+        if (req.administrativeStatus() != null) {
+            state.setAdministrativeStatus(req.administrativeStatus());
+        }
+        if (req.effectiveDate() != null) {
+            state.setEffectiveDate(req.effectiveDate());
+        }
+        if (req.untilDate() != null) {
+            state.setUntilDate(req.untilDate());
+        }
+        if (req.administrativeNote() != null) {
+            state.setAdministrativeNote(req.administrativeNote());
+        }
+        if (req.unresolvedIssue() != null) {
+            state.setUnresolvedIssue(req.unresolvedIssue());
+        }
         if (ai.getCreationDateTime() == null) {
             ai.setCreationDateTime(LocalDateTime.now());
         }
@@ -468,6 +489,14 @@ public class ItemAdministrationService {
                     : raNameList.stream().findFirst().map(n -> n.getValue()).orElse(null);
         }
 
+        // Registration_State 其余属性回显（11179-3:2023 表 22），供编辑表单回填
+        RegistrationState regState = administeredItem == null ? null : administeredItem.getRegistrationState();
+        LocalDateTime stateEffectiveDate = regState == null ? null : regState.getEffectiveDate();
+        LocalDateTime stateUntilDate = regState == null ? null : regState.getUntilDate();
+        String administrativeStatus = regState == null ? null : regState.getAdministrativeStatus();
+        String administrativeNote = regState == null ? null : regState.getAdministrativeNote();
+        String unresolvedIssue = regState == null ? null : regState.getUnresolvedIssue();
+
         // Try to query ScopedIdentifier by itemId
         List<ScopedIdentifier> siList = scopedIdentifierRepository.findByItemId(item.getId());
         if (siList != null && !siList.isEmpty()) {
@@ -506,7 +535,12 @@ public class ItemAdministrationService {
                 registrationAuthorityId,
                 registrationAuthorityName,
                 identifierCreationMode,
-                versionCreationMode);
+                versionCreationMode,
+                stateEffectiveDate,
+                stateUntilDate,
+                administrativeStatus,
+                administrativeNote,
+                unresolvedIssue);
     }
 
     /**

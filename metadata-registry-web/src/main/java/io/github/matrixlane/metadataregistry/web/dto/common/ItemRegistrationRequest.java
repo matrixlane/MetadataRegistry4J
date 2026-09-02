@@ -1,8 +1,10 @@
 package io.github.matrixlane.metadataregistry.web.dto.common;
 
+import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationStatus;
 import io.github.matrixlane.metadataregistry.ext.identification.IdentifierCreationMode;
 import jakarta.validation.Valid;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -21,21 +23,35 @@ public record ItemRegistrationRequest(
         /** 创建时显式声明的标识符生成方式（可选；NULL 表示由后端按 identifier 字段反推）。 */
         IdentifierCreationMode identifierMode,
         /** 创建时显式声明的版本生成方式（可选；NULL 表示由后端按 version 字段反推）。 */
-        IdentifierCreationMode versionMode) {
+        IdentifierCreationMode versionMode,
+        /** ISO/IEC 11179-3:2023 表 22 registration_status；NULL = 不变更（创建落默认 RECORDED）。 */
+        RegistrationStatus registrationStatus,
+        /** 表 22 administrative_status（自由文本）；NULL = 不变更，空串 = 清空。 */
+        String administrativeStatus,
+        /** 表 22 effective_date；NULL = 不变更（创建落当前时间）。 */
+        LocalDateTime effectiveDate,
+        /** 表 22 until_date；NULL = 不变更。 */
+        LocalDateTime untilDate,
+        /** 表 22 administrative_note；NULL = 不变更，空串 = 清空。 */
+        String administrativeNote,
+        /** 表 22 unresolved_issue；NULL = 不变更，空串 = 清空。 */
+        String unresolvedIssue) {
 
     /** Backward-compatible constructor without segment variables.
      *  归属注册机构不在 API 请求体中携带（active-registrar-ownership）：
      *  归属由活动 Registrar 身份推导，或系统/联邦路径显式指定。 */
     public ItemRegistrationRequest(UUID namespaceId, String identifier, String version,
                                    List<TextLine> designations, List<TextLine> definitions) {
-        this(namespaceId, identifier, version, designations, definitions, null, null, null);
+        this(namespaceId, identifier, version, designations, definitions, null, null, null,
+                null, null, null, null, null, null);
     }
 
     /** Backward-compatible constructor with segment variables but no creation modes. */
     public ItemRegistrationRequest(UUID namespaceId, String identifier, String version,
                                    List<TextLine> designations, List<TextLine> definitions,
                                    Map<String, String> variables) {
-        this(namespaceId, identifier, version, designations, definitions, variables, null, null);
+        this(namespaceId, identifier, version, designations, definitions, variables, null, null,
+                null, null, null, null, null, null);
     }
 
     /**

@@ -190,6 +190,13 @@ interface RegistrationForm {
   namespaceId?: string;
   identifier?: string;
   version?: string;
+  /** Registration_State 属性（ISO/IEC 11179-3:2023 表 22） */
+  registrationStatus?: string;
+  administrativeStatus?: string;
+  effectiveDate?: string;
+  untilDate?: string;
+  administrativeNote?: string;
+  unresolvedIssue?: string;
 }
 
 interface ItemForm {
@@ -565,6 +572,13 @@ function normalizeRegistration(
     namespaceId: reg.namespaceId || (meta?.namespaceId as string) || undefined,
     identifier: reg.identifier || (meta?.identifier as string) || undefined,
     version: reg.version || (meta?.version as string) || undefined,
+    // Registration_State 回显（11179-3:2023 表 22）：编辑态从 meta 回填，创建态留空走默认
+    registrationStatus: reg.registrationStatus || (meta?.registrationStatus as string) || undefined,
+    administrativeStatus: reg.administrativeStatus || (meta?.administrativeStatus as string) || undefined,
+    effectiveDate: reg.effectiveDate || (meta?.stateEffectiveDate as string) || undefined,
+    untilDate: reg.untilDate || (meta?.stateUntilDate as string) || undefined,
+    administrativeNote: reg.administrativeNote || (meta?.administrativeNote as string) || undefined,
+    unresolvedIssue: reg.unresolvedIssue || (meta?.unresolvedIssue as string) || undefined,
   };
 }
 

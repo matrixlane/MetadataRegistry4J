@@ -141,6 +141,12 @@ export interface ItemMetaResponse {
   administeredItemId?: string;
   registrationAuthorityId?: string;
   registrationAuthorityName?: string;
+  /** Registration_State（ISO/IEC 11179-3:2023 表 22）回显字段 */
+  stateEffectiveDate?: string;
+  stateUntilDate?: string;
+  administrativeStatus?: string;
+  administrativeNote?: string;
+  unresolvedIssue?: string;
 }
 
 export interface TextLineContextResponse {
@@ -165,6 +171,13 @@ export interface ItemRegistrationRequest {
   version?: string;
   designations?: TextLineForm[];
   definitions?: TextLineForm[];
+  /** Registration_State（ISO/IEC 11179-3:2023 表 22）属性；缺省/null = 不变更 */
+  registrationStatus?: string | null;
+  administrativeStatus?: string | null;
+  effectiveDate?: string | null;
+  untilDate?: string | null;
+  administrativeNote?: string | null;
+  unresolvedIssue?: string | null;
 }
 
 // ── Active Registrar（active-registrar-ownership）───────────────────────

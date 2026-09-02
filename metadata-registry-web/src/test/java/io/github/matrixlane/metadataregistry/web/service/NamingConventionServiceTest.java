@@ -154,6 +154,7 @@ class NamingConventionServiceTest {
                 ncId, null, null, null,
                 null, null, null, null,
                 null, null, null, null,
-                null, null);
+                null, null, null, null,
+                null, null, null);
     }
 }

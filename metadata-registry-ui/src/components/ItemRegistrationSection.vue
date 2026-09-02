@@ -83,6 +83,48 @@
       <el-tag v-if="ownershipLabel" type="primary" effect="plain">{{ ownershipLabel }}</el-tag>
       <el-text v-else-if="activeRegistrarQueryFailed" type="danger">活动 Registrar 身份查询失败，请刷新页面重试或重新登录</el-text>
     </el-form-item>
+
+    <!-- Registration_State 属性（ISO/IEC 11179-3:2023 表 22）：留空不变更，创建落默认（已记录/当前时间） -->
+    <el-divider content-position="left">注册状态（Registration_State）</el-divider>
+    <el-form-item label="注册状态">
+      <el-select v-model="model.registrationStatus" placeholder="请选择" style="width: 100%;" clearable>
+        <el-option
+          v-for="s in REGISTRATION_STATUSES"
+          :key="s"
+          :label="t(`registrationStatus.${s}`)"
+          :value="s"
+        />
+      </el-select>
+    </el-form-item>
+    <el-form-item label="管理状态">
+      <el-input v-model="model.administrativeStatus" placeholder="如 Approved（自由文本，留空不变更）" clearable />
+    </el-form-item>
+    <el-form-item label="生效日期">
+      <el-date-picker
+        v-model="model.effectiveDate"
+        type="datetime"
+        placeholder="请选择"
+        style="width: 100%;"
+        value-format="YYYY-MM-DDTHH:mm:ss"
+        clearable
+      />
+    </el-form-item>
+    <el-form-item label="截止日期">
+      <el-date-picker
+        v-model="model.untilDate"
+        type="datetime"
+        placeholder="请选择"
+        style="width: 100%;"
+        value-format="YYYY-MM-DDTHH:mm:ss"
+        clearable
+      />
+    </el-form-item>
+    <el-form-item label="管理备注">
+      <el-input v-model="model.administrativeNote" type="textarea" :rows="2" placeholder="留空不变更" />
+    </el-form-item>
+    <el-form-item label="未决问题">
+      <el-input v-model="model.unresolvedIssue" type="textarea" :rows="2" placeholder="留空不变更" />
+    </el-form-item>
   </div>
 </template>
 
@@ -90,13 +132,27 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { onBeforeUnmount } from 'vue';
 import { useRouter } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 import { identifierStrategyApi } from '@/api/identifierStrategy';
 import { activeRegistrarApi, namespaceApi, readinessApi } from '@/api/resources';
+
+/** ISO/IEC 11179-3:2023 表 30 注册状态全量取值（按标准生命周期递进顺序排列）。 */
+const REGISTRATION_STATUSES = [
+  'INCOMPLETE', 'CANDIDATE', 'RECORDED', 'QUALIFIED', 'STANDARD',
+  'PREFERRED_STANDARD', 'SUPERSEDED', 'RETIRED', 'HISTORICAL', 'APPLICATION',
+] as const;
 
 export interface RegistrationModel {
   namespaceId?: string;
   identifier?: string;
   version?: string;
+  /** Registration_State 属性（ISO/IEC 11179-3:2023 表 22） */
+  registrationStatus?: string;
+  administrativeStatus?: string;
+  effectiveDate?: string;
+  untilDate?: string;
+  administrativeNote?: string;
+  unresolvedIssue?: string;
 }
 
 interface NamespaceOption {
@@ -147,6 +203,7 @@ const props = withDefaults(defineProps<Props>(), {
 const model = defineModel<RegistrationModel>({ required: true });
 
 const router = useRouter();
+const { t } = useI18n();
 
 onMounted(loadOptions);
 
@@ -526,6 +583,13 @@ function buildPayload() {
     versionMode: (versionAutoInEffect.value || wasVersionAuto.value)
       ? 'AUTO'
       : (model.value.version ? 'MANUAL' : null),
+    // Registration_State：null = 不变更；文本属性空串 = 清空（?? 保留空串语义）
+    registrationStatus: model.value.registrationStatus || null,
+    administrativeStatus: model.value.administrativeStatus ?? null,
+    effectiveDate: model.value.effectiveDate || null,
+    untilDate: model.value.untilDate || null,
+    administrativeNote: model.value.administrativeNote ?? null,
+    unresolvedIssue: model.value.unresolvedIssue ?? null,
   };
 }
 
