@@ -15,7 +15,7 @@
             <el-input
               :model-value="designationText(row)"
               :placeholder="createDesignation ? '输入指称文本；未关联指称时自动新建并关联' : '选择指称'"
-              :disabled="!createDesignation && !updateDesignation"
+              :disabled="isDesignationInputDisabled(row)"
               size="small"
               style="flex: 1;"
               @update:model-value="(v: string) => onDesignationText(row, v)"
@@ -27,6 +27,7 @@
               class="pairing-link-select"
               clearable
               filterable
+              :disabled="isRowSaved(row)"
               @change="(v: string) => onDesignationLink(row, v)"
             >
               <el-option
@@ -42,7 +43,7 @@
             <el-input
               :model-value="definitionText(row)"
               :placeholder="createDefinition ? '输入定义文本；未关联定义时自动新建并关联' : '选择定义'"
-              :disabled="!createDefinition && !updateDefinition"
+              :disabled="isDefinitionInputDisabled(row)"
               size="small"
               style="flex: 1;"
               @update:model-value="(v: string) => onDefinitionText(row, v)"
@@ -54,6 +55,7 @@
               class="pairing-link-select"
               clearable
               filterable
+              :disabled="isRowSaved(row)"
               @change="(v: string) => onDefinitionLink(row, v)"
             >
               <el-option
@@ -74,6 +76,7 @@
             filterable
             remote
             reserve-keyword
+            :disabled="isRowSaved(row)"
             :remote-method="searchContexts"
             :loading="searchingContexts"
           >
@@ -96,6 +99,7 @@
             placeholder="可接受性"
             size="small"
             style="width: 140px;"
+            :disabled="isRowSaved(row)"
           >
             <el-option label="首选" value="PREFERRED" />
             <el-option label="认可" value="ADMITTED" />
@@ -103,11 +107,13 @@
             <el-option label="已取代" value="SUPERSEDED" />
             <el-option label="已过时" value="OBSOLETE" />
           </el-select>
+          <el-tag v-if="row.id" size="small" type="info" class="pairing-saved-tag">已保存</el-tag>
           <el-button
             type="danger"
             size="small"
             text
             circle
+            class="pairing-delete-button"
             @click="removeRow(index)"
           >
             <el-icon><Delete /></el-icon>
@@ -146,6 +152,8 @@ interface LineOption {
   id: string;
   value: string;
   languageCode?: string;
+  /** 是否已持久化；false/缺省 = 本次会话内经配对内联新建的 clientKey 行（文本仍可在配对里改） */
+  persisted?: boolean;
   contexts?: { contextId: string; contextLabel?: string; acceptability?: string }[];
 }
 interface Props {
@@ -162,8 +170,9 @@ interface Props {
   createDesignation?: (value: string) => string;
   createDefinition?: (value: string) => string;
   /**
-   * 就地编辑已关联行的文本：宿主按 id/clientKey 找到 form 中的行并写回 value。
-   * 传入后文本框可编辑既有指称/定义内容（共享行，影响所有引用它的配对）。
+   * 就地编辑行文本：仅对未保存配对中内联新建的 clientKey 行生效（宿主按
+   * id/clientKey 写回 form 行）。已持久化的指称/定义实例只读——须到指称/
+   * 定义页签修改实例，或删除配对重建（已保存配对整行只读，见 isRowSaved）。
    */
   updateDesignation?: (id: string, value: string) => void;
   updateDefinition?: (id: string, value: string) => void;
@@ -244,8 +253,27 @@ function definitionText(row: PairingForm): string {
   return findDefinition(row.definitionId || '')?.value ?? '';
 }
 
+/** 已创建并保存的配对整行只读：仅允许删除后重建，不允许在行内修改。 */
+function isRowSaved(row: PairingForm): boolean {
+  return !!row.id;
+}
+
+/** 文本框禁用：旧宿主（无回调），或行已保存，或引用的是已持久化的指称/定义实例。 */
+function isDesignationInputDisabled(row: PairingForm): boolean {
+  if (!props.createDesignation && !props.updateDesignation) return true;
+  if (isRowSaved(row)) return true;
+  return !!findDesignation(row.designationId || '')?.persisted;
+}
+
+function isDefinitionInputDisabled(row: PairingForm): boolean {
+  if (!props.createDefinition && !props.updateDefinition) return true;
+  if (isRowSaved(row)) return true;
+  return !!findDefinition(row.definitionId || '')?.persisted;
+}
+
 /** 文本框输入：已关联行 → 就地编辑写回宿主；未关联 → 视为新文本，交宿主建行走 clientKey。 */
 function onDesignationText(row: PairingForm, val: string) {
+  if (isDesignationInputDisabled(row)) return;
   const line = findDesignation(row.designationId || '');
   if (line) {
     props.updateDesignation?.(line.id, val);
@@ -258,6 +286,7 @@ function onDesignationText(row: PairingForm, val: string) {
 }
 
 function onDefinitionText(row: PairingForm, val: string) {
+  if (isDefinitionInputDisabled(row)) return;
   const line = findDefinition(row.definitionId || '');
   if (line) {
     props.updateDefinition?.(line.id, val);
@@ -362,6 +391,9 @@ defineExpose({ validate, hasError, isDuplicate });
 }
 .pairing-link-select {
   width: 120px;
+  flex-shrink: 0;
+}
+.pairing-saved-tag {
   flex-shrink: 0;
 }
 .pairing-link {

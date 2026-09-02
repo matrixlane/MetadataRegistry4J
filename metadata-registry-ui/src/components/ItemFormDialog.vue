@@ -412,6 +412,7 @@ const designationOptions = computed(() =>
     .map((d) => ({
       id: (d.id || d.clientKey)!,
       value: d.value,
+      persisted: !!d.id,
       languageCode: languageCodeById(d.languageId),
       contexts: (d.contexts || []).map((c) => ({ contextId: c.contextId, acceptability: c.acceptability })),
     })),
@@ -423,6 +424,7 @@ const definitionOptions = computed(() =>
     .map((d) => ({
       id: (d.id || d.clientKey)!,
       value: d.value,
+      persisted: !!d.id,
       languageCode: languageCodeById(d.languageId),
       contexts: (d.contexts || []).map((c) => ({ contextId: c.contextId, acceptability: c.acceptability })),
     })),
