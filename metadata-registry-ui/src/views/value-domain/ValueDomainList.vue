@@ -73,6 +73,7 @@
             v-model="form.dataTypeId"
             :item-types="['DataType']"
             :show-advanced-filter="false"
+            label-only
             placeholder="搜索数据类型"
           />
         </el-form-item>

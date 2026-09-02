@@ -183,8 +183,7 @@ function duplicateError(index: number): boolean {
 }
 
 function lineLabel(line: LineOption): string {
-  const lang = line.languageCode ? `[${line.languageCode}] ` : '';
-  return `${lang}${line.value || line.id}`;
+  return line.value || line.id;
 }
 
 function markTouched(index: number) {

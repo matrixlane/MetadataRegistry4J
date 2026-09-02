@@ -115,6 +115,8 @@ const props = defineProps<{
   allowMultiple?: boolean;
   /** 是否展示类型 chip 高级过滤条 */
   showAdvancedFilter?: boolean;
+  /** 特例：选中态与选项只显示名称（不拼标识符/版本/时间），如值域的数据类型下拉 */
+  labelOnly?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -253,6 +255,9 @@ function metaLine(hit: AdministeredItemSearchHit): string {
  * 选中态与选项标签：标识符 | 版本号 | 指称 | 最近时间（创建/最后修改取最晚）。
  */
 function formatLabel(hit: AdministeredItemSearchHit): string {
+  if (props.labelOnly) {
+    return hit.itemLabel || hit.identifier || hit.id.slice(0, 8);
+  }
   const parts: string[] = [];
   if (hit.identifier) parts.push(hit.identifier);
   if (hit.version) parts.push(`(v${hit.version})`);
