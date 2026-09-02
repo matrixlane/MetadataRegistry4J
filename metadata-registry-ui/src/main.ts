@@ -1,6 +1,7 @@
 import { createApp } from 'vue';
 import { createPinia } from 'pinia';
 import ElementPlus from 'element-plus';
+import zhCn from 'element-plus/es/locale/lang/zh-cn';
 import * as ElementPlusIconsVue from '@element-plus/icons-vue';
 
 import App from './App.vue';
@@ -24,7 +25,9 @@ for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
 
 app.use(createPinia());
 app.use(router);
-app.use(ElementPlus);
+// 全局中文语言包：未显式设置 placeholder 的 el-select 等组件默认文案（如 "Select"）
+// 随之本地化为「请选择」，与界面语言一致。
+app.use(ElementPlus, { locale: zhCn });
 app.use(i18n);
 
 app.mount('#app');

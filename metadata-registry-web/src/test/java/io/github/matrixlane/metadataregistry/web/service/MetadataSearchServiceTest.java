@@ -408,6 +408,45 @@ class MetadataSearchServiceTest {
     }
 
     @Test
+    void search_withUuidKeyword_addsItemIdEqualityForPickerBackfill() {
+        // smart-item-picker 回填（fetchById）以 item UUID 为关键字搜索：
+        // designation/definition/scoped_identifier 均不含 item 主键值，
+        // 必须追加 i.id 等值匹配，否则已选关联项反查不到、选中值无法回显
+        when(env.toJdbcUuid(any(UUID.class))).thenAnswer(inv -> inv.getArgument(0).toString());
+        stubCountAndRows(1L, List.of(sampleResponse));
+        UUID itemId = UUID.randomUUID();
+
+        Page<AdministeredItemResponse> result = searchDefault(
+                itemId.toString(), null, null, null, null, false, null, null);
+
+        assertThat(result.getContent()).hasSize(1);
+
+        ArgumentCaptor<String> countSql = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<Object[]> countArgs = ArgumentCaptor.forClass(Object[].class);
+        verify(jdbcTemplate).queryForObject(countSql.capture(), eq(Long.class), countArgs.capture());
+        assertThat(countSql.getValue()).contains("i.id = ?");
+        assertPlaceholderParamMatch(countSql.getValue(), countArgs.getValue());
+        assertThat(countArgs.getValue()).contains(itemId.toString());
+
+        ArgumentCaptor<String> selectSql = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<Object[]> selectArgs = ArgumentCaptor.forClass(Object[].class);
+        verify(jdbcTemplate).query(selectSql.capture(), any(RowMapper.class), selectArgs.capture());
+        assertThat(selectSql.getValue()).contains("i.id = ?");
+        assertPlaceholderParamMatch(selectSql.getValue(), selectArgs.getValue());
+    }
+
+    @Test
+    void search_withNonUuidKeyword_doesNotAddItemIdEquality() {
+        stubCountAndRows(1L, List.of(sampleResponse));
+
+        searchDefault("患者", null, null, null, null, false, null, null);
+
+        ArgumentCaptor<String> countSql = ArgumentCaptor.forClass(String.class);
+        verify(jdbcTemplate).queryForObject(countSql.capture(), eq(Long.class), any(Object[].class));
+        assertThat(countSql.getValue()).doesNotContain("i.id = ?");
+    }
+
+    @Test
     void search_withPagination_shouldRespectPageSize() {
         stubCountAndRows(1L, List.of(sampleResponse));
 

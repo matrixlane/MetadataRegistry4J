@@ -185,13 +185,22 @@ public class MetadataSearchService {
         if (keywordPattern != null && identifierExact == null) {
             where.append(" AND (EXISTS (SELECT 1 FROM " + t("designation") + " d WHERE d.item_id = i.id AND LOWER(d.value) LIKE ?)");
             where.append(" OR EXISTS (SELECT 1 FROM " + t("definition") + " df WHERE df.item_id = i.id AND LOWER(df.value) LIKE ?)");
-            where.append(" OR EXISTS (SELECT 1 FROM " + t("scoped_identifier") + " si2 WHERE si2.identified_item_id = ai.id AND LOWER(si2.identifier) LIKE ?))");
+            where.append(" OR EXISTS (SELECT 1 FROM " + t("scoped_identifier") + " si2 WHERE si2.identified_item_id = ai.id AND LOWER(si2.identifier) LIKE ?)");
             countParams.add(keywordPattern);
             countParams.add(keywordPattern);
             countParams.add(keywordPattern);
             selectParams.add(keywordPattern);
             selectParams.add(keywordPattern);
             selectParams.add(keywordPattern);
+            // smart-item-picker 回填（fetchById）以 item UUID 为关键字：上述三类文本字段
+            // 均不含 item 主键值，须追加 i.id 等值匹配，否则已选关联项反查不到、无法回显
+            UUID keywordUuid = parseUuidOrNull(keyword);
+            if (keywordUuid != null) {
+                where.append(" OR i.id = ?");
+                countParams.add(env.toJdbcUuid(keywordUuid));
+                selectParams.add(env.toJdbcUuid(keywordUuid));
+            }
+            where.append(")");
         }
 
         // 类型筛选（D5 决议）：itemType 由 CASE 表达式推导，故 SQL 用 EXISTS 多类型短路
@@ -343,6 +352,18 @@ public class MetadataSearchService {
         List<AdministeredItemResponse> results = jdbcTemplate.query(selectSql, this::mapRow, selectParams.toArray());
 
         return new PageImpl<>(results, pageable, total);
+    }
+
+    /** 关键字可解析为 UUID 时返回之（首尾空白容忍），否则返回 null。 */
+    private static UUID parseUuidOrNull(String keyword) {
+        if (keyword == null) {
+            return null;
+        }
+        try {
+            return UUID.fromString(keyword.trim());
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 
     /**
