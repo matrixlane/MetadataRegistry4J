@@ -20,6 +20,10 @@
           </template>
         </el-table-column>
         <el-table-column prop="dataTypeLabel" label="数据类型" width="140" />
+        <!-- value_domain_meaning(§7.4.4.1)统一视图:后端按子类分派填充 conceptualDomainLabel -->
+        <el-table-column label="概念域" width="160">
+          <template #default="{ row }">{{ row.conceptualDomainLabel || '-' }}</template>
+        </el-table-column>
         <el-table-column prop="type" label="类型" width="120">
           <template #default="{ row }">
             <el-tag size="small" :type="typeTagType(row.type)">{{ typeLabel(row.type) }}</el-tag>
