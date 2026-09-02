@@ -24,7 +24,7 @@
         <el-table-column prop="propertyLabel" label="特性" />
         <el-table-column prop="meta.registrationStatus" label="状态" width="120">
           <template #default="{ row }">
-            <el-tag size="small">{{ $t('registrationStatus.' + (row.meta?.registrationStatus || '')) }}</el-tag>
+            <el-tag size="small">{{ (row.meta?.registrationStatus ? $t('registrationStatus.' + row.meta.registrationStatus) : '-') }}</el-tag>
           </template>
         </el-table-column>
       </template>

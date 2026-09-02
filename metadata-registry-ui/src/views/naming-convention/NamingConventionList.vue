@@ -34,7 +34,7 @@
         <el-table-column :label="$t('common.status')" width="140">
           <template #default="{ row }">
             <el-tag size="small">
-              {{ $t('registrationStatus.' + (row.meta?.registrationStatus || '')) }}
+              {{ (row.meta?.registrationStatus ? $t('registrationStatus.' + row.meta.registrationStatus) : '-') }}
             </el-tag>
           </template>
         </el-table-column>

@@ -18,7 +18,7 @@
         <el-table-column prop="registrationStatus" label="状态" width="120">
           <template #default="{ row }">
             <el-tag size="small" :type="statusType(row.registrationStatus)">
-              {{ $t('registrationStatus.' + row.registrationStatus) }}
+              {{ (row.registrationStatus ? $t('registrationStatus.' + row.registrationStatus) : '-') }}
             </el-tag>
           </template>
         </el-table-column>

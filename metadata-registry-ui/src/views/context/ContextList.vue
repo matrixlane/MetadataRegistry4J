@@ -22,7 +22,7 @@
         <el-table-column label="状态" width="120">
           <template #default="{ row }">
             <el-tag v-if="row.meta?.registrationStatus" size="small" :type="statusType(row.meta?.registrationStatus)">
-              {{ $t('registrationStatus.' + row.meta?.registrationStatus) }}
+              {{ (row.meta?.registrationStatus ? $t('registrationStatus.' + row.meta.registrationStatus) : '-') }}
             </el-tag>
             <span v-else>-</span>
           </template>
