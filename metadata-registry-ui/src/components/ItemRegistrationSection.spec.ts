@@ -2,23 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { mount } from '@vue/test-utils';
 import { defineComponent, reactive } from 'vue';
 import ElementPlus from 'element-plus';
-import { createI18n } from 'vue-i18n';
 import ItemRegistrationSection from './ItemRegistrationSection.vue';
 import { activeRegistrarApi } from '@/api/resources';
-
-const i18n = createI18n({
-  legacy: false,
-  locale: 'zh-CN',
-  messages: {
-    'zh-CN': {
-      registrationStatus: {
-        INCOMPLETE: '不完整', CANDIDATE: '候选', RECORDED: '已记录', QUALIFIED: '已合格',
-        STANDARD: '标准', PREFERRED_STANDARD: '首选标准', SUPERSEDED: '已取代',
-        RETIRED: '已退役', HISTORICAL: '历史', APPLICATION: '应用',
-      },
-    },
-  },
-});
 
 const namespaces = vi.hoisted(() => [
   {
@@ -112,7 +97,7 @@ async function mountSection(
 ) {
   const wrapper = mount(Host, {
     props: { isEditing, identifierCreationMode, versionCreationMode },
-    global: { plugins: [ElementPlus, i18n] },
+    global: { plugins: [ElementPlus] },
   });
   const section = wrapper.findComponent(ItemRegistrationSection);
   // 等待 onMounted 的命名空间加载
@@ -420,7 +405,7 @@ describe('ItemRegistrationSection 默认命名空间按活动 Registrar 预选',
   async function mountForCreate() {
     const wrapper = mount(Host, {
       props: { isEditing: false },
-      global: { plugins: [ElementPlus, i18n] },
+      global: { plugins: [ElementPlus] },
     });
     const section = wrapper.findComponent(ItemRegistrationSection);
     // 等到 gateBlocked 可读 = loadOptions 完成 = applyDefaultNamespace 已运行
@@ -486,7 +471,7 @@ describe('ItemRegistrationSection 默认命名空间按活动 Registrar 预选',
     });
     const wrapper = mount(Host, {
       props: { isEditing: false },
-      global: { plugins: [ElementPlus, i18n] },
+      global: { plugins: [ElementPlus] },
     });
     const section = wrapper.findComponent(ItemRegistrationSection);
     await vi.waitFor(() => {
@@ -501,7 +486,7 @@ describe('ItemRegistrationSection 默认命名空间按活动 Registrar 预选',
     (activeRegistrarApi.current as any).mockResolvedValueOnce({ active: null });
     const wrapper = mount(Host, {
       props: { isEditing: false },
-      global: { plugins: [ElementPlus, i18n] },
+      global: { plugins: [ElementPlus] },
     });
     const section = wrapper.findComponent(ItemRegistrationSection);
     await vi.waitFor(() => {
@@ -515,7 +500,7 @@ describe('ItemRegistrationSection 默认命名空间按活动 Registrar 预选',
   it('编辑态不应用默认推导（用户已选）', async () => {
     const wrapper = mount(Host, {
       props: { isEditing: true },
-      global: { plugins: [ElementPlus, i18n] },
+      global: { plugins: [ElementPlus] },
     });
     const section = wrapper.findComponent(ItemRegistrationSection);
     await vi.waitFor(() => {

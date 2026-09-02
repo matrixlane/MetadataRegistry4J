@@ -108,6 +108,17 @@
           </template>
           <slot name="associations" :form="form" />
         </el-tab-pane>
+
+        <!-- Registration_State Tab：11179-3:2023 表 22 注册状态属性，置于末位 -->
+        <el-tab-pane v-if="showRegistration" name="registrationState">
+          <template #label>
+            <span class="tab-label-container">
+              <span>注册状态</span>
+              <el-icon v-if="hasTabError('registrationState')" class="tab-error-icon"><Warning /></el-icon>
+            </span>
+          </template>
+          <ItemRegistrationStateSection v-model="form.registration" />
+        </el-tab-pane>
       </el-tabs>
     </el-form>
 
@@ -181,6 +192,7 @@ import type { FormInstance, FormRules } from 'element-plus';
 import MultilingualTextEditor from './MultilingualTextEditor.vue';
 import DesignationDefinitionPairingEditor from './DesignationDefinitionPairingEditor.vue';
 import ItemRegistrationSection from './ItemRegistrationSection.vue';
+import ItemRegistrationStateSection from './ItemRegistrationStateSection.vue';
 import { namingConventionApi, namespaceApi, pairingApi } from '@/api/resources';
 import { languageApi } from '@/api/resources';
 import { useRegistryDefaultLanguage } from '@/composables/useRegistryDefaultLanguage';

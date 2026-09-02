@@ -78,6 +78,7 @@ public class ItemAdministrationService {
     private final ActiveRegistrarService activeRegistrarService;
     private final RegistrySpecificationRepository registrySpecificationRepository;
     private final ScopedIdentifierLifecycleService lifecycleService;
+    private final RegistrationLifecycleService registrationLifecycleService;
     private final NamespaceIdentifierSettingsService namespaceIdentifierSettingsService;
 
     public void applyDesignations(Item item, List<TextLine> designations) {
@@ -334,7 +335,8 @@ public class ItemAdministrationService {
             activeRegistrarService.assertCanModify(ai);
         }
 
-        if (ai.getRegistrationState() == null) {
+        boolean stateCreatedNow = ai.getRegistrationState() == null;
+        if (stateCreatedNow) {
             RegistrationState state = new RegistrationState();
             state.setRegistrationStatus(RegistrationStatus.RECORDED);
             state.setEffectiveDate(LocalDateTime.now());
@@ -342,9 +344,19 @@ public class ItemAdministrationService {
         }
         // Registration_State 其余属性（ISO/IEC 11179-3:2023 表 22）：NULL = 不变更；
         // 文本属性空串 = 清空。创建路径先落默认（RECORDED/当前时间），显式值随后覆盖。
+        // 注册状态变更走生命周期管控（RegistrationLifecycleService.transition）：
+        // 校验转换合法性与角色权限并保留历史链（旧状态置截止日期、新状态入链）；
+        // 与当前状态相同或未指定时不触发（from==to 不在转换表中，必须跳过）。
+        // 新建/既有条目尚无状态（本次刚落默认初始状态）时视为初始赋值，不产生历史链。
         RegistrationState state = ai.getRegistrationState();
         if (req.registrationStatus() != null) {
-            state.setRegistrationStatus(req.registrationStatus());
+            if (stateCreatedNow) {
+                state.setRegistrationStatus(req.registrationStatus());
+            } else if (req.registrationStatus() != state.getRegistrationStatus()) {
+                registrationLifecycleService.transition(ai.getId(), req.registrationStatus(),
+                        req.administrativeNote());
+                state = ai.getRegistrationState();
+            }
         }
         if (req.administrativeStatus() != null) {
             state.setAdministrativeStatus(req.administrativeStatus());

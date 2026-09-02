@@ -11,6 +11,8 @@ import io.github.matrixlane.metadataregistry.commonfacilities.identification.Sco
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.AdministeredItem;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.Registrar;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationAuthority;
+import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationState;
+import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationStatus;
 import io.github.matrixlane.metadataregistry.web.common.BusinessException;
 import io.github.matrixlane.metadataregistry.web.dto.common.ItemRegistrationRequest;
 import io.github.matrixlane.metadataregistry.web.dto.common.TextLine;
@@ -60,6 +62,7 @@ class ItemAdministrationServiceTest {
     @Mock private RegistrySpecificationRepository registrySpecificationRepository;
     @Mock private ScopedIdentifierLifecycleService lifecycleService;
     @Mock private NamespaceIdentifierSettingsService namespaceIdentifierSettingsService;
+    @Mock private RegistrationLifecycleService registrationLifecycleService;
 
     @InjectMocks
     private ItemAdministrationService itemAdministrationService;
@@ -857,5 +860,79 @@ class ItemAdministrationServiceTest {
         settings.setNamespaceId(ns.getId());
         settings.setVersioningPolicy(policy);
         lenient().when(namespaceIdentifierSettingsService.getOrDefault(ns.getId())).thenReturn(settings);
+    }
+
+    // ===== Registration_State 生命周期路由：状态变更走 RegistrationLifecycleService =====
+
+    @Test
+    void ensureAdministeredItem_update_statusChanged_delegatesToLifecycleTransition() {
+        // 编辑表单改了注册状态 → 委托生命周期服务（校验转换合法性+角色权限+历史链），
+        // 本服务不直接改写状态
+        Namespace ns = new Namespace();
+        ns.setId(UUID.randomUUID());
+        stubVersioningPolicy(ns, "SEQUENTIAL");
+        when(namespaceRepository.findById(ns.getId())).thenReturn(Optional.of(ns));
+        AdministeredItem existing = attachExistingIdentifier(ns, "X-1", "1");
+        existing.setId(UUID.randomUUID());
+        RegistrationState current = new RegistrationState();
+        current.setRegistrationStatus(RegistrationStatus.RECORDED);
+        current.setEffectiveDate(java.time.LocalDateTime.now().minusDays(1));
+        existing.setRegistrationState(current);
+
+        ItemRegistrationRequest req = new ItemRegistrationRequest(
+                ns.getId(), null, "1", List.of(), List.of(), null, null, null,
+                RegistrationStatus.QUALIFIED, null, null, null, "升级备注", null);
+
+        itemAdministrationService.ensureAdministeredItem(item, req);
+
+        verify(registrationLifecycleService).transition(
+                existing.getId(), RegistrationStatus.QUALIFIED, "升级备注");
+        // transition 被 mock（未真正换状态），本服务不得自行改写当前状态
+        assertThat(existing.getRegistrationState().getRegistrationStatus())
+                .isEqualTo(RegistrationStatus.RECORDED);
+    }
+
+    @Test
+    void ensureAdministeredItem_update_statusUnchanged_skipsTransition() {
+        // 状态与当前相同（表单回显未改）→ 不触发迁移（from==to 不在转换表中，会报错）
+        Namespace ns = new Namespace();
+        ns.setId(UUID.randomUUID());
+        stubVersioningPolicy(ns, "SEQUENTIAL");
+        when(namespaceRepository.findById(ns.getId())).thenReturn(Optional.of(ns));
+        AdministeredItem existing = attachExistingIdentifier(ns, "X-1", "1");
+        existing.setId(UUID.randomUUID());
+        RegistrationState current = new RegistrationState();
+        current.setRegistrationStatus(RegistrationStatus.RECORDED);
+        current.setEffectiveDate(java.time.LocalDateTime.now().minusDays(1));
+        existing.setRegistrationState(current);
+
+        ItemRegistrationRequest req = new ItemRegistrationRequest(
+                ns.getId(), null, "1", List.of(), List.of(), null, null, null,
+                RegistrationStatus.RECORDED, null, null, null, null, null);
+
+        itemAdministrationService.ensureAdministeredItem(item, req);
+
+        verifyNoInteractions(registrationLifecycleService);
+        assertThat(existing.getRegistrationState().getRegistrationStatus())
+                .isEqualTo(RegistrationStatus.RECORDED);
+    }
+
+    @Test
+    void ensureAdministeredItem_create_explicitStatus_setsInitialStateDirectly() {
+        // 创建路径：显式状态作为初始状态直接落库（无历史链），不走 transition
+        Namespace ns = new Namespace();
+        ns.setId(UUID.randomUUID());
+        when(namespaceRepository.findById(ns.getId())).thenReturn(Optional.of(ns));
+
+        ItemRegistrationRequest req = new ItemRegistrationRequest(
+                ns.getId(), "NEW-1", "1.0.0", List.of(), List.of(), null, null, null,
+                RegistrationStatus.QUALIFIED, null, null, null, null, null);
+
+        AdministeredItem ai = itemAdministrationService.ensureAdministeredItem(item, req);
+
+        verifyNoInteractions(registrationLifecycleService);
+        assertThat(ai.getRegistrationState().getRegistrationStatus())
+                .isEqualTo(RegistrationStatus.QUALIFIED);
+        assertThat(ai.getRegistrationState().getPreviousState()).isNull();
     }
 }
