@@ -1,6 +1,6 @@
 <template>
   <div class="pairing-editor">
-    <div v-if="!designations.length || !definitions.length" class="pairing-empty">
+    <div v-if="showEmpty" class="pairing-empty">
       <el-empty description="请先添加指称和定义，再创建配对" />
     </div>
     <div v-else class="pairing-list">
@@ -11,41 +11,59 @@
         :class="{ 'pairing-error': hasError(index) }"
       >
         <div class="pairing-row">
-          <el-select
-            v-model="row.designationId"
-            :placeholder="createDesignation ? '选择既有指称，或输入文本直接新建' : '选择指称'"
-            size="small"
-            style="flex: 1;"
-            filterable
-            allow-create
-            default-first-option
-            @change="(v: string) => onDesignationChange(row, v)"
-          >
-            <el-option
-              v-for="d in designations"
-              :key="d.id"
-              :label="lineLabel(d)"
-              :value="d.id"
+          <div class="pairing-field">
+            <el-input
+              :model-value="designationText(row)"
+              :placeholder="createDesignation ? '输入指称文本；未关联指称时自动新建并关联' : '选择指称'"
+              :disabled="!createDesignation && !updateDesignation"
+              size="small"
+              style="flex: 1;"
+              @update:model-value="(v: string) => onDesignationText(row, v)"
             />
-          </el-select>
+            <el-select
+              :model-value="row.designationId"
+              placeholder="引用既有"
+              size="small"
+              class="pairing-link-select"
+              clearable
+              filterable
+              @change="(v: string) => onDesignationLink(row, v)"
+            >
+              <el-option
+                v-for="d in designations"
+                :key="d.id"
+                :label="lineLabel(d)"
+                :value="d.id"
+              />
+            </el-select>
+          </div>
           <el-icon class="pairing-link"><Link /></el-icon>
-          <el-select
-            v-model="row.definitionId"
-            :placeholder="createDefinition ? '选择既有定义，或输入文本直接新建' : '选择定义'"
-            size="small"
-            style="flex: 1;"
-            filterable
-            allow-create
-            default-first-option
-            @change="(v: string) => onDefinitionChange(row, v)"
-          >
-            <el-option
-              v-for="d in definitions"
-              :key="d.id"
-              :label="lineLabel(d)"
-              :value="d.id"
+          <div class="pairing-field">
+            <el-input
+              :model-value="definitionText(row)"
+              :placeholder="createDefinition ? '输入定义文本；未关联定义时自动新建并关联' : '选择定义'"
+              :disabled="!createDefinition && !updateDefinition"
+              size="small"
+              style="flex: 1;"
+              @update:model-value="(v: string) => onDefinitionText(row, v)"
             />
-          </el-select>
+            <el-select
+              :model-value="row.definitionId"
+              placeholder="引用既有"
+              size="small"
+              class="pairing-link-select"
+              clearable
+              filterable
+              @change="(v: string) => onDefinitionLink(row, v)"
+            >
+              <el-option
+                v-for="d in definitions"
+                :key="d.id"
+                :label="lineLabel(d)"
+                :value="d.id"
+              />
+            </el-select>
+          </div>
         </div>
         <div class="pairing-row" style="margin-top: 8px;">
           <el-select
@@ -143,6 +161,12 @@ interface Props {
    */
   createDesignation?: (value: string) => string;
   createDefinition?: (value: string) => string;
+  /**
+   * 就地编辑已关联行的文本：宿主按 id/clientKey 找到 form 中的行并写回 value。
+   * 传入后文本框可编辑既有指称/定义内容（共享行，影响所有引用它的配对）。
+   */
+  updateDesignation?: (id: string, value: string) => void;
+  updateDefinition?: (id: string, value: string) => void;
 }
 
 const props = defineProps<Props>();
@@ -154,6 +178,11 @@ const contextOptions = ref<{ id: string; label: string }[]>([]);
 const searchingContexts = ref(false);
 
 const touched = ref<Set<number>>(new Set());
+
+const showEmpty = computed(() =>
+  (!props.designations.length && !props.createDesignation)
+  || (!props.definitions.length && !props.createDefinition),
+);
 
 const duplicateKeys = computed(() => {
   const keyMap = new Map<string, number[]>();
@@ -199,29 +228,54 @@ function lineLabel(line: LineOption): string {
   return line.value || line.id;
 }
 
-/** allow-create：选中的值不是既有选项 id 时，视为新文本，交给宿主建行走 clientKey。 */
-function onDesignationChange(row: PairingForm, val: string) {
-  const v = (val || '').trim();
-  if (!v) {
-    row.designationId = '';
+function findDesignation(id: string): LineOption | undefined {
+  return props.designations.find((d) => d.id === id);
+}
+
+function findDefinition(id: string): LineOption | undefined {
+  return props.definitions.find((d) => d.id === id);
+}
+
+function designationText(row: PairingForm): string {
+  return findDesignation(row.designationId || '')?.value ?? '';
+}
+
+function definitionText(row: PairingForm): string {
+  return findDefinition(row.definitionId || '')?.value ?? '';
+}
+
+/** 文本框输入：已关联行 → 就地编辑写回宿主；未关联 → 视为新文本，交宿主建行走 clientKey。 */
+function onDesignationText(row: PairingForm, val: string) {
+  const line = findDesignation(row.designationId || '');
+  if (line) {
+    props.updateDesignation?.(line.id, val);
     return;
   }
-  const exists = props.designations.some((d) => d.id === v);
-  if (!exists && props.createDesignation) {
+  const v = (val || '').trim();
+  if (v && props.createDesignation) {
     row.designationId = props.createDesignation(v);
   }
 }
 
-function onDefinitionChange(row: PairingForm, val: string) {
-  const v = (val || '').trim();
-  if (!v) {
-    row.definitionId = '';
+function onDefinitionText(row: PairingForm, val: string) {
+  const line = findDefinition(row.definitionId || '');
+  if (line) {
+    props.updateDefinition?.(line.id, val);
     return;
   }
-  const exists = props.definitions.some((d) => d.id === v);
-  if (!exists && props.createDefinition) {
+  const v = (val || '').trim();
+  if (v && props.createDefinition) {
     row.definitionId = props.createDefinition(v);
   }
+}
+
+/** “引用既有”选择器：只切换行关联，选项均为既有 id；清空即解除关联。 */
+function onDesignationLink(row: PairingForm, val: string) {
+  row.designationId = val || '';
+}
+
+function onDefinitionLink(row: PairingForm, val: string) {
+  row.definitionId = val || '';
 }
 
 function markTouched(index: number) {
@@ -298,6 +352,17 @@ defineExpose({ validate, hasError, isDuplicate });
   display: flex;
   align-items: center;
   gap: 8px;
+}
+.pairing-field {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+.pairing-link-select {
+  width: 120px;
+  flex-shrink: 0;
 }
 .pairing-link {
   color: #9ca3af;

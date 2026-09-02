@@ -90,6 +90,8 @@
           :self-context-option="selfContextOption"
           :create-designation="createDesignationLine"
           :create-definition="createDefinitionLine"
+          :update-designation="updateDesignationLine"
+          :update-definition="updateDefinitionLine"
         />
         </el-tab-pane>
 
@@ -585,6 +587,17 @@ function createDefinitionLine(value: string): string {
     value,
   });
   return key;
+}
+
+/** 配对页签就地编辑已关联行文本：按 id/clientKey 定位 form 行并写回（与指称/定义页签共享同一行）。 */
+function updateDesignationLine(id: string, value: string): void {
+  const line = form.designations.find((d) => (d.id || d.clientKey) === id);
+  if (line) line.value = value;
+}
+
+function updateDefinitionLine(id: string, value: string): void {
+  const line = form.definitions.find((d) => (d.id || d.clientKey) === id);
+  if (line) line.value = value;
 }
 
 function normalizeTextLines(raw: unknown): TextLineForm[] {
