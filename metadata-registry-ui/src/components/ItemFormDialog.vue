@@ -90,8 +90,8 @@
           :self-context-option="selfContextOption"
           :create-designation="createDesignationLine"
           :create-definition="createDefinitionLine"
-          :update-designation="updateDesignationLine"
-          :update-definition="updateDefinitionLine"
+          :unlink-designation="unlinkDesignationLine"
+          :unlink-definition="unlinkDefinitionLine"
         />
         </el-tab-pane>
 
@@ -591,15 +591,17 @@ function createDefinitionLine(value: string): string {
   return key;
 }
 
-/** 配对页签就地编辑已关联行文本：按 id/clientKey 定位 form 行并写回（与指称/定义页签共享同一行）。 */
-function updateDesignationLine(id: string, value: string): void {
-  const line = form.designations.find((d) => (d.id || d.clientKey) === id);
-  if (line) line.value = value;
+/** 配对改绑/清除/删除后清理孤立的内联新建行：仅移除未持久化且不再被任何配对引用的行。 */
+function unlinkDesignationLine(id: string): void {
+  if (form.pairings.some((p) => p.designationId === id)) return;
+  const idx = form.designations.findIndex((d) => !d.id && d.clientKey === id);
+  if (idx >= 0) form.designations.splice(idx, 1);
 }
 
-function updateDefinitionLine(id: string, value: string): void {
-  const line = form.definitions.find((d) => (d.id || d.clientKey) === id);
-  if (line) line.value = value;
+function unlinkDefinitionLine(id: string): void {
+  if (form.pairings.some((p) => p.definitionId === id)) return;
+  const idx = form.definitions.findIndex((d) => !d.id && d.clientKey === id);
+  if (idx >= 0) form.definitions.splice(idx, 1);
 }
 
 function normalizeTextLines(raw: unknown): TextLineForm[] {

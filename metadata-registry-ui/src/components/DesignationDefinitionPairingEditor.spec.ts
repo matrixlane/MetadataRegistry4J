@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
-import ElementPlus, { ElSelect, ElInput } from 'element-plus';
+import ElementPlus, { ElSelect } from 'element-plus';
 import DesignationDefinitionPairingEditor from './DesignationDefinitionPairingEditor.vue';
 
 vi.mock('@/api/resources', () => ({
@@ -22,8 +22,8 @@ describe('DesignationDefinitionPairingEditor', () => {
     return mount(DesignationDefinitionPairingEditor, {
       props: {
         modelValue: [],
-        designations: [{ id: 'd1', value: '指称一', languageCode: 'zh-CN' }],
-        definitions: [{ id: 'f1', value: '定义一', languageCode: 'zh-CN' }],
+        designations: [{ id: 'd1', value: '指称一', languageCode: 'zh-CN', persisted: true }],
+        definitions: [{ id: 'f1', value: '定义一', languageCode: 'zh-CN', persisted: true }],
         ...props,
       },
       global: {
@@ -32,9 +32,20 @@ describe('DesignationDefinitionPairingEditor', () => {
     });
   }
 
-  it('renders empty prompt when no designations or definitions', () => {
+  it('renders empty prompt when no designations or definitions (legacy host)', () => {
     const wrapper = mountComponent({ designations: [], definitions: [] });
     expect(wrapper.find('.pairing-empty').exists()).toBe(true);
+  });
+
+  it('allows starting from empty when create callbacks are provided', () => {
+    const wrapper = mountComponent({
+      designations: [],
+      definitions: [],
+      createDesignation: vi.fn(),
+      createDefinition: vi.fn(),
+    });
+    expect(wrapper.find('.pairing-empty').exists()).toBe(false);
+    expect(wrapper.find('.pairing-list').exists()).toBe(true);
   });
 
   it('emits update:modelValue when addRow is clicked', async () => {
@@ -71,111 +82,136 @@ describe('DesignationDefinitionPairingEditor', () => {
     expect(exposed.validate()).toBe(false);
   });
 
-  it('allows starting from empty when create callbacks are provided', () => {
-    const wrapper = mountComponent({
-      designations: [],
-      definitions: [],
-      createDesignation: vi.fn(),
-      createDefinition: vi.fn(),
-    });
-    expect(wrapper.find('.pairing-empty').exists()).toBe(false);
-    expect(wrapper.find('.pairing-list').exists()).toBe(true);
-  });
-
-  it('creates and links a new designation line when text is typed with no link', async () => {
+  it('creates and links a new designation when new text is typed in the merged control', async () => {
     const createDesignation = vi.fn().mockReturnValue('ck-new-1');
     const row = { designationId: '', definitionId: '', contextId: '', acceptability: 'ADMITTED' };
     const wrapper = mountComponent({ modelValue: [row], createDesignation });
     await flushPromises();
-    const inputs = wrapper.findAllComponents(ElInput);
-    expect(inputs.length).toBeGreaterThan(0);
-    inputs[0].vm.$emit('update:modelValue', '新指称文本');
+    const selects = wrapper.findAllComponents(ElSelect);
+    selects[0].vm.$emit('change', '新指称文本');
     await flushPromises();
     expect(createDesignation).toHaveBeenCalledWith('新指称文本');
     expect(row.designationId).toBe('ck-new-1');
   });
 
-  it('creates and links a new definition line when text is typed with no link', async () => {
+  it('trims whitespace when creating a new definition from typed text', async () => {
     const createDefinition = vi.fn().mockReturnValue('ck-new-2');
     const row = { designationId: 'd1', definitionId: '', contextId: '', acceptability: 'ADMITTED' };
     const wrapper = mountComponent({ modelValue: [row], createDefinition });
     await flushPromises();
-    const inputs = wrapper.findAllComponents(ElInput);
-    inputs[1].vm.$emit('update:modelValue', '  新定义文本  ');
+    const selects = wrapper.findAllComponents(ElSelect);
+    selects[1].vm.$emit('change', '  新定义文本  ');
     await flushPromises();
     expect(createDefinition).toHaveBeenCalledWith('新定义文本');
     expect(row.definitionId).toBe('ck-new-2');
   });
 
-  it('edits an inline-created (unsaved) designation line in place via updateDesignation', async () => {
+  it('links an existing option id without invoking the create callback', async () => {
     const createDesignation = vi.fn();
-    const updateDesignation = vi.fn();
+    const row = { designationId: '', definitionId: '', contextId: '', acceptability: 'ADMITTED' };
+    const wrapper = mountComponent({ modelValue: [row], createDesignation });
+    await flushPromises();
+    const selects = wrapper.findAllComponents(ElSelect);
+    selects[0].vm.$emit('change', 'd1');
+    await flushPromises();
+    expect(createDesignation).not.toHaveBeenCalled();
+    expect(row.designationId).toBe('d1');
+  });
+
+  it('ignores typed text when create callback is absent (legacy hosts)', async () => {
+    const row = { designationId: '', definitionId: '', contextId: '', acceptability: 'ADMITTED' };
+    const wrapper = mountComponent({ modelValue: [row] });
+    await flushPromises();
+    const selects = wrapper.findAllComponents(ElSelect);
+    selects[0].vm.$emit('change', '任意文本');
+    await flushPromises();
+    expect(row.designationId).toBe('');
+  });
+
+  it('unlinks an orphan inline-created designation line when the row is cleared', async () => {
+    const unlinkDesignation = vi.fn();
     const row = { designationId: 'ck-1', definitionId: 'f1', contextId: 'ctx-1', acceptability: 'ADMITTED' };
     const wrapper = mountComponent({
       modelValue: [row],
-      designations: [{ id: 'ck-1', value: '新指称', persisted: false }],
-      createDesignation,
-      updateDesignation,
+      designations: [
+        { id: 'd1', value: '指称一', persisted: true },
+        { id: 'ck-1', value: '内联新指称', persisted: false },
+      ],
+      unlinkDesignation,
     });
     await flushPromises();
-    const inputs = wrapper.findAllComponents(ElInput);
-    // 文本框回显行文本且可编辑
-    expect((inputs[0].vm as any).modelValue).toBe('新指称');
-    expect((inputs[0].vm as any).disabled).toBe(false);
-    inputs[0].vm.$emit('update:modelValue', '新指称（修订）');
+    const selects = wrapper.findAllComponents(ElSelect);
+    selects[0].vm.$emit('change', '');
     await flushPromises();
-    expect(updateDesignation).toHaveBeenCalledWith('ck-1', '新指称（修订）');
-    expect(createDesignation).not.toHaveBeenCalled();
+    expect(row.designationId).toBe('');
+    expect(unlinkDesignation).toHaveBeenCalledWith('ck-1');
   });
 
-  it('edits an existing linked definition in place via updateDefinition', async () => {
-    const updateDefinition = vi.fn();
-    const row = { designationId: 'd1', definitionId: 'ck-2', contextId: 'ctx-1', acceptability: 'ADMITTED' };
+  it('removes the orphan line when switching from an inline-created line to an existing one', async () => {
+    const unlinkDesignation = vi.fn();
+    const row = { designationId: 'ck-1', definitionId: 'f1', contextId: 'ctx-1', acceptability: 'ADMITTED' };
     const wrapper = mountComponent({
       modelValue: [row],
-      definitions: [{ id: 'ck-2', value: '新定义', persisted: false }],
-      updateDefinition,
+      designations: [
+        { id: 'd1', value: '指称一', persisted: true },
+        { id: 'ck-1', value: '内联新指称', persisted: false },
+      ],
+      unlinkDesignation,
     });
     await flushPromises();
-    const inputs = wrapper.findAllComponents(ElInput);
-    expect((inputs[1].vm as any).modelValue).toBe('新定义');
-    inputs[1].vm.$emit('update:modelValue', '新定义（修订）');
+    const selects = wrapper.findAllComponents(ElSelect);
+    selects[0].vm.$emit('change', 'd1');
     await flushPromises();
-    expect(updateDefinition).toHaveBeenCalledWith('ck-2', '新定义（修订）');
+    expect(row.designationId).toBe('d1');
+    expect(unlinkDesignation).toHaveBeenCalledWith('ck-1');
   });
 
-  it('does not allow editing a persisted designation text in the pairing (read-only)', async () => {
-    const updateDesignation = vi.fn();
+  it('keeps the inline line when another pairing still references it', async () => {
+    const unlinkDesignation = vi.fn();
+    const rows = [
+      { designationId: 'ck-1', definitionId: 'f1', contextId: 'ctx-1', acceptability: 'ADMITTED' },
+      { designationId: 'ck-1', definitionId: 'f1', contextId: 'ctx-2', acceptability: 'ADMITTED' },
+    ];
+    const wrapper = mountComponent({
+      modelValue: rows,
+      designations: [
+        { id: 'd1', value: '指称一', persisted: true },
+        { id: 'ck-1', value: '内联新指称', persisted: false },
+      ],
+      unlinkDesignation,
+    });
+    await flushPromises();
+    const selects = wrapper.findAllComponents(ElSelect);
+    selects[0].vm.$emit('change', '');
+    await flushPromises();
+    expect(rows[0].designationId).toBe('');
+    expect(unlinkDesignation).not.toHaveBeenCalled();
+  });
+
+  it('never unlinks a persisted designation instance', async () => {
+    const unlinkDesignation = vi.fn();
     const row = { designationId: 'd1', definitionId: 'f1', contextId: 'ctx-1', acceptability: 'ADMITTED' };
-    const wrapper = mountComponent({
-      modelValue: [row],
-      designations: [{ id: 'd1', value: '指称一', persisted: true }],
-      updateDesignation,
-    });
+    const wrapper = mountComponent({ modelValue: [row], unlinkDesignation });
     await flushPromises();
-    const inputs = wrapper.findAllComponents(ElInput);
-    // 已持久化实例：文本框禁用，输入被忽略
-    expect((inputs[0].vm as any).disabled).toBe(true);
-    inputs[0].vm.$emit('update:modelValue', '指称一（修订）');
+    const selects = wrapper.findAllComponents(ElSelect);
+    selects[0].vm.$emit('change', '');
     await flushPromises();
-    expect(updateDesignation).not.toHaveBeenCalled();
+    expect(row.designationId).toBe('');
+    expect(unlinkDesignation).not.toHaveBeenCalled();
   });
 
   it('saved pairings are read-only except deletion', async () => {
     const row = { id: 'p1', designationId: 'd1', definitionId: 'f1', contextId: 'ctx-1', acceptability: 'ADMITTED' };
     const wrapper = mountComponent({
       modelValue: [row],
-      designations: [{ id: 'd1', value: '指称一', persisted: true }],
-      definitions: [{ id: 'f1', value: '定义一', persisted: true }],
       createDesignation: vi.fn(),
-      updateDesignation: vi.fn(),
+      createDefinition: vi.fn(),
+      unlinkDesignation: vi.fn(),
+      unlinkDefinition: vi.fn(),
     });
     await flushPromises();
-    const inputs = wrapper.findAllComponents(ElInput);
-    expect((inputs[0].vm as any).disabled).toBe(true);
-    expect((inputs[1].vm as any).disabled).toBe(true);
     const selects = wrapper.findAllComponents(ElSelect);
-    // 引用既有 / 上下文 / 可接受性 全部禁用
+    // 指称 / 定义 / 上下文 / 可接受性 全部禁用
     expect((selects[0].vm as any).disabled).toBe(true);
     expect((selects[1].vm as any).disabled).toBe(true);
     expect((selects[2].vm as any).disabled).toBe(true);
@@ -187,38 +223,21 @@ describe('DesignationDefinitionPairingEditor', () => {
     expect(del.attributes('disabled')).toBeUndefined();
   });
 
-  it('link select switches the row to an existing designation', async () => {
-    const row = { designationId: '', definitionId: '', contextId: '', acceptability: 'ADMITTED' };
+  it('removes the pairing row and unlinks orphan inline lines on delete', async () => {
+    const unlinkDesignation = vi.fn();
+    const row = { designationId: 'ck-1', definitionId: 'f1', contextId: 'ctx-1', acceptability: 'ADMITTED' };
     const wrapper = mountComponent({
       modelValue: [row],
       designations: [
-        { id: 'd1', value: '指称一', languageCode: 'zh-CN' },
-        { id: 'd2', value: '指称二', languageCode: 'zh-CN' },
+        { id: 'd1', value: '指称一', persisted: true },
+        { id: 'ck-1', value: '内联新指称', persisted: false },
       ],
+      unlinkDesignation,
     });
     await flushPromises();
-    const selects = wrapper.findAllComponents(ElSelect);
-    selects[0].vm.$emit('change', 'd2');
-    await flushPromises();
-    expect(row.designationId).toBe('d2');
-  });
-
-  it('clears the link when the link select is cleared', async () => {
-    const row = { designationId: 'd1', definitionId: 'f1', contextId: '', acceptability: 'ADMITTED' };
-    const wrapper = mountComponent({ modelValue: [row] });
-    await flushPromises();
-    const selects = wrapper.findAllComponents(ElSelect);
-    selects[0].vm.$emit('change', '');
-    await flushPromises();
-    expect(row.designationId).toBe('');
-  });
-
-  it('disables text inputs for legacy hosts without create/update callbacks', async () => {
-    const row = { designationId: 'd1', definitionId: 'f1', contextId: '', acceptability: 'ADMITTED' };
-    const wrapper = mountComponent({ modelValue: [row] });
-    await flushPromises();
-    const inputs = wrapper.findAllComponents(ElInput);
-    expect((inputs[0].vm as any).disabled).toBe(true);
-    expect((inputs[1].vm as any).disabled).toBe(true);
+    await wrapper.find('.pairing-delete-button').trigger('click');
+    const events = wrapper.emitted('update:modelValue');
+    expect((events!.at(-1) as any[])[0]).toHaveLength(0);
+    expect(unlinkDesignation).toHaveBeenCalledWith('ck-1');
   });
 });

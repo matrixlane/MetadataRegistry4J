@@ -11,61 +11,45 @@
         :class="{ 'pairing-error': hasError(index) }"
       >
         <div class="pairing-row">
-          <div class="pairing-field">
-            <el-input
-              :model-value="designationText(row)"
-              :placeholder="createDesignation ? '输入指称文本；未关联指称时自动新建并关联' : '选择指称'"
-              :disabled="isDesignationInputDisabled(row)"
-              size="small"
-              style="flex: 1;"
-              @update:model-value="(v: string) => onDesignationText(row, v)"
+          <el-select
+            v-model="row.designationId"
+            :placeholder="createDesignation ? '选择既有指称，或输入文本直接新建' : '选择指称'"
+            size="small"
+            style="flex: 1;"
+            filterable
+            :allow-create="!!createDesignation"
+            default-first-option
+            clearable
+            :disabled="isRowSaved(row)"
+            @change="(v: string) => onDesignationChange(row, v)"
+          >
+            <el-option
+              v-for="d in designations"
+              :key="d.id"
+              :label="lineLabel(d)"
+              :value="d.id"
             />
-            <el-select
-              :model-value="row.designationId"
-              placeholder="引用既有"
-              size="small"
-              class="pairing-link-select"
-              clearable
-              filterable
-              :disabled="isRowSaved(row)"
-              @change="(v: string) => onDesignationLink(row, v)"
-            >
-              <el-option
-                v-for="d in designations"
-                :key="d.id"
-                :label="lineLabel(d)"
-                :value="d.id"
-              />
-            </el-select>
-          </div>
+          </el-select>
           <el-icon class="pairing-link"><Link /></el-icon>
-          <div class="pairing-field">
-            <el-input
-              :model-value="definitionText(row)"
-              :placeholder="createDefinition ? '输入定义文本；未关联定义时自动新建并关联' : '选择定义'"
-              :disabled="isDefinitionInputDisabled(row)"
-              size="small"
-              style="flex: 1;"
-              @update:model-value="(v: string) => onDefinitionText(row, v)"
+          <el-select
+            v-model="row.definitionId"
+            :placeholder="createDefinition ? '选择既有定义，或输入文本直接新建' : '选择定义'"
+            size="small"
+            style="flex: 1;"
+            filterable
+            :allow-create="!!createDefinition"
+            default-first-option
+            clearable
+            :disabled="isRowSaved(row)"
+            @change="(v: string) => onDefinitionChange(row, v)"
+          >
+            <el-option
+              v-for="d in definitions"
+              :key="d.id"
+              :label="lineLabel(d)"
+              :value="d.id"
             />
-            <el-select
-              :model-value="row.definitionId"
-              placeholder="引用既有"
-              size="small"
-              class="pairing-link-select"
-              clearable
-              filterable
-              :disabled="isRowSaved(row)"
-              @change="(v: string) => onDefinitionLink(row, v)"
-            >
-              <el-option
-                v-for="d in definitions"
-                :key="d.id"
-                :label="lineLabel(d)"
-                :value="d.id"
-              />
-            </el-select>
-          </div>
+          </el-select>
         </div>
         <div class="pairing-row" style="margin-top: 8px;">
           <el-select
@@ -170,12 +154,12 @@ interface Props {
   createDesignation?: (value: string) => string;
   createDefinition?: (value: string) => string;
   /**
-   * 就地编辑行文本：仅对未保存配对中内联新建的 clientKey 行生效（宿主按
-   * id/clientKey 写回 form 行）。已持久化的指称/定义实例只读——须到指称/
-   * 定义页签修改实例，或删除配对重建（已保存配对整行只读，见 isRowSaved）。
+   * 行改绑/清除/删除后，若原引用是本次内联新建的 clientKey 行（未持久化）
+   * 且不再被任何配对引用，由宿主把它从 form 中移除，避免孤行随条目保存。
+   * 已持久化的指称/定义实例永不移除（只读规则：改实例须到指称/定义页签）。
    */
-  updateDesignation?: (id: string, value: string) => void;
-  updateDefinition?: (id: string, value: string) => void;
+  unlinkDesignation?: (id: string) => void;
+  unlinkDefinition?: (id: string) => void;
 }
 
 const props = defineProps<Props>();
@@ -245,66 +229,60 @@ function findDefinition(id: string): LineOption | undefined {
   return props.definitions.find((d) => d.id === id);
 }
 
-function designationText(row: PairingForm): string {
-  return findDesignation(row.designationId || '')?.value ?? '';
-}
-
-function definitionText(row: PairingForm): string {
-  return findDefinition(row.definitionId || '')?.value ?? '';
-}
-
 /** 已创建并保存的配对整行只读：仅允许删除后重建，不允许在行内修改。 */
 function isRowSaved(row: PairingForm): boolean {
   return !!row.id;
 }
 
-/** 文本框禁用：旧宿主（无回调），或行已保存，或引用的是已持久化的指称/定义实例。 */
-function isDesignationInputDisabled(row: PairingForm): boolean {
-  if (!props.createDesignation && !props.updateDesignation) return true;
-  if (isRowSaved(row)) return true;
-  return !!findDesignation(row.designationId || '')?.persisted;
+/** 改绑/清除/删除后清理孤立的内联新建行（clientKey 且不再被任何配对引用）。 */
+function cleanupOrphanLine(
+  prevId: string | undefined,
+  lines: LineOption[],
+  unlink: ((id: string) => void) | undefined,
+  rows: PairingForm[] = props.modelValue,
+) {
+  if (!prevId || !unlink) return;
+  const line = lines.find((d) => d.id === prevId);
+  if (!line || line.persisted) return;
+  const stillReferenced = rows.some(
+    (r) => r.designationId === prevId || r.definitionId === prevId,
+  );
+  if (!stillReferenced) unlink(prevId);
 }
 
-function isDefinitionInputDisabled(row: PairingForm): boolean {
-  if (!props.createDefinition && !props.updateDefinition) return true;
-  if (isRowSaved(row)) return true;
-  return !!findDefinition(row.definitionId || '')?.persisted;
-}
-
-/** 文本框输入：已关联行 → 就地编辑写回宿主；未关联 → 视为新文本，交宿主建行走 clientKey。 */
-function onDesignationText(row: PairingForm, val: string) {
-  if (isDesignationInputDisabled(row)) return;
-  const line = findDesignation(row.designationId || '');
-  if (line) {
-    props.updateDesignation?.(line.id, val);
-    return;
-  }
+/**
+ * 合并控件（filterable + allow-create）：选中既有 id = 关联；输入新文本 =
+ * 交宿主建行走 clientKey 并关联；清空 = 解除关联。持久化实例文本不可改——
+ * 要改须到指称/定义页签，或清除后输入新文本（建新实例，旧实例不受影响）。
+ */
+function onDesignationChange(row: PairingForm, val: string) {
+  const prev = row.designationId || '';
   const v = (val || '').trim();
-  if (v && props.createDesignation) {
+  if (!v) {
+    row.designationId = '';
+  } else if (findDesignation(v)) {
+    row.designationId = v;
+  } else if (props.createDesignation) {
     row.designationId = props.createDesignation(v);
-  }
-}
-
-function onDefinitionText(row: PairingForm, val: string) {
-  if (isDefinitionInputDisabled(row)) return;
-  const line = findDefinition(row.definitionId || '');
-  if (line) {
-    props.updateDefinition?.(line.id, val);
+  } else {
     return;
   }
+  cleanupOrphanLine(prev, props.designations, props.unlinkDesignation);
+}
+
+function onDefinitionChange(row: PairingForm, val: string) {
+  const prev = row.definitionId || '';
   const v = (val || '').trim();
-  if (v && props.createDefinition) {
+  if (!v) {
+    row.definitionId = '';
+  } else if (findDefinition(v)) {
+    row.definitionId = v;
+  } else if (props.createDefinition) {
     row.definitionId = props.createDefinition(v);
+  } else {
+    return;
   }
-}
-
-/** “引用既有”选择器：只切换行关联，选项均为既有 id；清空即解除关联。 */
-function onDesignationLink(row: PairingForm, val: string) {
-  row.designationId = val || '';
-}
-
-function onDefinitionLink(row: PairingForm, val: string) {
-  row.definitionId = val || '';
+  cleanupOrphanLine(prev, props.definitions, props.unlinkDefinition);
 }
 
 function markTouched(index: number) {
@@ -350,6 +328,7 @@ function addRow() {
 }
 
 function removeRow(index: number) {
+  const removed = props.modelValue[index];
   const next = props.modelValue.filter((_, i) => i !== index);
   const nextTouched = new Set<number>();
   next.forEach((_, i) => {
@@ -357,6 +336,10 @@ function removeRow(index: number) {
   });
   touched.value = nextTouched;
   emit('update:modelValue', next);
+  if (removed) {
+    cleanupOrphanLine(removed.designationId, props.designations, props.unlinkDesignation, next);
+    cleanupOrphanLine(removed.definitionId, props.definitions, props.unlinkDefinition, next);
+  }
 }
 
 defineExpose({ validate, hasError, isDuplicate });
@@ -381,17 +364,6 @@ defineExpose({ validate, hasError, isDuplicate });
   display: flex;
   align-items: center;
   gap: 8px;
-}
-.pairing-field {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  flex: 1;
-  min-width: 0;
-}
-.pairing-link-select {
-  width: 120px;
-  flex-shrink: 0;
 }
 .pairing-saved-tag {
   flex-shrink: 0;
