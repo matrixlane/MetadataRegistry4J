@@ -53,6 +53,13 @@
             :remote-method="searchContexts"
             :loading="searchingContexts"
           >
+            <!-- 自引用选项（上下文条目编辑自身时由宿主传入），不依赖远程搜索 -->
+            <el-option
+              v-if="selfContextOption"
+              :key="selfContextOption.id"
+              :label="selfContextOption.label"
+              :value="selfContextOption.id"
+            />
             <el-option
               v-for="c in contextOptions"
               :key="c.id"
@@ -121,6 +128,8 @@ interface Props {
   modelValue: PairingForm[];
   designations: LineOption[];
   definitions: LineOption[];
+  /** 自引用上下文选项（上下文条目关联其自身；新建时值为哨兵 NIL UUID） */
+  selfContextOption?: { id: string; label: string };
 }
 
 const props = defineProps<Props>();

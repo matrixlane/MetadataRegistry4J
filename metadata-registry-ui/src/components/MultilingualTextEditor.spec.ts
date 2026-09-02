@@ -107,4 +107,27 @@ describe('MultilingualTextEditor', () => {
     const exposed = wrapper.vm as any;
     expect(exposed.isolatedWarnings()).toHaveLength(0);
   });
+
+  // 上下文自引用：传入 selfContextOption 时，上下文选择器常驻"当前上下文（自身）"选项，
+  // 不依赖远程搜索（新建上下文尚无 id，以哨兵 NIL UUID 表示）
+  it('renders self-context option when selfContextOption is provided', async () => {
+    const wrapper = mountComponent({
+      modelValue: [{ languageId: 'lang-1', value: '根上下文', contexts: [{ contextId: '00000000-0000-0000-0000-000000000000', acceptability: 'PREFERRED' }] }],
+      selfContextOption: { id: '00000000-0000-0000-0000-000000000000', label: '当前上下文（自身）' },
+    });
+    await new Promise(r => setTimeout(r, 0));
+    const options = wrapper.findAllComponents({ name: 'ElOption' });
+    const self = options.find((o) => o.props('value') === '00000000-0000-0000-0000-000000000000');
+    expect(self).toBeDefined();
+    expect(self!.props('label')).toBe('当前上下文（自身）');
+  });
+
+  it('omits self-context option when selfContextOption is not provided', async () => {
+    const wrapper = mountComponent({
+      modelValue: [{ languageId: 'lang-1', value: 'A', contexts: [] }],
+    });
+    await new Promise(r => setTimeout(r, 0));
+    const options = wrapper.findAllComponents({ name: 'ElOption' });
+    expect(options.find((o) => o.props('value') === '00000000-0000-0000-0000-000000000000')).toBeUndefined();
+  });
 });

@@ -121,6 +121,79 @@ class ItemAdministrationServiceTest {
         assertThat(item.getDesignations().get(0).getSign().getValue()).isEqualTo("患者姓名");
     }
 
+    // ===== 上下文自引用：上下文条目的指称/定义可关联其自身（根上下文创建）=====
+
+    @Test
+    void applyDesignations_contextItem_selfReferenceBySentinel_resolvesToSelf() {
+        // 新建上下文（尚无 id）以哨兵 NIL UUID 自引用 → 关联到条目自身，无需查库
+        when(namingConventionEngine.validate(any())).thenReturn(List.of());
+        when(languageRepository.findById(languageId)).thenReturn(Optional.of(lang));
+        Context self = new Context();
+
+        TextLine line = new TextLine(languageId, "根上下文", null,
+                List.of(new TextLineContextEntry(
+                        ItemAdministrationService.SELF_CONTEXT_REFERENCE, Acceptability.PREFERRED)));
+
+        itemAdministrationService.applyDesignations(self, List.of(line));
+
+        assertThat(self.getDesignations()).hasSize(1);
+        assertThat(self.getDesignations().get(0).getDesignationContexts()).hasSize(1);
+        assertThat(self.getDesignations().get(0).getDesignationContexts().get(0).getContext())
+                .isSameAs(self);
+        verifyNoInteractions(contextRepository);
+    }
+
+    @Test
+    void applyDesignations_contextItem_selfReferenceByOwnId_resolvesToSelf() {
+        // 编辑既有上下文：直接引用自身 id 同样成立
+        when(namingConventionEngine.validate(any())).thenReturn(List.of());
+        when(languageRepository.findById(languageId)).thenReturn(Optional.of(lang));
+        Context self = new Context();
+        self.setId(contextId);
+
+        TextLine line = new TextLine(languageId, "根上下文", null,
+                List.of(new TextLineContextEntry(contextId, Acceptability.PREFERRED)));
+
+        itemAdministrationService.applyDesignations(self, List.of(line));
+
+        assertThat(self.getDesignations().get(0).getDesignationContexts().get(0).getContext())
+                .isSameAs(self);
+        verifyNoInteractions(contextRepository);
+    }
+
+    @Test
+    void applyDesignations_nonContextItem_selfReferenceSentinel_rejected() {
+        // 非上下文条目使用自引用哨兵 → 拒绝
+        when(namingConventionEngine.validate(any())).thenReturn(List.of());
+        when(languageRepository.findById(languageId)).thenReturn(Optional.of(lang));
+
+        TextLine line = new TextLine(languageId, "患者姓名", null,
+                List.of(new TextLineContextEntry(
+                        ItemAdministrationService.SELF_CONTEXT_REFERENCE, Acceptability.PREFERRED)));
+
+        assertThatThrownBy(() -> itemAdministrationService.applyDesignations(item, List.of(line)))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("仅上下文条目可将指称/定义关联到其自身");
+    }
+
+    @Test
+    void applyDefinitions_contextItem_selfReferenceBySentinel_resolvesToSelf() {
+        // 定义同样支持自引用
+        when(languageRepository.findById(languageId)).thenReturn(Optional.of(lang));
+        Context self = new Context();
+
+        TextLine line = new TextLine(languageId, "根上下文定义", null,
+                List.of(new TextLineContextEntry(
+                        ItemAdministrationService.SELF_CONTEXT_REFERENCE, Acceptability.PREFERRED)));
+
+        itemAdministrationService.applyDefinitions(self, List.of(line));
+
+        assertThat(self.getDefinitions()).hasSize(1);
+        assertThat(self.getDefinitions().get(0).getDefinitionContexts().get(0).getContext())
+                .isSameAs(self);
+        verifyNoInteractions(contextRepository);
+    }
+
     @Test
     void applyDesignations_shouldRejectWhenNamingConventionFails() {
         when(namingConventionEngine.validate(any())).thenReturn(List.of(

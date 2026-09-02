@@ -25,5 +25,6 @@
   "Dimensionality": "DIM",
   "ClassificationScheme": "CS",
   "ClassificationNode": "CLN",
-  "Concept": "CN"
+  "Concept": "CN",
+  "Context": "CTX"
 }

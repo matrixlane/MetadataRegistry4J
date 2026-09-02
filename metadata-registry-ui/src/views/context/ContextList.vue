@@ -4,6 +4,7 @@
     <DataTablePage
       ref="tableRef"
       :fetch-fn="contextApi.list"
+      :action-width="250"
       @create="dialog?.open()"
       @edit="(r) => dialog?.open(r)"
       @delete="handleDelete"

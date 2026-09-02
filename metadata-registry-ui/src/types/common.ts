@@ -56,6 +56,12 @@ export type RegistrationStatus =
 
 export type ElTagType = 'primary' | 'success' | 'warning' | 'info' | 'danger';
 
+/**
+ * 指称/定义上下文自引用哨兵（与后端 ItemAdministrationService.SELF_CONTEXT_REFERENCE 一致）：
+ * 新建上下文时条目尚无真实 id，以此 NIL UUID 表示"关联到条目自身"。
+ */
+export const SELF_CONTEXT_REFERENCE = '00000000-0000-0000-0000-000000000000';
+
 export interface TextLineContextForm {
   contextId: string;
   acceptability: 'PREFERRED' | 'ADMITTED' | 'DEPRECATED' | 'SUPERSEDED' | 'OBSOLETE';

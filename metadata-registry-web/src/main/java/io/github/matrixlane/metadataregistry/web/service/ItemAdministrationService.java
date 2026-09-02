@@ -110,7 +110,7 @@ public class ItemAdministrationService {
                 for (var ce : line.contexts()) {
                     DesignationContext dc = new DesignationContext();
                     dc.setDesignation(d);
-                    dc.setContext(loadContext(ce.contextId()));
+                    dc.setContext(loadContext(item, ce.contextId()));
                     dc.setAcceptability(ce.acceptability());
                     d.getDesignationContexts().add(dc);
                 }
@@ -203,7 +203,7 @@ public class ItemAdministrationService {
                 for (var ce : line.contexts()) {
                     DefinitionContext dc = new DefinitionContext();
                     dc.setDefinition(d);
-                    dc.setContext(loadContext(ce.contextId()));
+                    dc.setContext(loadContext(item, ce.contextId()));
                     dc.setAcceptability(ce.acceptability());
                     d.getDefinitionContexts().add(dc);
                 }
@@ -650,9 +650,34 @@ public class ItemAdministrationService {
                 .orElseThrow(() -> new ResourceNotFoundException("ReferenceDocument", id));
     }
 
+    /** 指称/定义上下文自引用哨兵：新建上下文时条目尚未持久化、无真实 id，
+     *  前端以此 NIL UUID 表示"关联到条目自身"；后端仅接受 Context 条目使用。 */
+    public static final UUID SELF_CONTEXT_REFERENCE =
+            UUID.fromString("00000000-0000-0000-0000-000000000000");
+
     private io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.Context loadContext(UUID id) {
         return contextRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Context", id));
+    }
+
+    /**
+     * 解析指称/定义关联的上下文。支持自引用：上下文条目的指称/定义可关联其自身
+     * （否则无法创建第一个根上下文）。新建时条目尚无 id，以前端哨兵
+     * {@link #SELF_CONTEXT_REFERENCE} 表示；编辑时直接引用自身 id 亦可。
+     * 非 Context 条目使用自引用（哨兵或自身 id）一律拒绝。
+     */
+    private io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.Context loadContext(
+            Item item, UUID id) {
+        boolean selfReference = SELF_CONTEXT_REFERENCE.equals(id)
+                || (id != null && id.equals(item.getId()));
+        if (selfReference) {
+            if (item instanceof io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.Context self) {
+                return self;
+            }
+            throw new BusinessException(ApiCodes.VALIDATION_FAILED,
+                    "仅上下文条目可将指称/定义关联到其自身");
+        }
+        return loadContext(id);
     }
 
     /**

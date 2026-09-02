@@ -39,7 +39,7 @@
         <el-table-column
           v-if="showAction"
           label="操作"
-          width="160"
+          :width="actionWidth"
           fixed="right"
           align="center"
         >
@@ -98,6 +98,8 @@ interface Props {
   canEdit?: boolean;
   canDelete?: boolean;
   showAction?: boolean;
+  /** 操作列宽度：附加操作按钮（actions 插槽）较多时由页面调宽 */
+  actionWidth?: number;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -105,6 +107,7 @@ const props = withDefaults(defineProps<Props>(), {
   canEdit: true,
   canDelete: true,
   showAction: true,
+  actionWidth: 160,
 });
 
 const emit = defineEmits<{

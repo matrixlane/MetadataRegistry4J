@@ -51,6 +51,7 @@
               :require-naming-conventions="namespaceMandatoryNC"
               :pairings="form.pairings"
               :default-language-id="defaultLanguageId || undefined"
+              :self-context-option="selfContextOption"
               @conflicts="designationConflicts = $event"
             />
           </el-form-item>
@@ -72,6 +73,7 @@
               multiline
               :pairings="form.pairings"
               :default-language-id="defaultLanguageId || undefined"
+              :self-context-option="selfContextOption"
               @conflicts="definitionConflicts = $event"
             />
           </el-form-item>
@@ -84,6 +86,7 @@
           v-model="form.pairings"
           :designations="designationOptions"
           :definitions="definitionOptions"
+          :self-context-option="selfContextOption"
         />
         </el-tab-pane>
 
@@ -197,6 +200,7 @@ import { namingConventionApi, namespaceApi, pairingApi } from '@/api/resources';
 import { languageApi } from '@/api/resources';
 import { useRegistryDefaultLanguage } from '@/composables/useRegistryDefaultLanguage';
 import type { TextLineForm, PairingForm, NamespaceDetailResponse } from '@/types/common';
+import { SELF_CONTEXT_REFERENCE } from '@/types/common';
 
 interface RegistrationForm {
   namespaceId?: string;
@@ -241,6 +245,20 @@ const saving = ref(false);
 
 /** 从 i18n 资源中按 itemType 索引该元数据对象类型的本地化显示名。 */
 const resolvedTitle = computed(() => t(`meta.itemType.${props.itemType}`, props.itemType));
+
+/**
+ * 上下文条目的自引用选项：允许指称/定义/配对关联到条目自身
+ * （否则无法创建第一个根上下文）。新建时条目尚无 id，用哨兵 NIL UUID，
+ * 后端按 ItemAdministrationService.SELF_CONTEXT_REFERENCE 解析为条目自身；
+ * 配对在保存后同步，届时把哨兵替换为真实 id。
+ */
+const selfContextOption = computed(() => {
+  if (props.itemType !== 'context') return undefined;
+  return {
+    id: form.id || SELF_CONTEXT_REFERENCE,
+    label: '当前上下文（自身）',
+  };
+});
 const { defaultLanguageId } = useRegistryDefaultLanguage();
 const formRef = ref<FormInstance>();
 const registrationSectionRef = ref<InstanceType<typeof ItemRegistrationSection>>();
@@ -771,7 +789,8 @@ async function syncPairings(itemId: string, result?: unknown) {
         await pairingApi.create(itemId, {
           designationId,
           definitionId,
-          contextId: p.contextId || null,
+          // 新建上下文时配对上下文的自引用哨兵，在条目保存后映射为真实 id
+          contextId: p.contextId === SELF_CONTEXT_REFERENCE ? itemId : (p.contextId || null),
           acceptability: p.acceptability,
         });
       }
