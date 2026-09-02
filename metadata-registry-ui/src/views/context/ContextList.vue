@@ -10,12 +10,12 @@
       @delete="handleDelete"
     >
       <template #columns>
-        <el-table-column label="标识符" width="160" sortable>
+        <el-table-column label="标识符" width="160" sortable prop="meta.identifier">
           <template #default="{ row }">
             {{ row.meta?.identifier || '-' }}
           </template>
         </el-table-column>
-        <el-table-column label="名称">
+        <el-table-column label="名称" sortable prop="meta.label">
           <template #default="{ row }">
             {{ row.designations?.find((d: any) => d.languageCode === 'zh-CN')?.value || row.designations?.[0]?.value || '-' }}
           </template>

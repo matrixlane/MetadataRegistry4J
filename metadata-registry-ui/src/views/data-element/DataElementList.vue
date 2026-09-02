@@ -15,7 +15,8 @@
     >
       <template #columns>
         <el-table-column prop="meta.identifier" label="标识符" width="160" sortable />
-        <el-table-column label="名称">
+        <!-- meta.label 为虚拟排序键:后端 ItemSortPageableResolver 改写为 designations.sign.value -->
+        <el-table-column prop="meta.label" label="名称" sortable>
           <template #default="{ row }">
             {{ row.designations?.find((d: any) => d.languageCode === 'zh-CN')?.value || row.designations?.[0]?.value || '-' }}
           </template>

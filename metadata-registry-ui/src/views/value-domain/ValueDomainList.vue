@@ -14,21 +14,22 @@
     >
       <template #columns>
         <el-table-column prop="meta.identifier" label="标识符" width="160" sortable />
-        <el-table-column label="名称">
+        <!-- meta.label 为虚拟排序键:后端 ItemSortPageableResolver 改写为 designations.sign.value -->
+        <el-table-column prop="meta.label" label="名称" sortable>
           <template #default="{ row }">
             {{ row.designations?.find((d: any) => d.languageCode === 'zh-CN')?.value || row.designations?.[0]?.value || '-' }}
           </template>
         </el-table-column>
-        <el-table-column prop="dataTypeLabel" label="数据类型" width="140" />
         <!-- value_domain_meaning(§7.4.4.1)统一视图:后端按子类分派填充 conceptualDomainLabel -->
         <el-table-column label="概念域" width="160">
           <template #default="{ row }">{{ row.conceptualDomainLabel || '-' }}</template>
         </el-table-column>
-        <el-table-column prop="type" label="类型" width="120">
+        <el-table-column prop="type" label="值域类型" width="120">
           <template #default="{ row }">
             <el-tag size="small" :type="typeTagType(row.type)">{{ typeLabel(row.type) }}</el-tag>
           </template>
         </el-table-column>
+        <el-table-column prop="dataTypeLabel" label="数据类型" width="140" />
         <el-table-column prop="meta.registrationStatus" label="状态" width="120">
           <template #default="{ row }">
             <el-tag size="small">{{ (row.meta?.registrationStatus ? $t('registrationStatus.' + row.meta.registrationStatus) : '-') }}</el-tag>
@@ -44,7 +45,7 @@
       @success="tableRef?.fetchData()"
     >
       <template #fields="{ form }">
-        <el-form-item label="类型" prop="type" required>
+        <el-form-item label="值域类型" prop="type" required>
           <div style="display: flex; gap: 8px; align-items: center;">
             <el-select
               v-model="form.kind"
