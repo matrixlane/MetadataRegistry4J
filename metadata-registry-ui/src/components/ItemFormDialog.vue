@@ -157,7 +157,7 @@
       append-to-body
     >
       <p>确定删除该配对？请选择删除方式：</p>
-      <el-radio-group v-model="pairingDeleteMode" style="display: flex; flex-direction: column; gap: 8px; margin-top: 8px;">
+      <el-radio-group v-model="pairingDeleteMode" class="pairing-delete-modes">
         <el-radio value="association">仅删除关联关系（保留指称和定义）</el-radio>
         <el-radio value="lines">连同配对的指称和定义一并删除</el-radio>
       </el-radio-group>
@@ -966,6 +966,17 @@ defineExpose({ open });
 .isolated-list li {
   margin-bottom: 4px;
   font-size: 13px;
+}
+.pairing-delete-modes {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  margin: 8px 0;
+}
+.pairing-delete-modes :deep(.el-radio) {
+  margin-right: 0;
+  height: auto;
 }
 .pairing-delete-hints {
   margin-top: 8px;
