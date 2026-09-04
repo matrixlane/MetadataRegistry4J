@@ -11,7 +11,12 @@
         :class="{ 'pairing-error': hasError(index) }"
       >
         <div class="pairing-row">
+          <!-- 已保存配对：指称/定义引用以纯文本展示（正常颜色、可选中复制、不可编辑） -->
+          <div v-if="isRowSaved(row)" class="pairing-saved-text" style="flex: 1;">
+            {{ savedLineText(row.designationId, designations) }}
+          </div>
           <el-select
+            v-else
             v-model="row.designationId"
             :placeholder="createDesignation ? '选择既有指称，或输入文本直接新建' : '选择指称'"
             size="small"
@@ -20,7 +25,6 @@
             :allow-create="!!createDesignation"
             default-first-option
             clearable
-            :disabled="isRowSaved(row)"
             @change="(v: string) => onDesignationChange(row, v)"
           >
             <el-option
@@ -31,7 +35,11 @@
             />
           </el-select>
           <el-icon class="pairing-link"><Link /></el-icon>
+          <div v-if="isRowSaved(row)" class="pairing-saved-text" style="flex: 1;">
+            {{ savedLineText(row.definitionId, definitions) }}
+          </div>
           <el-select
+            v-else
             v-model="row.definitionId"
             :placeholder="createDefinition ? '选择既有定义，或输入文本直接新建' : '选择定义'"
             size="small"
@@ -40,7 +48,6 @@
             :allow-create="!!createDefinition"
             default-first-option
             clearable
-            :disabled="isRowSaved(row)"
             @change="(v: string) => onDefinitionChange(row, v)"
           >
             <el-option
@@ -60,7 +67,6 @@
             filterable
             remote
             reserve-keyword
-            :disabled="isRowSaved(row)"
             :remote-method="searchContexts"
             :loading="searchingContexts"
           >
@@ -83,7 +89,6 @@
             placeholder="可接受性"
             size="small"
             style="width: 140px;"
-            :disabled="isRowSaved(row)"
           >
             <el-option label="首选" value="PREFERRED" />
             <el-option label="认可" value="ADMITTED" />
@@ -223,6 +228,12 @@ function lineLabel(line: LineOption): string {
   return line.value || line.id;
 }
 
+/** 已保存配对引用的展示文本：从行集合中解析，缺失时回退为原始 id。 */
+function savedLineText(id: string, lines: LineOption[]): string {
+  const line = lines.find((l) => l.id === id);
+  return line ? lineLabel(line) : id;
+}
+
 function findDesignation(id: string): LineOption | undefined {
   return props.designations.find((d) => d.id === id);
 }
@@ -231,7 +242,7 @@ function findDefinition(id: string): LineOption | undefined {
   return props.definitions.find((d) => d.id === id);
 }
 
-/** 已创建并保存的配对整行只读：仅允许删除后重建，不允许在行内修改。 */
+/** 已保存配对：指称/定义引用只读（实例文本不可在配对里改）；上下文与可接受性仍可编辑。 */
 function isRowSaved(row: PairingForm): boolean {
   return !!row.id;
 }
@@ -374,6 +385,18 @@ defineExpose({ validate, hasError, isDuplicate });
 }
 .pairing-saved-tag {
   flex-shrink: 0;
+}
+/* 已保存配对的指称/定义引用：纯文本展示，正常颜色、可选中复制、不可编辑 */
+.pairing-saved-text {
+  display: flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 8px;
+  font-size: 14px;
+  color: var(--el-text-color-primary);
+  user-select: text;
+  -webkit-user-select: text;
+  overflow-wrap: anywhere;
 }
 .pairing-link {
   color: #9ca3af;

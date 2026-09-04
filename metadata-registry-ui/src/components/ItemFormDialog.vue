@@ -902,10 +902,19 @@ async function syncPairings(itemId: string, result?: unknown) {
     return UUID_LIKE.test(resolved) ? resolved : '';
   };
   try {
-    // 已保存配对只随"删除配对"流程移除（服务端按 deleteLines 校验）；
-    // 此处仅创建本次新增的（无 id）配对，已保存配对保持不动。
+    // 已保存配对：指称/定义引用不可改，但上下文与可接受性可编辑，这里整体 PUT 持久化；
+    // 配对本身只随"删除配对"流程移除（服务端按 deleteLines 校验），不做删后重建。
     for (const p of form.pairings) {
-      if (p.id) continue;
+      const contextId = p.contextId === SELF_CONTEXT_REFERENCE ? itemId : (p.contextId || null);
+      if (p.id) {
+        await pairingApi.update(itemId, p.id as string, {
+          designationId: resolveLineId(p.designationId),
+          definitionId: resolveLineId(p.definitionId),
+          contextId,
+          acceptability: p.acceptability,
+        });
+        continue;
+      }
       const designationId = resolveLineId(p.designationId);
       const definitionId = resolveLineId(p.definitionId);
       if (designationId && definitionId) {
@@ -913,7 +922,7 @@ async function syncPairings(itemId: string, result?: unknown) {
           designationId,
           definitionId,
           // 新建上下文时配对上下文的自引用哨兵，在条目保存后映射为真实 id
-          contextId: p.contextId === SELF_CONTEXT_REFERENCE ? itemId : (p.contextId || null),
+          contextId,
           acceptability: p.acceptability,
         });
         p.id = created?.id || p.id;

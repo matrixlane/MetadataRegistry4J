@@ -200,7 +200,7 @@ describe('DesignationDefinitionPairingEditor', () => {
     expect(unlinkDesignation).not.toHaveBeenCalled();
   });
 
-  it('saved pairings are read-only except deletion', async () => {
+  it('saved pairings show designation/definition as read-only text; context/acceptability editable', async () => {
     const row = { id: 'p1', designationId: 'd1', definitionId: 'f1', contextId: 'ctx-1', acceptability: 'ADMITTED' };
     const wrapper = mountComponent({
       modelValue: [row],
@@ -210,12 +210,16 @@ describe('DesignationDefinitionPairingEditor', () => {
       unlinkDefinition: vi.fn(),
     });
     await flushPromises();
+    // 指称/定义以纯文本展示（正常显示、可复制、不可编辑），不存在对应下拉
+    const savedTexts = wrapper.findAll('.pairing-saved-text');
+    expect(savedTexts).toHaveLength(2);
+    expect(savedTexts[0].text()).toBe('指称一');
+    expect(savedTexts[1].text()).toBe('定义一');
     const selects = wrapper.findAllComponents(ElSelect);
-    // 指称 / 定义 / 上下文 / 可接受性 全部禁用
-    expect((selects[0].vm as any).disabled).toBe(true);
-    expect((selects[1].vm as any).disabled).toBe(true);
-    expect((selects[2].vm as any).disabled).toBe(true);
-    expect((selects[3].vm as any).disabled).toBe(true);
+    expect(selects).toHaveLength(2);
+    // 上下文 / 可接受性仍可编辑
+    expect((selects[0].vm as any).disabled).toBeFalsy();
+    expect((selects[1].vm as any).disabled).toBeFalsy();
     // 已保存标记可见，删除按钮仍可用
     expect(wrapper.find('.pairing-saved-tag').exists()).toBe(true);
     const del = wrapper.find('.pairing-delete-button');
