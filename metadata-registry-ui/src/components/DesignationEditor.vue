@@ -12,6 +12,10 @@
           style="width: 140px; flex-shrink: 0;"
           size="small"
         >
+          <template #label="{ label, value }">
+            <span v-if="isPendingLanguage(value)">…</span>
+            <span v-else>{{ label }}</span>
+          </template>
           <el-option
             v-for="lang in languages"
             :key="lang.id"
@@ -145,6 +149,14 @@ const emit = defineEmits<{
 
 const languages = ref<{ id: string; languageIdentifier: string }[]>([]);
 const expanded = ref<Record<number, boolean>>({});
+const languagesLoaded = ref(false);
+
+/** 语言列表加载完成前，未命中的选中值显示占位而非原始 id */
+function isPendingLanguage(value: unknown): boolean {
+  if (!value || typeof value !== 'string') return false;
+  if (languagesLoaded.value) return false;
+  return !languages.value.some((l) => l.id === value);
+}
 
 onMounted(async () => {
   try {
@@ -155,6 +167,8 @@ onMounted(async () => {
     }));
   } catch {
     // fallback
+  } finally {
+    languagesLoaded.value = true;
   }
 });
 

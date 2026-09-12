@@ -68,6 +68,10 @@
         </el-form-item>
         <el-form-item label="默认语言">
           <el-select v-model="form.defaultLanguageId" clearable placeholder="选择默认语言" style="width: 100%;">
+            <template #label="{ label, value }">
+              <span v-if="isPendingLanguage(value)">…</span>
+              <span v-else>{{ label }}</span>
+            </template>
             <el-option
               v-for="lang in languageOptions"
               :key="lang.id"
@@ -122,6 +126,14 @@ const regSection = ref<InstanceType<typeof ItemRegistrationSection>>();
 const editingRaName = ref<string | null>(null);
 const languages = ref<Record<string, string>>({});
 const languageOptions = ref<{ id: string; languageIdentifier: string }[]>([]);
+const languagesLoaded = ref(false);
+
+/** 语言列表加载完成前，未命中的选中值显示占位而非原始 id */
+function isPendingLanguage(value: unknown): boolean {
+  if (!value || typeof value !== 'string') return false;
+  if (languagesLoaded.value) return false;
+  return !languageOptions.value.some((l) => l.id === value);
+}
 
 const form = reactive<Record<string, any>>({
   name: '',
@@ -161,6 +173,8 @@ onMounted(async () => {
     });
   } catch {
     // ignore
+  } finally {
+    languagesLoaded.value = true;
   }
 });
 

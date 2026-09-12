@@ -144,6 +144,10 @@
                 filterable
                 style="width: 100%;"
               >
+                <template #label="{ label, value }">
+                  <span v-if="isPendingOption(value, organizationOptions, orgsLoaded)">…</span>
+                  <span v-else>{{ label }}</span>
+                </template>
                 <el-option
                   v-for="org in organizationOptions"
                   :key="org.id"
@@ -162,6 +166,10 @@
                 filterable
                 style="width: 100%;"
               >
+                <template #label="{ label, value }">
+                  <span v-if="isPendingOption(value, namingConventionOptions, namingConventionsLoaded)">…</span>
+                  <span v-else>{{ label }}</span>
+                </template>
                 <el-option
                   v-for="nc in namingConventionOptions"
                   :key="nc.id"
@@ -448,6 +456,15 @@ const patternTestOk = ref(false);
 
 const organizationOptions = ref<{ id: string; name: string; identifier?: string }[]>([]);
 const namingConventionOptions = ref<{ id: string; label?: string; scopeRule?: string }[]>([]);
+const orgsLoaded = ref(false);
+const namingConventionsLoaded = ref(false);
+
+/** 选项列表加载完成前，未命中的选中值显示占位而非原始 id */
+function isPendingOption(value: unknown, options: { id: string }[], done: boolean): boolean {
+  if (!value || typeof value !== 'string') return false;
+  if (done) return false;
+  return !options.some((o) => o.id === value);
+}
 
 onMounted(async () => {
   try {
@@ -459,6 +476,8 @@ onMounted(async () => {
     }));
   } catch {
     organizationOptions.value = [];
+  } finally {
+    orgsLoaded.value = true;
   }
   try {
     const ncRes = await namingConventionApi.list({ size: 200 });
@@ -469,6 +488,8 @@ onMounted(async () => {
     }));
   } catch {
     namingConventionOptions.value = [];
+  } finally {
+    namingConventionsLoaded.value = true;
   }
 });
 

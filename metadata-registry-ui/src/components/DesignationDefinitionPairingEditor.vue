@@ -70,6 +70,10 @@
             :remote-method="searchContexts"
             :loading="searchingContexts"
           >
+            <template #label="{ label, value }">
+              <span v-if="isPendingContext(value)">…</span>
+              <span v-else>{{ label }}</span>
+            </template>
             <!-- 自引用选项（上下文条目编辑自身时由宿主传入），不依赖远程搜索 -->
             <el-option
               v-if="selfContextOption"
@@ -176,6 +180,15 @@ const emit = defineEmits<{
 
 const contextOptions = ref<{ id: string; label: string }[]>([]);
 const searchingContexts = ref(false);
+/** 首次远程加载完成前，未命中的选中值显示占位而非原始 id */
+const contextsLoaded = ref(false);
+
+function isPendingContext(value: unknown): boolean {
+  if (!value || typeof value !== 'string') return false;
+  if (contextsLoaded.value) return false;
+  if (props.selfContextOption && props.selfContextOption.id === value) return false;
+  return !contextOptions.value.some((c) => c.id === value);
+}
 
 const touched = ref<Set<number>>(new Set());
 
@@ -325,6 +338,7 @@ async function searchContexts(query: string) {
     // ignore
   } finally {
     searchingContexts.value = false;
+    contextsLoaded.value = true;
   }
 }
 

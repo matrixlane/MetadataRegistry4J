@@ -41,6 +41,9 @@ export const useAuthStore = defineStore('auth', () => {
   const isLoggedIn = computed(() => !!token.value);
   const isAdmin = computed(() => user.value?.sysRole === 'SUPER_ADMIN');
   const isRegistrar = computed(() => user.value?.sysRole === 'SUPER_ADMIN' || !!user.value?.isRegistrar);
+  /** 是否具备 Registrar 业务角色（不含 SUPER_ADMIN）。AI 使用类入口一律以此门控：
+   *  后端 /inference/** 与 /assistant/** 已收紧为仅 ROLE_REGISTRAR。 */
+  const isRegistrarUser = computed(() => !!user.value?.isRegistrar);
 
   /**
    * Check if the current user has at least the specified role.
@@ -121,7 +124,7 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   return {
-    token, user, isLoggedIn, isAdmin, isRegistrar, initialized,
+    token, user, isLoggedIn, isAdmin, isRegistrar, isRegistrarUser, initialized,
     hasRole, setInitialized, checkInitialized, login, fetchMe, logout, adoptSession,
     edition,
   };

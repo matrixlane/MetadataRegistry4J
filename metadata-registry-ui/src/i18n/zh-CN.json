@@ -304,6 +304,12 @@
     "isolatedWarning": "该行无上下文且未被配对引用",
     "preferredConflict": "同一语言+上下文下存在多个首选"
   },
+  "validPeriod": {
+    "label": "有效期",
+    "startPlaceholder": "有效开始时间（必填）",
+    "endPlaceholder": "有效结束时间（留空表示仍有效）",
+    "startRequired": "请填写有效开始时间"
+  },
   "acceptability": {
     "PREFERRED": "首选",
     "ADMITTED": "认可",
@@ -382,7 +388,49 @@
     "emptyConfirmTitle": "未填写指称或定义",
     "emptyConfirmMessage": "当前新增的{itemType}未包含任何指称或定义，可能导致后续问题，确认要保存吗？",
     "emptyConfirmCancel": "取消",
-    "emptyConfirmSubmitAnyway": "仍然保存"
+    "emptyConfirmSubmitAnyway": "仍然保存",
+    "inference": "AI 生成",
+    "inferenceNeedSave": "请先保存条目，再使用 AI 生成",
+    "inferenceApplied": "候选已填入表单，请确认后保存"
+  }
+
+  ,
+  "systemInference": {
+    "cardTitle": "AI 生成（Coding Agent）",
+    "cardDesc": "自动探测本机可用的 Coding Agent（ACP），勾选启用并设定默认提供方；保存后立即生效，无需重启。",
+    "superAdminOnly": "仅超级管理员可配置生成 Agent；当前为只读视图。",
+    "colName": "名称",
+    "colCommand": "启动命令",
+    "colStatus": "版本 / 状态",
+    "colEnabled": "启用",
+    "colDefault": "默认",
+    "colActions": "操作",
+    "available": "可用",
+    "unavailable": "不可用",
+    "builtinDefault": "内置默认",
+    "probe": "重新探测",
+    "addCustom": "添加自定义 Agent",
+    "editAgent": "编辑 Agent",
+    "edit": "编辑",
+    "delete": "删除",
+    "save": "保存",
+    "saveSuccess": "已保存，立即生效",
+    "cancel": "取消",
+    "confirm": "确定",
+    "fieldId": "标识",
+    "fieldName": "显示名",
+    "fieldCommand": "启动命令",
+    "fieldArgs": "参数",
+    "argsPlaceholder": "一行一个 ACP server 启动参数",
+    "idInvalid": "标识只能包含小写字母、数字与连字符",
+    "idDuplicate": "标识与内置或既有 Agent 重复",
+    "commandRequired": "启动命令不能为空"
+  }
+
+  ,
+  "assistant": {
+    "explanatoryComment": "解释性注释",
+    "explanatoryCommentPlaceholder": "条目解释性注释（留空不变更）"
   }
 
   ,
@@ -404,5 +452,74 @@
     "typeFilter": {
       "label": "类型过滤"
     }
+  },
+  "systemSettings": {
+    "nav": {
+      "general": "通用",
+      "datasource": "数据源",
+      "aiAssist": "AI 辅助",
+      "danger": "危险区域"
+    }
+  },
+  "aiAssistPrefs": {
+    "cardTitle": "生成偏好",
+    "candidateCount": "候选数量",
+    "candidateCountHint": "字段级 AI 生成一次返回的候选条数（1-5）。",
+    "loadFailed": "生成偏好加载失败，候选数与快捷键暂用默认值。"
+  },
+  "aiAssistHotkeys": {
+    "cardTitle": "快捷键",
+    "colCommand": "命令",
+    "colDescription": "描述",
+    "colBinding": "当前绑定",
+    "colActions": "操作",
+    "descAiDebugToggle": "弹出 AI 对话调试侧边栏",
+    "record": "录制",
+    "cancelRecord": "取消录制",
+    "capturing": "按下快捷键…（Esc 取消）",
+    "resetDefault": "恢复默认",
+    "save": "保存设置",
+    "saveSuccess": "设置已保存，立即生效",
+    "superAdminOnly": "仅超级管理员可修改 AI 辅助设置。"
+  },
+  "aiChat": {
+    "title": "AI 对话",
+    "askButton": "问 AI",
+    "empty": "输入问题开始对话",
+    "inputPlaceholder": "输入问题，Enter 发送",
+    "send": "发送",
+    "cancel": "取消",
+    "degraded": "通用解释（未关联注册项目）",
+    "failed": "回答生成失败",
+    "retry": "重试",
+    "copied": "已复制到剪贴板",
+    "copyFailed": "复制失败"
+  },
+  "aiGenerate": {
+    "button": "AI 生成",
+    "title": "AI 生成候选",
+    "running": "正在生成候选…",
+    "cancel": "取消",
+    "retry": "重试",
+    "close": "关闭",
+    "empty": "未产生候选，请稍后重试。",
+    "failed": "生成失败",
+    "applied": "候选已填入当前行"
+  },
+  "aiDebug": {
+    "title": "AI 交互调试",
+    "refresh": "刷新",
+    "count": "共 {count} 条",
+    "autoRefreshHint": "打开期间每 4 秒自动刷新",
+    "empty": "暂无 AI 交互记录",
+    "itemId": "项目 id",
+    "selection": "所选文本",
+    "prompt": "提示词",
+    "output": "响应原文",
+    "error": "错误",
+    "copy": "复制",
+    "copied": "已复制到剪贴板",
+    "copyFailed": "复制失败",
+    "loadFailed": "加载失败，请稍后重试"
   }
 }

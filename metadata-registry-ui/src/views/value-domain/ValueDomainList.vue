@@ -92,6 +92,33 @@
           <el-input v-model="form.format" placeholder="如 yyyy-MM-dd" />
         </el-form-item>
 
+        <!-- 值域有效期(ISO/IEC 11179-31 表 5 valid_period 基数为 1,起始必备;结束留空表示仍有效) -->
+        <el-form-item
+          :label="$t('validPeriod.label')"
+          prop="validPeriodStart"
+          required
+          :rules="[{ required: true, message: $t('validPeriod.startRequired') }]"
+        >
+          <div style="display: flex; gap: 8px; width: 100%;">
+            <el-date-picker
+              v-model="form.validPeriodStart"
+              type="datetime"
+              :placeholder="$t('validPeriod.startPlaceholder')"
+              size="small"
+              style="flex: 1;"
+              value-format="YYYY-MM-DDTHH:mm:ss"
+            />
+            <el-date-picker
+              v-model="form.validPeriodEnd"
+              type="datetime"
+              :placeholder="$t('validPeriod.endPlaceholder')"
+              size="small"
+              style="flex: 1;"
+              value-format="YYYY-MM-DDTHH:mm:ss"
+            />
+          </div>
+        </el-form-item>
+
         <!-- LOCAL_ENUMERATED -->
         <el-card
           v-if="form.kind === 'ENUMERATED' && form.enumKind === 'LOCAL'"
@@ -300,7 +327,16 @@ async function handleCreate() {
     form.kind = 'DESCRIBED';
     form.enumKind = undefined;
     form.type = 'DESCRIBED';
+    // 新建预填有效期起始为当日（ISO/IEC 11179-31 表 5 valid_period 必备；编辑模式不回填）
+    form.validPeriodStart = todayStart();
   }
+}
+
+/** 当日 00:00:00（本地时区），与 date-picker 的 value-format 一致 */
+function todayStart(): string {
+  const d = new Date();
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T00:00:00`;
 }
 
 async function handleEdit(row: Record<string, any>) {

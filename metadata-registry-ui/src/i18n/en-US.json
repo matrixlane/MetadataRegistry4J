@@ -150,6 +150,12 @@
     "isolatedWarning": "This row has no context and is not referenced by any pairing",
     "preferredConflict": "Multiple Preferred rows exist for the same language + context"
   },
+  "validPeriod": {
+    "label": "Valid period",
+    "startPlaceholder": "Valid from (required)",
+    "endPlaceholder": "Valid until (leave empty if still valid)",
+    "startRequired": "Valid from is required"
+  },
   "relationship": {
     "designations": "Designations",
     "definitions": "Definitions",
@@ -221,7 +227,49 @@
     "emptyConfirmTitle": "No Designation or Definition",
     "emptyConfirmMessage": "The new {itemType} does not contain any designation or definition, which may cause issues for later management. Are you sure you want to save?",
     "emptyConfirmCancel": "Cancel",
-    "emptyConfirmSubmitAnyway": "Save anyway"
+    "emptyConfirmSubmitAnyway": "Save anyway",
+    "inference": "AI Generate",
+    "inferenceNeedSave": "Save the item before using AI generation",
+    "inferenceApplied": "Candidate filled into the form. Review it and save."
+  }
+
+  ,
+  "systemInference": {
+    "cardTitle": "AI Generation (Coding Agent)",
+    "cardDesc": "Auto-detect locally installed Coding Agents (ACP), enable the ones you need and pick a default provider; changes take effect immediately after saving, no restart required.",
+    "superAdminOnly": "Only super administrators can configure generation agents; this is a read-only view.",
+    "colName": "Name",
+    "colCommand": "Start command",
+    "colStatus": "Version / Status",
+    "colEnabled": "Enabled",
+    "colDefault": "Default",
+    "colActions": "Actions",
+    "available": "Available",
+    "unavailable": "Unavailable",
+    "builtinDefault": "Built-in default",
+    "probe": "Probe again",
+    "addCustom": "Add custom agent",
+    "editAgent": "Edit agent",
+    "edit": "Edit",
+    "delete": "Delete",
+    "save": "Save",
+    "saveSuccess": "Saved and effective immediately",
+    "cancel": "Cancel",
+    "confirm": "OK",
+    "fieldId": "ID",
+    "fieldName": "Display name",
+    "fieldCommand": "Start command",
+    "fieldArgs": "Arguments",
+    "argsPlaceholder": "One ACP server start argument per line",
+    "idInvalid": "ID may only contain lowercase letters, digits and hyphens",
+    "idDuplicate": "ID duplicates a built-in or existing agent",
+    "commandRequired": "Start command is required"
+  }
+
+  ,
+  "assistant": {
+    "explanatoryComment": "Explanatory comment",
+    "explanatoryCommentPlaceholder": "Explanatory comment for the item (leave empty to keep unchanged)"
   }
 
   ,
@@ -243,5 +291,74 @@
     "typeFilter": {
       "label": "Type filter"
     }
+  },
+  "systemSettings": {
+    "nav": {
+      "general": "General",
+      "datasource": "Datasource",
+      "aiAssist": "AI Assist",
+      "danger": "Danger Zone"
+    }
+  },
+  "aiAssistPrefs": {
+    "cardTitle": "Generation Preferences",
+    "candidateCount": "Candidate count",
+    "candidateCountHint": "How many candidates field-level AI generation returns per run (1-5).",
+    "loadFailed": "Failed to load preferences; candidate count and hotkeys fall back to defaults."
+  },
+  "aiAssistHotkeys": {
+    "cardTitle": "Hotkeys",
+    "colCommand": "Command",
+    "colDescription": "Description",
+    "colBinding": "Current binding",
+    "colActions": "Actions",
+    "descAiDebugToggle": "Toggle the AI interaction debug sidebar",
+    "record": "Record",
+    "cancelRecord": "Cancel",
+    "capturing": "Press a hotkey… (Esc to cancel)",
+    "resetDefault": "Reset to default",
+    "save": "Save settings",
+    "saveSuccess": "Settings saved and effective immediately",
+    "superAdminOnly": "Only super administrators can change AI assist settings."
+  },
+  "aiChat": {
+    "title": "AI Chat",
+    "askButton": "Ask AI",
+    "empty": "Type a question to start",
+    "inputPlaceholder": "Type a question, Enter to send",
+    "send": "Send",
+    "cancel": "Cancel",
+    "degraded": "Generic answer (not linked to a registered item)",
+    "failed": "Failed to generate the answer",
+    "retry": "Retry",
+    "copied": "Copied to clipboard",
+    "copyFailed": "Copy failed"
+  },
+  "aiGenerate": {
+    "button": "AI Generate",
+    "title": "AI Generation Candidates",
+    "running": "Generating candidates…",
+    "cancel": "Cancel",
+    "retry": "Retry",
+    "close": "Close",
+    "empty": "No candidates produced. Please retry later.",
+    "failed": "Generation failed",
+    "applied": "Candidate filled into the current row"
+  },
+  "aiDebug": {
+    "title": "AI Interaction Debug",
+    "refresh": "Refresh",
+    "count": "{count} entries",
+    "autoRefreshHint": "Auto-refreshes every 4 seconds while open",
+    "empty": "No AI interactions yet",
+    "itemId": "Item ID",
+    "selection": "Selected text",
+    "prompt": "Prompt",
+    "output": "Raw response",
+    "error": "Error",
+    "copy": "Copy",
+    "copied": "Copied to clipboard",
+    "copyFailed": "Copy failed",
+    "loadFailed": "Failed to load; please retry"
   }
 }

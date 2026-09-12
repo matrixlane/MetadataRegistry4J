@@ -16,6 +16,24 @@
         />
         <div class="row-actions">
           <el-tooltip
+            v-if="aiGenerate"
+            :content="$t('aiGenerate.button')"
+            placement="top"
+          >
+            <el-button
+              size="small"
+              text
+              circle
+              type="primary"
+              data-testid="ai-generate-btn"
+              @click="emit('ai-generate', index)"
+              @mouseenter="emit('ai-generate-hover', true, index)"
+              @mouseleave="emit('ai-generate-hover', false, index)"
+            >
+              <el-icon><MagicStick /></el-icon>
+            </el-button>
+          </el-tooltip>
+          <el-tooltip
             v-if="isIsolated(index)"
             :content="row.isolatedException ? '已标记为例外' : '无上下文且未被配对引用，点击标记为例外'"
             placement="top"
@@ -53,6 +71,10 @@
           size="small"
           class="meta-select"
         >
+          <template #label="{ label, value }">
+            <span v-if="isPendingOption(value, languages, languagesLoaded)">…</span>
+            <span v-else>{{ label }}</span>
+          </template>
           <el-option
             v-for="lang in languages"
             :key="lang.id"
@@ -69,6 +91,10 @@
           clearable
           class="meta-select"
         >
+          <template #label="{ label, value }">
+            <span v-if="isPendingOption(value, referenceDocuments, refDocsLoaded)">…</span>
+            <span v-else>{{ label }}</span>
+          </template>
           <el-option
             v-for="doc in referenceDocuments"
             :key="doc.id"
@@ -113,6 +139,10 @@
                 :remote-method="searchContexts"
                 :loading="searchingContexts"
               >
+                <template #label="{ label, value }">
+                  <span v-if="isPendingOption(value, contextOptions, contextsLoaded)">…</span>
+                  <span v-else>{{ label }}</span>
+                </template>
                 <!-- 自引用选项（上下文条目编辑自身时由宿主传入），不依赖远程搜索 -->
                 <el-option
                   v-if="selfContextOption"
@@ -200,7 +230,7 @@
 import { ref, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 const { t } = useI18n();
-import { Plus, Delete, ArrowRight, ArrowDown, Warning } from '@element-plus/icons-vue';
+import { Plus, Delete, ArrowRight, ArrowDown, Warning, MagicStick } from '@element-plus/icons-vue';
 import { languageApi, contextApi, referenceDocumentApi } from '@/api/resources';
 import type { TextLineForm, PairingForm, NamingConventionResponse } from '@/types/common';
 
@@ -214,6 +244,8 @@ interface Props {
   defaultLanguageId?: string;
   /** 自引用上下文选项（上下文条目关联其自身；新建时值为哨兵 NIL UUID） */
   selfContextOption?: { id: string; label: string };
+  /** 行内「AI 生成」按钮（字段级生成入口；宿主负责门控与浮层） */
+  aiGenerate?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -222,13 +254,25 @@ const props = withDefaults(defineProps<Props>(), {
 const emit = defineEmits<{
   'update:modelValue': [value: TextLineForm[]];
   conflicts: [conflicts: { type: 'PREFERRED' | 'ISOLATED'; message: string; index: number }[]];
+  'ai-generate': [index: number];
+  'ai-generate-hover': [hovered: boolean, index: number];
 }>();
 
 const languages = ref<{ id: string; languageIdentifier: string }[]>([]);
 const contextOptions = ref<{ id: string; label: string }[]>([]);
 const referenceDocuments = ref<{ id: string; title?: string; identifier?: string }[]>([]);
+const languagesLoaded = ref(false);
+const refDocsLoaded = ref(false);
 const searchingContexts = ref(false);
+const contextsLoaded = ref(false);
 const expanded = ref<Record<number, boolean>>({});
+
+/** 选项列表加载完成前，未命中的选中值显示加载占位而非原始 id */
+function isPendingOption(value: unknown, options: { id: string }[], done: boolean): boolean {
+  if (!value || typeof value !== 'string') return false;
+  if (done) return false;
+  return !options.some((o) => o.id === value);
+}
 
 function isIsolated(index: number): boolean {
   const row = props.modelValue[index];
@@ -291,6 +335,8 @@ onMounted(async () => {
     await searchContexts('');
   } catch {
     // fallback
+  } finally {
+    languagesLoaded.value = true;
   }
   try {
     const refRes = await referenceDocumentApi.list({ size: 200 });
@@ -301,6 +347,8 @@ onMounted(async () => {
     }));
   } catch {
     // fallback
+  } finally {
+    refDocsLoaded.value = true;
   }
 });
 
@@ -313,6 +361,7 @@ async function searchContexts(query: string) {
     // ignore
   } finally {
     searchingContexts.value = false;
+    contextsLoaded.value = true;
   }
 }
 

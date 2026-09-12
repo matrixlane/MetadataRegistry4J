@@ -306,14 +306,37 @@
         </el-button>
       </template>
     </el-dialog>
+
+    <!-- AI 交互调试侧栏与浮动对话窗（仅 Registrar 业务角色渲染） -->
+    <AiDebugDrawer v-if="auth.isRegistrarUser" v-model="showAiDebug" />
+    <AiChatWindow v-if="auth.isRegistrarUser" />
+
+    <!-- 全局划词「问 AI」入口 -->
+    <el-button
+      v-if="selectionButton"
+      class="ai-ask-button"
+      size="small"
+      type="primary"
+      round
+      data-test="ai-ask-button"
+      :style="{ left: `${selectionButton.x}px`, top: `${selectionButton.y}px` }"
+      @mousedown.prevent
+      @click="askAi"
+    >✨ {{ $t('aiChat.askButton') }}</el-button>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, reactive, onMounted } from 'vue';
+import { ref, computed, reactive, onMounted, onBeforeUnmount } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
+import { useAiChatStore } from '@/stores/aiChat';
+import AiDebugDrawer from '@/components/assistant/AiDebugDrawer.vue';
+import AiChatWindow from '@/components/assistant/AiChatWindow.vue';
+import { assistantSettingsApi } from '@/api/assistant';
+import { DEFAULT_HOTKEYS, parseHotkey, eventMatchesHotkey } from '@/utils/hotkey';
+import type { ParsedHotkey } from '@/utils/hotkey';
 import { Reading, ArrowDown, Check } from '@element-plus/icons-vue';
 import type { FormInstance } from 'element-plus';
 import { ElMessage } from 'element-plus';
@@ -389,7 +412,104 @@ async function confirmIdentitySelection() {
 onMounted(loadActiveRegistrar);
 onMounted(loadRegistryDefaultLanguage);
 
+// ── AI 交互调试侧栏（快捷键可配置，仅 Registrar 注册监听）────────────
+const showAiDebug = ref(false);
+const aiChat = useAiChatStore();
+
+/** 调试侧栏开合绑定：默认 Ctrl+Shift+D，登录后按服务端设置覆盖 */
+let aiDebugHotkey: ParsedHotkey | null = parseHotkey(DEFAULT_HOTKEYS['aiDebug.toggle']);
+
+function onAiDebugKeydown(event: KeyboardEvent) {
+  if (!aiDebugHotkey || !eventMatchesHotkey(event, aiDebugHotkey)) return;
+  event.preventDefault();
+  showAiDebug.value = !showAiDebug.value;
+}
+
+async function loadAiAssistSettings() {
+  if (!auth.isRegistrarUser) return;
+  try {
+    const settings = await assistantSettingsApi.get();
+    aiDebugHotkey =
+      parseHotkey(settings.hotkeys?.['aiDebug.toggle']) ??
+      parseHotkey(DEFAULT_HOTKEYS['aiDebug.toggle']);
+  } catch {
+    // 读取失败沿用默认绑定
+  }
+}
+
+// ── 全局划词「问 AI」（排除输入控件，选区 ≥2 字符才浮现）────────────
+const selectionButton = ref<{
+  x: number;
+  y: number;
+  text: string;
+  surroundingText?: string;
+} | null>(null);
+
+function isEditableTarget(el: Element | null | undefined): boolean {
+  return !!el?.closest('input, textarea, [contenteditable]');
+}
+
+function onGlobalMouseup(event: MouseEvent) {
+  // 等浏览器提交选区后再读取
+  setTimeout(() => {
+    const target = event.target as HTMLElement | null;
+    if (isEditableTarget(target)) {
+      selectionButton.value = null;
+      return;
+    }
+    const selection = window.getSelection();
+    const text = selection?.toString().trim() ?? '';
+    if (!selection || selection.isCollapsed || text.length < 2) {
+      selectionButton.value = null;
+      return;
+    }
+    const anchorNode = selection.anchorNode;
+    const anchorEl = anchorNode instanceof Element ? anchorNode : anchorNode?.parentElement;
+    if (isEditableTarget(anchorEl)) {
+      selectionButton.value = null;
+      return;
+    }
+    const rect = selection.getRangeAt(0).getBoundingClientRect();
+    selectionButton.value = {
+      x: Math.max(8, rect.left + rect.width / 2),
+      y: rect.bottom + 8,
+      text: text.slice(0, 2000),
+      surroundingText: (anchorEl?.textContent ?? '').slice(0, 2000),
+    };
+  }, 0);
+}
+
+function onGlobalMousedown(event: MouseEvent) {
+  const el = event.target as HTMLElement | null;
+  if (el?.closest('[data-test="ai-ask-button"]')) return;
+  selectionButton.value = null;
+}
+
+function askAi() {
+  if (!selectionButton.value) return;
+  aiChat.openWithQuote({
+    text: selectionButton.value.text,
+    surroundingText: selectionButton.value.surroundingText,
+  });
+  selectionButton.value = null;
+}
+
+if (auth.isRegistrarUser) {
+  window.addEventListener('keydown', onAiDebugKeydown);
+  window.addEventListener('mouseup', onGlobalMouseup);
+  window.addEventListener('mousedown', onGlobalMousedown);
+  onMounted(loadAiAssistSettings);
+  onBeforeUnmount(() => {
+    window.removeEventListener('keydown', onAiDebugKeydown);
+    window.removeEventListener('mouseup', onGlobalMouseup);
+    window.removeEventListener('mousedown', onGlobalMousedown);
+  });
+}
+
 const activeMenu = computed(() => {
+  if (route.path.startsWith('/system-settings')) {
+    return '/system-settings';
+  }
   if (route.query.group) {
     return `${route.path}?group=${route.query.group}`;
   }
@@ -517,5 +637,11 @@ async function submitPasswordChange() {
 <style scoped lang="scss">
 .highlight {
   font-weight: 600;
+}
+
+.ai-ask-button {
+  position: fixed;
+  z-index: 2500;
+  transform: translateX(-50%);
 }
 </style>

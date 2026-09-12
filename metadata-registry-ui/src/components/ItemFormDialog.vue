@@ -52,7 +52,10 @@
               :pairings="form.pairings"
               :default-language-id="defaultLanguageId || undefined"
               :self-context-option="selfContextOption"
+              :ai-generate="canAiGenerate"
               @conflicts="designationConflicts = $event"
+              @ai-generate="(i) => onAiGenerate('designation', i)"
+              @ai-generate-hover="(h, i) => onAiGenerateHover('designation', i, h)"
             />
           </el-form-item>
         </el-tab-pane>
@@ -74,7 +77,10 @@
               :pairings="form.pairings"
               :default-language-id="defaultLanguageId || undefined"
               :self-context-option="selfContextOption"
+              :ai-generate="canAiGenerate"
               @conflicts="definitionConflicts = $event"
+              @ai-generate="(i) => onAiGenerate('definition', i)"
+              @ai-generate-hover="(h, i) => onAiGenerateHover('definition', i, h)"
             />
           </el-form-item>
         </el-tab-pane>
@@ -209,6 +215,24 @@
       </template>
     </el-dialog>
 
+    <AiCandidatePopover
+      :visible="!!aiGen"
+      :anchor="aiGen?.anchor ?? null"
+      :field="aiGen?.field ?? 'designation'"
+      :item-id="form.id"
+      :cache-key="aiGen?.key ?? ''"
+      :auto-generate="aiGen?.mode === 'generate'"
+      :cached="aiGen ? (aiCandidateCache[aiGen.key] ?? null) : null"
+      :last-error="aiGen ? (aiError[aiGen.key] ?? null) : null"
+      :draft="aiGen?.draft ?? null"
+      :button-hover="aiGenButtonHover"
+      @apply="onAiCandidateApply"
+      @close="aiGen = null"
+      @generated="onAiGenerated"
+      @inflight-change="onAiInflightChange"
+      @failed="onAiFailed"
+    />
+
     <template #footer>
       <el-button @click="visible = false">取消</el-button>
       <el-button type="primary" :loading="saving" :disabled="gateBlocksSave" @click="handleSubmit">保存</el-button>
@@ -228,11 +252,16 @@ import MultilingualTextEditor from './MultilingualTextEditor.vue';
 import DesignationDefinitionPairingEditor from './DesignationDefinitionPairingEditor.vue';
 import ItemRegistrationSection from './ItemRegistrationSection.vue';
 import ItemRegistrationStateSection from './ItemRegistrationStateSection.vue';
+import AiCandidatePopover from './assistant/AiCandidatePopover.vue';
+import type { FieldCandidate, AiDraft } from './assistant/AiCandidatePopover.vue';
 import { namingConventionApi, namespaceApi, pairingApi } from '@/api/resources';
 import { languageApi } from '@/api/resources';
 import { useRegistryDefaultLanguage } from '@/composables/useRegistryDefaultLanguage';
+import { useAuthStore } from '@/stores/auth';
 import type { TextLineForm, PairingForm, NamespaceDetailResponse } from '@/types/common';
 import { SELF_CONTEXT_REFERENCE } from '@/types/common';
+
+const auth = useAuthStore();
 
 interface RegistrationForm {
   namespaceId?: string;
@@ -245,6 +274,8 @@ interface RegistrationForm {
   untilDate?: string;
   administrativeNote?: string;
   unresolvedIssue?: string;
+  /** 条目解释性注释（explanatory comment）；null/undefined = 不变更，空串 = 清空 */
+  explanatoryComment?: string;
 }
 
 interface ItemForm {
@@ -595,6 +626,7 @@ async function open(initial?: Record<string, unknown>) {
       pairings: normalizePairings(initial.pairings as any),
       registration: normalizeRegistration(initial.registration as any, initial.meta as any),
     });
+    initialExplanatoryComment.value = form.registration.explanatoryComment;
     await loadNamespaceDetail(form.registration.namespaceId);
     if (initial.id) {
       try {
@@ -619,6 +651,7 @@ function reset() {
   form.definitions = [];
   form.pairings = [];
   form.registration = {};
+  initialExplanatoryComment.value = undefined;
   invalidFields.value.clear();
   pendingPairingDeletions.value = [];
   pairingDeleteVisible.value = false;
@@ -627,6 +660,12 @@ function reset() {
   editingVersionCreationMode.value = null;
   registrationSectionRef.value?.reset();
   formRef.value?.resetFields();
+  // 对话框关闭/重开：行级候选缓存、进行中/失败态与会话内悬停态一并失效
+  aiCandidateCache.value = {};
+  aiInflight.value = {};
+  aiError.value = {};
+  aiGenButtonHover.value = false;
+  aiGen.value = null;
 }
 
 /** 与 MultilingualTextEditor 中 newClientKey 同规则：为未持久化行生成前端临时键。 */
@@ -659,6 +698,156 @@ function createDefinitionLine(value: string): string {
     value,
   });
   return key;
+}
+
+/* ---------- 字段级 AI 生成（仅填入表单，不自动保存；落库走既有保存路径） ---------- */
+
+/** 打开时既有的解释性注释值：用于判断本次是否变更（后端 null=不变更，空串=清空） */
+const initialExplanatoryComment = ref<string | undefined>(undefined);
+
+/** 行级「AI 生成」入口：仅 Registrar 业务角色（新建/编辑全模式覆盖，共用本对话框的全部注册对象均受益） */
+const canAiGenerate = computed(() => !!auth.isRegistrarUser);
+
+/** 行级候选缓存（对话框会话内有效，关闭/重置即失效）：key 为 `field:行id|clientKey|index` */
+const aiCandidateCache = ref<Record<string, FieldCandidate[]>>({});
+/** 行级「生成进行中」标记（popover 的 start/完成/取消/失败路径维护）：悬停判定据此走加载态分支 */
+const aiInflight = ref<Record<string, boolean>>({});
+/** 行级最近失败信息（popover failed 事件维护）：无缓存行悬停重开时展示错误态，不自动重发 */
+const aiError = ref<Record<string, string>>({});
+const aiGenButtonHover = ref(false);
+
+const aiGen = ref<{
+  field: 'designation' | 'definition';
+  index: number;
+  anchor: HTMLElement | null;
+  /** generate=点击发起新请求；view=悬停回看缓存（不发请求） */
+  mode: 'view' | 'generate';
+  key: string;
+  /** 新建模式的生成上下文快照（点击时收集）；编辑模式为 undefined（走 itemId） */
+  draft?: AiDraft;
+} | null>(null);
+
+function aiGenKey(field: 'designation' | 'definition', index: number): string {
+  const rows = field === 'designation' ? form.designations : form.definitions;
+  const row = rows[index];
+  return `${field}:${row?.id || row?.clientKey || index}`;
+}
+
+/**
+ * 新建模式生成上下文：两 tab 全部已填非空行（含目标行，空行跳过），语言 id 解析为语言代码。
+ * 快照在点击时采集——发起后用户对草稿的继续编辑不影响本次提示词。
+ */
+function buildAiDraft(): AiDraft {
+  const filled = (r: { languageId?: string; value?: string }): r is { languageId?: string; value: string } =>
+    typeof r.value === 'string' && r.value.trim() !== '';
+  const toLines = (rows: Array<{ languageId?: string; value?: string }>) =>
+    rows.filter(filled).map((r) => {
+      const lang = r.languageId
+        ? languages.value.find((l) => l.id === r.languageId)
+        : undefined;
+      const code = lang?.languageCode || lang?.languageIdentifier;
+      return code ? { language: code, value: r.value } : { value: r.value };
+    });
+  return {
+    itemType: props.itemType,
+    designations: toLines(form.designations),
+    definitions: toLines(form.definitions),
+  };
+}
+
+function openAiGen(field: 'designation' | 'definition', index: number, mode: 'view' | 'generate') {
+  const editor = field === 'designation' ? designationEditorRef.value : definitionEditorRef.value;
+  const cards = editor?.$el?.querySelectorAll('.multilingual-card');
+  const anchor = cards && cards.length > index ? (cards[index] as HTMLElement) : null;
+  aiGen.value = {
+    field, index, anchor, mode, key: aiGenKey(field, index),
+    draft: mode === 'generate' && !form.id ? buildAiDraft() : undefined,
+  };
+}
+
+/** 点击「✨ AI 生成」：发起新请求，成功后覆盖该行缓存 */
+function onAiGenerate(field: 'designation' | 'definition', index: number) {
+  openAiGen(field, index, 'generate');
+}
+
+/** 悬停按钮三分支：进行中→重开浮层显示加载态（不发请求）；有缓存→view 模式回看（不发请求）；
+ *  无缓存但上次失败→重开浮层显示错误态与重试入口（不自动重发）；三者皆否→不打开 */
+function onAiGenerateHover(field: 'designation' | 'definition', index: number, hovered: boolean) {
+  aiGenButtonHover.value = hovered;
+  if (!hovered) return;
+  const key = aiGenKey(field, index);
+  if (aiInflight.value[key]) {
+    openAiGen(field, index, 'generate');
+    return;
+  }
+  if (aiCandidateCache.value[key]?.length) {
+    if (aiGen.value && aiGen.value.mode === 'generate') return;
+    openAiGen(field, index, 'view');
+    return;
+  }
+  if (aiError.value[key]) openAiGen(field, index, 'generate');
+}
+
+/** popover 上报行级进行中状态；新一轮开始即作废该行上次失败态 */
+function onAiInflightChange(payload: { key: string; inflight: boolean }) {
+  aiInflight.value = { ...aiInflight.value, [payload.key]: payload.inflight };
+  if (payload.inflight && aiError.value[payload.key]) {
+    const next = { ...aiError.value };
+    delete next[payload.key];
+    aiError.value = next;
+  }
+}
+
+/** popover 上报行级失败：供无缓存行悬停重开时展示错误态 */
+function onAiFailed(payload: { key: string; message: string }) {
+  aiError.value = { ...aiError.value, [payload.key]: payload.message };
+}
+
+/** 生成成功：回写/覆盖行级缓存并清除该行失败态（失败不触发本事件，旧缓存保留） */
+function onAiGenerated(payload: { key: string; candidates: FieldCandidate[] }) {
+  aiCandidateCache.value = { ...aiCandidateCache.value, [payload.key]: payload.candidates };
+  if (aiError.value[payload.key]) {
+    const next = { ...aiError.value };
+    delete next[payload.key];
+    aiError.value = next;
+  }
+}
+
+/** 候选语种（如 zh-CN）映射到注册语言实体 id；匹配不到回退默认语言。 */
+function resolveLanguageId(languageCode?: string): string {
+  if (languageCode) {
+    const normalized = languageCode.trim().toLowerCase();
+    const exact = languages.value.find(
+      (l) =>
+        (l.languageCode || '').toLowerCase() === normalized ||
+        (l.languageIdentifier || '').toLowerCase() === normalized,
+    );
+    if (exact) return exact.id;
+    const prefix = normalized.split('-')[0];
+    const partial = languages.value.find(
+      (l) =>
+        (l.languageCode || '').toLowerCase().startsWith(prefix) ||
+        (l.languageIdentifier || '').toLowerCase().startsWith(prefix),
+    );
+    if (partial) return partial.id;
+  }
+  return defaultLanguageId.value || '';
+}
+
+/** 字段级生成候选回填：写入选中行输入框（多语行按行语言回填；行无语言时按候选语种解析）。 */
+function onAiCandidateApply(candidate: FieldCandidate) {
+  const target = aiGen.value;
+  if (!target) return;
+  const rows = target.field === 'designation' ? form.designations : form.definitions;
+  const row = rows[target.index];
+  if (!row) return;
+  row.value = candidate.text;
+  if (!row.languageId) {
+    row.languageId = resolveLanguageId(candidate.language);
+  }
+  const editor = target.field === 'designation' ? designationEditorRef.value : definitionEditorRef.value;
+  void nextTick().then(() => editor?.updateConflicts?.());
+  ElMessage.success(t('aiGenerate.applied'));
 }
 
 /** 配对改绑/清除/删除后清理孤立的内联新建行：仅移除未持久化且不再被任何配对引用的行。 */
@@ -724,6 +913,8 @@ function normalizeRegistration(
     untilDate: reg.untilDate || (meta?.stateUntilDate as string) || undefined,
     administrativeNote: reg.administrativeNote || (meta?.administrativeNote as string) || undefined,
     unresolvedIssue: reg.unresolvedIssue || (meta?.unresolvedIssue as string) || undefined,
+    // 解释性注释：后端响应 meta 暂未回显该字段，随 initial 携带时回填；未携带则留空（不变更）
+    explanatoryComment: reg.explanatoryComment || (meta?.explanatoryComment as string) || undefined,
   };
 }
 
@@ -841,6 +1032,15 @@ async function handleSubmitInternal() {
           throw new Error(varError);
         }
         payload.registration = registrationSectionRef.value?.buildPayload();
+        // 解释性注释：仅在用户实际变更时携带（后端 null=不变更，空串=清空），
+        // 避免未回显该字段的编辑场景把既有注释覆盖掉
+        const comment = form.registration.explanatoryComment;
+        if (comment !== undefined && comment !== initialExplanatoryComment.value) {
+          payload.registration = {
+            ...(payload.registration as Record<string, unknown>),
+            explanatoryComment: comment,
+          };
+        }
       }
       // 先执行已保存配对的待删除：服务端按 deleteLines 校验约束（留下的行须仍有
       // 上下文；一并删除的行须未被其它配对引用）。失败则中断保存，条目本身不变。
@@ -933,7 +1133,8 @@ async function syncPairings(itemId: string, result?: unknown) {
   }
 }
 
-defineExpose({ open });
+// form 一并暴露：视图在 open() 后需要回写类型/默认值（值域、概念域的 kind 预置与有效期预填）
+defineExpose({ open, form });
 </script>
 
 <style scoped>

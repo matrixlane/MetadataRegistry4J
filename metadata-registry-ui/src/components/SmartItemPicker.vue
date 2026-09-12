@@ -9,7 +9,7 @@
   - Smart-query 解析：NS.ID 精确匹配 / 当前 namespace identifier / 中文模糊
   - 已选项永远在结果集头部
   - 单选 / 多选两种模式
-  - 编辑态回填：value mount 时按 id 反查
+  - 编辑态回填：value mount 时按 id 反查；回填完成前选中值显示加载占位而非原始 id
 -->
 <template>
   <el-select
@@ -70,6 +70,14 @@
         <span class="smart-picker-meta" v-if="metaLine(hit)">{{ metaLine(hit) }}</span>
       </div>
     </el-option>
+
+    <template #label="{ label, value }">
+      <span v-if="isPendingValue(value)" class="smart-picker-pending">
+        <el-icon class="is-loading"><Loading /></el-icon>
+        <span>{{ t('smartPicker.loading') }}</span>
+      </span>
+      <span v-else>{{ label }}</span>
+    </template>
 
     <template #empty>
       <div class="smart-picker-empty">
@@ -326,17 +334,31 @@ const hit = picker.hits.value.find((h) => h.itemId === id || h.id === id);
   }
 }
 
+/** 回填完成前，未命中选项的选中值不渲染原始 id，改显示加载占位。 */
+const backfillDone = ref(false);
+
+function isPendingValue(value: unknown): boolean {
+  if (!value || typeof value !== 'string') return false;
+  if (backfillDone.value) return false;
+  return !picker.hits.value.some((h) => h.itemId === value || h.id === value);
+}
+
 onMounted(() => {
-  if (currentValue.value) {
-    const ids = Array.isArray(currentValue.value) ? currentValue.value : [currentValue.value];
-    Promise.all(ids.filter((x): x is string => !!x).map((id) => picker.fetchById(id)))
-      .then((hits) => {
-        const found = hits.filter((h): h is AdministeredItemSearchHit => !!h);
-        if (found.length > 0) {
-          picker.hits.value = found;
-        }
-      });
+  if (!currentValue.value) {
+    backfillDone.value = true;
+    return;
   }
+  const ids = Array.isArray(currentValue.value) ? currentValue.value : [currentValue.value];
+  Promise.all(ids.filter((x): x is string => !!x).map((id) => picker.fetchById(id)))
+    .then((hits) => {
+      const found = hits.filter((h): h is AdministeredItemSearchHit => !!h);
+      if (found.length > 0) {
+        picker.hits.value = found;
+      }
+    })
+    .finally(() => {
+      backfillDone.value = true;
+    });
 });
 </script>
 
@@ -384,6 +406,13 @@ onMounted(() => {
   margin-left: 28px;
   font-size: 11px;
   color: var(--el-text-color-secondary);
+}
+.smart-picker-pending {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
 }
 .smart-picker-empty {
   display: flex;

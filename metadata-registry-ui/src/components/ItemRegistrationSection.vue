@@ -22,6 +22,13 @@
         clearable
         @change="handleNamespaceChange"
       >
+        <template #label="{ label, value }">
+          <span v-if="isPendingNamespace(value)" style="display: inline-flex; align-items: center; gap: 4px;">
+            <el-icon class="is-loading"><Loading /></el-icon>
+            <span>加载中…</span>
+          </span>
+          <span v-else>{{ label }}</span>
+        </template>
         <el-option
           v-for="ns in namespaces"
           :key="ns.id"
@@ -90,6 +97,7 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { onBeforeUnmount } from 'vue';
 import { useRouter } from 'vue-router';
+import { Loading } from '@element-plus/icons-vue';
 import { identifierStrategyApi } from '@/api/identifierStrategy';
 import { activeRegistrarApi, namespaceApi, readinessApi } from '@/api/resources';
 
@@ -182,6 +190,13 @@ const ownershipLabel = computed(() => props.registrationAuthorityName || activeR
 const selectedNamespace = computed(() =>
   namespaces.value.find((ns) => ns.id === model.value.namespaceId)
 );
+
+/** 选项列表加载完成前，未命中的选中值显示加载占位而非原始 id */
+function isPendingNamespace(value: unknown): boolean {
+  if (!value || typeof value !== 'string') return false;
+  if (loaded.value) return false;
+  return !namespaces.value.some((ns) => ns.id === value);
+}
 
 const identifierMode = computed(() => selectedNamespace.value?.identifierInputMode || 'AUTO_WITH_OVERRIDE');
 const versionMode = computed(() => selectedNamespace.value?.versionInputMode || 'AUTO_WITH_OVERRIDE');

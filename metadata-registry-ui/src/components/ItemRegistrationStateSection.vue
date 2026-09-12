@@ -40,6 +40,15 @@
     <el-form-item label="未决问题">
       <el-input v-model="model.unresolvedIssue" type="textarea" :rows="2" placeholder="留空不变更" />
     </el-form-item>
+    <el-form-item :label="t('assistant.explanatoryComment')">
+      <el-input
+        v-model="model.explanatoryComment"
+        type="textarea"
+        :rows="3"
+        data-test="explanatory-comment"
+        :placeholder="t('assistant.explanatoryCommentPlaceholder')"
+      />
+    </el-form-item>
   </div>
 </template>
 

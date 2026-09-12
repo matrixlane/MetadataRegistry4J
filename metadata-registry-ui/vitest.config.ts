@@ -12,8 +12,10 @@ export default defineConfig({
     include: ['src/**/*.spec.ts'],
   },
   resolve: {
-    alias: {
-      '@': resolve(__dirname, 'src'),
-    },
+    alias: [
+      // public 目录静态资源在测试中无实际文件可载，统一指向空模块桩
+      { find: /^\/?favicon\.svg$/, replacement: resolve(__dirname, 'src/test-stubs/static-asset.ts') },
+      { find: '@', replacement: resolve(__dirname, 'src') },
+    ],
   },
 });

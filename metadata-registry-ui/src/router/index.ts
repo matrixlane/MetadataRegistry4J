@@ -217,8 +217,35 @@ const router = createRouter({
         {
           path: 'system-settings',
           name: 'SystemSettings',
-          component: () => import('@/views/system/SystemSettings.vue'),
+          component: () => import('@/views/system/settings/SystemSettingsLayout.vue'),
           meta: { title: '系统设置', routeKey: 'system-settings', minRole: 'ADMIN' },
+          redirect: '/system-settings/general',
+          children: [
+            {
+              path: 'general',
+              name: 'SystemSettingsGeneral',
+              component: () => import('@/views/system/settings/GeneralSettingsPage.vue'),
+              meta: { title: '系统设置', routeKey: 'system-settings', minRole: 'ADMIN' },
+            },
+            {
+              path: 'datasource',
+              name: 'SystemSettingsDatasource',
+              component: () => import('@/views/system/settings/DatasourceSettingsPage.vue'),
+              meta: { title: '系统设置', routeKey: 'system-settings', minRole: 'ADMIN' },
+            },
+            {
+              path: 'ai-assist',
+              name: 'SystemSettingsAiAssist',
+              component: () => import('@/views/system/settings/AiAssistSettingsPage.vue'),
+              meta: { title: '系统设置', routeKey: 'system-settings', minRole: 'ADMIN' },
+            },
+            {
+              path: 'danger',
+              name: 'SystemSettingsDanger',
+              component: () => import('@/views/system/settings/DangerSettingsPage.vue'),
+              meta: { title: '系统设置', routeKey: 'system-settings', minRole: 'ADMIN' },
+            },
+          ],
         },
         {
           path: 'my-profile',

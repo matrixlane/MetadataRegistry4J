@@ -11,6 +11,10 @@
     :loading="searching"
     @update:model-value="emit('update:modelValue', $event || undefined)"
   >
+    <template #label="{ label, value }">
+      <span v-if="isPendingOption(value)">…</span>
+      <span v-else>{{ label }}</span>
+    </template>
     <el-option
       v-for="opt in options"
       :key="opt.id"
@@ -44,6 +48,14 @@ const emit = defineEmits<{
 
 const options = ref<{ id: string; label: string }[]>([]);
 const searching = ref(false);
+/** 首次远程加载完成前，未命中的选中值显示占位而非原始 id */
+const initialLoaded = ref(false);
+
+function isPendingOption(value: unknown): boolean {
+  if (!value || typeof value !== 'string') return false;
+  if (initialLoaded.value) return false;
+  return !options.value.some((o) => o.id === value);
+}
 
 onMounted(async () => {
   await searchContexts('');
@@ -58,6 +70,7 @@ async function searchContexts(query: string) {
     // ignore
   } finally {
     searching.value = false;
+    initialLoaded.value = true;
   }
 }
 </script>

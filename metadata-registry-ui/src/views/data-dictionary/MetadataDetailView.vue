@@ -196,7 +196,11 @@
         <template v-else>
           <el-table v-if="activeTab === 'designations'" :data="relationships.designations" size="small">
             <el-table-column prop="languageCode" label="语言" width="120" />
-            <el-table-column prop="value" label="值" />
+            <el-table-column prop="value" label="值">
+              <template #default="{ row }">
+                {{ row.value }}
+              </template>
+            </el-table-column>
             <el-table-column prop="sourceTitle" label="来源" width="180" />
             <el-table-column label="上下文">
               <template #default="{ row }">
@@ -208,7 +212,11 @@
           </el-table>
           <el-table v-if="activeTab === 'definitions'" :data="relationships.definitions" size="small">
             <el-table-column prop="languageCode" label="语言" width="120" />
-            <el-table-column prop="value" label="值" />
+            <el-table-column prop="value" label="值">
+              <template #default="{ row }">
+                {{ row.value }}
+              </template>
+            </el-table-column>
             <el-table-column prop="sourceTitle" label="来源" width="180" />
             <el-table-column label="上下文">
               <template #default="{ row }">
