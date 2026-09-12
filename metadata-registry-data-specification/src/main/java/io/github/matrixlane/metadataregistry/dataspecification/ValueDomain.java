@@ -25,6 +25,14 @@ public abstract class ValueDomain extends Item {
     @JoinColumn(name = "data_type_id", nullable = false)
     private DataType dataType;
 
+    /**
+     * 值域的有效期。
+     *
+     * <p>ISO/IEC 11179-31:2023 表 5（Value_Domain）：valid_period 基数为 1，
+     * 且须含 start_datetime（§7.4.2.8.5）；end 可选（缺省表示仍有效）。
+     * 应用层强制落点：association.ValueDomainAssociationValidator.validateCompleteness
+     * （保存前校验，列可空性不变，见 enforce-valid-period D1）。
+     */
     @Embedded
     private Datetime_Period validPeriod;
 

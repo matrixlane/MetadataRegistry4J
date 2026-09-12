@@ -39,6 +39,13 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error(ex.getCode(), ex.getMessage()));
     }
 
+    @ExceptionHandler(io.github.matrixlane.metadataregistry.web.service.association.MetadataObjectAssociationException.class)
+    public ResponseEntity<ApiResponse<Void>> handleAssociationViolation(
+            io.github.matrixlane.metadataregistry.web.service.association.MetadataObjectAssociationException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.error(ApiCodes.VALIDATION_FAILED, ex.getMessage()));
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiResponse<Void>> handleValidation(MethodArgumentNotValidException ex) {
         String details = ex.getBindingResult().getFieldErrors().stream()

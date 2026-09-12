@@ -51,6 +51,22 @@ public class ValueDomainAssociationValidator implements MetadataAssociationValid
 
     @Override
     public void validateCompleteness(Item source) {
-        // 数据类型与计量单位均为值域的可选关联，不做强制同时存在校验。
+        // ISO/IEC 11179-31:2023 表 5(Value_Domain)：datatype 基数为 1（必备），
+        // 实体映射为 @ManyToOne(optional=false)。缺省持久化会产生无法经
+        // findById 加载的畸形行（inner join 丢行），保存前必须拦下。
+        // 计量单位为可选关联，不强制。
+        if (source instanceof ValueDomain valueDomain && valueDomain.getDataType() == null) {
+            throw new MetadataAssociationValidationException(
+                    "值域必须关联数据类型（ISO/IEC 11179-31:2023 表 5 datatype 基数为 1）");
+        }
+        // 表 5 同表：valid_period 基数为 1，且须含 start_datetime
+        // （§7.4.2.8.5）；end 可选（缺省表示仍有效）。校验在 datatype 之后。
+        if (source instanceof ValueDomain valueDomain
+                && (valueDomain.getValidPeriod() == null
+                || valueDomain.getValidPeriod().getStartDateTime() == null)) {
+            throw new MetadataAssociationValidationException(
+                    "值域必须填写有效日期（起始时间）（ISO/IEC 11179-31:2023 表 5 valid_period 基数为 1，"
+                            + "§7.4.2.8.5 须含 start_datetime）");
+        }
     }
 }

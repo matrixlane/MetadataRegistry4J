@@ -8,6 +8,8 @@ import io.github.matrixlane.metadataregistry.dataspecification.LocalEnumeratedCo
 import io.github.matrixlane.metadataregistry.dataspecification.ReferenceEnumeratedConceptualDomain;
 import io.github.matrixlane.metadataregistry.dataspecification.ValueMeaning;
 import io.github.matrixlane.metadataregistry.dataspecification.ValueMeaningSet;
+import io.github.matrixlane.metadataregistry.web.common.ApiCodes;
+import io.github.matrixlane.metadataregistry.web.common.BusinessException;
 import io.github.matrixlane.metadataregistry.web.common.ResourceNotFoundException;
 import io.github.matrixlane.metadataregistry.web.dto.conceptualdomain.ConceptualDomainRequest;
 import io.github.matrixlane.metadataregistry.web.dto.conceptualdomain.ConceptualDomainResponse;
@@ -99,17 +101,25 @@ public class ConceptualDomainService {
     }
 
     /**
-     * 写入概念域有效期(ISO/IEC 11179-31:2023 表 2:valid_period 多重性 1)。
-     * 请求提供任一端时整体覆盖;两端均未提供且实体尚无有效期时,默认自当前
-     * 起在注册系统内生效(标准允许注册机构自行决定该时间语义)。
+     * 写入概念域有效期并强制校验起始时间必填（ISO/IEC 11179-31:2023 表 2
+     * valid_period 基数为 1，§7.4.2.1.5.1 同 §7.4.2.8.5 约束须含 start_datetime；
+     * end 可选，缺省表示仍有效）。
+     *
+     * <p>请求提供起始时间时整体覆盖该期；仅提供结束时间（会把既有 start 清空）
+     * 或两端均未提供且实体尚无起始时间时拒绝。两端均未提供但实体已有起始时间
+     * （既有数据已回填）时原样保留，更新不因校验受阻。导入缺有效日期的兜底
+     * （以执行时间补 start）见 federation.GenericItemCreator（enforce-valid-period D4），
+     * 本条目不默认填充，以免静默吞掉表单漏填。
      */
     private void applyValidPeriod(ConceptualDomain entity, ConceptualDomainRequest request) {
         Datetime_Period period = entity.getValidPeriod() != null ? entity.getValidPeriod() : new Datetime_Period();
-        if (request.validPeriodStart() != null || request.validPeriodEnd() != null) {
+        if (request.validPeriodStart() != null) {
             period.setStartDateTime(toOffset(request.validPeriodStart()));
             period.setEndDateTime(toOffset(request.validPeriodEnd()));
-        } else if (period.getStartDateTime() == null && period.getEndDateTime() == null) {
-            period.setStartDateTime(OffsetDateTime.now());
+        } else if (request.validPeriodEnd() != null || period.getStartDateTime() == null) {
+            throw new BusinessException(ApiCodes.VALIDATION_FAILED,
+                    "概念域必须填写有效日期（起始时间）（ISO/IEC 11179-31:2023 表 2 valid_period 基数为 1，"
+                            + "§7.4.2.1.5.1 须含 start_datetime）");
         }
         entity.setValidPeriod(period);
     }

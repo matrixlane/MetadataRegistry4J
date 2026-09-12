@@ -1,5 +1,6 @@
 package io.github.matrixlane.metadataregistry.web.federation;
 
+import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Datetime_Period;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.Context;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.Item;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Organization;
@@ -12,6 +13,7 @@ import io.github.matrixlane.metadataregistry.commonfacilities.registration.Admin
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationAuthority;
 import io.github.matrixlane.metadataregistry.dataspecification.DataElement;
 import io.github.matrixlane.metadataregistry.dataspecification.DataElementConcept;
+import io.github.matrixlane.metadataregistry.dataspecification.ConceptualDomain;
 import io.github.matrixlane.metadataregistry.dataspecification.DataType;
 import io.github.matrixlane.metadataregistry.dataspecification.DescribedConceptualDomain;
 import io.github.matrixlane.metadataregistry.dataspecification.DescribedValueDomain;
@@ -21,6 +23,7 @@ import io.github.matrixlane.metadataregistry.dataspecification.ObjectClass;
 import io.github.matrixlane.metadataregistry.dataspecification.Property;
 import io.github.matrixlane.metadataregistry.dataspecification.ReferenceEnumeratedConceptualDomain;
 import io.github.matrixlane.metadataregistry.dataspecification.ReferenceEnumeratedValueDomain;
+import io.github.matrixlane.metadataregistry.dataspecification.ValueDomain;
 import io.github.matrixlane.metadataregistry.web.common.ApiCodes;
 import io.github.matrixlane.metadataregistry.web.common.BusinessException;
 import io.github.matrixlane.metadataregistry.web.common.ResourceNotFoundException;
@@ -37,6 +40,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -91,6 +95,7 @@ public class GenericItemCreator {
                     + "（支持: " + TYPE_REGISTRY.keySet() + "）");
         }
         Item item = constructor.get();
+        applyImportValidPeriodFallback(item);
 
         // 归属重关联（registry-merge-strategy D2）：按 RAI 匹配目的方注册机构，
         // 替代随意取本地第一个机构的旧行为
@@ -138,6 +143,26 @@ public class GenericItemCreator {
                 targetSi, targetSi.getVersion(), io.github.matrixlane.metadataregistry.ext.identification.VersionStatus.DRAFT,
                 "system", MergeVersionSupport.MERGE_MARKER + " 迁移创建"));
         return ai;
+    }
+
+    /**
+     * enforce-valid-period D4 导入兜底：值域/概念域 valid_period.start 必填
+     * （ISO/IEC 11179-31:2023 表 5 / 表 2，§7.4.2.8.5 / §7.4.2.1.5.1）。
+     * 快照来源数据缺有效日期时以导入执行时间补 start，保证迁移可用且满足约束。
+     */
+    private void applyImportValidPeriodFallback(Item item) {
+        if (item instanceof ValueDomain vd
+                && (vd.getValidPeriod() == null || vd.getValidPeriod().getStartDateTime() == null)) {
+            Datetime_Period period = new Datetime_Period();
+            period.setStartDateTime(OffsetDateTime.now());
+            vd.setValidPeriod(period);
+        }
+        if (item instanceof ConceptualDomain cd
+                && (cd.getValidPeriod() == null || cd.getValidPeriod().getStartDateTime() == null)) {
+            Datetime_Period period = new Datetime_Period();
+            period.setStartDateTime(OffsetDateTime.now());
+            cd.setValidPeriod(period);
+        }
     }
 
     private List<TextLine> toTextLines(List<LangValue> values) {

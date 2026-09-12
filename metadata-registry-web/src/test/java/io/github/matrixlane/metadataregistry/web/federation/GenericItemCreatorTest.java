@@ -133,6 +133,57 @@ class GenericItemCreatorTest {
     }
 
     @Test
+    void create_valueDomainOrConceptualDomainWithoutValidPeriod_backfillsStartToExecutionTime() {
+        // enforce-valid-period D4：导入源数据缺有效日期时以执行时间补 start（表 2/表 5 兜底）
+        UUID targetNamespaceId = UUID.randomUUID();
+        Namespace targetNs = new Namespace();
+        targetNs.setId(targetNamespaceId);
+        RegistrationAuthority ra = new RegistrationAuthority();
+        ra.setId(UUID.randomUUID());
+        Namespace sourceCopy = new Namespace();
+        sourceCopy.setId(UUID.randomUUID());
+
+        when(registrationAuthorityRepository.findByRai(RAI)).thenReturn(Optional.of(ra));
+        when(namespaceRepository.findById(targetNamespaceId)).thenReturn(Optional.of(targetNs));
+        when(globalNamespaceService.resolveNamingAuthority(any(), eq(ra)))
+                .thenReturn(new Organization());
+        when(globalNamespaceService.ensureNamespaceCopy(any(), any(), any()))
+                .thenReturn(sourceCopy);
+        when(scopedIdentifierRepository.existsByNamespaceIdAndIdentifier(any(), any()))
+                .thenReturn(false);
+        when(itemAdministrationService.ensureAdministeredItem(
+                any(Item.class), any(ItemRegistrationRequest.class), eq(ra)))
+                .thenAnswer(inv -> {
+                    Item item = inv.getArgument(0);
+                    ItemRegistrationRequest req = inv.getArgument(1);
+                    AdministeredItem ai = new AdministeredItem(item);
+                    ScopedIdentifier si = new ScopedIdentifier(req.identifier(), sourceCopy, ai);
+                    ai.getScopedIdentifiers().add(si);
+                    item.setIdentifiedItem(ai);
+                    return ai;
+                });
+        when(identifierStrategyConfigService.generateIdentifier(any(), any())).thenReturn("TGT-001");
+        when(itemRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        for (String itemType : List.of("DescribedValueDomain", "DescribedConceptualDomain")) {
+            creator.create(snapshot(itemType), targetNamespaceId, node());
+        }
+
+        ArgumentCaptor<Item> itemCaptor = ArgumentCaptor.forClass(Item.class);
+        verify(itemAdministrationService, org.mockito.Mockito.times(2))
+                .ensureAdministeredItem(itemCaptor.capture(), any(), eq(ra));
+        for (Item item : itemCaptor.getAllValues()) {
+            io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Datetime_Period period =
+                    item instanceof io.github.matrixlane.metadataregistry.dataspecification.ValueDomain vd
+                            ? vd.getValidPeriod()
+                            : ((io.github.matrixlane.metadataregistry.dataspecification.ConceptualDomain) item)
+                                    .getValidPeriod();
+            assertThat(period).isNotNull();
+            assertThat(period.getStartDateTime()).isNotNull();
+        }
+    }
+
+    @Test
     void create_rejectsDuplicateIdentifierInSourceCopy() {
         UUID targetNamespaceId = UUID.randomUUID();
         Namespace targetNs = new Namespace();

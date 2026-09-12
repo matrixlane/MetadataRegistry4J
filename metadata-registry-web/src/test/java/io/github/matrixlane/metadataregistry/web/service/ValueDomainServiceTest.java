@@ -1,5 +1,6 @@
 package io.github.matrixlane.metadataregistry.web.service;
 
+import io.github.matrixlane.metadataregistry.dataspecification.DataType;
 import io.github.matrixlane.metadataregistry.dataspecification.DescribedConceptualDomain;
 import io.github.matrixlane.metadataregistry.dataspecification.DescribedValueDomain;
 import io.github.matrixlane.metadataregistry.dataspecification.LocalEnumeratedValueDomain;
@@ -7,6 +8,7 @@ import io.github.matrixlane.metadataregistry.dataspecification.ReferenceEnumerat
 import io.github.matrixlane.metadataregistry.dataspecification.ReferenceEnumeratedValueDomain;
 import io.github.matrixlane.metadataregistry.dataspecification.ValueDomain;
 import io.github.matrixlane.metadataregistry.web.common.BusinessException;
+import io.github.matrixlane.metadataregistry.web.service.association.MetadataAssociationValidationException;
 import io.github.matrixlane.metadataregistry.web.dto.valuedomain.PermissibleValueEntry;
 import io.github.matrixlane.metadataregistry.web.dto.valuedomain.ValueDomainRequest;
 import io.github.matrixlane.metadataregistry.web.dto.valuedomain.ValueDomainResponse;
@@ -96,6 +98,8 @@ class ValueDomainServiceTest {
         ReferenceEnumeratedConceptualDomain refCd = new ReferenceEnumeratedConceptualDomain();
         refCd.setId(refCdId);
         when(conceptualDomainRepository.findById(refCdId)).thenReturn(Optional.of(refCd));
+        UUID dtId = UUID.randomUUID();
+        when(dataTypeRepository.findById(dtId)).thenReturn(Optional.of(new DataType()));
         when(repository.save(any(ValueDomain.class))).thenAnswer(inv -> {
             ValueDomain e = inv.getArgument(0);
             e.setId(UUID.randomUUID());
@@ -104,7 +108,8 @@ class ValueDomainServiceTest {
 
         ValueDomainRequest request = new ValueDomainRequest(
                 ValueDomainType.REFERENCE_ENUMERATED,
-                null, null, 2, "AA", null, null,
+                dtId, null, 2, "AA",
+                java.time.LocalDateTime.of(2026, 1, 1, 0, 0), null,
                 null, null, "code", refCdId,
                 List.<PermissibleValueEntry>of(),
                 List.of(), List.of(), null);
@@ -132,11 +137,14 @@ class ValueDomainServiceTest {
         LocalEnumeratedValueDomain existing = new LocalEnumeratedValueDomain();
         existing.setId(id);
         when(repository.findById(id)).thenReturn(Optional.of(existing));
+        UUID dtId = UUID.randomUUID();
+        when(dataTypeRepository.findById(dtId)).thenReturn(Optional.of(new DataType()));
         when(repository.save(any(ValueDomain.class))).thenAnswer(inv -> inv.getArgument(0));
 
         ValueDomainRequest request = new ValueDomainRequest(
                 ValueDomainType.REFERENCE_ENUMERATED,
-                null, null, null, null, null, null,
+                dtId, null, null, null,
+                java.time.LocalDateTime.of(2026, 1, 1, 0, 0), null,
                 null, null, "code", null,
                 List.<PermissibleValueEntry>of(),
                 List.of(), List.of(), null);
@@ -151,6 +159,8 @@ class ValueDomainServiceTest {
 
     @Test
     void create_described_defaultsToDescribedValueDomain() {
+        UUID dtId = UUID.randomUUID();
+        when(dataTypeRepository.findById(dtId)).thenReturn(Optional.of(new DataType()));
         when(repository.save(any(ValueDomain.class))).thenAnswer(inv -> {
             ValueDomain e = inv.getArgument(0);
             e.setId(UUID.randomUUID());
@@ -159,7 +169,8 @@ class ValueDomainServiceTest {
 
         service.create(new ValueDomainRequest(
                 null,
-                null, null, null, null, null, null,
+                dtId, null, null, null,
+                java.time.LocalDateTime.of(2026, 1, 1, 0, 0), null,
                 null, null, null, null,
                 List.<PermissibleValueEntry>of(),
                 List.of(), List.of(), null));
@@ -167,5 +178,42 @@ class ValueDomainServiceTest {
         ArgumentCaptor<ValueDomain> captor = ArgumentCaptor.forClass(ValueDomain.class);
         verify(repository).save(captor.capture());
         assertThat(captor.getValue()).isInstanceOf(DescribedValueDomain.class);
+    }
+
+    @Test
+    void create_missingValidPeriodStart_throwsCompletenessViolation() {
+        // ISO/IEC 11179-31:2023 表 5 valid_period 基数为 1：缺起始时间的值域必须拦下
+        UUID dtId = UUID.randomUUID();
+        when(dataTypeRepository.findById(dtId)).thenReturn(Optional.of(new DataType()));
+        ValueDomainRequest request = new ValueDomainRequest(
+                ValueDomainType.DESCRIBED,
+                dtId, null, null, null, null, null,
+                null, null, null, null,
+                List.<PermissibleValueEntry>of(),
+                List.of(), List.of(), null);
+
+        assertThatThrownBy(() -> service.create(request))
+                .isInstanceOf(MetadataAssociationValidationException.class)
+                .hasMessageContaining("有效日期（起始时间）");
+
+        verify(repository, never()).save(any());
+    }
+
+    @Test
+    void create_missingDataType_throwsCompletenessViolation() {
+        // ISO/IEC 11179-31:2023 表 5 datatype 基数为 1：缺数据类型的值域持久化后
+        // 会因实体 optional=false 的 inner join 无法加载，保存前必须拦下
+        ValueDomainRequest request = new ValueDomainRequest(
+                ValueDomainType.DESCRIBED,
+                null, null, null, null, null, null,
+                null, null, null, null,
+                List.<PermissibleValueEntry>of(),
+                List.of(), List.of(), null);
+
+        assertThatThrownBy(() -> service.create(request))
+                .isInstanceOf(MetadataAssociationValidationException.class)
+                .hasMessageContaining("值域必须关联数据类型");
+
+        verify(repository, never()).save(any());
     }
 }
