@@ -2,7 +2,9 @@
 
 ## Purpose
 定义基于"段"的标识生成规则模型及其可视化设计器：模板为段的有序列表，每段具有类型与参数；同一份段定义派生生成器、格式校验正则与反向解析器；内置以卫生行业为首的编排预设（WS/T 363 数据元标识符），供注册机构按自定义规则生成具有直观意义的业务标识符。
+
 ## Requirements
+
 ### Requirement: 段模板模型
 
 标识生成模板 SHALL 为段（Segment）的有序列表，以 JSON 持久化于 `IdentifierStrategyConfig.configJson`。每段 MUST 具有类型与类型化参数。段类型 MUST 支持且仅支持：固定字符串（LITERAL，如自定义前缀）、元数据对象缩写（OBJECT_ABBREVIATION）、顺序号（SEQUENCE）、UUID 段（UUID）、分隔符（SEPARATOR，多种字符可选）、时间戳（TIMESTAMP）、校验位（CHECKSUM）、输入变量（VARIABLE）。随机段（RANDOM）MUST NOT 出现在段类型目录中；含 RANDOM 段的模板 MUST 校验拒绝。SEPARATOR 段的取值 MUST 受限于预定义分隔字符集（如 `.` `-` `_` `/` `:`）。
@@ -189,3 +191,13 @@ VARIABLE 段 SHALL 在注册时由用户或调用方提供值，段定义支持�
 - **WHEN** 提交的模板 JSON 中 OBJECT_ABBREVIATION 段携带 `mapping` 参数
 - **THEN** 系统忽略该参数并提示缩写以系统映射表为准，校验不因该参数失败
 
+### Requirement: 段模板引擎托管于扩展模块
+段模板引擎(segment/ 与 segment/types/ 全部 19 类)SHALL 托管于 `metadata-registry-ext` 模块;模板设计器 UI、策略配置接口与版本化行为 SHALL 保持不变。
+
+#### Scenario: 模板解析行为不变
+- **WHEN** 使用既有段模板生成或反向解析标识符
+- **THEN** 结果与迁移前一致
+
+#### Scenario: 设计器页面可用
+- **WHEN** 打开段规则设计器 UI
+- **THEN** 模板编辑、预览、保存功能正常

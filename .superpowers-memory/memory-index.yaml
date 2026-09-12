@@ -1,0 +1,25 @@
+version: 1
+last_full_review: 2026-09-13
+active_focus:
+  file: CURRENT_STATE.md
+  last_updated: 2026-09-13
+memory_health:
+  current_state_fresh: true
+  journal_recent: true
+  conflicts_detected: 0
+  stale_entries: 0
+  stale_durable_entries: 0
+  entries_missing_source: 0
+  entries_missing_review_after: 0
+  review_overdue_entries: 0
+  warning_count: 0
+  error_count: 0
+  conflict_summary: none
+validator:
+  last_validator_version: 2
+  last_promotion_scan: 2026-09-13
+learning_backlog:
+  total_candidates: 1
+  ready_for_promotion: 0
+  stale_candidates: 0
+  promotion_ready_candidates: 0

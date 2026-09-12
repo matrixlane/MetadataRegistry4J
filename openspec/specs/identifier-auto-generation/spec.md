@@ -2,7 +2,9 @@
 
 ## Purpose
 This capability defines the rules for namespace-level unique identifier auto-generation (supporting UUID, SEQUENCE with pessimistic locking, and TEMPLATE strategies) and frontend form control / validation switching.
+
 ## Requirements
+
 ### Requirement: 命名空间内唯一标识符自动生成 (Auto-Generation of Unique Identifiers)
 
 对于自有命名空间内的本地注册元数据，当且仅当用户选择自动生成且注册请求中没有填写标识符时，系统 MUST 基于该命名空间已发布的段模板策略自动分配唯一标识符；输入变量段的值 SHALL 由注册请求的 variables 提供并通过段级校验；元数据对象缩写段的值 SHALL 由系统按被注册条目的对象类型经系统级静态映射表推导。独立标识策略选项 MUST 仅包含段模板：UUID、URN、SEQUENCE MUST NOT 作为独立策略出现（顺序号与 UUID 作为模板段组件可用）。已发布模板 MUST 通过唯一性段校验（恰好一个 SEQUENCE/TIMESTAMP/UUID）；模板缺少唯一性段而无法保证唯一值时，系统 MUST NOT 执行自动生成。顺序号作用域 SHALL 按模板结构自动推导：模板含 OBJECT_ABBREVIATION 段时按对象缩写值区分作用域（每类型独立计数），否则为命名空间级全局计数。手动输入时，系统 MUST 对输入的标识符执行格式与唯一性验证。
@@ -162,3 +164,13 @@ This capability defines the rules for namespace-level unique identifier auto-gen
 - **WHEN** 用户编辑 `versionCreationMode='NULL'` 的既存 ScopedIdentifier
 - **THEN** 行为等价 `MANUAL`：请求体 version 非空时按策略校验后采用；空时按策略递增
 
+### Requirement: 标识符生成策略框架托管于扩展模块
+标识符自动生成策略框架(IdentifierGenerationStrategy 族、IdentifierStrategyConfig、SequenceRegistry、IdentifierVersionHistory 实体及版本治理 VersionStatus/VersioningPolicy/Versions/SemVerValidator)SHALL 托管于 `metadata-registry-ext` 模块(包 `io.github.matrixlane.metadataregistry.ext`),不再属于标准模块 `metadata-registry-common-facilities`;对外行为(DTO、REST 端点、前端交互)SHALL 保持不变。
+
+#### Scenario: 标准模块不再包含策略框架类
+- **WHEN** 检查 `metadata-registry-common-facilities` 的 identification 包
+- **THEN** 其中不再包含 IdentifierGenerationStrategy 族、segment 模板引擎、版本治理等扩展类,仅保留标准第 7 章模型
+
+#### Scenario: 自动生成功能行为不变
+- **WHEN** 在启用了自动生成的命名空间下创建标识符
+- **THEN** 生成结果与迁移前一致(同一策略同一配置产出同一格式标识符)

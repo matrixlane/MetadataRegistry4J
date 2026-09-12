@@ -5,6 +5,7 @@
 统一维护数据元（Data Element）、数据元概念（Data Element Concept）、概念域（Conceptual Domain）、值域（Value Domain）四个核心元数据对象之间的标准关联：以 ISO/IEC 11179-31:2023 为准定义允许的关联集合与基数，提供建立/解除/替换关联的统一服务入口与 REST 端点，在关联变更前执行业务规则校验，并在四个实体的编辑界面中提供无方向之分的关联管理视图。
 
 ## Requirements
+
 ### Requirement: 建立两个元数据对象之间的关联
 
 系统 SHALL 提供统一入口，用于在允许的元数据对象对之间建立关联，并持久化到数据库。
@@ -127,3 +128,14 @@
 - **WHEN** 用户在某条关联条目上点击解除
 - **THEN** 调用 `DELETE /api/v1/associations/{relationType}` 解除该关联
 - **AND** 刷新关联列表
+
+### Requirement: 关联服务托管于 web 服务层
+association 子包 11 个纯服务类(无 JPA 实体)SHALL 从标准模块 `metadata-registry-data-specification` 迁至 `metadata-registry-web` 的 service/association 包;关联 REST 端点与四实体关联管理界面行为 SHALL 保持不变。
+
+#### Scenario: 标准模块不再包含关联服务
+- **WHEN** 检查 `metadata-registry-data-specification` 的包结构
+- **THEN** 不再包含 association 子包
+
+#### Scenario: 关联管理界面行为不变
+- **WHEN** 在四实体任一处使用关联管理 tab 建立/解除关联
+- **THEN** 操作结果与迁移前一致

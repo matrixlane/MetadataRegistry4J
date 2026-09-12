@@ -2,7 +2,9 @@
 
 ## Purpose
 TBD - created by archiving change namespace-identifier-strategy. Update Purpose after archive.
+
 ## Requirements
+
 ### Requirement: 命名空间级标识符输入模式
 命名空间 MUST 支持标识符输入模式配置（`identifierInputMode`），取值为 `AUTO_ONLY`（自动生成、禁止手动）、`AUTO_WITH_OVERRIDE`（自动生成为主、允许手动覆盖）、`MANUAL_ONLY`（禁用自动生成、必须手动填写），缺省值 MUST 为 `AUTO_WITH_OVERRIDE`。系统 SHALL 在所有创建受管项/作用域标识符的入口统一裁决：AUTO_ONLY 下请求携带非空标识符 MUST 拒绝；MANUAL_ONLY 下标识符为空 MUST 拒绝；AUTO_WITH_OVERRIDE 下空则生成、非空则校验后采用。模式值无法解析时 MUST 回退 `AUTO_WITH_OVERRIDE`。
 
@@ -82,3 +84,14 @@ TBD - created by archiving change namespace-identifier-strategy. Update Purpose 
 - **WHEN** 管理员在初始化向导选择 TEMPLATE 策略、模板 `{ns}.{type}.{seq:4}`、补零 4 位、版本模式 MANUAL_ONLY
 - **THEN** 系统 SHALL 创建对应 PUBLISHED 策略配置（含模板与 pad 参数）并将版本输入模式写入命名空间
 
+### Requirement: 命名空间策略由扩展卫星实体承载
+命名空间的标识符策略属性(versioningPolicy、identifierInputMode、versionInputMode、manualIdentifierPattern)SHALL 从标准实体 `Namespace` 剥离,改由一对一卫星实体 `NamespaceIdentifierPolicy`(namespace_id 一对一)承载;ScopedIdentifier 的生命周期属性(creationMode、versionStatus 及时间戳)SHALL 剥离至卫星实体 `ScopedIdentifierLifecycle`。`Namespace`/`ScopedIdentifier` 标准实体 SHALL 只保留标准属性;DTO 与前端字段 SHALL 保持不变。
+
+#### Scenario: 存量策略数据无损迁移
+- **GIVEN** 库中 namespace 表已有策略字段数据
+- **WHEN** 执行迁移脚本
+- **THEN** NamespaceIdentifierPolicy 表逐行回填相同值,namespace 旧列删除后策略读写结果不变
+
+#### Scenario: 命名空间设置页行为不变
+- **WHEN** 在命名空间设置页修改标识符输入模式并保存
+- **THEN** 再次打开页面显示修改后的值,且校验行为与迁移前一致

@@ -89,9 +89,20 @@ metadata-registry4j-parent (pom)
 ## 关键特征
 
 - **标准驱动**：严格遵循 ISO/IEC 11179-3:2023 元数据注册模型
+- **标准符合性校验**：保存路径强制 ISO/IEC 11179-31 关键基数约束（值域 datatype、值域/概念域 valid_period 起始时间必备，校验失败即拒绝持久化）
 - **分层清晰**：领域模型（common-facilities）与 Web 应用层彻底分离
 - **多源模式提取**：支持从主流数据库、Java 源码、OpenAPI 反向提取元数据
 - **FHIR 支持**：内置 FHIR 资源合规性检查与报告
 - **审批工作流**：元数据项注册需经审批流程（状态机驱动）
 - **通知系统**：完整的事件驱动通知机制（邮件 + 站内消息）
 - **安全**：JWT 无状态认证 + 角色权限控制
+
+---
+
+## AI 辅助
+
+本系统内置 AI 辅助数据治理能力：后端以统一异步作业模型执行协作任务（complete-metadata / selection-chat 等），经 **ACP（Agent Client Protocol）** 常驻进程调用本地 Coding Agent（claude-agent-acp / codex-acp / kimi acp；CLI 一次性调用模式已废弃）；AI 使用能力仅开放 Registrar（业务角色），Agent 与 AI 辅助配置限 SUPER_ADMIN。
+
+**AI 生成普及原则**：凡提供指称（designation）或定义（definition）编辑能力的界面，MUST 在编辑行内提供字段级「AI 生成」入口（新建与编辑模式均含），统一复用 ItemFormDialog / AiCandidatePopover 机制（点击生成、悬停回看、进行中恢复、行级缓存、防重入）；候选数、默认提供方、快捷键等非流程决定性选项一律前置到「系统设置 → AI 辅助」，运行时不做配置类选择。新增编辑界面 MUST 默认遵循本原则，偏离须在对应 OpenSpec 变更中显式说明。
+
+相关能力：字段级补全（含新建草稿模式）、划词引用多轮问答（浮动对话窗）、AI 交互调试侧栏（可配置快捷键、非模态、宽度可调）、AI 生成记录（来源追溯）。

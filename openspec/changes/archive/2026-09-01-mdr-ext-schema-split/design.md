@@ -103,6 +103,14 @@ PL/SQL 块 + EXCEPTION WHEN OTHERS THEN NULL;EXT 模式不存在时整表跳过(
 - 顺带物理删除阶段 2 已删功能的无实体孤儿表(approval_*/notification_*/data_quality_task/export_task/definition_audit_log/fhir_code_system/fhir_element/fhir_resource/fhir_value_set/designation_context/definition_context/definition_namespace)与 3 张测试垃圾表(*_service_test$test_item);均经实体源码核实无引用;
 - definition_bak_20260901/designation_bak_20260901 含数据,删除与否留待用户决策。
 
+## 7.2 本地库清理实录(2026-09-04)
+
+- 根因:`~/.metadata-registry/application-local.yml` 缺 `mapping-resources: classpath:orm/orm-team.xml`,Hibernate 于 2026-09-02 把 25 张 EXT 表重建进 mdr。已修复该配置并验证应用不再复发。
+- 处置:25 张 mdr 重复表物理删除(数据先合并入 ext:account/isc/isr/nis/sil/cab);item_classification(无实体,2211 行)整体迁 ext 待第 10 章重建;3 张测试垃圾表删除。
+- 附带发现并删除 21 条断链孤儿(item 无子类行,CASE 判别式 NULL 导致多态查询 NPE 使应用无法启动):item×21 + identified_item/register‌ed_item/administered_item×21,全部无外键引用,创建于 2026-09-02。删除后 mdr=82 张(纯标准模型)、ext=27 张、零跨 schema 重名,应用启动正常。
+- 注意:本地以 SQL Server 运行时**不要**加 `--spring.profiles.active=local`(会落到 classpath 的 SQLite 配置);默认 profile 才读取 ~/.metadata-registry/application-local.yml。
+- 备份:`data/metadata_registry-pre-mdr-cleanup-20260904.bak`。
+
 ## 8. 不做的事
 
 - 不迁 Account 类到 ext 模块(仅归 schema;迁模块另议);

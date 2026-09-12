@@ -1,97 +1,7 @@
-<!-- gitnexus:start -->
-# GitNexus — Code Intelligence
-
-This project is indexed by GitNexus as **MetadataRegistry4j** (23508 symbols, 55591 relationships, 967 execution flows).
-
-> Index stale? Run `node .gitnexus/run.cjs analyze --index-only` from the project root — it auto-selects an available runner. No `.gitnexus/run.cjs` yet? Bootstrap with `npx`, `bunx`, or `pnpm dlx` — e.g. `bunx gitnexus@latest analyze` (npm 11 npx crash; #1939).
-
-## Always Do
-
-- **MUST run impact analysis before editing.** Use `impact({target: "symbolName", direction: "upstream"})` (MCP) or `node .gitnexus/run.cjs impact "symbolName" --direction upstream --repo .` (CLI fallback); report callers, processes, and risk. Never substitute grep for graph analysis.
-- **MUST analyze graph changes before committing.** Use `detect_changes({scope: "all"})` (MCP) or `node .gitnexus/run.cjs detect-changes --scope all --repo .` (CLI fallback). `partial: true` or `truncated: true` is not a clean check — a zero means unseen, not unaffected; re-run it. For regression review: `detect_changes({scope: "compare", base_ref: "main"})` or `node .gitnexus/run.cjs detect-changes --scope compare --base-ref "main" --repo .`.
-- **MUST warn the user** if impact analysis returns HIGH or CRITICAL risk before proceeding with edits.
-- **MUST treat `risk: UNKNOWN` as unresolved, not as low.** An empty caller set is not evidence the symbol is unused — it can also mean the callers are not resolvable by the index (plain-object property access, dynamic dispatch, cross-language calls). `impact` pairs `UNKNOWN` with a `riskNote` saying so. Confirm with a text search before treating the symbol as safe to change or delete; do not proceed on the strength of a zero.
-- When exploring unfamiliar code, use `query({search_query: "concept"})` to find execution flows instead of grepping. It returns process-grouped results ranked by relevance.
-- When you need full context on a specific symbol — callers, callees, which execution flows it participates in — use `context({name: "symbolName"})`.
-- For security review, `explain({target: "fileOrSymbol"})` lists taint findings (source→sink flows; needs `analyze --pdg`).
-
-## Never Do
-
-- NEVER edit a function, class, or method before MCP/CLI impact analysis.
-- NEVER ignore HIGH or CRITICAL risk warnings from impact analysis, and never read `UNKNOWN` as an all-clear — it means the walk could not answer, which is the one verdict that requires confirming by other means.
-- NEVER rename symbols with find-and-replace — use `rename` which understands the call graph.
-- NEVER commit before MCP/CLI graph change analysis.
-
-## Resources
-
-| Resource | Use for |
-| --- | --- |
-| `gitnexus://repo/MetadataRegistry4j/context` | Codebase overview, check index freshness |
-| `gitnexus://repo/MetadataRegistry4j/clusters` | All functional areas |
-| `gitnexus://repo/MetadataRegistry4j/processes` | All execution flows |
-| `gitnexus://repo/MetadataRegistry4j/process/{name}` | Step-by-step execution trace |
-
-## CLI
-
-| Task | Read this skill file |
-| --- | --- |
-| Understand architecture / "How does X work?" | `.claude/skills/gitnexus-exploring/SKILL.md` |
-| Blast radius / "What breaks if I change X?" | `.claude/skills/gitnexus-impact-analysis/SKILL.md` |
-| Trace bugs / "Why is X failing?" | `.claude/skills/gitnexus-debugging/SKILL.md` |
-| Rename / extract / split / refactor | `.claude/skills/gitnexus-refactoring/SKILL.md` |
-| Tools, resources, schema reference | `.claude/skills/gitnexus-guide/SKILL.md` |
-| Index, status, clean, wiki CLI commands | `.claude/skills/gitnexus-cli/SKILL.md` |
-
-<!-- gitnexus:end -->
-
-<!-- db-portability:start -->
-# 数据库可移植性规则（SQLite / SQL Server / 达梦）
-
-- 表结构由 Hibernate `ddl-auto` 依据实体元数据管理；Flyway 迁移脚本仅承载索引、约束与数据迁移等 Hibernate 无法表达的内容。
-- 迁移脚本按方言分目录：`db/migration/sqlserver/`、`db/migration/sqlite/`、`db/migration/dm/`，由 `DB_VENDOR` 环境变量（默认 `sqlserver`）选择加载目录。
-- 新增迁移必须可移植（三种方言均可执行），或在每个方言目录各提供一份等价脚本。
-- JPA 可表达的索引/约束一律写在实体注解（`@Table(indexes/uniqueConstraints)`、`@Check`），不写进迁移脚本。
-- 业务代码禁止方言专有 SQL（`INFORMATION_SCHEMA`、`sys.*`、`DBCC`、`NOCHECK` 等）；确需 native SQL 时放入按方言命名的实现类，接口保持方言中立。
-- 实体类不得硬编码 `@Table(schema = ...)`；schema 归属由 `DB_DEFAULT_SCHEMA` 配置决定。
- <!-- db-portability:end -->
- 
- <!-- iso11179-mdr-requirements:start -->
- # MDR 需求依据 —— ISO/IEC 11179 标准文档
- 
- 本项目作为元数据注册系统（Metadata Registry, MDR），其功能与数据模型需求依据应通过查询 Milvus 中存储的 ISO/IEC 11179 八个标准文档获得。
- 
- ## 查询范围
- 
- ISO/IEC 11179 系列共八个部分，全部纳入需求溯源范围：
- 
- 1. ISO/IEC 11179-1: 框架
- 2. ISO/IEC 11179-2: 分类
- 3. ISO/IEC 11179-3: 注册系统元模型与基本属性
- 4. ISO/IEC 11179-4: 数据定义的形成与规则
- 5. ISO/IEC 11179-5: 命名与标识原则
- 6. ISO/IEC 11179-6: 注册
- 7. ISO/IEC 11179-7: 数据元元数据的分类与排序
- 8. ISO/IEC 11179-8: 信息交换
- 
- ## 使用方式
- 
- - 当分析、设计或验证 MDR 功能时，优先通过 Milvus 向量检索查询上述标准文档，以获取权威依据。
-   - 查询时优先使用 Milvus MCP 工具 `milvus_vector_search`；该工具不可用时再考虑其他 Milvus MCP 工具。
-   - 向量集合信息可通过 `list_mcp_resources` / `read_mcp_resource` 获取。
- - 若需求依据与标准文档存在冲突，应以 ISO/IEC 11179 系列为准，并在变更记录中注明依据来源。
- 
- ## 本地源文件
- 
- 这八个标准文档的 PDF 版本存放在本地目录：ISO/IEC 11179 标准原文目录。
-
- - **首选来源仍是 Milvus 向量检索**；仅当 Milvus 不可用，或经过 Milvus 查询后确认无法满足当前需求时，才回退到该目录下的 PDF 文件。
- - 如需向 Milvus 重新导入、补全缺失部分或校验向量来源，也优先使用该目录下的 PDF 文件。
-<!-- iso11179-mdr-requirements:end -->
-
 <!-- openspec:start -->
-# OpenSpec 流程强制启用规则
+# superpowers-openspec-team-skills 流程强制启用规则
 
-本项目默认采用 spec-first 方式推进功能开发。当任务涉及以下内容时，**必须**先使用 `openspec-feature-workflow` 完成 OpenSpec 提案、设计、规范与任务拆分，再进入实现：
+本项目默认采用 Superpowers + OpenSpec + Superpowers 端到端方式推进功能开发。当任务涉及以下内容时，**必须**先使用 `superpowers-openspec-superpowers-workflow` 完成需求澄清、OpenSpec 提案、设计、规范与任务拆分，经确认后再进入实现，完成后归档：
 
 1. 新增业务功能或新 API / 新模块
 2. 数据模型、元模型、注册项结构变更
@@ -108,7 +18,25 @@ This project is indexed by GitNexus as **MetadataRegistry4j** (23508 symbols, 55
 
 ## 执行要求
 
-- 若任务命中强制范围，先读取 `r1/superpowers-openspec-team-skills/team-skills/openspec-feature-workflow/SKILL.md`
+- 若任务命中强制范围，先调用 `superpowers-openspec-superpowers-workflow` 技能；各 Agent 按自身支持的方式激活（Kimi Code CLI / Codex 按技能名调用，Claude Code 使用对应 slash command）
 - 在启动实现前，向用户确认 OpenSpec 产出（proposal / design / specs / tasks）已完成
 - 如用户对范围有异议，以用户当次明确指令为准
 <!-- openspec:end -->
+
+# 文档同步规则
+
+每次签入代码前，检查变更是否影响以下文档，如受影响必须同步更新：
+
+- `README.md` — 模块清单、技术栈、页面清单、默认账号等面向使用者的信息
+- `docs/architecture/ARCHITECTURE.md` — 模块结构、功能区域、核心执行流程（该文件由 GitNexus 生成，内容大幅变化时应重新生成而非手工改写）
+
+# 多 Agent 项目级上下文
+
+本仓库使用多种 Coding Agent 开发，项目级规则以本文件（`AGENTS.md`）为唯一事实源：
+
+| Agent | 项目级上下文入口 |
+| --- | --- |
+| Kimi Code CLI / Codex / Cursor / OpenCode | 直接读取本文件 |
+| Claude Code | `CLAUDE.md` 通过 `@AGENTS.md` 导入本文件 |
+
+修改项目级规则时只编辑本文件；`CLAUDE.md` 仅保留导入声明，不复制规则正文。
