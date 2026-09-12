@@ -4,6 +4,8 @@
 本文档记录本项目在 ISO/IEC 11179-3:2023 元模型基础上的领域建模约定。  
 新功能设计、命名、重构前请先通读本文，避免与既有约定冲突。
 
+> 最近复核：2026-09-13，对照 2026-09-01 扩展剥离（`2026-09-01-ext-extraction`）后架构更新 §5–§7。
+
 > 文档定位：AGENTS.md 的领域知识补充。后续如需正式纳入项目根 AGENTS.md，
 > 请通过 PR 评审后将内容合并过去，并删除本文件。
 
@@ -111,56 +113,43 @@ Account → Individual → Registrar → Registration_Authority
 
 ---
 
-## 5. 扩展属性约定（Slot 模式）
+## 5. 扩展属性约定（卫星实体模式）
 
-### 5.1 Slot 来源
+### 5.1 演进说明
+
+历史上扩展属性曾约定一律走 Slot（name-value-datatype 三元组）。2026-09-01 扩展剥离（`openspec/changes/2026-09-01-ext-extraction`）后，**治理类扩展改为类型化卫星实体**（`metadata-registry-ext` 模块，EXT schema），Slot 仅保留给真正的临时三元组扩展。
+
+### 5.2 卫星实体（现行约定）
+
+- **形态**：按主实体一一对应或按需挂载，**有意不建 JPA 关联**，经 id 由单点服务读取
+- **已落地的卫星实体**：
+  - `NamespaceIdentifierSettings` — Namespace 标识符治理（`versioningPolicy` / `identifierInputMode` / `versionInputMode` / `manualIdentifierPattern`）
+  - `ScopedIdentifierLifecycle` — ScopedIdentifier 生命周期扩展
+  - `ContactAccountBinding` — Contact 账号绑定
+  - `LanguageGovernance` — LanguageIdentification 启用治理
+  - `NamingConventionRules` — NamingConvention 规则集
+- **禁止**在 MDR 标准实体上新增静态治理字段；新增治理扩展**必须**新建卫星实体，不回退到 Slot 散养
+
+### 5.3 Slot（保留机制）
 
 - 标准定义：`ISO/IEC 11179-3:2023, 6.4.6 — Slot`
 - 描述：A dynamic extension mechanism for Item, providing name-value-datatype triples
-- 代码：`metadata-registry-common-facilities/.../basicandcore/core/Slot.java`
+- 代码：`metadata-registry-common-facilities/.../basicandcore/core/Slot.java`（`Slot.value` 为多值 `List<String>`，2026-09-01 按标准收紧）
 - 容器：`Item.slots`（`@OneToMany`），`Namespace extends Item` 自动获得
-
-### 5.2 使用规范
-
-- **禁止**为超出 ISO 11179-3 标准规范的新需求新增静态字段
-- **必须**通过 Item/Namespace 上的 Slot 承载，例如：
-  - `identifierEditMode`（标识编辑模式）：`AUTO_ONLY` / `AUTO_PREFERRED` / `MANUAL_ONLY`
-  - `versionStrategy`（版本生成策略）：`SEMVER_AUTO` / `MANUAL` 等
-  - 其他未来扩展（命名约束、可见性、自定义校验等）
-- 建议 Slot 名加命名空间前缀避免冲突（如 `mdr.identifierEditMode`）
-
-### 5.3 三种标识编辑模式
-
-| 值 | 含义 | 适用场景 |
-|----|------|----------|
-| `AUTO_ONLY` | 仅自动生成，禁用手动编辑 | 默认值；强约束场景 |
-| `AUTO_PREFERRED` | 优先自动生成，允许手动覆盖 | 大多数原创场景 |
-| `MANUAL_ONLY` | 禁用自动生成，仅手动编辑 | 外部标准导入（LOINC、卫健委等） |
-
-读取方式（伪代码）：
-```java
-String mode = ns.getSlots().stream()
-    .filter(s -> "identifierEditMode".equals(s.getName()))
-    .map(Slot::getValue)
-    .findFirst()
-    .orElse("AUTO_ONLY");
-```
+- 仅用于真正的动态三元组；治理/配置类扩展一律走 §5.2 卫星实体
 
 ---
 
-## 6. 待清理项（与本原则相关的历史遗留）
+## 6. 历史遗留清理（已全部完成）
 
-> 以下是 2026-06-01 archived 变更 `WI-028-B` 引入的设计，但与上述原则冲突，需要清理：
+> 2026-06-01 记录的以下待清理项，经 2026-09-01 扩展剥离全部完成：
 
-- ❌ `IdentifierType` 枚举（INTERNAL/URN/OID/LOINC/SNOMED/CUSTOM）—— 违背 §3.3
-  - LOINC、SNOMED CT 应是 Namespace，而非 identifierType
-- ❌ `ScopedIdentifier.identifierType` 字段 —— 没必要
-- ❌ `ScopedIdentifier.effectiveStrategyConfig` 字段 —— 战略已由 Namespace 配置承载
-- ❌ `IdentifierGenerationStrategyRegistry` 中按 `(namespace, type)` 双键路由 —— 简化为按 namespace
-- ❌ `IdentifierStrategyConfig.identifierType` 字段 —— 同上
-- ❌ `identifier_sequence_registry.identifier_type` 字段 —— 同上
-
-清理工作分阶段进行（详见 OpenSpec 提案 + PR 拆分）。
+- ✅ `IdentifierType` 枚举（INTERNAL/URN/OID/LOINC/SNOMED/CUSTOM）—— 已删除
+- ✅ `ScopedIdentifier.identifierType` 字段 —— 已删除
+- ✅ `ScopedIdentifier.effectiveStrategyConfig` 字段 —— 已删除
+- ✅ `IdentifierGenerationStrategyRegistry` 按 `(namespace, type)` 双键路由 —— 已简化为按 namespace
+- ✅ `IdentifierStrategyConfig`（迁 `metadata-registry-ext`）及其 `identifierType` 字段 —— 已删除
+- ✅ `identifier_sequence_registry.identifier_type` 字段 —— 已删除
 
 ---
 
@@ -170,5 +159,5 @@ String mode = ns.getSlots().stream()
 - ISO/IEC 11179-3:2023, Clause 7 (Identification) — ScopedIdentifier 在 Clause 7
 - ISO/IEC 11179-6:2023 (Registration) — Registration acting body (RAB) 概念
 - FHIR R4 Resource 规范 — Logical ID vs Business Identifier 分类
-- 项目内：`docs/iso-11179-3-comparison-report.md`（如有）
+- 项目内：`docs/audits/iso11179-conformance-audit-2026-09-01.md`（一致性审计基线）、`docs/audits/iso11179-clause11-itemmapping-audit-2026-09-01.md`（第 11 章审计）
 <!-- domain-modeling:end -->
