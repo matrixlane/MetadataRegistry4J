@@ -35,6 +35,15 @@ public class JwtService {
     }
 
     public String generateToken(Account user, boolean forceChangePassword, boolean emergencyLogin, boolean tempPasswordUsed) {
+        return generateToken(user, forceChangePassword, emergencyLogin, tempPasswordUsed, false);
+    }
+
+    /**
+     * 生成令牌；{@code registrar} 为用户的注册人员业务标志（isRegistrar），
+     * 以 claim 下发并由 JwtAuthenticationFilter 装配为 ROLE_REGISTRAR。
+     */
+    public String generateToken(Account user, boolean forceChangePassword, boolean emergencyLogin,
+                                boolean tempPasswordUsed, boolean registrar) {
         Instant now = Instant.now();
         Instant exp = now.plusSeconds(props.getJwt().getExpiresMinutes() * 60L);
 
@@ -50,6 +59,7 @@ public class JwtService {
                 .claim("username", user.getUsername())
                 .claim("role", user.getSysRole() != null ? user.getSysRole().name() : null)
                 .claim("displayName", displayName)
+                .claim("registrar", registrar)
                 .claim("forceChangePassword", forceChangePassword)
                 .claim("emergencyLogin", emergencyLogin)
                 .claim("tempPasswordUsed", tempPasswordUsed)

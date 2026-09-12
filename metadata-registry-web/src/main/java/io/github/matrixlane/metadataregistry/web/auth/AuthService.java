@@ -156,7 +156,8 @@ public class AuthService {
         user.setLastLoginAt(LocalDateTime.now());
         userRepository.save(user);
         
-        String token = jwtService.generateToken(user, forceChangePassword, emergencyLogin, user.isTempPasswordUsed());
+        String token = jwtService.generateToken(user, forceChangePassword, emergencyLogin,
+                user.isTempPasswordUsed(), isRegistrar(user));
         return LoginResponse.of(token, jwtService.expiresInSeconds(), toProfile(user, forceChangePassword, emergencyLogin, user.isTempPasswordUsed()));
     }
 
@@ -209,7 +210,7 @@ public class AuthService {
         // for a non-existent previous password.
         user.setLastLoginAt(null);
         userRepository.save(user);
-        String token = jwtService.generateToken(user, true, false, false);
+        String token = jwtService.generateToken(user, true, false, false, isRegistrar(user));
         return LoginResponse.of(token, jwtService.expiresInSeconds(),
                 toProfile(user, true, false, false));
     }
@@ -411,12 +412,6 @@ public class AuthService {
     }
 
     private AccountProfileResponse toProfile(Account user, boolean forceChangePassword, boolean emergencyLogin, boolean tempPasswordUsed) {
-        boolean isRegistrar = user.getSysRole() == SystemRole.SUPER_ADMIN;
-        if (!isRegistrar) {
-            List<Contact> contacts = contactAccountBindingService.contactsOfAccount(user);
-            isRegistrar = contacts.stream()
-                    .anyMatch(c -> c.getRole() != null && "注册管理员".equals(c.getRole().getRoleName()));
-        }
         return new AccountProfileResponse(
                 user.getId(),
                 user.getUsername(),
@@ -425,10 +420,22 @@ public class AuthService {
                 user.getCreatedAt(),
                 user.getLastLoginAt(),
                 user.getIndividual() != null ? user.getIndividual().getId() : null,
-                isRegistrar,
+                isRegistrar(user),
                 forceChangePassword,
                 emergencyLogin,
                 tempPasswordUsed);
+    }
+
+    /**
+     * 注册人员业务标志：SUPER_ADMIN 恒为注册人员；其余账户当其任一联系人角色为
+     * 「注册管理员」时为注册人员。该标志随令牌 claim 下发并装配为 ROLE_REGISTRAR。
+     */
+    private boolean isRegistrar(Account user) {
+        if (user.getSysRole() == SystemRole.SUPER_ADMIN) {
+            return true;
+        }
+        return contactAccountBindingService.contactsOfAccount(user).stream()
+                .anyMatch(c -> c.getRole() != null && "注册管理员".equals(c.getRole().getRoleName()));
     }
 
     private AccountProfileResponse toProfile(Account user) {

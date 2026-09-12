@@ -97,3 +97,22 @@ app:
         exact: 1.0
         partial: 0.5
         none: 0.0
+
+mdr:
+  inference:
+    # AI 元数据推断功能总开关；false 时 /api/v1/inference/** 全部返回功能未启用
+    enabled: ${MDR_INFERENCE_ENABLED:true}
+    # 默认提供方：cli（本地 CLI Agent），或 Agent 设置中的内置/自定义 id
+    provider: ${MDR_INFERENCE_PROVIDER:cli}
+    # 每字段候选数上限
+    max-candidates: ${MDR_INFERENCE_MAX_CANDIDATES:3}
+    cli:
+      # ACP 模式：内置 Agent（claude/codex/kimi）经 ACP 协议常驻进程调用。
+      # command 非空时与 args 一起覆盖默认提供方所指的内置 Agent 的 ACP 启动命令
+      command: ${MDR_INFERENCE_CLI_COMMAND:}
+      # 覆盖命令的参数（解释为 ACP server 启动参数）；留空使用内置默认
+      # args: ${MDR_INFERENCE_CLI_ARGS:}
+      # 单次协作作业超时（秒）：session/prompt 等待时长，超时发送 session/cancel
+      timeout-seconds: ${MDR_INFERENCE_CLI_TIMEOUT:180}
+      # 常驻进程与每次作业会话目录的基路径（其下分别建独立子目录）
+      work-dir: ${MDR_INFERENCE_WORK_DIR:${java.io.tmpdir}/mdr-inference}

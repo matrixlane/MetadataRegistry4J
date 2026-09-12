@@ -1059,7 +1059,7 @@ class ItemAdministrationServiceTest {
 
         ItemRegistrationRequest req = new ItemRegistrationRequest(
                 ns.getId(), null, "1", List.of(), List.of(), null, null, null,
-                RegistrationStatus.QUALIFIED, null, null, null, "升级备注", null);
+                RegistrationStatus.QUALIFIED, null, null, null, "升级备注", null, null);
 
         itemAdministrationService.ensureAdministeredItem(item, req);
 
@@ -1086,7 +1086,7 @@ class ItemAdministrationServiceTest {
 
         ItemRegistrationRequest req = new ItemRegistrationRequest(
                 ns.getId(), null, "1", List.of(), List.of(), null, null, null,
-                RegistrationStatus.RECORDED, null, null, null, null, null);
+                RegistrationStatus.RECORDED, null, null, null, null, null, null);
 
         itemAdministrationService.ensureAdministeredItem(item, req);
 
@@ -1104,7 +1104,7 @@ class ItemAdministrationServiceTest {
 
         ItemRegistrationRequest req = new ItemRegistrationRequest(
                 ns.getId(), "NEW-1", "1.0.0", List.of(), List.of(), null, null, null,
-                RegistrationStatus.QUALIFIED, null, null, null, null, null);
+                RegistrationStatus.QUALIFIED, null, null, null, null, null, null);
 
         AdministeredItem ai = itemAdministrationService.ensureAdministeredItem(item, req);
 
@@ -1112,5 +1112,56 @@ class ItemAdministrationServiceTest {
         assertThat(ai.getRegistrationState().getRegistrationStatus())
                 .isEqualTo(RegistrationStatus.QUALIFIED);
         assertThat(ai.getRegistrationState().getPreviousState()).isNull();
+    }
+
+    @Test
+    void ensureAdministeredItem_savesExplanatoryComment() {
+        Namespace ns = new Namespace();
+        ns.setId(UUID.randomUUID());
+        when(namespaceRepository.findById(ns.getId())).thenReturn(Optional.of(ns));
+
+        ItemRegistrationRequest req = new ItemRegistrationRequest(
+                ns.getId(), "CMT-1", "1.0.0", List.of(), List.of(), null, null, null,
+                null, null, null, null, null, null, "患者主索引标识的解释");
+
+        AdministeredItem ai = itemAdministrationService.ensureAdministeredItem(item, req);
+
+        assertThat(ai.getExplanatoryComment()).isEqualTo("患者主索引标识的解释");
+    }
+
+    @Test
+    void ensureAdministeredItem_explanatoryCommentNull_keepsExistingValue() {
+        Namespace ns = new Namespace();
+        ns.setId(UUID.randomUUID());
+        when(namespaceRepository.findById(ns.getId())).thenReturn(Optional.of(ns));
+        AdministeredItem existing = new AdministeredItem(item);
+        existing.setExplanatoryComment("既有注释");
+        item.setIdentifiedItem(existing);
+
+        ItemRegistrationRequest req = new ItemRegistrationRequest(
+                ns.getId(), "CMT-2", "1.0.0", List.of(), List.of(), null, null, null,
+                null, null, null, null, null, null, null);
+
+        AdministeredItem ai = itemAdministrationService.ensureAdministeredItem(item, req);
+
+        assertThat(ai.getExplanatoryComment()).isEqualTo("既有注释");
+    }
+
+    @Test
+    void ensureAdministeredItem_explanatoryCommentEmptyString_clearsValue() {
+        Namespace ns = new Namespace();
+        ns.setId(UUID.randomUUID());
+        when(namespaceRepository.findById(ns.getId())).thenReturn(Optional.of(ns));
+        AdministeredItem existing = new AdministeredItem(item);
+        existing.setExplanatoryComment("既有注释");
+        item.setIdentifiedItem(existing);
+
+        ItemRegistrationRequest req = new ItemRegistrationRequest(
+                ns.getId(), "CMT-3", "1.0.0", List.of(), List.of(), null, null, null,
+                null, null, null, null, null, null, "");
+
+        AdministeredItem ai = itemAdministrationService.ensureAdministeredItem(item, req);
+
+        assertThat(ai.getExplanatoryComment()).isEmpty();
     }
 }

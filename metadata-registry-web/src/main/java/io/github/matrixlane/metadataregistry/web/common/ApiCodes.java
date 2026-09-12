@@ -14,6 +14,7 @@ public final class ApiCodes {
     public static final int VALIDATION_FAILED = 422;
     public static final int INTERNAL_ERROR = 500;
     public static final int BUSINESS_ERROR = 1000;
+    public static final int FEATURE_NOT_ENABLED = 1001;
 
     // === Registration Lifecycle State Transition Errors (1100-1199) ===
     public static final int INVALID_STATE_TRANSITION = 1100;

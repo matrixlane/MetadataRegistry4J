@@ -436,6 +436,10 @@ public class ItemAdministrationService {
         if (req.unresolvedIssue() != null) {
             state.setUnresolvedIssue(req.unresolvedIssue());
         }
+        // 解释性注释：NULL = 不变更，空串 = 清空（与 Registration_State 文本属性语义一致）
+        if (req.explanatoryComment() != null) {
+            ai.setExplanatoryComment(req.explanatoryComment());
+        }
         if (ai.getCreationDateTime() == null) {
             ai.setCreationDateTime(LocalDateTime.now());
         }

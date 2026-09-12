@@ -35,7 +35,9 @@ public record ItemRegistrationRequest(
         /** 表 22 administrative_note；NULL = 不变更，空串 = 清空。 */
         String administrativeNote,
         /** 表 22 unresolved_issue；NULL = 不变更，空串 = 清空。 */
-        String unresolvedIssue) {
+        String unresolvedIssue,
+        /** 条目解释性注释（explanatory comment）；NULL = 不变更，空串 = 清空。 */
+        String explanatoryComment) {
 
     /** Backward-compatible constructor without segment variables.
      *  归属注册机构不在 API 请求体中携带（active-registrar-ownership）：
@@ -43,7 +45,7 @@ public record ItemRegistrationRequest(
     public ItemRegistrationRequest(UUID namespaceId, String identifier, String version,
                                    List<TextLine> designations, List<TextLine> definitions) {
         this(namespaceId, identifier, version, designations, definitions, null, null, null,
-                null, null, null, null, null, null);
+                null, null, null, null, null, null, null);
     }
 
     /** Backward-compatible constructor with segment variables but no creation modes. */
@@ -51,7 +53,7 @@ public record ItemRegistrationRequest(
                                    List<TextLine> designations, List<TextLine> definitions,
                                    Map<String, String> variables) {
         this(namespaceId, identifier, version, designations, definitions, variables, null, null,
-                null, null, null, null, null, null);
+                null, null, null, null, null, null, null);
     }
 
     /**

@@ -71,6 +71,11 @@ public class SecurityConfig {
                                 "/actuator/info").permitAll()
                         .requestMatchers("/actuator/loggers/**").hasRole("SUPER_ADMIN")
                         .requestMatchers("/api/v1/system/**").hasRole("SUPER_ADMIN")
+                        // AI 使用类端点整体限注册人员业务角色（REGISTRAR），配置类端点维持 SUPER_ADMIN：
+                        // 显式置于下方通用规则（GET 登录即可、写 SUPER_ADMIN/REGISTRAR）之前，不依赖平台默认值
+                        .requestMatchers(HttpMethod.GET, "/api/v1/assistant/settings").hasRole("REGISTRAR")
+                        .requestMatchers(HttpMethod.PUT, "/api/v1/assistant/settings").hasRole("SUPER_ADMIN")
+                        .requestMatchers("/api/v1/inference/**", "/api/v1/assistant/**").hasRole("REGISTRAR")
                         .requestMatchers("/api/v1/federation/inbound/**").permitAll()
                         .requestMatchers("/api/v1/federation/**").hasRole("SUPER_ADMIN")
                         // SPA 前端路由深链接（如 /login、/namespaces）：放行 GET，
