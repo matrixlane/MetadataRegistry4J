@@ -86,7 +86,8 @@ class AuthServiceTest {
         admin.setEnabled(true);
 
         when(userRepository.findByUsername("admin")).thenReturn(Optional.of(admin));
-        when(jwtService.generateToken(eq(admin), eq(true), eq(false), eq(false))).thenReturn("mock-token");
+        lenient().when(contactAccountBindingService.contactsOfAccount(org.mockito.ArgumentMatchers.any())).thenReturn(java.util.List.of());
+        when(jwtService.generateToken(eq(admin), eq(true), eq(false), eq(false), eq(false))).thenReturn("mock-token");
 
         LoginRequest request = new LoginRequest("admin", "");
         LoginResponse response = authService.login(request);
@@ -107,7 +108,8 @@ class AuthServiceTest {
         admin.setEnabled(true);
 
         when(userRepository.findByUsername("admin")).thenReturn(Optional.of(admin));
-        when(jwtService.generateToken(eq(admin), eq(true), eq(true), eq(false))).thenReturn("mock-token");
+        lenient().when(contactAccountBindingService.contactsOfAccount(org.mockito.ArgumentMatchers.any())).thenReturn(java.util.List.of());
+        when(jwtService.generateToken(eq(admin), eq(true), eq(true), eq(false), eq(false))).thenReturn("mock-token");
 
         LoginRequest request = new LoginRequest("admin", "emergency123");
         LoginResponse response = authService.login(request);
@@ -132,7 +134,8 @@ class AuthServiceTest {
 
         when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("temp123", "$2a$10$hashedTempPassword")).thenReturn(true);
-        when(jwtService.generateToken(eq(user), eq(true), eq(false), eq(true))).thenReturn("mock-token");
+        lenient().when(contactAccountBindingService.contactsOfAccount(org.mockito.ArgumentMatchers.any())).thenReturn(java.util.List.of());
+        when(jwtService.generateToken(eq(user), eq(true), eq(false), eq(true), eq(false))).thenReturn("mock-token");
 
         LoginRequest request = new LoginRequest("testuser", "temp123");
         LoginResponse response = authService.login(request);
