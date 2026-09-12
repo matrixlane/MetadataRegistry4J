@@ -265,4 +265,23 @@ class NamespaceServiceTest {
         assertThat(result.id()).isEqualTo(namespaceId);
         assertThat(result.mandatoryNamingConventionIndicator()).isTrue();
     }
+
+    @Test
+    void update_withSegmentTemplateStrategy_keepsExistingStrategyUntouched() {
+        // 段模板策略由标识策略设计器专管：命名空间表单更新携带 SEGMENT_TEMPLATE 时
+        // 不得禁用或重建策略配置（回归：此路径曾把 "{}" 发布导致标识生成失败）
+        NamespaceRequest request = new NamespaceRequest(raId, List.of(), List.of(), null,
+                null, null, null, null, null, null, null, null, null, "SEGMENT_TEMPLATE",
+                null, null, null, null);
+        when(repository.findById(namespaceId)).thenReturn(Optional.of(namespace));
+        when(organizationRepository.findById(raId)).thenReturn(Optional.of(registrationAuthority));
+        when(repository.save(any(Namespace.class))).thenAnswer(i -> i.getArgument(0));
+        when(itemAdministrationService.mapDesignations(any())).thenReturn(List.of());
+        when(itemAdministrationService.mapDefinitions(any())).thenReturn(List.of());
+
+        service.update(namespaceId, request);
+
+        verify(strategyConfigRepository, never()).save(any());
+        verify(strategyLoader, never()).refreshRegistry();
+    }
 }

@@ -249,6 +249,12 @@ public class NamespaceService {
         if (type == null) {
             return;
         }
+        // 段模板策略由标识策略设计器专管：命名空间表单无法承载段模板内容，
+        // 收到 SEGMENT_TEMPLATE 时保持现状（不禁用、不重建）。此前此路径会把
+        // buildConfigJson 无法构造的 "{}" 直接发布，导致该命名空间标识生成失败
+        if ("SEGMENT_TEMPLATE".equalsIgnoreCase(type)) {
+            return;
+        }
         List<IdentifierStrategyConfig> existing =
                 strategyConfigRepository.findByNamespaceIdOrderByVersionDesc(entity.getId());
         for (IdentifierStrategyConfig c : existing) {
