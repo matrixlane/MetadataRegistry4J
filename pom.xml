@@ -179,6 +179,15 @@
                     <artifactId>spring-boot-maven-plugin</artifactId>
                     <version>${spring-boot.version}</version>
                 </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-surefire-plugin</artifactId>
+                    <version>3.2.2</version>
+                    <configuration>
+                        <!-- 多模块下按 -Dtest=... 跑子集时，无匹配测试的模块直接跳过 -->
+                        <failIfNoSpecifiedTests>false</failIfNoSpecifiedTests>
+                    </configuration>
+                </plugin>
             </plugins>
         </pluginManagement>
         <plugins>
