@@ -11,9 +11,25 @@ MetadataRegistry4j/
 ├── metadata-registry-common-facilities/      # ISO 11179-3 领域模型（Common Facilities）
 ├── metadata-registry-data-specification/     # ISO 11179-3 领域模型（Data Specification）
 ├── metadata-registry-data-set-registration/  # 数据集注册（占位）
+├── metadata-registry-item-mapping/           # 项目映射
+├── metadata-registry-schema-extraction/      # 模式提取
+├── metadata-registry-draft-generation/       # 草案生成
+├── metadata-registry-ext/                    # 扩展
 ├── metadata-registry-web/                    # Spring Boot 后端 + REST API
 └── metadata-registry-ui/                     # Vue 3 + Element Plus 前端
 ```
+
+---
+
+## 文档导航
+
+| 目录 | 内容 |
+|---|---|
+| [docs/architecture/](docs/architecture/) | 架构文档（模块结构、功能区域、执行流程）、领域模型 |
+| [openspec/changes/](openspec/changes/) | 进行中变更的设计文档（proposal / design / specs / tasks 四件套） |
+| [docs/technical/](docs/technical/) | 技术栈、数据库可移植性规则 |
+| [docs/superpowers/](docs/superpowers/) | superpowers 工作流产出（设计草稿 `specs/`、实施计划 `plans/`） |
+| [docs/audits/](docs/audits/) | ISO/IEC 11179 一致性审计与对比报告 |
 
 ---
 
@@ -22,7 +38,7 @@ MetadataRegistry4j/
 | 层级 | 技术 |
 |---|---|
 | 后端 | Java 17, Spring Boot 3.3.4, Spring Data JPA, Spring Security, JWT (jjwt 0.12.6) |
-| 数据库 | SQL Server (Hibernate 自动建表 `ddl-auto=update`) |
+| 数据库 | SQLite / SQL Server / 达梦（`DB_VENDOR` 选择，默认 `sqlserver`；详见 [docs/technical/](docs/technical/)） |
 | API 文档 | SpringDoc OpenAPI 2.6.0 (Swagger UI) |
 | 前端 | Vue 3.5, TypeScript, Vite, Element Plus 2.8, Pinia, Vue Router 4, Axios |
 
