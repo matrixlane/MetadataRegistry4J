@@ -91,22 +91,24 @@ body {
     padding: 0 24px;
     z-index: 100;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    position: relative;
+
+    // 底部品牌绿渐变细线，增加层次感
+    &::after {
+      content: '';
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: -1px;
+      height: 2px;
+      background: linear-gradient(90deg, rgba(22, 163, 74, 0.55), rgba(74, 222, 128, 0.25) 40%, transparent 75%);
+      pointer-events: none;
+    }
 
     .header-left {
       display: flex;
       align-items: center;
       gap: 12px;
-
-      .header-title {
-        font-weight: 700;
-        font-size: 18px;
-        color: #1f2937;
-        letter-spacing: 0.3px;
-      }
-
-      img {
-        filter: drop-shadow(0 2px 4px rgba(22, 163, 74, 0.2));
-      }
     }
 
     .header-right {
@@ -125,14 +127,14 @@ body {
   .app-sidebar {
     width: var(--app-sidebar-width);
     flex-shrink: 0;
-    background: var(--app-sidebar-bg);
+    background: linear-gradient(180deg, #1e4530 0%, #14301f 100%);
     color: var(--app-sidebar-text);
-    border-right: 1px solid var(--app-sidebar-border);
+    border-right: none;
     display: flex;
     flex-direction: column;
     transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     z-index: 50;
-    box-shadow: 2px 0 8px rgba(0, 0, 0, 0.02);
+    box-shadow: 4px 0 16px rgba(20, 48, 31, 0.18);
 
     &.collapsed {
       width: var(--app-sidebar-collapsed-width);
@@ -161,11 +163,32 @@ body {
         gap: 10px;
         overflow: hidden;
 
+        img {
+          flex-shrink: 0;
+          filter: drop-shadow(0 2px 6px rgba(74, 222, 128, 0.35));
+        }
+
+        .brand-text-block {
+          display: flex;
+          flex-direction: column;
+          gap: 1px;
+          overflow: hidden;
+          white-space: nowrap;
+        }
+
         .brand-text {
-          font-weight: 800;
-          font-size: 18px;
-          color: #4ade80;
-          letter-spacing: 1.5px;
+          font-weight: 700;
+          font-size: 15px;
+          color: #e7f0e9;
+          letter-spacing: 0.5px;
+          white-space: nowrap;
+        }
+
+        .brand-subtext {
+          font-size: 11px;
+          font-weight: 500;
+          color: #7fa38b;
+          letter-spacing: 0.8px;
           white-space: nowrap;
         }
       }
@@ -202,6 +225,7 @@ body {
         &:hover {
           background: var(--app-sidebar-hover-bg);
           color: #ffffff;
+          transform: translateX(2px);
         }
 
         .el-icon {
@@ -243,12 +267,14 @@ body {
         &:hover {
           background: var(--app-sidebar-hover-bg);
           color: #ffffff;
+          transform: translateX(2px);
         }
 
         &.is-active {
           color: var(--app-sidebar-active-text);
-          background: var(--app-sidebar-active-bg);
+          background: linear-gradient(90deg, #4ade80, #22c55e);
           font-weight: 600;
+          box-shadow: 0 4px 14px rgba(74, 222, 128, 0.35);
         }
       }
 
@@ -280,9 +306,10 @@ body {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 4px 16px rgba(0, 0, 0, 0.03);
   padding: 24px;
   border: 1px solid #f1f5f9;
-  transition: box-shadow 0.3s ease;
+  transition: all 0.3s ease;
 
   &:hover {
+    transform: translateY(-2px);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06), 0 8px 24px rgba(0, 0, 0, 0.04);
   }
 }
@@ -338,12 +365,26 @@ body {
 .stat-card--dark {
   text-align: left;
   position: relative;
+  overflow: hidden;
   background: linear-gradient(135deg, #2d5a3d 0%, #1e4530 100%);
   border: none;
   color: #e7f0e9;
 
   &::before {
     display: none;
+  }
+
+  // 装饰性光斑，营造深色卡片的层次纵深（参照 EMS demo）
+  &::after {
+    content: '';
+    position: absolute;
+    right: -36px;
+    bottom: -52px;
+    width: 150px;
+    height: 150px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(74, 222, 128, 0.16) 0%, rgba(74, 222, 128, 0.05) 55%, transparent 70%);
+    pointer-events: none;
   }
 
   &:hover {
@@ -417,7 +458,7 @@ body {
 
   .el-table__header-wrapper {
     th.el-table__cell {
-      background: #f8fafc;
+      background: #f0f7f2;
       font-weight: 600;
       color: #374151;
       font-size: 13px;
@@ -429,7 +470,7 @@ body {
     transition: background 0.2s;
 
     &:hover {
-      background: #f8fafc;
+      background: #f5faf6;
     }
   }
 }
@@ -466,6 +507,25 @@ body {
   border-radius: 8px;
   font-weight: 500;
   transition: all 0.2s ease;
+}
+
+// 主按钮：品牌绿渐变 + 轻投影 + 悬浮上浮，增加交互反馈层次
+.el-button--primary:not(.is-disabled) {
+  background: linear-gradient(135deg, #16a34a, #059669);
+  border: none;
+  box-shadow: 0 2px 6px rgba(22, 163, 74, 0.28);
+
+  &:hover,
+  &:focus {
+    background: linear-gradient(135deg, #17b14e, #06a06c);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(22, 163, 74, 0.36);
+  }
+
+  &:active {
+    transform: translateY(0);
+    box-shadow: 0 1px 4px rgba(22, 163, 74, 0.28);
+  }
 }
 
 /* Tag refinements */

@@ -2,10 +2,6 @@
   <div class="app-layout">
     <header class="app-header">
       <div class="header-left">
-        <img src="/favicon.svg" alt="logo" width="32" height="32" />
-        <span class="header-title">{{ $t('app.name') }}</span>
-      </div>
-      <div class="header-right" data-testid="header-right">
         <el-dropdown
           v-if="activeRegistrar.identities.length > 1"
           trigger="click"
@@ -38,6 +34,8 @@
         >
           {{ activeRegistrar.active.registrationAuthorityName }}
         </el-tag>
+      </div>
+      <div class="header-right" data-testid="header-right">
         <el-tag v-if="auth.user" type="primary" size="small" effect="light" round style="cursor: pointer;" @click="goToProfile" data-testid="header-user-tag">
           <el-icon><UserFilled /></el-icon>
           {{ auth.user.displayName || auth.user.username }}
@@ -52,8 +50,11 @@
       <aside class="app-sidebar" :class="{ collapsed }">
         <div class="sidebar-header">
           <div class="sidebar-brand">
-            <img src="/favicon.svg" width="32" height="32" alt="MDR" />
-            <span v-if="!collapsed" class="brand-text">MDR</span>
+            <img src="/favicon.svg" width="36" height="36" alt="MDR" />
+            <div v-if="!collapsed" class="brand-text-block">
+              <span class="brand-text">{{ $t('app.name') }}</span>
+              <span class="brand-subtext">Metadata Registry</span>
+            </div>
           </div>
           <el-button
             v-if="!collapsed"
