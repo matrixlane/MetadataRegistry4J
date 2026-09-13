@@ -13,9 +13,11 @@ import './styles/layout.scss';
 // 函数式组件（ElMessageBox.confirm / ElMessage / ElNotification）的 CSS
 // 不会被 unplugin-vue-components 自动注入（只在模板里使用 <el-xxx> 时才注入），
 // 这里手动按需引入，否则 ElMessageBox 弹窗会因缺 CSS 而撑满/错位。
-import 'element-plus/es/components/message-box/style/css';
-import 'element-plus/es/components/message/style/css';
-import 'element-plus/es/components/notification/style/css';
+// 注意必须引 style/index（sass 源）：style/css 是预编译默认主题，会带入
+// base.css 里的 :root{--el-color-primary:#409eff}，覆盖 element-variables.scss 的主题色。
+import 'element-plus/es/components/message-box/style/index';
+import 'element-plus/es/components/message/style/index';
+import 'element-plus/es/components/notification/style/index';
 
 const app = createApp(App);
 

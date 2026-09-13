@@ -428,7 +428,7 @@ onMounted(async () => {
     left: 0;
     right: 0;
     height: 3px;
-    background: linear-gradient(90deg, #2563eb, #3b82f6);
+    background: linear-gradient(90deg, #16a34a, #4ade80);
   }
 
   .header-top {

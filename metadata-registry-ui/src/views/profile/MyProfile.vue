@@ -271,8 +271,8 @@ const completenessLabel = computed(() => {
 const progressColors = [
   { color: '#ef4444', percentage: 30 },
   { color: '#f59e0b', percentage: 60 },
-  { color: '#3b82f6', percentage: 90 },
-  { color: '#10b981', percentage: 100 },
+  { color: '#16a34a', percentage: 90 },
+  { color: '#059669', percentage: 100 },
 ];
 
 async function loadProfile() {
@@ -370,7 +370,7 @@ onMounted(() => {
     .banner-gradient {
       height: 160px;
       position: relative;
-      background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 40%, #06b6d4 100%);
+      background: linear-gradient(135deg, #14301f 0%, #16a34a 40%, #059669 100%);
       overflow: hidden;
 
       /* Decorative Blobs */
@@ -425,7 +425,7 @@ onMounted(() => {
         
         .profile-avatar {
           border: 5px solid #ffffff;
-          box-shadow: 0 8px 24px rgba(37, 99, 235, 0.15);
+          box-shadow: 0 8px 24px rgba(22, 163, 74, 0.15);
           background: #f1f5f9;
           color: #94a3b8;
           transition: transform 0.3s ease;
@@ -550,7 +550,7 @@ onMounted(() => {
         font-size: 16px;
         
         .icon-gradient {
-          color: #3b82f6;
+          color: var(--el-color-primary);
           font-size: 18px;
         }
       }
@@ -643,12 +643,12 @@ onMounted(() => {
           color: #64748b;
           
           &.is-active {
-            color: #3b82f6;
+            color: var(--el-color-primary);
           }
         }
 
         :deep(.el-tabs__active-bar) {
-          background-color: #3b82f6;
+          background-color: var(--el-color-primary);
           height: 3px;
           border-radius: 3px;
         }
@@ -687,7 +687,7 @@ onMounted(() => {
           }
 
           &.is-focus {
-            box-shadow: 0 0 0 1px #3b82f6 inset, 0 0 0 3px rgba(59, 130, 246, 0.15) !important;
+            box-shadow: 0 0 0 1px #16a34a inset, 0 0 0 3px rgba(22, 163, 74, 0.15) !important;
           }
         }
 
@@ -702,7 +702,7 @@ onMounted(() => {
           }
 
           &:focus {
-            box-shadow: 0 0 0 1px #3b82f6 inset, 0 0 0 3px rgba(59, 130, 246, 0.15) !important;
+            box-shadow: 0 0 0 1px #16a34a inset, 0 0 0 3px rgba(22, 163, 74, 0.15) !important;
           }
         }
 
@@ -765,12 +765,12 @@ onMounted(() => {
             height: 42px;
             font-weight: 700;
             border-radius: 10px;
-            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+            box-shadow: 0 4px 12px rgba(22, 163, 74, 0.2);
             transition: all 0.2s ease;
 
             &:hover {
               transform: translateY(-1px);
-              box-shadow: 0 6px 16px rgba(59, 130, 246, 0.35);
+              box-shadow: 0 6px 16px rgba(22, 163, 74, 0.35);
             }
           }
         }

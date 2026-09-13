@@ -992,14 +992,14 @@ onBeforeUnmount(() => {
   margin-bottom: 32px;
 
   img {
-    filter: drop-shadow(0 4px 8px rgba(37, 99, 235, 0.25));
+    filter: drop-shadow(0 4px 8px rgba(22, 163, 74, 0.25));
   }
 
   h2 {
     margin: 16px 0 6px;
     font-size: 26px;
     font-weight: 700;
-    color: #1e3a8a;
+    color: #1e4530;
   }
 
   p {
@@ -1028,13 +1028,13 @@ onBeforeUnmount(() => {
 }
 
 :deep(.el-step__head.is-process) {
-  color: #2563eb;
-  border-color: #2563eb;
+  color: var(--el-color-primary);
+  border-color: var(--el-color-primary);
 }
 
 :deep(.el-step__title.is-process) {
   font-weight: 600;
-  color: #2563eb;
+  color: var(--el-color-primary);
 }
 
 .step-content {
@@ -1076,12 +1076,12 @@ onBeforeUnmount(() => {
   position: relative;
 
   &.active {
-    border-color: #2563eb;
-    background-color: #eff6ff;
+    border-color: var(--el-color-primary);
+    background-color: #dcfce7;
     cursor: pointer;
 
     .mode-icon-wrapper {
-      background-color: #2563eb;
+      background-color: #16a34a;
       color: #ffffff;
     }
   }
@@ -1100,7 +1100,7 @@ onBeforeUnmount(() => {
 
   &:not(.disabled):hover {
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.1);
+    box-shadow: 0 4px 12px rgba(22, 163, 74, 0.1);
   }
 }
 
@@ -1142,8 +1142,8 @@ onBeforeUnmount(() => {
   right: 16px;
   font-size: 12px;
   font-weight: 600;
-  color: #2563eb;
-  background-color: #dbeafe;
+  color: var(--el-color-primary);
+  background-color: #dcfce7;
   padding: 4px 10px;
   border-radius: 99px;
 }

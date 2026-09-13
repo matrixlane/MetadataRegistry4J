@@ -242,7 +242,7 @@ function removeContext(rowIndex: number, ctxIndex: number) {
   padding: 2px 0;
 }
 .context-header:hover {
-  color: #2563eb;
+  color: var(--el-color-primary);
 }
 .context-body {
   margin-top: 8px;

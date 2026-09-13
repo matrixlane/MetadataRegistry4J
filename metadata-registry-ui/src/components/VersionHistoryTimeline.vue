@@ -264,7 +264,7 @@ function changeTypeLabel(type?: string): string {
 
 .version-badge {
   font-weight: 700;
-  color: #2563eb;
+  color: var(--el-color-primary);
   font-size: 14px;
 }
 

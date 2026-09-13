@@ -2,7 +2,7 @@
   <!-- App-level loading spinner while router resolves -->
   <div v-if="isLoading" class="app-loading">
     <div class="loading-content">
-      <el-icon class="loading-spinner" :size="36" color="#2563eb">
+      <el-icon class="loading-spinner" :size="36" color="#16a34a">
         <Loading />
       </el-icon>
       <p class="loading-text">加载中...</p>

@@ -8,15 +8,18 @@
     </div>
 
     <el-row :gutter="16">
-      <el-col :span="6" v-for="(item, index) in stats" :key="item.label">
-        <el-card shadow="hover" class="stat-card">
-          <div class="stat-icon">
-            <el-icon :size="28" :color="iconColors[index % iconColors.length]">
-              <component :is="item.icon" />
-            </el-icon>
+      <el-col :span="6" v-for="item in stats" :key="item.label">
+        <el-card shadow="never" class="stat-card--dark">
+          <div class="stat-card__label">{{ item.label }}</div>
+          <span class="stat-card__badge">{{ item.badge }}</span>
+          <div class="stat-card__value">
+            {{ item.value }}<span class="stat-card__unit">{{ item.unit }}</span>
           </div>
-          <div class="stat-value">{{ item.value }}</div>
-          <div class="stat-label">{{ item.label }}</div>
+          <div class="stat-card__sub">{{ item.sub }}</div>
+          <span
+            class="stat-card__trend"
+            :class="item.trendDown ? 'stat-card__trend--down' : 'stat-card__trend--up'"
+          >{{ item.trend }}</span>
         </el-card>
       </el-col>
     </el-row>
@@ -30,33 +33,7 @@
               <span>数据元注册状态分布</span>
             </div>
           </template>
-          <div class="chart-placeholder">
-            <div class="chart-visual">
-              <svg viewBox="0 0 200 200" width="160" height="160">
-                <circle cx="100" cy="100" r="80" fill="none" stroke="#e5e7eb" stroke-width="20" />
-                <circle cx="100" cy="100" r="80" fill="none" stroke="#2563eb" stroke-width="20"
-                  stroke-dasharray="376.99" stroke-dashoffset="94.25" stroke-linecap="round"
-                  transform="rotate(-90 100 100)" />
-                <circle cx="100" cy="100" r="80" fill="none" stroke="#3b82f6" stroke-width="20"
-                  stroke-dasharray="376.99" stroke-dashoffset="282.74" stroke-linecap="round"
-                  transform="rotate(-90 100 100)" />
-              </svg>
-              <div class="chart-center">
-                <div class="chart-number">4</div>
-                <div class="chart-text">数据元</div>
-              </div>
-            </div>
-            <div class="chart-legend">
-              <div class="legend-item">
-                <span class="legend-dot" style="background: #2563eb;"></span>
-                <span>已注册 (3)</span>
-              </div>
-              <div class="legend-item">
-                <span class="legend-dot" style="background: #3b82f6;"></span>
-                <span>草稿 (1)</span>
-              </div>
-            </div>
-          </div>
+          <div ref="donutRef" class="donut-chart"></div>
         </el-card>
       </el-col>
       <el-col :span="12">
@@ -84,26 +61,18 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { onBeforeUnmount, onMounted, ref } from 'vue';
+import * as echarts from 'echarts';
 import { useAuthStore } from '@/stores/auth';
-import {
-  DataLine,
-  Grid,
-  SetUp,
-  Collection,
-  PieChart,
-  Clock,
-} from '@element-plus/icons-vue';
+import { PieChart, Clock } from '@element-plus/icons-vue';
 
 const auth = useAuthStore();
 
-const iconColors = ['#2563eb', '#3b82f6', '#60a5fa', '#1e40af'];
-
 const stats = ref([
-  { label: '数据元', value: 4, icon: DataLine },
-  { label: '对象类', value: 3, icon: Grid },
-  { label: '特性', value: 6, icon: SetUp },
-  { label: '注册项', value: 16, icon: Collection },
+  { label: '数据元', value: 4, unit: '项', sub: 'Data Element', badge: '正常', trend: '+1 本周', trendDown: false },
+  { label: '对象类', value: 3, unit: '项', sub: 'Object Class', badge: '正常', trend: '+0 本周', trendDown: false },
+  { label: '特性', value: 6, unit: '项', sub: 'Property', badge: '正常', trend: '+2 本周', trendDown: false },
+  { label: '注册项', value: 16, unit: '项', sub: 'Administered Item', badge: '关注', trend: '+4 本周', trendDown: false },
 ]);
 
 const activities = ref([
@@ -111,6 +80,61 @@ const activities = ref([
   { content: '注册机构 示例注册机构 完成初始化', timestamp: '2026-05-08 10:00', type: 'success' as const },
   { content: '系统初始化完成', timestamp: '2026-05-08 09:55', type: 'info' as const },
 ]);
+
+// 注册状态分布甜甜圈图：同色系多阶绿（参照 EMS demo 单色相递进）
+const donutRef = ref<HTMLDivElement>();
+let donutChart: echarts.ECharts | null = null;
+
+const statusDistribution = [
+  { name: '首选', value: 8 },
+  { name: '合格', value: 4 },
+  { name: '已记录', value: 3 },
+  { name: '草稿', value: 1 },
+];
+
+function buildDonutOption(): echarts.EChartsOption {
+  const total = statusDistribution.reduce((sum, item) => sum + item.value, 0);
+  return {
+    color: ['#16a34a', '#4ade80', '#2d5a3d', '#86efac'],
+    title: {
+      text: String(total),
+      subtext: '注册项总数',
+      left: 'center',
+      top: '36%',
+      textStyle: { fontSize: 28, fontWeight: 800, color: '#1e4530' },
+      subtextStyle: { fontSize: 12, color: '#6b7280' },
+    },
+    tooltip: { trigger: 'item' },
+    legend: {
+      bottom: 0,
+      icon: 'circle',
+      itemWidth: 8,
+      textStyle: { fontSize: 12, color: '#4b5563' },
+    },
+    series: [
+      {
+        type: 'pie',
+        radius: ['55%', '78%'],
+        center: ['50%', '44%'],
+        label: { show: false },
+        emphasis: { scaleSize: 4 },
+        data: statusDistribution,
+      },
+    ],
+  };
+}
+
+onMounted(() => {
+  if (donutRef.value) {
+    donutChart = echarts.init(donutRef.value);
+    donutChart.setOption(buildDonutOption());
+  }
+});
+
+onBeforeUnmount(() => {
+  donutChart?.dispose();
+  donutChart = null;
+});
 </script>
 
 <style scoped lang="scss">
@@ -118,52 +142,9 @@ const activities = ref([
   margin-bottom: 24px;
 }
 
-.stat-card {
-  text-align: center;
-  border-radius: 12px;
-  background: #ffffff;
-  border: 1px solid #f1f5f9;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 4px 16px rgba(0, 0, 0, 0.03);
-  transition: all 0.3s ease;
-  overflow: hidden;
-  position: relative;
-  padding: 24px 16px;
-
-  &:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 12px 28px rgba(37, 99, 235, 0.1);
-  }
-
-  &::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 3px;
-    background: linear-gradient(90deg, #2563eb, #3b82f6);
-  }
-
-  .stat-icon {
-    margin-bottom: 12px;
-    display: flex;
-    justify-content: center;
-  }
-
-  .stat-value {
-    font-size: 32px;
-    font-weight: 800;
-    color: #1e40af;
-    line-height: 1.2;
-    letter-spacing: -0.5px;
-  }
-
-  .stat-label {
-    margin-top: 8px;
-    color: #6b7280;
-    font-size: 14px;
-    font-weight: 500;
-  }
+.donut-chart {
+  width: 100%;
+  height: 260px;
 }
 
 .dashboard-card {
@@ -193,59 +174,6 @@ const activities = ref([
   font-weight: 600;
   font-size: 15px;
   color: #374151;
-}
-
-.chart-placeholder {
-  min-height: 220px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 32px;
-
-  .chart-visual {
-    position: relative;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-
-    .chart-center {
-      position: absolute;
-      text-align: center;
-
-      .chart-number {
-        font-size: 28px;
-        font-weight: 800;
-        color: #1e40af;
-        line-height: 1;
-      }
-
-      .chart-text {
-        font-size: 12px;
-        color: #6b7280;
-        margin-top: 4px;
-      }
-    }
-  }
-
-  .chart-legend {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-
-    .legend-item {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 13px;
-      color: #4b5563;
-
-      .legend-dot {
-        width: 10px;
-        height: 10px;
-        border-radius: 3px;
-      }
-    }
-  }
 }
 
 .activity-timeline {

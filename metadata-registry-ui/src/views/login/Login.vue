@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <LoginLayout>
     <el-card class="login-card" shadow="always">
       <div class="login-header">
@@ -278,14 +278,14 @@ async function handleSubmit() {
   margin-bottom: 28px;
 
   img {
-    filter: drop-shadow(0 4px 8px rgba(37, 99, 235, 0.25));
+    filter: drop-shadow(0 4px 8px rgba(22, 163, 74, 0.25));
   }
 
   h2 {
     margin: 16px 0 4px;
     font-size: 24px;
     font-weight: 700;
-    color: #1e40af;
+    color: #1e4530;
     letter-spacing: 0.5px;
   }
 
@@ -303,7 +303,7 @@ async function handleSubmit() {
   padding: 4px 12px;
 
   &.is-focus {
-    box-shadow: 0 0 0 1px #2563eb inset;
+    box-shadow: 0 0 0 1px #16a34a inset;
   }
 }
 

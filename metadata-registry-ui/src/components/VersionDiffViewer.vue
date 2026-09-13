@@ -145,7 +145,7 @@ export { ValueDiff };
 
   .diff-truncated {
     cursor: pointer;
-    color: #2563eb;
+    color: var(--el-color-primary);
   }
 
   .diff-full-text {
