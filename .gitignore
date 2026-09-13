@@ -49,3 +49,11 @@ BOOT-INF/
 
 # Emergency/temp code dump files
 emergency-code.txt
+
+
+# Antigravity CLI 配置（含指向用户目录的符号链接）
+.antigravitycli/
+
+# 根目录零散参考/导出文件（非项目源码）
+enum_consts.json
+iso11179-*.txt
