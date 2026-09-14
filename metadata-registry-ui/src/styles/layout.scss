@@ -509,10 +509,13 @@ body {
   transition: all 0.2s ease;
 }
 
-// 主按钮：品牌绿渐变 + 轻投影 + 悬浮上浮，增加交互反馈层次
-.el-button--primary:not(.is-disabled) {
+// 主按钮：品牌绿渐变 + 轻投影 + 悬浮上浮，增加交互反馈层次。
+// 必须排除 plain/text/link 变体：这些变体文字本身是品牌色，
+// 叠加绿色渐变底会导致文字不可读。
+.el-button--primary:not(.is-disabled):not(.is-plain):not(.is-text):not(.is-link) {
   background: linear-gradient(135deg, #16a34a, #059669);
   border: none;
+  color: #ffffff;
   box-shadow: 0 2px 6px rgba(22, 163, 74, 0.28);
 
   &:hover,
