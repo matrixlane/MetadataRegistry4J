@@ -173,7 +173,7 @@ body {
       .el-sub-menu__title {
         justify-content: center;
         padding: 0 !important;
-        height: 44px;
+        height: 44px !important;
         line-height: 44px;
 
         .el-icon {
@@ -307,7 +307,8 @@ body {
         line-height: 1;
       }
 
-      // 双行菜单标签（主标题 + 英文副标题，参照 EMS demo）
+      // 双行菜单标签（主标题 + 英文副标题，参照 EMS demo）：
+      // 副标题默认隐藏，仅在条目激活时展开显示
       .menu-label {
         display: flex;
         flex-direction: column;
@@ -319,12 +320,17 @@ body {
 
       .menu-label__main {
         font-size: 14px;
+        transition: font-size 0.25s ease;
       }
 
       .menu-label__sub {
         font-size: 11px;
         color: #7fa38b;
         letter-spacing: 0.3px;
+        max-height: 0;
+        opacity: 0;
+        overflow: hidden;
+        transition: max-height 0.25s ease, opacity 0.25s ease;
       }
 
       .el-menu-item,
@@ -332,7 +338,7 @@ body {
         color: var(--app-sidebar-text);
         margin: 3px 10px;
         border-radius: 8px;
-        height: 54px;
+        height: 44px;
         line-height: 1.25;
         position: relative;
         transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
@@ -342,19 +348,23 @@ body {
           color: #ffffff;
           transform: translateX(3px);
           box-shadow: 0 4px 10px rgba(0, 0, 0, 0.18);
-
-          .menu-label__sub {
-            color: #a8cbb2;
-          }
         }
 
         &.is-active {
           color: var(--app-sidebar-active-text);
           background: linear-gradient(90deg, #4ade80, #22c55e);
           font-weight: 600;
+          height: 54px;
           box-shadow: 0 6px 16px rgba(74, 222, 128, 0.4);
 
+          .menu-label__main {
+            font-size: 15px;
+            font-weight: 700;
+          }
+
           .menu-label__sub {
+            max-height: 16px;
+            opacity: 1;
             color: rgba(20, 48, 31, 0.72);
           }
 
@@ -373,12 +383,19 @@ body {
         }
       }
 
-      // 子菜单含激活项时，父级图标亮起提示
+      // 子菜单含激活项时，父级同样展开副标题并亮起图标
       .el-sub-menu.is-active > .el-sub-menu__title {
         color: #ffffff;
+        height: 54px;
 
         > .el-icon {
           color: #4ade80;
+        }
+
+        .menu-label__sub {
+          max-height: 16px;
+          opacity: 1;
+          color: #a8cbb2;
         }
       }
 
@@ -392,6 +409,10 @@ body {
         height: 40px;
         line-height: 40px;
         font-size: 13px;
+
+        &.is-active {
+          height: 40px;
+        }
 
         &.is-active::after {
           display: none;
