@@ -114,13 +114,62 @@
                   <span class="menu-label__sub">Common Facilities</span>
                 </span>
               </template>
-              <el-menu-item index="/registration-authorities">{{ $t('nav.registrationAuthority') }}</el-menu-item>
-              <el-menu-item index="/registry-specifications">{{ $t('nav.registrySpecification') }}</el-menu-item>
-              <el-menu-item index="/registrars">{{ $t('nav.registrar') }}</el-menu-item>
-              <el-menu-item index="/namespaces">{{ $t('nav.namespace') }}</el-menu-item>
-              <el-menu-item index="/naming-conventions">{{ $t('nav.namingConvention') }}</el-menu-item>
-              <el-menu-item index="/languages">{{ $t('nav.language') }}</el-menu-item>
-              <el-menu-item index="/contexts">{{ $t('nav.context') }}</el-menu-item>
+              <el-menu-item index="/registration-authorities">
+                <template #title>
+                  <span class="menu-label">
+                    <span class="menu-label__main">{{ $t('nav.registrationAuthority') }}</span>
+                    <span class="menu-label__sub">Registration Authority</span>
+                  </span>
+                </template>
+              </el-menu-item>
+              <el-menu-item index="/registry-specifications">
+                <template #title>
+                  <span class="menu-label">
+                    <span class="menu-label__main">{{ $t('nav.registrySpecification') }}</span>
+                    <span class="menu-label__sub">Registry Specification</span>
+                  </span>
+                </template>
+              </el-menu-item>
+              <el-menu-item index="/registrars">
+                <template #title>
+                  <span class="menu-label">
+                    <span class="menu-label__main">{{ $t('nav.registrar') }}</span>
+                    <span class="menu-label__sub">Registrar</span>
+                  </span>
+                </template>
+              </el-menu-item>
+              <el-menu-item index="/namespaces">
+                <template #title>
+                  <span class="menu-label">
+                    <span class="menu-label__main">{{ $t('nav.namespace') }}</span>
+                    <span class="menu-label__sub">Namespace</span>
+                  </span>
+                </template>
+              </el-menu-item>
+              <el-menu-item index="/naming-conventions">
+                <template #title>
+                  <span class="menu-label">
+                    <span class="menu-label__main">{{ $t('nav.namingConvention') }}</span>
+                    <span class="menu-label__sub">Naming Convention</span>
+                  </span>
+                </template>
+              </el-menu-item>
+              <el-menu-item index="/languages">
+                <template #title>
+                  <span class="menu-label">
+                    <span class="menu-label__main">{{ $t('nav.language') }}</span>
+                    <span class="menu-label__sub">Language</span>
+                  </span>
+                </template>
+              </el-menu-item>
+              <el-menu-item index="/contexts">
+                <template #title>
+                  <span class="menu-label">
+                    <span class="menu-label__main">{{ $t('nav.context') }}</span>
+                    <span class="menu-label__sub">Context</span>
+                  </span>
+                </template>
+              </el-menu-item>
             </el-sub-menu>
 
             <!-- 主体与文档 -->
@@ -132,10 +181,38 @@
                   <span class="menu-label__sub">Party & Documents</span>
                 </span>
               </template>
-              <el-menu-item index="/organizations">{{ $t('nav.organization') }}</el-menu-item>
-              <el-menu-item index="/individuals">{{ $t('nav.individual') }}</el-menu-item>
-              <el-menu-item index="/contacts">{{ $t('nav.contact') }}</el-menu-item>
-              <el-menu-item index="/reference-documents">{{ $t('nav.referenceDocument') }}</el-menu-item>
+              <el-menu-item index="/organizations">
+                <template #title>
+                  <span class="menu-label">
+                    <span class="menu-label__main">{{ $t('nav.organization') }}</span>
+                    <span class="menu-label__sub">Organization</span>
+                  </span>
+                </template>
+              </el-menu-item>
+              <el-menu-item index="/individuals">
+                <template #title>
+                  <span class="menu-label">
+                    <span class="menu-label__main">{{ $t('nav.individual') }}</span>
+                    <span class="menu-label__sub">Individual</span>
+                  </span>
+                </template>
+              </el-menu-item>
+              <el-menu-item index="/contacts">
+                <template #title>
+                  <span class="menu-label">
+                    <span class="menu-label__main">{{ $t('nav.contact') }}</span>
+                    <span class="menu-label__sub">Contact</span>
+                  </span>
+                </template>
+              </el-menu-item>
+              <el-menu-item index="/reference-documents">
+                <template #title>
+                  <span class="menu-label">
+                    <span class="menu-label__main">{{ $t('nav.referenceDocument') }}</span>
+                    <span class="menu-label__sub">Reference Document</span>
+                  </span>
+                </template>
+              </el-menu-item>
             </el-sub-menu>
 
             <!-- 概念区域 -->
@@ -147,13 +224,62 @@
                   <span class="menu-label__sub">Concept Region</span>
                 </span>
               </template>
-              <el-menu-item index="/object-classes">{{ $t('nav.objectClass') }}</el-menu-item>
-              <el-menu-item index="/properties">{{ $t('nav.property') }}</el-menu-item>
-              <el-menu-item index="/data-element-concepts?group=concepts">{{ $t('nav.dataElementConcept') }}</el-menu-item>
-              <el-menu-item index="/conceptual-domains?group=concepts">{{ $t('nav.conceptualDomain') }}</el-menu-item>
-              <el-menu-item index="/units-of-measure">{{ $t('nav.unitOfMeasure') }}</el-menu-item>
-              <el-menu-item index="/measure-classes">{{ $t('nav.measureClass') }}</el-menu-item>
-              <el-menu-item index="/dimensionality">{{ $t('nav.dimensionality') }}</el-menu-item>
+              <el-menu-item index="/object-classes">
+                <template #title>
+                  <span class="menu-label">
+                    <span class="menu-label__main">{{ $t('nav.objectClass') }}</span>
+                    <span class="menu-label__sub">Object Class</span>
+                  </span>
+                </template>
+              </el-menu-item>
+              <el-menu-item index="/properties">
+                <template #title>
+                  <span class="menu-label">
+                    <span class="menu-label__main">{{ $t('nav.property') }}</span>
+                    <span class="menu-label__sub">Property</span>
+                  </span>
+                </template>
+              </el-menu-item>
+              <el-menu-item index="/data-element-concepts?group=concepts">
+                <template #title>
+                  <span class="menu-label">
+                    <span class="menu-label__main">{{ $t('nav.dataElementConcept') }}</span>
+                    <span class="menu-label__sub">Data Element Concept</span>
+                  </span>
+                </template>
+              </el-menu-item>
+              <el-menu-item index="/conceptual-domains?group=concepts">
+                <template #title>
+                  <span class="menu-label">
+                    <span class="menu-label__main">{{ $t('nav.conceptualDomain') }}</span>
+                    <span class="menu-label__sub">Conceptual Domain</span>
+                  </span>
+                </template>
+              </el-menu-item>
+              <el-menu-item index="/units-of-measure">
+                <template #title>
+                  <span class="menu-label">
+                    <span class="menu-label__main">{{ $t('nav.unitOfMeasure') }}</span>
+                    <span class="menu-label__sub">Unit of Measure</span>
+                  </span>
+                </template>
+              </el-menu-item>
+              <el-menu-item index="/measure-classes">
+                <template #title>
+                  <span class="menu-label">
+                    <span class="menu-label__main">{{ $t('nav.measureClass') }}</span>
+                    <span class="menu-label__sub">Measure Class</span>
+                  </span>
+                </template>
+              </el-menu-item>
+              <el-menu-item index="/dimensionality">
+                <template #title>
+                  <span class="menu-label">
+                    <span class="menu-label__main">{{ $t('nav.dimensionality') }}</span>
+                    <span class="menu-label__sub">Dimensionality</span>
+                  </span>
+                </template>
+              </el-menu-item>
             </el-sub-menu>
 
             <!-- 表示区域 -->
@@ -165,10 +291,38 @@
                   <span class="menu-label__sub">Representation</span>
                 </span>
               </template>
-              <el-menu-item index="/data-elements">{{ $t('nav.dataElement') }}</el-menu-item>
-              <el-menu-item index="/value-domains">{{ $t('nav.valueDomain') }}</el-menu-item>
-              <el-menu-item index="/data-types">{{ $t('nav.dataType') }}</el-menu-item>
-              <el-menu-item index="/data-type-schemes">{{ $t('nav.dataTypeScheme') }}</el-menu-item>
+              <el-menu-item index="/data-elements">
+                <template #title>
+                  <span class="menu-label">
+                    <span class="menu-label__main">{{ $t('nav.dataElement') }}</span>
+                    <span class="menu-label__sub">Data Element</span>
+                  </span>
+                </template>
+              </el-menu-item>
+              <el-menu-item index="/value-domains">
+                <template #title>
+                  <span class="menu-label">
+                    <span class="menu-label__main">{{ $t('nav.valueDomain') }}</span>
+                    <span class="menu-label__sub">Value Domain</span>
+                  </span>
+                </template>
+              </el-menu-item>
+              <el-menu-item index="/data-types">
+                <template #title>
+                  <span class="menu-label">
+                    <span class="menu-label__main">{{ $t('nav.dataType') }}</span>
+                    <span class="menu-label__sub">Data Type</span>
+                  </span>
+                </template>
+              </el-menu-item>
+              <el-menu-item index="/data-type-schemes">
+                <template #title>
+                  <span class="menu-label">
+                    <span class="menu-label__main">{{ $t('nav.dataTypeScheme') }}</span>
+                    <span class="menu-label__sub">Data Type Scheme</span>
+                  </span>
+                </template>
+              </el-menu-item>
             </el-sub-menu>
 
             <!-- 分类与映射 -->
@@ -180,10 +334,38 @@
                   <span class="menu-label__sub">Classify & Map</span>
                 </span>
               </template>
-              <el-menu-item index="/classification">{{ $t('nav.classificationManagement') }}</el-menu-item>
-              <el-menu-item index="/mapping-schemes">{{ $t('nav.mappingScheme') }}</el-menu-item>
-              <el-menu-item index="/mapping-network">{{ $t('nav.mappingNetwork') }}</el-menu-item>
-              <el-menu-item index="/interop-mappings">{{ $t('nav.interopMappings') }}</el-menu-item>
+              <el-menu-item index="/classification">
+                <template #title>
+                  <span class="menu-label">
+                    <span class="menu-label__main">{{ $t('nav.classificationManagement') }}</span>
+                    <span class="menu-label__sub">Classification</span>
+                  </span>
+                </template>
+              </el-menu-item>
+              <el-menu-item index="/mapping-schemes">
+                <template #title>
+                  <span class="menu-label">
+                    <span class="menu-label__main">{{ $t('nav.mappingScheme') }}</span>
+                    <span class="menu-label__sub">Mapping Scheme</span>
+                  </span>
+                </template>
+              </el-menu-item>
+              <el-menu-item index="/mapping-network">
+                <template #title>
+                  <span class="menu-label">
+                    <span class="menu-label__main">{{ $t('nav.mappingNetwork') }}</span>
+                    <span class="menu-label__sub">Mapping Network</span>
+                  </span>
+                </template>
+              </el-menu-item>
+              <el-menu-item index="/interop-mappings">
+                <template #title>
+                  <span class="menu-label">
+                    <span class="menu-label__main">{{ $t('nav.interopMappings') }}</span>
+                    <span class="menu-label__sub">Interop Mapping</span>
+                  </span>
+                </template>
+              </el-menu-item>
             </el-sub-menu>
 
             <!-- 系统 -->
@@ -195,8 +377,22 @@
                   <span class="menu-label__sub">System</span>
                 </span>
               </template>
-              <el-menu-item index="/app-users">{{ $t('nav.userManagement') }}</el-menu-item>
-              <el-menu-item index="/system-settings">{{ $t('nav.systemSettings') }}</el-menu-item>
+              <el-menu-item index="/app-users">
+                <template #title>
+                  <span class="menu-label">
+                    <span class="menu-label__main">{{ $t('nav.userManagement') }}</span>
+                    <span class="menu-label__sub">User Management</span>
+                  </span>
+                </template>
+              </el-menu-item>
+              <el-menu-item index="/system-settings">
+                <template #title>
+                  <span class="menu-label">
+                    <span class="menu-label__main">{{ $t('nav.systemSettings') }}</span>
+                    <span class="menu-label__sub">System Settings</span>
+                  </span>
+                </template>
+              </el-menu-item>
             </el-sub-menu>
           </el-menu>
         </el-scrollbar>

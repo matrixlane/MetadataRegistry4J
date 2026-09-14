@@ -25,6 +25,31 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* 菜单双行标签基础结构（全局定义，折叠弹出层同样生效） */
+.menu-label {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  line-height: 1.25;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.menu-label__main {
+  font-size: 14px;
+  transition: font-size 0.25s ease;
+}
+
+.menu-label__sub {
+  font-size: 11px;
+  color: #7fa38b;
+  letter-spacing: 0.3px;
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  transition: max-height 0.25s ease, opacity 0.25s ease;
+}
+
 /* Login layout */
 .login-layout {
   display: flex;
@@ -308,30 +333,7 @@ body {
       }
 
       // 双行菜单标签（主标题 + 英文副标题，参照 EMS demo）：
-      // 副标题默认隐藏，仅在条目激活时展开显示
-      .menu-label {
-        display: flex;
-        flex-direction: column;
-        gap: 1px;
-        line-height: 1.25;
-        overflow: hidden;
-        white-space: nowrap;
-      }
-
-      .menu-label__main {
-        font-size: 14px;
-        transition: font-size 0.25s ease;
-      }
-
-      .menu-label__sub {
-        font-size: 11px;
-        color: #7fa38b;
-        letter-spacing: 0.3px;
-        max-height: 0;
-        opacity: 0;
-        overflow: hidden;
-        transition: max-height 0.25s ease, opacity 0.25s ease;
-      }
+      // 副标题默认隐藏，仅在条目激活时展开显示（基础结构见文件顶部全局定义）
 
       .el-menu-item,
       .el-sub-menu__title {
@@ -425,7 +427,7 @@ body {
         color: var(--app-sidebar-text);
       }
 
-      // 子项保持单行紧凑形态
+      // 子项默认单行紧凑；激活时同样展开副标题与更大标题
       .el-sub-menu .el-menu-item {
         margin: 2px 10px 2px 26px;
         height: 40px;
@@ -433,7 +435,8 @@ body {
         font-size: 13px;
 
         &.is-active {
-          height: 40px;
+          height: 54px;
+          line-height: 1.25;
         }
 
         &.is-active::after {
