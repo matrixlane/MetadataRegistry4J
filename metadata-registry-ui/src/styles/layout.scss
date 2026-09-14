@@ -193,16 +193,23 @@ body {
         padding: 14px 0;
       }
 
-      // 折叠态：菜单项仅保留居中图标，隐藏双行标签与展开箭头
+      // 折叠态：菜单项仅保留居中图标，隐藏双行标签与展开箭头。
+      // 图标用绝对定位居中，不受 flex 布局/内外边距/浏览器亚像素舍入影响。
       .el-menu-item,
       .el-sub-menu__title {
-        justify-content: center;
+        position: relative;
         padding: 0 !important;
         height: 44px !important;
         line-height: 44px;
 
-        .el-icon {
-          margin-right: 0;
+        // 注：折叠态 EP 会在叶子项内部再包一层 tooltip trigger，
+        // 图标不是 li 的直接子元素，这里必须用后代选择器
+        .el-icon:not(.el-sub-menu__icon-arrow) {
+          position: absolute;
+          left: 50%;
+          top: 50%;
+          transform: translate(-50%, -50%);
+          margin: 0 !important;
         }
       }
 
