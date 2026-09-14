@@ -79,7 +79,7 @@
             :placeholder="$t('namingConvention.authorityRulePlaceholder')"
           />
         </el-form-item>
-        <el-form-item :label="$t('common.name') + ' / ' + $t('common.description')">
+        <el-form-item>
           <DesignationDefinitionSection
             :designations="form.designations"
             :definitions="form.definitions"

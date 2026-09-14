@@ -93,6 +93,8 @@
       type="primary"
       size="small"
       text
+      class="add-row-btn"
+      :class="{ 'is-empty': !modelValue.length }"
       @click="addRow"
     >
       <el-icon><Plus /></el-icon>
@@ -189,12 +191,29 @@ function removeContext(rowIndex: number, ctxIndex: number) {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  align-items: flex-start;
 }
 .text-line-card {
+  align-self: stretch;
   background: #f8fafc;
   border-radius: 8px;
   padding: 10px 12px;
   border: 1px solid #f1f5f9;
+}
+.add-row-btn.is-empty {
+  align-self: stretch;
+  width: 100%;
+  height: auto;
+  margin-left: 0;
+  padding: 18px 0;
+  border: 1.5px dashed var(--el-border-color);
+  border-radius: 8px;
+  color: var(--el-color-primary);
+  background: var(--el-fill-color-blank);
+}
+.add-row-btn.is-empty:hover {
+  border-color: var(--el-color-primary);
+  background: #f0f7f2;
 }
 .text-line-row {
   display: flex;

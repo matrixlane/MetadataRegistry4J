@@ -61,16 +61,14 @@
         <el-tabs v-model="activeTab" type="border-card">
           <!-- 基础信息 -->
           <el-tab-pane :label="$t('namespace.sectionBasic')" name="basic">
-            <el-form-item :label="$t('common.name') + ' / ' + $t('common.description')">
-              <DesignationDefinitionSection
-                :designations="form.designations"
-                :definitions="form.definitions"
-                :show-pairings="false"
-                :default-language-id="defaultLanguageId || undefined"
-                @update:designations="form.designations = $event"
-                @update:definitions="form.definitions = $event"
-              />
-            </el-form-item>
+            <DesignationDefinitionSection
+              :designations="form.designations"
+              :definitions="form.definitions"
+              :show-pairings="false"
+              :default-language-id="defaultLanguageId || undefined"
+              @update:designations="form.designations = $event"
+              @update:definitions="form.definitions = $event"
+            />
           </el-tab-pane>
 
           <!-- ISO 治理属性 -->
