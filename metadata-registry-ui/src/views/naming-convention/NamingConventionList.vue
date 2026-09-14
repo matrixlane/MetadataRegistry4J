@@ -48,47 +48,68 @@
       @success="tableRef?.fetchData()"
     >
       <template #fields="{ form }">
-        <ItemRegistrationSection
-          ref="regSection"
-          v-model="form.registration"
-          :is-editing="!!editingId"
-          :registration-authority-name="editingRaName"
-        />
-        <el-divider content-position="left">{{ $t('namingConvention.scopeRule') }}</el-divider>
-        <el-form-item :label="$t('namingConvention.scopeRule')" required>
-          <template #label>
-            <span>{{ $t('namingConvention.scopeRule') }}</span>
-            <el-tooltip :content="$t('namingConvention.scopeRuleTip')" placement="top">
-              <el-icon style="margin-left: 4px;"><QuestionFilled /></el-icon>
-            </el-tooltip>
-          </template>
-          <el-input
-            v-model="form.scopeRule"
-            :placeholder="$t('namingConvention.scopeRulePlaceholder')"
-          />
-        </el-form-item>
-        <el-form-item>
-          <template #label>
-            <span>{{ $t('namingConvention.authorityRule') }}</span>
-            <el-tooltip :content="$t('namingConvention.authorityRuleTip')" placement="top">
-              <el-icon style="margin-left: 4px;"><QuestionFilled /></el-icon>
-            </el-tooltip>
-          </template>
-          <el-input
-            v-model="form.authorityRule"
-            :placeholder="$t('namingConvention.authorityRulePlaceholder')"
-          />
-        </el-form-item>
-        <el-form-item>
-          <DesignationDefinitionSection
-            :designations="form.designations"
-            :definitions="form.definitions"
-            :show-pairings="false"
-            :default-language-id="defaultLanguageId || undefined"
-            @update:designations="form.designations = $event"
-            @update:definitions="form.definitions = $event"
-          />
-        </el-form-item>
+        <el-tabs v-model="activeTab" type="border-card">
+          <!-- 注册标识 -->
+          <el-tab-pane label="注册标识" name="registration">
+            <ItemRegistrationSection
+              ref="regSection"
+              v-model="form.registration"
+              :is-editing="!!editingId"
+              :registration-authority-name="editingRaName"
+            />
+          </el-tab-pane>
+
+          <!-- 指称（与数据元等注册项弹窗一致的独立页签） -->
+          <el-tab-pane label="指称" name="designations">
+            <el-form-item label="指称">
+              <MultilingualTextEditor
+                v-model="form.designations"
+                label="指称"
+                :default-language-id="defaultLanguageId || undefined"
+              />
+            </el-form-item>
+          </el-tab-pane>
+
+          <!-- 定义 -->
+          <el-tab-pane label="定义" name="definitions">
+            <el-form-item label="定义">
+              <MultilingualTextEditor
+                v-model="form.definitions"
+                label="定义"
+                multiline
+                :default-language-id="defaultLanguageId || undefined"
+              />
+            </el-form-item>
+          </el-tab-pane>
+
+          <!-- 属性 -->
+          <el-tab-pane label="属性" name="attributes">
+            <el-form-item :label="$t('namingConvention.scopeRule')" required>
+              <template #label>
+                <span>{{ $t('namingConvention.scopeRule') }}</span>
+                <el-tooltip :content="$t('namingConvention.scopeRuleTip')" placement="top">
+                  <el-icon style="margin-left: 4px;"><QuestionFilled /></el-icon>
+                </el-tooltip>
+              </template>
+              <el-input
+                v-model="form.scopeRule"
+                :placeholder="$t('namingConvention.scopeRulePlaceholder')"
+              />
+            </el-form-item>
+            <el-form-item>
+              <template #label>
+                <span>{{ $t('namingConvention.authorityRule') }}</span>
+                <el-tooltip :content="$t('namingConvention.authorityRuleTip')" placement="top">
+                  <el-icon style="margin-left: 4px;"><QuestionFilled /></el-icon>
+                </el-tooltip>
+              </template>
+              <el-input
+                v-model="form.authorityRule"
+                :placeholder="$t('namingConvention.authorityRulePlaceholder')"
+              />
+            </el-form-item>
+          </el-tab-pane>
+        </el-tabs>
       </template>
     </ResourceFormDialog>
   </div>
@@ -107,12 +128,13 @@ import type {
 } from '@/types/common';
 import DataTablePage from '@/components/DataTablePage.vue';
 import ResourceFormDialog from '@/components/ResourceFormDialog.vue';
-import DesignationDefinitionSection from '@/components/DesignationDefinitionSection.vue';
+import MultilingualTextEditor from '@/components/MultilingualTextEditor.vue';
 import ItemRegistrationSection from '@/components/ItemRegistrationSection.vue';
 import { useRegistryDefaultLanguage } from '@/composables/useRegistryDefaultLanguage';
 
 const tableRef = ref<InstanceType<typeof DataTablePage>>();
 const dialog = ref<InstanceType<typeof ResourceFormDialog>>();
+const activeTab = ref('registration');
 const regSection = ref<InstanceType<typeof ItemRegistrationSection>>();
 const { defaultLanguageId } = useRegistryDefaultLanguage();
 

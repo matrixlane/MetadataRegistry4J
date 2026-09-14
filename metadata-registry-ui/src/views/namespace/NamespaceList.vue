@@ -59,16 +59,27 @@
     >
       <template #fields="{ form }">
         <el-tabs v-model="activeTab" type="border-card">
-          <!-- 基础信息 -->
-          <el-tab-pane :label="$t('namespace.sectionBasic')" name="basic">
-            <DesignationDefinitionSection
-              :designations="form.designations"
-              :definitions="form.definitions"
-              :show-pairings="false"
-              :default-language-id="defaultLanguageId || undefined"
-              @update:designations="form.designations = $event"
-              @update:definitions="form.definitions = $event"
-            />
+          <!-- 指称（与数据元等注册项弹窗一致的独立页签） -->
+          <el-tab-pane label="指称" name="designations">
+            <el-form-item label="指称">
+              <MultilingualTextEditor
+                v-model="form.designations"
+                label="指称"
+                :default-language-id="defaultLanguageId || undefined"
+              />
+            </el-form-item>
+          </el-tab-pane>
+
+          <!-- 定义 -->
+          <el-tab-pane label="定义" name="definitions">
+            <el-form-item label="定义">
+              <MultilingualTextEditor
+                v-model="form.definitions"
+                label="定义"
+                multiline
+                :default-language-id="defaultLanguageId || undefined"
+              />
+            </el-form-item>
           </el-tab-pane>
 
           <!-- ISO 治理属性 -->
@@ -430,13 +441,13 @@ import type {
 } from '@/types/common';
 import DataTablePage from '@/components/DataTablePage.vue';
 import ResourceFormDialog from '@/components/ResourceFormDialog.vue';
-import DesignationDefinitionSection from '@/components/DesignationDefinitionSection.vue';
+import MultilingualTextEditor from '@/components/MultilingualTextEditor.vue';
 import { useRegistryDefaultLanguage } from '@/composables/useRegistryDefaultLanguage';
 import SegmentTemplateDesigner from '@/components/identifier/SegmentTemplateDesigner.vue';
 
 const tableRef = ref<InstanceType<typeof DataTablePage>>();
 const dialog = ref<InstanceType<typeof ResourceFormDialog>>();
-const activeTab = ref('basic');
+const activeTab = ref('designations');
 
 const { defaultLanguageId } = useRegistryDefaultLanguage();
 
@@ -509,7 +520,7 @@ function handleCreate() {
   editingId.value = null;
   formKind.value = '';
   strategyView.value = null;
-  activeTab.value = 'basic';
+  activeTab.value = 'designations';
   dialog.value?.open({
     identifierInputMode: 'AUTO_WITH_OVERRIDE',
     versionInputMode: 'AUTO_WITH_OVERRIDE',
@@ -524,7 +535,7 @@ function handleCreate() {
 }
 
 async function handleEdit(row: NamespaceResponse) {
-  activeTab.value = 'basic';
+  activeTab.value = 'designations';
   try {
     const detail = await namespaceApi.detail(row.id);
     editingId.value = detail.id;

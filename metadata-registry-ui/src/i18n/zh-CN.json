@@ -201,7 +201,6 @@
     "delete": "删除命名空间",
     "deleteConfirm": "确认删除命名空间「{label}」？此操作不可恢复。",
     "deleteHasContent": "该命名空间下还有 {count} 个标识符 / 子命名空间，确认一并删除？",
-    "sectionBasic": "基础信息",
     "sectionGovernance": "ISO 治理属性",
     "sectionReferences": "关联引用",
     "sectionIdentifierPolicy": "标识生成策略",
