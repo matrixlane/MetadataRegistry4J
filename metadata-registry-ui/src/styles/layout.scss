@@ -114,7 +114,27 @@ body {
     .header-right {
       display: flex;
       align-items: center;
-      gap: 16px;
+      gap: 14px;
+
+      // 标签与文字按钮加大加粗，摆脱单薄感
+      .el-tag {
+        height: auto;
+        padding: 6px 14px;
+        font-size: 13px;
+        font-weight: 500;
+        box-shadow: 0 1px 3px rgba(22, 163, 74, 0.12);
+        transition: all 0.2s ease;
+
+        &:hover {
+          box-shadow: 0 2px 8px rgba(22, 163, 74, 0.2);
+          transform: translateY(-1px);
+        }
+      }
+
+      .el-button {
+        font-size: 14px;
+        font-weight: 500;
+      }
     }
   }
 
@@ -138,6 +158,38 @@ body {
 
     &.collapsed {
       width: var(--app-sidebar-collapsed-width);
+
+      .sidebar-header {
+        height: auto;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        gap: 10px;
+        padding: 14px 0;
+      }
+
+      // 折叠态：菜单项仅保留居中图标，隐藏双行标签与展开箭头
+      .el-menu-item,
+      .el-sub-menu__title {
+        justify-content: center;
+        padding: 0 !important;
+        height: 44px;
+        line-height: 44px;
+
+        .el-icon {
+          margin-right: 0;
+        }
+      }
+
+      .menu-label,
+      .el-sub-menu__icon-arrow {
+        display: none !important;
+      }
+
+      .sidebar-footer-item {
+        justify-content: center;
+        padding: 0;
+      }
 
       :deep(.el-menu-item-group__title) {
         display: none !important;
@@ -255,26 +307,78 @@ body {
         line-height: 1;
       }
 
+      // 双行菜单标签（主标题 + 英文副标题，参照 EMS demo）
+      .menu-label {
+        display: flex;
+        flex-direction: column;
+        gap: 1px;
+        line-height: 1.25;
+        overflow: hidden;
+        white-space: nowrap;
+      }
+
+      .menu-label__main {
+        font-size: 14px;
+      }
+
+      .menu-label__sub {
+        font-size: 11px;
+        color: #7fa38b;
+        letter-spacing: 0.3px;
+      }
+
       .el-menu-item,
       .el-sub-menu__title {
         color: var(--app-sidebar-text);
         margin: 3px 10px;
         border-radius: 8px;
-        height: 44px;
-        line-height: 44px;
-        transition: all 0.2s ease;
+        height: 54px;
+        line-height: 1.25;
+        position: relative;
+        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 
         &:hover {
           background: var(--app-sidebar-hover-bg);
           color: #ffffff;
-          transform: translateX(2px);
+          transform: translateX(3px);
+          box-shadow: 0 4px 10px rgba(0, 0, 0, 0.18);
+
+          .menu-label__sub {
+            color: #a8cbb2;
+          }
         }
 
         &.is-active {
           color: var(--app-sidebar-active-text);
           background: linear-gradient(90deg, #4ade80, #22c55e);
           font-weight: 600;
-          box-shadow: 0 4px 14px rgba(74, 222, 128, 0.35);
+          box-shadow: 0 6px 16px rgba(74, 222, 128, 0.4);
+
+          .menu-label__sub {
+            color: rgba(20, 48, 31, 0.72);
+          }
+
+          // 激活项右侧指示点
+          &::after {
+            content: '';
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #14301f;
+          }
+        }
+      }
+
+      // 子菜单含激活项时，父级图标亮起提示
+      .el-sub-menu.is-active > .el-sub-menu__title {
+        color: #ffffff;
+
+        > .el-icon {
+          color: #4ade80;
         }
       }
 
@@ -282,11 +386,16 @@ body {
         color: var(--app-sidebar-text);
       }
 
+      // 子项保持单行紧凑形态
       .el-sub-menu .el-menu-item {
         margin: 2px 10px 2px 26px;
         height: 40px;
         line-height: 40px;
         font-size: 13px;
+
+        &.is-active::after {
+          display: none;
+        }
       }
     }
   }
@@ -456,6 +565,7 @@ body {
   border-radius: 8px;
   overflow: hidden;
 
+
   .el-table__header-wrapper {
     th.el-table__cell {
       background: #f0f7f2;
@@ -471,6 +581,27 @@ body {
 
     &:hover {
       background: #f5faf6;
+    }
+  }
+
+  // 操作列文字按钮：加粗 + 悬浮底色，摆脱单薄感
+  .el-table__cell {
+    .el-button.is-text,
+    .el-button.is-link {
+      padding: 5px 10px;
+      border-radius: 6px;
+      font-weight: 600;
+      transition: all 0.2s ease;
+    }
+
+    .el-button--primary.is-text:hover,
+    .el-button--primary.is-link:hover {
+      background: #e8f6ed;
+    }
+
+    .el-button--danger.is-text:hover,
+    .el-button--danger.is-link:hover {
+      background: #fef2f2;
     }
   }
 }

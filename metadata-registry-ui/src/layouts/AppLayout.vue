@@ -7,7 +7,7 @@
           trigger="click"
           @command="switchActiveRegistrar"
         >
-          <el-tag type="success" size="small" effect="light" round style="cursor: pointer;" data-testid="header-active-registrar">
+          <el-tag type="success" effect="light" round style="cursor: pointer;" data-testid="header-active-registrar">
             {{ activeRegistrar.active?.registrationAuthorityName || '选择 Registrar 身份' }}
             <el-icon style="margin-left: 4px;"><ArrowDown /></el-icon>
           </el-tag>
@@ -27,7 +27,6 @@
         <el-tag
           v-else-if="activeRegistrar.active"
           type="success"
-          size="small"
           effect="light"
           round
           data-testid="header-active-registrar"
@@ -36,11 +35,11 @@
         </el-tag>
       </div>
       <div class="header-right" data-testid="header-right">
-        <el-tag v-if="auth.user" type="primary" size="small" effect="light" round style="cursor: pointer;" @click="goToProfile" data-testid="header-user-tag">
+        <el-tag v-if="auth.user" type="primary" effect="light" round style="cursor: pointer;" @click="goToProfile" data-testid="header-user-tag">
           <el-icon><UserFilled /></el-icon>
           {{ auth.user.displayName || auth.user.username }}
         </el-tag>
-        <el-button text type="primary" size="small" @click="handleLogout" data-testid="header-logout-btn">
+        <el-button text type="primary" @click="handleLogout" data-testid="header-logout-btn">
           <el-icon><SwitchButton /></el-icon>
           {{ $t('auth.logout') }}
         </el-button>
@@ -87,20 +86,33 @@
             <!-- 概览 -->
             <el-menu-item index="/dashboard">
               <el-icon><DataLine /></el-icon>
-              <template #title>{{ $t('nav.dashboard') }}</template>
+              <template #title>
+                <span class="menu-label">
+                  <span class="menu-label__main">{{ $t('nav.dashboard') }}</span>
+                  <span class="menu-label__sub">Overview</span>
+                </span>
+              </template>
             </el-menu-item>
 
             <!-- 数据字典 -->
             <el-menu-item index="/data-dictionary">
               <el-icon><Reading /></el-icon>
-              <template #title>{{ $t('nav.dictionary') }}</template>
+              <template #title>
+                <span class="menu-label">
+                  <span class="menu-label__main">{{ $t('nav.dictionary') }}</span>
+                  <span class="menu-label__sub">Data Dictionary</span>
+                </span>
+              </template>
             </el-menu-item>
 
             <!-- 注册通用设施 -->
             <el-sub-menu index="/common-facilities-group">
               <template #title>
                 <el-icon><OfficeBuilding /></el-icon>
-                <span>{{ $t('nav.commonFacilities') }}</span>
+                <span class="menu-label">
+                  <span class="menu-label__main">{{ $t('nav.commonFacilities') }}</span>
+                  <span class="menu-label__sub">Common Facilities</span>
+                </span>
               </template>
               <el-menu-item index="/registration-authorities">{{ $t('nav.registrationAuthority') }}</el-menu-item>
               <el-menu-item index="/registry-specifications">{{ $t('nav.registrySpecification') }}</el-menu-item>
@@ -115,7 +127,10 @@
             <el-sub-menu index="/party-document-group">
               <template #title>
                 <el-icon><User /></el-icon>
-                <span>{{ $t('nav.partyAndDocument') }}</span>
+                <span class="menu-label">
+                  <span class="menu-label__main">{{ $t('nav.partyAndDocument') }}</span>
+                  <span class="menu-label__sub">Party & Documents</span>
+                </span>
               </template>
               <el-menu-item index="/organizations">{{ $t('nav.organization') }}</el-menu-item>
               <el-menu-item index="/individuals">{{ $t('nav.individual') }}</el-menu-item>
@@ -127,7 +142,10 @@
             <el-sub-menu index="/concept-region-group">
               <template #title>
                 <el-icon><SetUp /></el-icon>
-                <span>{{ $t('nav.conceptRegion') }}</span>
+                <span class="menu-label">
+                  <span class="menu-label__main">{{ $t('nav.conceptRegion') }}</span>
+                  <span class="menu-label__sub">Concept Region</span>
+                </span>
               </template>
               <el-menu-item index="/object-classes">{{ $t('nav.objectClass') }}</el-menu-item>
               <el-menu-item index="/properties">{{ $t('nav.property') }}</el-menu-item>
@@ -142,7 +160,10 @@
             <el-sub-menu index="/representation-region-group">
               <template #title>
                 <el-icon><Document /></el-icon>
-                <span>{{ $t('nav.representationRegion') }}</span>
+                <span class="menu-label">
+                  <span class="menu-label__main">{{ $t('nav.representationRegion') }}</span>
+                  <span class="menu-label__sub">Representation</span>
+                </span>
               </template>
               <el-menu-item index="/data-elements">{{ $t('nav.dataElement') }}</el-menu-item>
               <el-menu-item index="/value-domains">{{ $t('nav.valueDomain') }}</el-menu-item>
@@ -154,7 +175,10 @@
             <el-sub-menu index="/classification-mapping-group">
               <template #title>
                 <el-icon><Connection /></el-icon>
-                <span>{{ $t('nav.classificationAndMapping') }}</span>
+                <span class="menu-label">
+                  <span class="menu-label__main">{{ $t('nav.classificationAndMapping') }}</span>
+                  <span class="menu-label__sub">Classify & Map</span>
+                </span>
               </template>
               <el-menu-item index="/classification">{{ $t('nav.classificationManagement') }}</el-menu-item>
               <el-menu-item index="/mapping-schemes">{{ $t('nav.mappingScheme') }}</el-menu-item>
@@ -166,7 +190,10 @@
             <el-sub-menu v-if="auth.isAdmin" index="/system-group">
               <template #title>
                 <el-icon><Setting /></el-icon>
-                <span>{{ $t('nav.system') }}</span>
+                <span class="menu-label">
+                  <span class="menu-label__main">{{ $t('nav.system') }}</span>
+                  <span class="menu-label__sub">System</span>
+                </span>
               </template>
               <el-menu-item index="/app-users">{{ $t('nav.userManagement') }}</el-menu-item>
               <el-menu-item index="/system-settings">{{ $t('nav.systemSettings') }}</el-menu-item>
