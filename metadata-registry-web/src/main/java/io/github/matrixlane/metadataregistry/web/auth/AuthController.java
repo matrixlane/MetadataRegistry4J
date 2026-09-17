@@ -5,6 +5,8 @@ import io.github.matrixlane.metadataregistry.web.auth.dto.LoginRequest;
 import io.github.matrixlane.metadataregistry.web.auth.dto.LoginResponse;
 import io.github.matrixlane.metadataregistry.web.auth.dto.AccountProfileResponse;
 import io.github.matrixlane.metadataregistry.web.auth.dto.AccountCreateRequest;
+import io.github.matrixlane.metadataregistry.web.auth.dto.AvatarRequest;
+import io.github.matrixlane.metadataregistry.web.auth.dto.AvatarResponse;
 import io.github.matrixlane.metadataregistry.web.common.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -13,6 +15,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -73,6 +76,27 @@ public class AuthController {
     public ApiResponse<IndividualResponse> updateMyIndividual(@AuthenticationPrincipal AuthenticatedUser user,
                                                                @Valid @RequestBody IndividualRequest request) {
         return ApiResponse.ok(authService.updateMyIndividual(user.id(), request));
+    }
+
+    @GetMapping("/me/individual/avatar")
+    @Operation(summary = "获取当前登录用户的头像（dataUrl，未设置时为 null）")
+    public ApiResponse<AvatarResponse> getMyAvatar(@AuthenticationPrincipal AuthenticatedUser user) {
+        return ApiResponse.ok(new AvatarResponse(authService.getMyAvatar(user.id())));
+    }
+
+    @PutMapping("/me/individual/avatar")
+    @Operation(summary = "上传当前登录用户的头像（data URL，PNG/JPEG/WebP，≤2MB）")
+    public ApiResponse<Void> updateMyAvatar(@AuthenticationPrincipal AuthenticatedUser user,
+                                            @Valid @RequestBody AvatarRequest request) {
+        authService.updateMyAvatar(user.id(), request.dataUrl());
+        return ApiResponse.ok();
+    }
+
+    @DeleteMapping("/me/individual/avatar")
+    @Operation(summary = "删除当前登录用户的头像")
+    public ApiResponse<Void> deleteMyAvatar(@AuthenticationPrincipal AuthenticatedUser user) {
+        authService.deleteMyAvatar(user.id());
+        return ApiResponse.ok();
     }
 
     @PostMapping("/change-password")

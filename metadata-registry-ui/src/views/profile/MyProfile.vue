@@ -9,11 +9,12 @@
         <div class="blob blob-3"></div>
       </div>
       <div class="banner-content">
-        <div class="avatar-wrapper">
-          <el-avatar :size="110" class="profile-avatar" icon="UserFilled" />
+        <div class="avatar-wrapper" @click="triggerFilePick" v-loading="avatarUploading" element-loading-background="rgba(255,255,255,0.6)">
+          <el-avatar :size="110" class="profile-avatar" :src="avatarDataUrl || undefined" icon="UserFilled" />
           <div class="avatar-hover-overlay">
             <el-icon><Camera /></el-icon>
           </div>
+          <input ref="fileInputRef" type="file" accept="image/png,image/jpeg,image/webp" style="display: none" @change="handleFileChange" />
         </div>
         <div class="profile-title-info">
           <div class="name-row">
@@ -235,6 +236,54 @@ const formRef = ref<FormInstance>();
 const loading = ref(false);
 const saving = ref(false);
 const activeTab = ref('basic');
+const avatarDataUrl = ref<string>('');
+const avatarUploading = ref(false);
+const fileInputRef = ref<HTMLInputElement>();
+
+const AVATAR_MAX_BYTES = 2 * 1024 * 1024;
+
+async function loadAvatar() {
+  try {
+    const res = await request.get<any>('/auth/me/individual/avatar');
+    avatarDataUrl.value = res?.dataUrl || '';
+  } catch {
+    avatarDataUrl.value = '';
+  }
+}
+
+function triggerFilePick() {
+  fileInputRef.value?.click();
+}
+
+function handleFileChange(event: Event) {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (!file) return;
+  if (file.size > AVATAR_MAX_BYTES) {
+    ElMessage.error('头像大小不能超过 2MB');
+    input.value = '';
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = async () => {
+    avatarUploading.value = true;
+    try {
+      await request.put('/auth/me/individual/avatar', { dataUrl: reader.result });
+      avatarDataUrl.value = reader.result as string;
+      ElMessage.success('头像已更新');
+    } catch {
+      // 全局拦截器已提示错误原因，此处仅终止流程、保留原头像
+    } finally {
+      avatarUploading.value = false;
+      input.value = '';
+    }
+  };
+  reader.onerror = () => {
+    ElMessage.error('读取文件失败');
+    input.value = '';
+  };
+  reader.readAsDataURL(file);
+}
 
 const form = reactive({
   name: '',
@@ -341,6 +390,7 @@ function formatDate(val: string | null | undefined) {
 
 onMounted(() => {
   loadProfile();
+  loadAvatar();
 });
 </script>
 
@@ -413,7 +463,6 @@ onMounted(() => {
       display: flex;
       align-items: flex-end;
       padding: 0 40px 30px;
-      margin-top: -50px;
       gap: 28px;
       position: relative;
       z-index: 10;
@@ -422,6 +471,7 @@ onMounted(() => {
         position: relative;
         border-radius: 50%;
         cursor: pointer;
+        margin-top: -60px;
         
         .profile-avatar {
           border: 5px solid #ffffff;
