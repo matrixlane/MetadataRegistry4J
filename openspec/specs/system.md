@@ -10,7 +10,7 @@
 
 | 层级 | 技术 |
 |------|------|
-| **后端** | Spring Boot 3.3.4 + Java 17 + Maven 多模块 |
+| **后端** | Spring Boot 3.5.0 + Java 17 + Maven 多模块 |
 | **数据库** | SQL Server + HikariCP + JPA/Hibernate + Flyway 迁移 |
 | **安全** | Spring Security + JWT (jjwt) |
 | **API 文档** | SpringDoc OpenAPI (Swagger UI) |

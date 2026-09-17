@@ -6,15 +6,15 @@
 | 组件 | 版本 / 选型 | 说明 |
 |------|-------------|------|
 | JDK | 17 | `maven.compiler.source/target` 锁定 |
-| Spring Boot | 3.3.4 | 主框架，依赖管理通过 `spring-boot-dependencies` BOM |
+| Spring Boot | 3.5.0 | 主框架，依赖管理通过 `spring-boot-dependencies` BOM |
 | 数据库 | SQL Server | 驱动 `mssql-jdbc` 12.6.3，HikariCP 5.1.0 连接池 |
 | ORM | JPA / Hibernate 6 | `SQLServerDialect`，`ddl-auto: ${DDL_AUTO:update}` |
 | 迁移 | Flyway | `baseline-on-migrate: true` |
 | 安全 | Spring Security + JWT | `jjwt` 0.12.6，无状态认证 |
-| API 文档 | SpringDoc OpenAPI | 2.6.0，Swagger UI 路径 `/swagger-ui.html` |
-| 工具库 | Lombok、MapStruct | Lombok 1.18.34（编译期注解处理器） |
+| API 文档 | SpringDoc OpenAPI | 2.8.8，Swagger UI 路径 `/swagger-ui.html` |
+| 工具库 | Lombok、MapStruct | Lombok 1.18.48（编译期注解处理器） |
 | 测试 | JUnit 5、Mockito、Testcontainers | `mssqlserver` + `jdbc` Testcontainers 1.20.1 |
-| 覆盖率 | JaCoCo | 0.8.12，绑定到 `test` phase 生成报告 |
+| 覆盖率 | JaCoCo | 0.8.15，绑定到 `test` phase 生成报告 |
 
 ### 前端
 | 组件 | 版本 / 选型 | 说明 |

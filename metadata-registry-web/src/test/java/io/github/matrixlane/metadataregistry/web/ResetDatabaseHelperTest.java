@@ -9,8 +9,20 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.test.annotation.Commit;
+import org.springframework.test.context.ActiveProfiles;
 
-@SpringBootTest
+@SpringBootTest(properties = {
+        "spring.config.import=",
+        "spring.jpa.mapping-resources=",
+        "spring.datasource.url=jdbc:sqlite:file:reset-database-helper-test?mode=memory&cache=shared",
+        "spring.datasource.driver-class-name=org.sqlite.JDBC",
+        "spring.datasource.username=",
+        "spring.datasource.password=",
+        "spring.jpa.properties.hibernate.dialect=org.hibernate.community.dialect.SQLiteDialect",
+        "spring.jpa.properties.hibernate.default_schema=main",
+        "app.seed.enabled=false"
+})
+@ActiveProfiles("test")
 public class ResetDatabaseHelperTest {
 
     @Autowired

@@ -37,9 +37,9 @@ MetadataRegistry4j/
 
 | 层级 | 技术 |
 |---|---|
-| 后端 | Java 17, Spring Boot 3.3.4, Spring Data JPA, Spring Security, JWT (jjwt 0.12.6) |
+| 后端 | Java 17, Spring Boot 3.5.0, Spring Data JPA, Spring Security, JWT (jjwt 0.12.6) |
 | 数据库 | SQLite / SQL Server / 达梦（`DB_VENDOR` 选择，默认 `sqlserver`；详见 [docs/technical/](docs/technical/)） |
-| API 文档 | SpringDoc OpenAPI 2.6.0 (Swagger UI) |
+| API 文档 | SpringDoc OpenAPI 2.8.8 (Swagger UI) |
 | 前端 | Vue 3.5, TypeScript, Vite, Element Plus 2.8, Pinia, Vue Router 4, Axios |
 
 ---

@@ -247,15 +247,11 @@
                 <configuration>
                     <parameters>true</parameters>
                     <excludes>
-                        <exclude>**/MetadataExportService.java</exclude>
-                        <exclude>**/ClassificationImportExportService.java</exclude>
-                        <!-- <exclude>**/ClassificationSchemeController.java</exclude> -->
                         <exclude>**/SchemaExtractionApplicationService.java</exclude>
                         <exclude>**/InteropMappingListRequest.java</exclude>
                     </excludes>
                     <testExcludes>
                         <testExclude>**/EmailNotificationGreenMailTest.java</testExclude>
-                        <testExclude>**/ClassificationImportExportServiceTest.java</testExclude>
                     </testExcludes>
                     <annotationProcessorPaths>
                         <path>
