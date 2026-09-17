@@ -4,6 +4,7 @@ import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.prede
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.LanguageIdentification;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.Context;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.Item;
+import io.github.matrixlane.metadataregistry.commonfacilities.registration.DegreeOfConformance;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrySpecification;
 import io.github.matrixlane.metadataregistry.web.common.ResourceNotFoundException;
 import io.github.matrixlane.metadataregistry.web.dto.registries.RegistrySpecificationRequest;
@@ -96,33 +97,69 @@ public class RegistrySpecificationService {
     }
 
     /**
-     * 创建默认注册规范。标识生成策略与版本生成策略属于命名空间范畴
+     * 创建默认注册规范（仅名称/语言/描述的兼容重载）。
+     * 标识生成策略与版本生成策略属于命名空间范畴
      * （见 InitWizardService 的命名空间步骤），不由注册规范承载。
      */
    public RegistrySpecificationResponse createDefault(String registryName,
                                                     String defaultLanguage,
                                                     String description) {
+        return createDefault(registryName, defaultLanguage, description,
+                null, null, null, null, null, null, null, null, null, null, null, null);
+    }
+
+    /**
+     * 创建默认注册规范：向导步骤可携带表 28 全量标量属性，缺省项按系统默认兜底
+     * （字符集 UTF-8、标准 ISO/IEC 11179-3:2023、时区 +0800、默认语言 zh-CN）。
+     * alternativeLanguageIdentifiers 使用语言标识符（如 en-US），在此解析为语言 id。
+     */
+   public RegistrySpecificationResponse createDefault(String registryName,
+                                                    String defaultLanguage,
+                                                    String description,
+                                                    String webAddress,
+                                                    String characterRepertoire,
+                                                    String standard,
+                                                    DegreeOfConformance degreeOfConformance,
+                                                    String conformanceLevel,
+                                                    String conformanceLabel,
+                                                    String includedFeatures,
+                                                    String excludedFeatures,
+                                                    String defaultTimeZone,
+                                                    List<String> alternativeLanguageIdentifiers,
+                                                    List<String> referenceDocumentIdentifierKinds,
+                                                    String representationClassSchemeId) {
         // 名称缺省值需在名称字段与首选指称中保持一致，否则 designation 为 null
         // 会触发命名规范校验失败。
-        String effectiveName = registryName != null ? registryName : "默认元数据注册表";
+        String effectiveName = registryName != null && !registryName.isBlank() ? registryName : "默认元数据注册表";
+        String effectiveCharset = characterRepertoire != null && !characterRepertoire.isBlank()
+                ? characterRepertoire : "UTF-8";
+        String effectiveStandard = standard != null && !standard.isBlank() ? standard : "ISO/IEC 11179-3:2023";
+        String effectiveTimeZone = defaultTimeZone != null && !defaultTimeZone.isBlank() ? defaultTimeZone : "+0800";
         UUID languageId = defaultLanguageId(defaultLanguage);
+        List<UUID> altLangIds = alternativeLanguageIdentifiers == null
+                ? java.util.List.of()
+                : alternativeLanguageIdentifiers.stream()
+                        .map(this::defaultLanguageId)
+                        .filter(java.util.Objects::nonNull)
+                        .distinct()
+                        .toList();
         RegistrySpecificationRequest request = new RegistrySpecificationRequest(
                 effectiveName,
                 description,
-                null,
+                webAddress,
                 languageId,
+                altLangIds,
+                effectiveCharset,
+                referenceDocumentIdentifierKinds,
+                representationClassSchemeId,
                 null,
-                "UTF-8",
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                "+0800",
+                effectiveStandard,
+                degreeOfConformance,
+                conformanceLevel,
+                conformanceLabel,
+                includedFeatures,
+                excludedFeatures,
+                effectiveTimeZone,
                 List.of(new io.github.matrixlane.metadataregistry.web.dto.common.TextLine(languageId, effectiveName, null, null, null, true)),
                 null,
                 null);
@@ -155,7 +192,14 @@ public class RegistrySpecificationService {
         entity.setConformanceLabel(request.conformanceLabel());
         entity.setIncludedFeatures(request.includedFeatures());
         entity.setExcludedFeatures(request.excludedFeatures());
-        entity.setDefaultTimeZone(request.defaultTimeZone());
+        try {
+            entity.setDefaultTimeZone(request.defaultTimeZone());
+        } catch (IllegalArgumentException e) {
+            // 实体按 ISO/IEC 11179-3:2023 表 28 校验 [-+]HHMM 格式；
+            // 转换为业务校验异常，避免以 HTTP 500 冒泡。
+            throw new io.github.matrixlane.metadataregistry.web.common.BusinessException(
+                    io.github.matrixlane.metadataregistry.web.common.ApiCodes.VALIDATION_FAILED, e.getMessage());
+        }
 
         if (request.defaultLanguageId() != null) {
             LanguageIdentification lang = languageRepository.findById(request.defaultLanguageId())

@@ -19,7 +19,7 @@
     <el-dialog
       v-model="visible"
       :title="isEdit ? '编辑注册规范' : '新建注册规范'"
-      width="680px"
+      width="720px"
       :close-on-click-modal="false"
       destroy-on-close
       @closed="resetForm"
@@ -28,7 +28,7 @@
         ref="formRef"
         :model="form"
         :rules="rules"
-        label-width="120px"
+        label-width="130px"
       >
         <el-form-item label="名称" prop="name" required>
           <el-input v-model="form.name" />
@@ -43,7 +43,7 @@
           <el-input v-model="form.characterRepertoire" />
         </el-form-item>
         <el-form-item label="标准">
-          <el-input v-model="form.standard" />
+          <el-input v-model="form.standard" placeholder="例如：ISO/IEC 11179-3:2023" />
         </el-form-item>
         <el-form-item label="合规程度">
           <el-select v-model="form.degreeOfConformance" clearable style="width: 100%;">
@@ -63,8 +63,8 @@
         <el-form-item label="排除特性">
           <el-input v-model="form.excludedFeatures" type="textarea" :rows="2" />
         </el-form-item>
-        <el-form-item label="默认时区">
-          <el-input v-model="form.defaultTimeZone" placeholder="+0800" />
+        <el-form-item label="默认时区" prop="defaultTimeZone">
+          <el-input v-model="form.defaultTimeZone" placeholder="[-+]HHMM，如 +0800、-0230" />
         </el-form-item>
         <el-form-item label="默认语言">
           <el-select v-model="form.defaultLanguageId" clearable placeholder="选择默认语言" style="width: 100%;">
@@ -80,18 +80,68 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="中文名称" prop="zhName">
-          <el-input v-model="form.zhName" />
+        <el-form-item label="替代语言">
+          <el-select
+            v-model="form.alternativeLanguageIds"
+            multiple
+            clearable
+            placeholder="选择注册表中使用的其他语言"
+            style="width: 100%;"
+          >
+            <el-option
+              v-for="lang in languageOptions"
+              :key="lang.id"
+              :label="lang.languageIdentifier"
+              :value="lang.id"
+            />
+          </el-select>
         </el-form-item>
-        <el-form-item label="英文名称" prop="enName">
-          <el-input v-model="form.enName" />
+        <el-form-item label="上下文">
+          <el-select
+            v-model="form.contextId"
+            clearable
+            filterable
+            placeholder="注册表自身的默认上下文"
+            style="width: 100%;"
+          >
+            <el-option
+              v-for="ctx in contextOptions"
+              :key="ctx.id"
+              :label="ctx.label"
+              :value="ctx.id"
+            />
+          </el-select>
         </el-form-item>
-        <el-form-item label="中文定义">
-          <el-input v-model="form.zhDefinition" type="textarea" :rows="2" />
+        <el-form-item label="表示类方案标识">
+          <el-input v-model="form.representationClassSchemeId" placeholder="注册表表示类分类方案标识" />
         </el-form-item>
-        <el-form-item label="英文定义">
-          <el-input v-model="form.enDefinition" type="textarea" :rows="2" />
+        <el-form-item label="参考文档标识种类">
+          <el-select
+            v-model="form.referenceDocumentIdentifierKinds"
+            multiple
+            filterable
+            allow-create
+            default-first-option
+            placeholder="输入后回车添加，如 URI、内部文档编号"
+            style="width: 100%;"
+          >
+            <el-option
+              v-for="kind in form.referenceDocumentIdentifierKinds"
+              :key="kind"
+              :label="kind"
+              :value="kind"
+            />
+          </el-select>
         </el-form-item>
+        <el-divider content-position="left">指称与定义</el-divider>
+        <DesignationDefinitionSection
+          :designations="form.designations"
+          :definitions="form.definitions"
+          :show-pairings="false"
+          :default-language-id="defaultLanguageId || undefined"
+          @update:designations="form.designations = $event"
+          @update:definitions="form.definitions = $event"
+        />
         <el-divider content-position="left">注册标识</el-divider>
         <ItemRegistrationSection
           ref="regSection"
@@ -110,12 +160,21 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue';
-import { registrySpecificationApi, languageApi } from '@/api/resources';
+import { registrySpecificationApi, languageApi, contextApi } from '@/api/resources';
 import DataTablePage from '@/components/DataTablePage.vue';
 import ItemRegistrationSection from '@/components/ItemRegistrationSection.vue';
+import DesignationDefinitionSection from '@/components/DesignationDefinitionSection.vue';
+import { useRegistryDefaultLanguage } from '@/composables/useRegistryDefaultLanguage';
+import {
+  createEmptyRegistrySpecForm,
+  resetRegistrySpecForm,
+  applyRowToForm,
+  buildRegistrySpecPayload,
+  timeZoneValidator,
+  type RegistrySpecFormModel,
+} from './registrySpecForm';
 import type { FormInstance, FormRules } from 'element-plus';
 import { ElMessage } from 'element-plus';
-import type { TextLineForm } from '@/types/common';
 
 const tableRef = ref<InstanceType<typeof DataTablePage>>();
 const formRef = ref<FormInstance>();
@@ -124,9 +183,12 @@ const saving = ref(false);
 const isEdit = ref(false);
 const regSection = ref<InstanceType<typeof ItemRegistrationSection>>();
 const editingRaName = ref<string | null>(null);
-const languages = ref<Record<string, string>>({});
 const languageOptions = ref<{ id: string; languageIdentifier: string }[]>([]);
+const contextOptions = ref<{ id: string; label: string }[]>([]);
 const languagesLoaded = ref(false);
+const { defaultLanguageId, load: loadDefaultLanguage } = useRegistryDefaultLanguage();
+
+const form = reactive(createEmptyRegistrySpecForm()) as RegistrySpecFormModel;
 
 /** 语言列表加载完成前，未命中的选中值显示占位而非原始 id */
 function isPendingLanguage(value: unknown): boolean {
@@ -135,60 +197,34 @@ function isPendingLanguage(value: unknown): boolean {
   return !languageOptions.value.some((l) => l.id === value);
 }
 
-const form = reactive<Record<string, any>>({
-  name: '',
-  comment: '',
-  webAddress: '',
-  defaultLanguageId: '',
-  characterRepertoire: '',
-  standard: '',
-  degreeOfConformance: undefined,
-  conformanceLevel: '',
-  conformanceLabel: '',
-  includedFeatures: '',
-  excludedFeatures: '',
-  defaultTimeZone: '',
-  zhName: '',
-  enName: '',
-  zhDefinition: '',
-  enDefinition: '',
-  registration: {},
-});
-
 const rules: FormRules = {
   name: [{ required: true, message: '名称不能为空', trigger: 'blur' }],
   characterRepertoire: [{ required: true, message: '字符集不能为空', trigger: 'blur' }],
+  defaultTimeZone: [{ validator: timeZoneValidator, trigger: 'blur' }],
 };
 
 onMounted(async () => {
+  loadDefaultLanguage();
   try {
     const res = await languageApi.list({ size: 100 });
     languageOptions.value = (res.content || []).map((lang: any) => ({
       id: lang.id,
       languageIdentifier: lang.languageIdentifier || lang.identifier || lang.id,
     }));
-    (res.content || []).forEach((lang: any) => {
-      const key = lang.languageIdentifier || lang.identifier || '';
-      if (key) languages.value[key] = lang.id;
-    });
   } catch {
     // ignore
   } finally {
     languagesLoaded.value = true;
   }
+  try {
+    contextOptions.value = (await contextApi.options()) || [];
+  } catch {
+    // ignore
+  }
 });
 
 function resetForm() {
-  Object.keys(form).forEach((k) => {
-    if (k === 'degreeOfConformance') {
-      form[k] = undefined;
-    } else if (k === 'registration') {
-      form[k] = {};
-    } else {
-      form[k] = '';
-    }
-  });
-  form.defaultLanguageId = '';
+  resetRegistrySpecForm(form);
   formRef.value?.resetFields();
 }
 
@@ -197,34 +233,14 @@ function openDialog(row?: Record<string, any>) {
   isEdit.value = !!row?.id;
   editingRaName.value = row?.meta?.registrationAuthorityName || null;
   if (row) {
-    Object.assign(form, row);
+    applyRowToForm(form, row);
     form.registration = {
       namespaceId: row.meta?.namespaceId || undefined,
       identifier: row.meta?.identifier || undefined,
       version: row.meta?.version || undefined,
     };
-    form.defaultLanguageId = row.defaultLanguageId || '';
-    const zh = row.designations?.find((d: any) => d.languageCode === 'zh-CN' || d.languageIdentifier === 'zh-CN')?.value || '';
-    const en = row.designations?.find((d: any) => d.languageCode === 'en-US' || d.languageIdentifier === 'en-US')?.value || '';
-    form.zhName = zh;
-    form.enName = en;
-    const zhDef = row.definitions?.find((d: any) => d.languageCode === 'zh-CN' || d.languageIdentifier === 'zh-CN')?.text || '';
-    const enDef = row.definitions?.find((d: any) => d.languageCode === 'en-US' || d.languageIdentifier === 'en-US')?.text || '';
-    form.zhDefinition = zhDef;
-    form.enDefinition = enDef;
   }
   visible.value = true;
-}
-
-function buildTextLines(zhValue: string, enValue: string): TextLineForm[] {
-  const lines: TextLineForm[] = [];
-  if (zhValue && languages.value['zh-CN']) {
-    lines.push({ languageId: languages.value['zh-CN'], value: zhValue });
-  }
-  if (enValue && languages.value['en-US']) {
-    lines.push({ languageId: languages.value['en-US'], value: enValue });
-  }
-  return lines;
 }
 
 async function submit() {
@@ -238,23 +254,7 @@ async function submit() {
     }
     saving.value = true;
     try {
-      const payload: Record<string, any> = {
-        name: form.name,
-        comment: form.comment || undefined,
-        webAddress: form.webAddress || undefined,
-        characterRepertoire: form.characterRepertoire,
-        standard: form.standard || undefined,
-        degreeOfConformance: form.degreeOfConformance || undefined,
-        conformanceLevel: form.conformanceLevel || undefined,
-        conformanceLabel: form.conformanceLabel || undefined,
-        includedFeatures: form.includedFeatures || undefined,
-        excludedFeatures: form.excludedFeatures || undefined,
-        defaultTimeZone: form.defaultTimeZone || undefined,
-        defaultLanguageId: form.defaultLanguageId || undefined,
-        designations: buildTextLines(form.zhName, form.enName),
-        definitions: buildTextLines(form.zhDefinition, form.enDefinition),
-        registration: regSection.value?.buildPayload(),
-      };
+      const payload = buildRegistrySpecPayload(form, regSection.value?.buildPayload());
       if (isEdit.value && form.id) {
         await registrySpecificationApi.update(form.id, payload);
       } else {

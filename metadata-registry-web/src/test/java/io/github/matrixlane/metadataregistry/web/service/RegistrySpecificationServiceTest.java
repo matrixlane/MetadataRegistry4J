@@ -108,7 +108,103 @@ import io.github.matrixlane.metadataregistry.commonfacilities.registration.Regis
          assertThat(response.characterRepertoire()).isEqualTo("Unicode UTF-8");
      }
  
-     @DisplayName("找不到 RegistrySpecification 时应抛出 ResourceNotFoundException")
+     private RegistrySpecificationRequest requestWithTimeZone(String timeZone) {
+        return new RegistrySpecificationRequest(
+                "MetadataRegistry",
+                null,
+                null,
+                null,
+                null,
+                "Unicode UTF-8",
+                null,
+                null,
+                null,
+                "ISO/IEC 11179-3:2023",
+                DegreeOfConformance.CONFORMING,
+                null,
+                null,
+                null,
+                null,
+                timeZone,
+                List.of(new TextLine(langId, "注册规范", null, null)),
+                null,
+                null);
+    }
+
+    @Test
+    @DisplayName("创建时非法 default_time_zone 格式应抛出业务校验异常（400）")
+    void create_invalidTimeZone_shouldThrowBusinessValidation() {
+        assertThatThrownBy(() -> service.create(requestWithTimeZone("800")))
+                .isInstanceOf(io.github.matrixlane.metadataregistry.web.common.BusinessException.class)
+                .hasMessageContaining("default_time_zone");
+        assertThatThrownBy(() -> service.create(requestWithTimeZone("+08:00")))
+                .isInstanceOf(io.github.matrixlane.metadataregistry.web.common.BusinessException.class);
+    }
+
+    @Test
+    @DisplayName("创建时合法 default_time_zone 应保存并回读")
+    void create_validTimeZone_shouldSave() {
+        when(repository.save(any(RegistrySpecification.class))).thenAnswer(inv -> {
+            RegistrySpecification rs = inv.getArgument(0);
+            rs.setId(UUID.randomUUID());
+            return rs;
+        });
+
+        RegistrySpecificationResponse response = service.create(requestWithTimeZone("-0230"));
+
+        assertThat(response.defaultTimeZone()).isEqualTo("-0230");
+    }
+
+    private LanguageIdentification lang(UUID id, String identifier) {
+        LanguageIdentification l = new LanguageIdentification();
+        l.setId(id);
+        l.setLanguageIdentifier(identifier);
+        return l;
+    }
+
+    @Test
+    @DisplayName("createDefault 携带全量属性时按所填值创建，缺省时按系统默认兜底")
+    void createDefault_fullAttributes_andDefaults() {
+        UUID zhLang = UUID.randomUUID();
+        UUID enLang = UUID.randomUUID();
+        when(languageRepository.findByLanguageIdentifier("zh-CN")).thenReturn(Optional.of(lang(zhLang, "zh-CN")));
+        when(languageRepository.findByLanguageIdentifier("en-US")).thenReturn(Optional.of(lang(enLang, "en-US")));
+        when(languageRepository.findById(zhLang)).thenReturn(Optional.of(lang(zhLang, "zh-CN")));
+        when(languageRepository.findById(enLang)).thenReturn(Optional.of(lang(enLang, "en-US")));
+        when(repository.save(any(RegistrySpecification.class))).thenAnswer(inv -> {
+            RegistrySpecification rs = inv.getArgument(0);
+            rs.setId(UUID.randomUUID());
+            return rs;
+        });
+
+        RegistrySpecificationResponse full = service.createDefault(
+                "全属性规范", "zh-CN", "描述",
+                "https://example.org/mdr",
+                "ISO/IEC 10646", "ISO/IEC 11179-3:2023", DegreeOfConformance.STRICTLY_CONFORMING,
+                "level-1", "label-1", "inc", "exc", "-0230",
+                List.of("en-US"), List.of("URI"), "rcs-1");
+
+        assertThat(full.name()).isEqualTo("全属性规范");
+        assertThat(full.webAddress()).isEqualTo("https://example.org/mdr");
+        assertThat(full.characterRepertoire()).isEqualTo("ISO/IEC 10646");
+        assertThat(full.standard()).isEqualTo("ISO/IEC 11179-3:2023");
+        assertThat(full.degreeOfConformance()).isEqualTo(DegreeOfConformance.STRICTLY_CONFORMING);
+        assertThat(full.conformanceLevel()).isEqualTo("level-1");
+        assertThat(full.conformanceLabel()).isEqualTo("label-1");
+        assertThat(full.defaultTimeZone()).isEqualTo("-0230");
+        assertThat(full.alternativeLanguageIds()).containsExactly(enLang);
+        assertThat(full.referenceDocumentIdentifierKinds()).containsExactly("URI");
+        assertThat(full.representationClassSchemeId()).isEqualTo("rcs-1");
+
+        RegistrySpecificationResponse defaults = service.createDefault(null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null, null);
+        assertThat(defaults.name()).isEqualTo("默认元数据注册表");
+        assertThat(defaults.characterRepertoire()).isEqualTo("UTF-8");
+        assertThat(defaults.standard()).isEqualTo("ISO/IEC 11179-3:2023");
+        assertThat(defaults.defaultTimeZone()).isEqualTo("+0800");
+    }
+
+    @DisplayName("找不到 RegistrySpecification 时应抛出 ResourceNotFoundException")
      @Test
      void get_notFound_shouldThrow() {
          UUID id = UUID.randomUUID();

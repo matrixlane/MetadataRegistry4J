@@ -14,6 +14,7 @@ import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basic
 import io.github.matrixlane.metadataregistry.web.config.IdentifierStrategyLoader;
 import io.github.matrixlane.metadataregistry.web.dto.initwizard.InitWizardCommitRequest;
 import io.github.matrixlane.metadataregistry.web.dto.initwizard.InitWizardSetupRequest;
+import io.github.matrixlane.metadataregistry.web.dto.initwizard.InitWizardSpecAttributes;
 import io.github.matrixlane.metadataregistry.web.dto.initwizard.InitWizardStatusResponse;
 import io.github.matrixlane.metadataregistry.web.edition.DeploymentEdition;
 import io.github.matrixlane.metadataregistry.web.repository.IdentifierStrategyConfigRepository;
@@ -138,7 +139,6 @@ public class InitWizardService {
         // 注册规范同为必选。TEAM 使用表单值并校验必填。
         String raName = request.registrationAuthorityName();
         boolean selfAsRegistrar = Boolean.TRUE.equals(request.selfAsRegistrar());
-        boolean createSpec = Boolean.TRUE.equals(request.createRegistrySpecification());
         String registryName = request.registryName();
         // createNamespace 语义改为强制 true：缺省与显式 true 正常执行，显式 false 拒绝
         if (Boolean.FALSE.equals(request.createNamespace())) {
@@ -151,14 +151,14 @@ public class InitWizardService {
                 raName = "个人注册机构";
             }
             selfAsRegistrar = true;
-            createSpec = true;
             if (registryName == null || registryName.isBlank()) {
                 registryName = "个人元数据注册表规范";
             }
         } else if (raName == null || raName.isBlank()) {
             throw new BusinessException(ApiCodes.VALIDATION_FAILED, "注册机构名称不能为空");
         }
-        // 注册规范为数据治理先决条件，两个版本均为必选。
+        // 注册规范为数据治理先决条件，两个版本均必选：向导不再设独立配置步骤，
+        // 由系统在 setup 时自动创建；显式 false 视为契约违规，仍被拒绝。
         if (Boolean.FALSE.equals(request.createRegistrySpecification())) {
             throw new BusinessException(ApiCodes.VALIDATION_FAILED, "注册规范为必选项，不能跳过创建");
         }
@@ -232,13 +232,26 @@ public class InitWizardService {
             registrationAuthorityRepository.save(ra);
         }
 
-        // 3.5 Create registry specification if checked
-        if (createSpec) {
-            registrySpecificationService.createDefault(
-                    registryName,
-                    request.defaultLanguage() != null ? request.defaultLanguage() : "zh-CN",
-                    request.registryDescription());
-        }
+        // 3.5 注册规范（必选，注册表固有对象）：向导步骤可携带表 28 全量标量属性，
+        // 缺省时由 createDefault 按系统默认值兜底（字符集 UTF-8、标准
+        // ISO/IEC 11179-3:2023、时区 +0800、默认语言 zh-CN）。
+        InitWizardSpecAttributes specAttrs = request.registrySpecificationAttributes();
+        registrySpecificationService.createDefault(
+                registryName,
+                request.defaultLanguage() != null ? request.defaultLanguage() : "zh-CN",
+                request.registryDescription(),
+                specAttrs != null ? specAttrs.webAddress() : null,
+                specAttrs != null ? specAttrs.characterRepertoire() : null,
+                specAttrs != null ? specAttrs.standard() : null,
+                specAttrs != null ? specAttrs.degreeOfConformance() : null,
+                specAttrs != null ? specAttrs.conformanceLevel() : null,
+                specAttrs != null ? specAttrs.conformanceLabel() : null,
+                specAttrs != null ? specAttrs.includedFeatures() : null,
+                specAttrs != null ? specAttrs.excludedFeatures() : null,
+                specAttrs != null ? specAttrs.defaultTimeZone() : null,
+                specAttrs != null ? specAttrs.alternativeLanguages() : null,
+                specAttrs != null ? specAttrs.referenceDocumentIdentifierKinds() : null,
+                specAttrs != null ? specAttrs.representationClassSchemeId() : null);
 
         // 3.6 Initialize system default namespace
         systemDefaultNamespaceInitializer.ifPresent(SystemDefaultNamespaceInitializer::initializeSystemDefaultNamespace);

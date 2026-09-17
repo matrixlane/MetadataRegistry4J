@@ -404,6 +404,68 @@ public class AuthService {
                 entity.getPhoneNumber().stream().map(io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.PhoneNumber::getValue).toList());
     }
 
+    @Transactional(readOnly = true)
+    public String getMyAvatar(UUID userId) {
+        Account user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Account", userId));
+        return user.getIndividual() == null ? null : user.getIndividual().getAvatar();
+    }
+
+    public void updateMyAvatar(UUID userId, String dataUrl) {
+        validateAvatar(dataUrl);
+        Individual entity = loadOrCreateMyIndividual(userId);
+        entity.setAvatar(dataUrl);
+        individualRepository.save(entity);
+    }
+
+    public void deleteMyAvatar(UUID userId) {
+        Account user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Account", userId));
+        Individual entity = user.getIndividual();
+        if (entity == null || entity.getAvatar() == null) {
+            return;
+        }
+        entity.setAvatar(null);
+        individualRepository.save(entity);
+    }
+
+    private Individual loadOrCreateMyIndividual(UUID userId) {
+        Account user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Account", userId));
+        Individual entity = user.getIndividual();
+        if (entity == null) {
+            entity = individualRepository.save(new Individual());
+            user.setIndividual(entity);
+            userRepository.save(user);
+        }
+        return entity;
+    }
+
+    private static final List<String> AVATAR_PREFIXES = List.of(
+            "data:image/png;base64,",
+            "data:image/jpeg;base64,",
+            "data:image/webp;base64,");
+
+    private static final long AVATAR_MAX_BYTES = 2L * 1024 * 1024;
+
+    private void validateAvatar(String dataUrl) {
+        if (dataUrl == null) {
+            throw new BusinessException("头像数据不能为空");
+        }
+        String prefix = AVATAR_PREFIXES.stream().filter(dataUrl::startsWith).findFirst()
+                .orElseThrow(() -> new BusinessException("头像仅支持 PNG、JPEG 或 WebP 格式"));
+        byte[] bytes;
+        try {
+            bytes = java.util.Base64.getMimeDecoder()
+                    .decode(dataUrl.substring(prefix.length()).getBytes(java.nio.charset.StandardCharsets.US_ASCII));
+        } catch (IllegalArgumentException e) {
+            throw new BusinessException("头像数据不是合法的 base64 编码");
+        }
+        if (bytes.length > AVATAR_MAX_BYTES) {
+            throw new BusinessException("头像大小不能超过 2MB");
+        }
+    }
+
     public AccountProfileResponse auditAccount(UUID id, boolean enabled) {
         Account user = userRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Account", id));

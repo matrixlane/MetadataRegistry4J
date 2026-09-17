@@ -33,5 +33,6 @@ public record InitWizardSetupRequest(
     Boolean createRegistrySpecification,
     String registryName,
     String defaultLanguage,
-    String registryDescription
+    String registryDescription,
+    InitWizardSpecAttributes registrySpecificationAttributes
 ) {}

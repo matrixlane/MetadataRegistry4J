@@ -1,13 +1,13 @@
-﻿import { test, expect, Page } from '@playwright/test';
+import { test, expect, Page } from '@playwright/test';
 
 /**
  * 版本感知初始化向导 E2E。
  * 覆盖：版本选择卡片、数据库配置步骤（保持当前数据源）、
- * 个人版治理路径（预填默认值）、命名空间跳过、团队版完整治理路径、
+ * 个人版治理路径（预填默认值）、命名空间步骤、团队版完整治理路径、
  * commit 后跳转登录页。
  */
 
-function mockWizardApis(page: Page, opts: { currentVendor: string; expectEdition: string; raName?: string; createNamespace?: boolean }) {
+function mockWizardApis(page: Page, opts: { currentVendor: string; expectEdition: string; raName?: string }) {
   let initialized = false;
 
   page.route('**/api/v1/init-wizard/status', async (route) => {
@@ -53,12 +53,12 @@ function mockWizardApis(page: Page, opts: { currentVendor: string; expectEdition
     if (opts.raName) {
       expect(postData.registrationAuthorityName).toBe(opts.raName);
     }
-    if (opts.createNamespace !== undefined) {
-      expect(postData.createNamespace).toBe(opts.createNamespace);
-    }
     // 标识与版本生成策略归属于命名空间步骤，默认值随请求提交
-    expect(postData.identifierStrategy).toBe('UUID');
+    expect(postData.identifierStrategy).toBe('SEGMENT_TEMPLATE');
     expect(postData.versionPolicy).toBe('SEMVER');
+    // 注册规范步骤以默认值预填的属性随 setup 提交
+    expect(postData.registrySpecificationAttributes.characterRepertoire).toBe('UTF-8');
+    expect(postData.registrySpecificationAttributes.standard).toBe('ISO/IEC 11179-3:2023');
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -125,17 +125,16 @@ test('个人版初始化流程（版本 → 数据库 → 治理配置预填默�
   await expect(page.locator('input[placeholder*="信息化管理部"]')).toHaveValue('个人注册机构');
   await page.click('button:has-text("下一步")');
 
-  // 命名空间：独立的策略配置步骤
+  // 命名空间：独立的策略配置步骤（标识与版本输入模式各渲染一组相同的单选按钮）
   await expect(stepTitle).toContainText('配置命名空间');
-  await expect(page.locator('.el-radio-button', { hasText: 'UUID' })).toBeVisible();
-  await expect(page.locator('.el-select')).toBeVisible();
+  await expect(page.locator('.el-radio-button', { hasText: '自动生成（允许手动编辑）' })).toHaveCount(2);
+  await expect(page.locator('.el-select', { hasText: '语义化版本' })).toBeVisible();
   await page.click('button:has-text("下一步")');
 
-  // 注册规范（名称随注册机构名联动预填）
+  // 注册规范：完整属性表单，系统默认值预填（名称随注册机构联动，时区 +0800）
   await expect(stepTitle).toContainText('配置注册规范');
-  // 标识/版本策略已迁出注册规范步骤
-  await expect(page.locator('.step-pane')).not.toContainText('强制分类规范');
-  await expect(page.locator('.step-pane')).not.toContainText('版本化策略');
+  await expect(page.locator('.wizard-form input').nth(0)).toHaveValue('个人注册机构元数据注册表规范');
+  await expect(page.locator('.wizard-form input[placeholder*="HHMM"]')).toHaveValue('+0800');
   await page.click('button:has-text("下一步")');
 
   await expect(stepTitle).toContainText('设置超级管理员密码');
@@ -145,43 +144,6 @@ test('个人版初始化流程（版本 → 数据库 → 治理配置预填默�
   await page.click('button:has-text("完成初始化并启用系统")');
 
   // commit 成功后跳转登录页（向导会话令牌已废弃，需用新密码登录）
-  await page.waitForURL('**/login');
-  expect(page.url()).toContain('/login');
-});
-
-test('初始化向导可跳过命名空间设置', async ({ page }) => {
-  mockWizardApis(page, { currentVendor: 'sqlite', expectEdition: 'PERSONAL', createNamespace: false });
-
-  await page.goto('/init-wizard');
-  const stepTitle = page.locator('.step-title');
-
-  await page.click('button:has-text("下一步")');
-  await expect(stepTitle).toContainText('配置数据库');
-  await page.click('button:has-text("下一步")');
-
-  await expect(stepTitle).toContainText('配置默认注册机构');
-  await page.click('button:has-text("下一步")');
-
-  // 跳过命名空间创建（仅导入/访问外部数据标准的场景）
-  await expect(stepTitle).toContainText('配置命名空间');
-  const namespaceSwitch = page.locator('.setting-item', { hasText: '创建基于注册机构的命名空间' }).locator('.el-switch');
-  await expect(namespaceSwitch).toHaveClass(/is-checked/);
-  await namespaceSwitch.click();
-  await expect(namespaceSwitch).not.toHaveClass(/is-checked/);
-  await page.click('button:has-text("下一步")');
-
-  // 注册规范为必选：开关被禁用且保持开启
-  await expect(stepTitle).toContainText('配置注册规范');
-  const specSwitch = page.locator('.setting-item', { hasText: '立即创建并启用注册规范' }).locator('.el-switch');
-  await expect(specSwitch).toHaveClass(/is-checked/);
-  await expect(specSwitch).toHaveClass(/is-disabled/);
-  await page.click('button:has-text("下一步")');
-
-  await expect(stepTitle).toContainText('设置超级管理员密码');
-  await page.fill('input[placeholder="6-20 个字符"]', 'E2ePass@123');
-  await page.fill('input[placeholder="再次输入新密码"]', 'E2ePass@123');
-  await page.click('button:has-text("完成初始化并启用系统")');
-
   await page.waitForURL('**/login');
   expect(page.url()).toContain('/login');
 });
@@ -213,9 +175,8 @@ test('团队版完整初始化流程（版本 → 数据库 → 治理配置 →
   await expect(stepTitle).toContainText('配置命名空间');
   await page.click('button:has-text("下一步")');
 
-  // 注册规范
+  // 注册规范：默认值预填，直接继续
   await expect(stepTitle).toContainText('配置注册规范');
-  await page.fill('input[placeholder*="主元数据注册表规范"]', 'E2E Team Spec');
   await page.click('button:has-text("下一步")');
 
   // 管理员密码

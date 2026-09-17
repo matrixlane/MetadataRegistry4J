@@ -9,6 +9,8 @@ import io.github.matrixlane.metadataregistry.web.auth.AccountRepository;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.Registrar;
 import io.github.matrixlane.metadataregistry.web.repository.RegistrarRepository;
 import io.github.matrixlane.metadataregistry.web.dto.initwizard.InitWizardSetupRequest;
+import io.github.matrixlane.metadataregistry.web.dto.initwizard.InitWizardSpecAttributes;
+import io.github.matrixlane.metadataregistry.commonfacilities.registration.DegreeOfConformance;
 import io.github.matrixlane.metadataregistry.web.repository.LanguageIdentificationRepository;
 import io.github.matrixlane.metadataregistry.web.seed.SystemDefaultNamespaceInitializer;
 import java.util.Optional;
@@ -39,7 +41,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
         "spring.datasource.username=",
         "spring.datasource.password=",
         "spring.jpa.properties.hibernate.dialect=org.hibernate.community.dialect.SQLiteDialect",
-        "spring.jpa.properties.hibernate.default_schema=main"
+        "spring.jpa.properties.hibernate.default_schema=main",
+        // 置空 mapping-resources：用户主目录 application-local.yml 可能注入
+        // orm-team.xml（SQL Server 专用），内存 SQLite 测试无需 EXT schema 覆盖。
+        "spring.jpa.mapping-resources="
 })
 @Transactional
 @ActiveProfiles("test")
@@ -117,6 +122,8 @@ class InitWizardServiceIntegrationTest {
                 "SEQUENTIAL",// versionPolicy
                 true,        // createRegistrySpecification
                 null, null, null
+        ,
+            null
         );
 
         initWizardService.setup(request, appUserId);
@@ -194,6 +201,50 @@ class InitWizardServiceIntegrationTest {
     }
 
     @Test
+    void setup_registrySpecAttributes_applied() {
+        InitWizardSpecAttributes specAttrs = new InitWizardSpecAttributes(
+                "https://example.org/mdr",
+                "ISO/IEC 10646",
+                "ISO/IEC 11179-3:2023",
+                DegreeOfConformance.STRICTLY_CONFORMING,
+                "level-1",
+                "label-1",
+                "included",
+                "excluded",
+                "-0230",
+                List.of("en-US"),
+                List.of("URI"),
+                "rcs-1");
+        InitWizardSetupRequest request = new InitWizardSetupRequest(
+                "TEAM",
+                null,
+                "Spec Attr RA",
+                null, null,
+                true, true,
+                null, null, null, null, null, null,
+                true,
+                null, null, null,
+                specAttrs
+        );
+
+        initWizardService.setup(request, appUserId);
+
+        var spec = registrySpecificationService.list(null, Pageable.ofSize(1)).getContent().get(0);
+        assertThat(spec.webAddress()).isEqualTo("https://example.org/mdr");
+        assertThat(spec.characterRepertoire()).isEqualTo("ISO/IEC 10646");
+        assertThat(spec.standard()).isEqualTo("ISO/IEC 11179-3:2023");
+        assertThat(spec.degreeOfConformance()).isEqualTo(DegreeOfConformance.STRICTLY_CONFORMING);
+        assertThat(spec.conformanceLevel()).isEqualTo("level-1");
+        assertThat(spec.defaultTimeZone()).isEqualTo("-0230");
+        assertThat(spec.includedFeatures()).isEqualTo("included");
+        assertThat(spec.excludedFeatures()).isEqualTo("excluded");
+        assertThat(spec.referenceDocumentIdentifierKinds()).contains("URI");
+        assertThat(spec.representationClassSchemeId()).isEqualTo("rcs-1");
+        UUID enLangId = languageRepository.findByLanguageIdentifier("en-US").orElseThrow().getId();
+        assertThat(spec.alternativeLanguageIds()).contains(enLangId);
+    }
+
+    @Test
     void setup_shouldResetSuperAdminToNoPassword() {
         // Simulate the post-factory-reset state: system is uninitialized but
         // the SUPER_ADMIN still holds a real password hash. Without the reset,
@@ -213,6 +264,8 @@ class InitWizardServiceIntegrationTest {
                 false, // selfAsRegistrar
                 true,  // createNamespace（命名空间为必选，不能再跳过）
                 null, null, null, null, null, null, null, null, null, null
+        ,
+            null
         );
 
         initWizardService.setup(request, appUserId);
@@ -232,6 +285,8 @@ class InitWizardServiceIntegrationTest {
                 "PERSONAL",
                 null, null, null, null, null, null, null,
                 null, null, null, null, null, null, null, null, null
+        ,
+            null
         );
 
         initWizardService.setup(request, appUserId);
@@ -267,6 +322,8 @@ class InitWizardServiceIntegrationTest {
                 null,
                 false, // createNamespace
                 null, null, null, null, null, null, null, null, null, null
+        ,
+            null
         );
         assertThatThrownBy(() -> initWizardService.setup(personalRequest, appUserId))
                 .hasMessageContaining("命名空间");
@@ -279,6 +336,8 @@ class InitWizardServiceIntegrationTest {
                 null, null, null,
                 false, // createNamespace
                 null, null, null, null, null, null, null, null, null, null
+        ,
+            null
         );
         assertThatThrownBy(() -> initWizardService.setup(teamRequest, appUserId))
                 .hasMessageContaining("命名空间");
@@ -295,6 +354,8 @@ class InitWizardServiceIntegrationTest {
                 null, null, null, null, null, null, null, null,
                 false, // createRegistrySpecification
                 null, null, null
+        ,
+            null
         );
         assertThatThrownBy(() -> initWizardService.setup(personalRequest, appUserId))
                 .hasMessageContaining("注册规范");
@@ -307,6 +368,8 @@ class InitWizardServiceIntegrationTest {
                 null, null, null, null, null, null,
                 false, // createRegistrySpecification
                 null, null, null
+        ,
+            null
         );
         assertThatThrownBy(() -> initWizardService.setup(teamRequest, appUserId))
                 .hasMessageContaining("注册规范");
@@ -322,6 +385,8 @@ class InitWizardServiceIntegrationTest {
                 null, null, null, null, null, null,
                 null,
                 null, null, null
+        ,
+            null
         );
 
         assertThatThrownBy(() -> initWizardService.setup(request, appUserId))
@@ -341,6 +406,8 @@ class InitWizardServiceIntegrationTest {
                 null, null, null,
                 null,
                 null, null, null
+        ,
+            null
         );
         assertThatThrownBy(() -> initWizardService.setup(request, appUserId))
                 .hasMessageContaining("段模板");
@@ -367,6 +434,8 @@ class InitWizardServiceIntegrationTest {
                 null, null, null,
                 null,
                 null, null, null
+        ,
+            null
         );
 
         initWizardService.setup(request, appUserId);

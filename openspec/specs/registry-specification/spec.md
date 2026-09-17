@@ -3,18 +3,24 @@
 ## Purpose
 This capability defines the core rules and settings that govern how the metadata registry operates (e.g., identifier generation, versioning policy, mandatory classification, and default language). It enforces data integrity, controls system initialization steps, and acts as an admission gate for data governance and metadata registration.
 ## Requirements
-### Requirement: Super Admin Registry Specification Choice in System Initialization
-在系统初始化阶段，超级管理员（Super Admin，即系统的第一个注册管理员）MUST 能够选择立即创建注册规范（`Registry_Specification`），或者选择稍后创建。
+### Requirement: Default Registry Specification Configured During System Initialization
+在系统初始化阶段，系统 MUST 在 setup 阶段自动创建并启用一个默认注册规范（`Registry_Specification`）——注册规范是注册表的固有组成部分（ISO/IEC 11179-3:2023 §9.4.10），不可跳过；显式请求不创建（`createRegistrySpecification=false`）MUST 被拒绝。初始化向导 MUST 提供注册规范配置步骤，开放表 28 标量属性的编辑：name、comment、web_address、character_repertoire（必填）、standard、degree_of_conformance、conformance_level、conformance_label、included_features、excluded_features、default_time_zone（[-+]HHMM）、default_language、alternative_language（0..*）、reference_document_identifier_kind（0..*）、representation_class_scheme_id；各属性 MUST 以系统默认值预填（如字符集 UTF-8、标准 ISO/IEC 11179-3:2023、默认语言 zh-CN、时区 +0800），留空提交时由后端按版本规则兜底。上下文（context）与指称/定义的多语言编辑不在向导内提供（初始化后于设置页维护）。
 
-#### Scenario: Choose to create Registry Specification immediately during initialization
-- **WHEN** Super Admin initializes the system and chooses to create Registry Specification immediately
-- **THEN** System SHALL transition to the Registry Specification creation step, allowing the admin to input registry configuration, and save it, marking the initialization complete
-- **AND** System SHALL enable full metadata registration features
+#### Scenario: 初始化向导中配置注册规范全部属性
+- **WHEN** 超级管理员在注册规范步骤填写字符集、标准、合规程度、时区、替代语言等属性并进入下一步
+- **THEN** System SHALL 在 setup 时按所填值创建注册规范，初始化完成后设置页回显一致
 
-#### Scenario: Choose to defer Registry Specification creation during initialization
-- **WHEN** Super Admin initializes the system and chooses to create Registry Specification later
-- **THEN** System SHALL complete the basic initialization (e.g., seeding default users, roles, basic settings) without creating the Registry Specification
-- **AND** System SHALL display a global warning/banner indicating that data governance features are locked until a Registry Specification is created
+#### Scenario: 注册规范属性留空使用默认值
+- **WHEN** 超级管理员不修改注册规范步骤的预填默认值（或清空可选字段）直接提交
+- **THEN** System SHALL 以默认值创建注册规范（字符集 UTF-8、标准 ISO/IEC 11179-3:2023、默认语言 zh-CN、时区 +0800 等），PERSONAL 版名称缺省取"个人元数据注册表规范"
+
+#### Scenario: 非法时区被初始化向导拒绝
+- **WHEN** 提交的 default_time_zone 不匹配 [-+]HHMM 格式
+- **THEN** System SHALL 返回 400 业务校验错误，前端在失焦时即提示且不提交
+
+#### Scenario: Explicitly refuse to create Registry Specification during initialization
+- **WHEN** 初始化 setup 请求显式携带 `createRegistrySpecification=false`
+- **THEN** System SHALL 拒绝该请求（400 Bad Request），提示注册规范为必选项
 
 ---
 

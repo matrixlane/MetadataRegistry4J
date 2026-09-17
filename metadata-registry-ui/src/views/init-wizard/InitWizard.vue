@@ -292,27 +292,16 @@
         <!-- Step 5: Registry Specification Configuration -->
         <div v-if="currentStep === 4" class="step-pane fade-in">
           <h3 class="step-title">配置注册规范</h3>
-          <p class="step-desc">注册规范决定了元数据在注册表中的管理与校验规则，是开展数据治理工作的先决条件</p>
-
-          <div class="wizard-settings-box mb-4">
-            <div class="setting-item">
-              <div class="setting-label-section">
-                <h4>立即创建并启用注册规范</h4>
-                <p>注册规范是开展数据治理工作的先决条件，初始化时必须创建。只有创建了注册规范后，本注册表才正式允许数据治理工作的开展和注册项目。</p>
-              </div>
-              <el-switch v-model="form.createRegistrySpecification" size="large" disabled />
-            </div>
-          </div>
+          <p class="step-desc">注册规范描述注册表的运行环境，是注册表的固有组成部分（ISO/IEC 11179-3 表 28）。以下为系统默认配置，可按部署实际调整</p>
 
           <el-form
-            v-if="form.createRegistrySpecification"
             ref="formStep4Ref"
             :model="form"
             :rules="rulesStep4"
             label-position="top"
             class="wizard-form"
           >
-            <el-form-item label="注册规范（注册表）名称" prop="registryName">
+            <el-form-item label="注册规范名称" prop="registryName">
               <el-input
                 v-model="form.registryName"
                 placeholder="例如：主元数据注册表规范"
@@ -321,25 +310,106 @@
               />
             </el-form-item>
 
-            <el-form-item label="默认语言" prop="defaultLanguage">
-              <el-select v-model="form.defaultLanguage" size="large" placeholder="请选择默认语言" style="width: 100%;">
+            <el-form-item label="注释">
+              <el-input
+                v-model="form.registryDescription"
+                type="textarea"
+                :rows="2"
+                placeholder="关于此注册规范的简要说明"
+              />
+            </el-form-item>
+
+            <el-form-item label="网址">
+              <el-input
+                v-model="form.registryWebAddress"
+                placeholder="注册表的 Web 地址（可选）"
+                size="large"
+              />
+            </el-form-item>
+
+            <el-form-item label="字符集" prop="registryCharacterRepertoire">
+              <el-input v-model="form.registryCharacterRepertoire" size="large" />
+            </el-form-item>
+
+            <el-form-item label="标准">
+              <el-input v-model="form.registryStandard" size="large" />
+            </el-form-item>
+
+            <el-form-item label="合规程度">
+              <el-select v-model="form.registryDegreeOfConformance" clearable size="large" style="width: 100%;">
+                <el-option label="合规" value="CONFORMING" />
+                <el-option label="严格合规" value="STRICTLY_CONFORMING" />
+              </el-select>
+            </el-form-item>
+
+            <el-form-item label="合规等级">
+              <el-input v-model="form.registryConformanceLevel" size="large" />
+            </el-form-item>
+
+            <el-form-item label="合规标签">
+              <el-input v-model="form.registryConformanceLabel" size="large" />
+            </el-form-item>
+
+            <el-form-item label="包含特性">
+              <el-input v-model="form.registryIncludedFeatures" type="textarea" :rows="2" />
+            </el-form-item>
+
+            <el-form-item label="排除特性">
+              <el-input v-model="form.registryExcludedFeatures" type="textarea" :rows="2" />
+            </el-form-item>
+
+            <el-form-item label="默认时区" prop="registryDefaultTimeZone">
+              <el-input v-model="form.registryDefaultTimeZone" placeholder="[-+]HHMM，如 +0800、-0230" size="large" />
+            </el-form-item>
+
+            <el-form-item label="默认语言">
+              <el-select v-model="form.defaultLanguage" size="large" style="width: 100%;">
                 <el-option label="简体中文 (zh-CN)" value="zh-CN" />
                 <el-option label="英文 (en-US)" value="en-US" />
               </el-select>
             </el-form-item>
 
-            <el-form-item label="描述" prop="registryDescription">
-              <el-input
-                v-model="form.registryDescription"
-                type="textarea"
-                :rows="2"
-                placeholder="请输入关于此注册规范的简要描述"
-              />
+            <el-form-item label="替代语言">
+              <el-select
+                v-model="form.registryAlternativeLanguages"
+                multiple
+                clearable
+                size="large"
+                style="width: 100%;"
+                placeholder="选择注册表中使用的其他语言"
+              >
+                <el-option label="简体中文 (zh-CN)" value="zh-CN" />
+                <el-option label="英文 (en-US)" value="en-US" />
+              </el-select>
+            </el-form-item>
+
+            <el-form-item label="表示类方案标识">
+              <el-input v-model="form.registryRepresentationClassSchemeId" placeholder="表示类分类方案标识（可选）" size="large" />
+            </el-form-item>
+
+            <el-form-item label="参考文档标识种类">
+              <el-select
+                v-model="form.registryReferenceDocumentIdentifierKinds"
+                multiple
+                filterable
+                allow-create
+                default-first-option
+                size="large"
+                style="width: 100%;"
+                placeholder="输入后回车添加，如 URI、内部文档编号"
+              >
+                <el-option
+                  v-for="kind in form.registryReferenceDocumentIdentifierKinds"
+                  :key="kind"
+                  :label="kind"
+                  :value="kind"
+                />
+              </el-select>
             </el-form-item>
           </el-form>
         </div>
 
-        <!-- Step 5: Set Admin Password — final commit step -->
+        <!-- Step 6: Set Admin Password — final commit step -->
         <div v-if="currentStep === 5" class="step-pane fade-in">
           <h3 class="step-title">设置超级管理员密码</h3>
           <p class="step-desc">
@@ -452,6 +522,7 @@ import { Setting, OfficeBuilding, Check, Message } from '@element-plus/icons-vue
 import request from '@/utils/request';
 import { useAuthStore } from '@/stores/auth';
 import SegmentTemplateDesigner from '@/components/identifier/SegmentTemplateDesigner.vue';
+import { timeZoneValidator } from '@/views/registry-spec/registrySpecForm';
 
 const router = useRouter();
 const auth = useAuthStore();
@@ -579,10 +650,22 @@ const form = reactive({
     ],
   }),
   versionPolicy: 'SEMVER',
-  createRegistrySpecification: true,
+  // ── Step 5 注册规范（ISO/IEC 11179-3 表 28）──
   registryName: '',
-  defaultLanguage: 'zh-CN',
   registryDescription: '',
+  registryWebAddress: '',
+  registryCharacterRepertoire: 'UTF-8',
+  registryStandard: 'ISO/IEC 11179-3:2023',
+  registryDegreeOfConformance: undefined as string | undefined,
+  registryConformanceLevel: '',
+  registryConformanceLabel: '',
+  registryIncludedFeatures: '',
+  registryExcludedFeatures: '',
+  registryDefaultTimeZone: '+0800',
+  defaultLanguage: 'zh-CN',
+  registryAlternativeLanguages: [] as string[],
+  registryRepresentationClassSchemeId: '',
+  registryReferenceDocumentIdentifierKinds: [] as string[],
 });
 
 const pwdForm = reactive({
@@ -608,8 +691,11 @@ const rulesStep4 = reactive<FormRules>({
     { required: true, message: '请输入注册规范名称', trigger: 'blur' },
     { min: 2, max: 100, message: '长度在 2 到 100 个字符', trigger: 'blur' }
   ],
-  defaultLanguage: [
-    { required: true, message: '请选择默认语言', trigger: 'change' }
+  registryCharacterRepertoire: [
+    { required: true, message: '请输入字符集', trigger: 'blur' }
+  ],
+  registryDefaultTimeZone: [
+    { validator: timeZoneValidator, trigger: 'blur' }
   ]
 });
 
@@ -678,7 +764,8 @@ const lastStepIndex = computed(() => {
 });
 
 // 步骤指示器：两个版本均包含治理配置步骤（注册机构 → 命名空间 → 注册规范），
-// 这三者是开展数据治理工作的先决条件；个人版以预填默认值保持精简体验。
+// 这三者是开展数据治理工作的先决条件；注册规范由向导配置表 28 属性、系统
+// 以默认值预填，个人版同样以预填默认值保持精简体验。
 const displaySteps = computed(() => {
   return ['版本选择', '数据库', '注册机构', '命名空间', '注册规范', '管理员密码'];
 });
@@ -695,8 +782,6 @@ watch(() => form.registrationAuthorityName, (newVal) => {
 });
 
 // 个人版预填治理字段默认值（可修改）；团队版要求显式填写。
-// 注意：必须注册在 registryName 联动 watcher 之后，immediate 回调对
-// registrationAuthorityName 的赋值才能触发联动预填。
 watch(() => form.edition, (val) => {
   if (val === 'PERSONAL' && !form.registrationAuthorityName.trim()) {
     form.registrationAuthorityName = '个人注册机构';
@@ -705,18 +790,47 @@ watch(() => form.edition, (val) => {
 
 // ── Network helpers ────────────────────────────────────────────────
 async function callSetup(): Promise<void> {
-  // Auto-fill registry name before submit
-  if (form.createRegistrySpecification && !form.registryName.trim() && form.registrationAuthorityName.trim()) {
-    form.registryName = form.registrationAuthorityName.trim() + '元数据注册表规范';
-  }
-
   loading.value = true;
   try {
+    const {
+      registryWebAddress,
+      registryCharacterRepertoire,
+      registryStandard,
+      registryDegreeOfConformance,
+      registryConformanceLevel,
+      registryConformanceLabel,
+      registryIncludedFeatures,
+      registryExcludedFeatures,
+      registryDefaultTimeZone,
+      registryAlternativeLanguages,
+      registryReferenceDocumentIdentifierKinds,
+      registryRepresentationClassSchemeId,
+      ...base
+    } = form;
+    const payload = {
+      ...base,
+      registrySpecificationAttributes: {
+        webAddress: registryWebAddress || null,
+        characterRepertoire: registryCharacterRepertoire || null,
+        standard: registryStandard || null,
+        degreeOfConformance: registryDegreeOfConformance || null,
+        conformanceLevel: registryConformanceLevel || null,
+        conformanceLabel: registryConformanceLabel || null,
+        includedFeatures: registryIncludedFeatures || null,
+        excludedFeatures: registryExcludedFeatures || null,
+        defaultTimeZone: registryDefaultTimeZone || null,
+        alternativeLanguages: registryAlternativeLanguages.length ? registryAlternativeLanguages : null,
+        referenceDocumentIdentifierKinds: registryReferenceDocumentIdentifierKinds.length
+          ? registryReferenceDocumentIdentifierKinds
+          : null,
+        representationClassSchemeId: registryRepresentationClassSchemeId || null,
+      },
+    };
     const loginResponse = await request.post<{
       token: string;
       user: any;
       expiresInSeconds?: number;
-    }>('/init-wizard/setup', form);
+    }>('/init-wizard/setup', payload);
     auth.adoptSession({
       token: loginResponse.token,
       user: loginResponse.user,
@@ -804,27 +918,26 @@ async function nextStep() {
   }
 
   if (currentStep.value === 4) {
-    if (form.createRegistrySpecification) {
-      if (!formStep4Ref.value) {
-        ElMessage.error('注册规范表单未就绪，请刷新页面重试');
-        return;
-      }
-      let isValid = false;
-      try {
-        isValid = await formStep4Ref.value.validate();
-      } catch {
-        isValid = false;
-      }
-      if (!isValid) {
-        ElMessage.error('请完成注册规范的所有必填项');
-        return;
-      }
+    if (!formStep4Ref.value) {
+      ElMessage.error('注册规范表单未就绪，请刷新页面重试');
+      return;
+    }
+    let isValid = false;
+    try {
+      isValid = await formStep4Ref.value.validate();
+    } catch {
+      isValid = false;
+    }
+    if (!isValid) {
+      ElMessage.error('请完成注册规范的所有必填项');
+      return;
     }
     // Submit the entire wizard configuration to the backend. The backend
-    // writes business data but does NOT flip system.initialized — that
-    // happens only on commit() in step 5. If anything below fails, the
-    // onBeforeRouteLeave / onBeforeUnmount abort() will roll back the
-    // business data.
+    // writes business data (registration authority, namespace, and the
+    // registry specification with the configured attributes) but does NOT
+    // flip system.initialized — that happens only on commit() in the final
+    // step. If anything below fails, the onBeforeRouteLeave /
+    // onBeforeUnmount abort() will roll back the business data.
     try {
       await callSetup();
       currentStep.value = 5;
