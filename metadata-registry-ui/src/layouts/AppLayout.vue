@@ -105,116 +105,6 @@
               </template>
             </el-menu-item>
 
-            <!-- 注册通用设施 -->
-            <el-sub-menu index="/common-facilities-group">
-              <template #title>
-                <el-icon><OfficeBuilding /></el-icon>
-                <span class="menu-label">
-                  <span class="menu-label__main">{{ $t('nav.commonFacilities') }}</span>
-                  <span class="menu-label__sub">Common Facilities</span>
-                </span>
-              </template>
-              <el-menu-item index="/registration-authorities">
-                <template #title>
-                  <span class="menu-label">
-                    <span class="menu-label__main">{{ $t('nav.registrationAuthority') }}</span>
-                    <span class="menu-label__sub">Registration Authority</span>
-                  </span>
-                </template>
-              </el-menu-item>
-              <el-menu-item index="/registry-specifications">
-                <template #title>
-                  <span class="menu-label">
-                    <span class="menu-label__main">{{ $t('nav.registrySpecification') }}</span>
-                    <span class="menu-label__sub">Registry Specification</span>
-                  </span>
-                </template>
-              </el-menu-item>
-              <el-menu-item index="/registrars">
-                <template #title>
-                  <span class="menu-label">
-                    <span class="menu-label__main">{{ $t('nav.registrar') }}</span>
-                    <span class="menu-label__sub">Registrar</span>
-                  </span>
-                </template>
-              </el-menu-item>
-              <el-menu-item index="/namespaces">
-                <template #title>
-                  <span class="menu-label">
-                    <span class="menu-label__main">{{ $t('nav.namespace') }}</span>
-                    <span class="menu-label__sub">Namespace</span>
-                  </span>
-                </template>
-              </el-menu-item>
-              <el-menu-item index="/naming-conventions">
-                <template #title>
-                  <span class="menu-label">
-                    <span class="menu-label__main">{{ $t('nav.namingConvention') }}</span>
-                    <span class="menu-label__sub">Naming Convention</span>
-                  </span>
-                </template>
-              </el-menu-item>
-              <el-menu-item index="/languages">
-                <template #title>
-                  <span class="menu-label">
-                    <span class="menu-label__main">{{ $t('nav.language') }}</span>
-                    <span class="menu-label__sub">Language</span>
-                  </span>
-                </template>
-              </el-menu-item>
-              <el-menu-item index="/contexts">
-                <template #title>
-                  <span class="menu-label">
-                    <span class="menu-label__main">{{ $t('nav.context') }}</span>
-                    <span class="menu-label__sub">Context</span>
-                  </span>
-                </template>
-              </el-menu-item>
-            </el-sub-menu>
-
-            <!-- 主体与文档 -->
-            <el-sub-menu index="/party-document-group">
-              <template #title>
-                <el-icon><User /></el-icon>
-                <span class="menu-label">
-                  <span class="menu-label__main">{{ $t('nav.partyAndDocument') }}</span>
-                  <span class="menu-label__sub">Party & Documents</span>
-                </span>
-              </template>
-              <el-menu-item index="/organizations">
-                <template #title>
-                  <span class="menu-label">
-                    <span class="menu-label__main">{{ $t('nav.organization') }}</span>
-                    <span class="menu-label__sub">Organization</span>
-                  </span>
-                </template>
-              </el-menu-item>
-              <el-menu-item index="/individuals">
-                <template #title>
-                  <span class="menu-label">
-                    <span class="menu-label__main">{{ $t('nav.individual') }}</span>
-                    <span class="menu-label__sub">Individual</span>
-                  </span>
-                </template>
-              </el-menu-item>
-              <el-menu-item index="/contacts">
-                <template #title>
-                  <span class="menu-label">
-                    <span class="menu-label__main">{{ $t('nav.contact') }}</span>
-                    <span class="menu-label__sub">Contact</span>
-                  </span>
-                </template>
-              </el-menu-item>
-              <el-menu-item index="/reference-documents">
-                <template #title>
-                  <span class="menu-label">
-                    <span class="menu-label__main">{{ $t('nav.referenceDocument') }}</span>
-                    <span class="menu-label__sub">Reference Document</span>
-                  </span>
-                </template>
-              </el-menu-item>
-            </el-sub-menu>
-
             <!-- 概念区域 -->
             <el-sub-menu index="/concept-region-group">
               <template #title>
@@ -363,6 +253,116 @@
                   <span class="menu-label">
                     <span class="menu-label__main">{{ $t('nav.interopMappings') }}</span>
                     <span class="menu-label__sub">Interop Mapping</span>
+                  </span>
+                </template>
+              </el-menu-item>
+            </el-sub-menu>
+
+            <!-- 注册通用设施 -->
+            <el-sub-menu index="/common-facilities-group">
+              <template #title>
+                <el-icon><OfficeBuilding /></el-icon>
+                <span class="menu-label">
+                  <span class="menu-label__main">{{ $t('nav.commonFacilities') }}</span>
+                  <span class="menu-label__sub">Common Facilities</span>
+                </span>
+              </template>
+              <el-menu-item index="/registration-authorities">
+                <template #title>
+                  <span class="menu-label">
+                    <span class="menu-label__main">{{ $t('nav.registrationAuthority') }}</span>
+                    <span class="menu-label__sub">Registration Authority</span>
+                  </span>
+                </template>
+              </el-menu-item>
+              <el-menu-item index="/registry-specifications">
+                <template #title>
+                  <span class="menu-label">
+                    <span class="menu-label__main">{{ $t('nav.registrySpecification') }}</span>
+                    <span class="menu-label__sub">Registry Specification</span>
+                  </span>
+                </template>
+              </el-menu-item>
+              <el-menu-item index="/registrars">
+                <template #title>
+                  <span class="menu-label">
+                    <span class="menu-label__main">{{ $t('nav.registrar') }}</span>
+                    <span class="menu-label__sub">Registrar</span>
+                  </span>
+                </template>
+              </el-menu-item>
+              <el-menu-item index="/namespaces">
+                <template #title>
+                  <span class="menu-label">
+                    <span class="menu-label__main">{{ $t('nav.namespace') }}</span>
+                    <span class="menu-label__sub">Namespace</span>
+                  </span>
+                </template>
+              </el-menu-item>
+              <el-menu-item index="/naming-conventions">
+                <template #title>
+                  <span class="menu-label">
+                    <span class="menu-label__main">{{ $t('nav.namingConvention') }}</span>
+                    <span class="menu-label__sub">Naming Convention</span>
+                  </span>
+                </template>
+              </el-menu-item>
+              <el-menu-item index="/languages">
+                <template #title>
+                  <span class="menu-label">
+                    <span class="menu-label__main">{{ $t('nav.language') }}</span>
+                    <span class="menu-label__sub">Language</span>
+                  </span>
+                </template>
+              </el-menu-item>
+              <el-menu-item index="/contexts">
+                <template #title>
+                  <span class="menu-label">
+                    <span class="menu-label__main">{{ $t('nav.context') }}</span>
+                    <span class="menu-label__sub">Context</span>
+                  </span>
+                </template>
+              </el-menu-item>
+            </el-sub-menu>
+
+            <!-- 主体与文档 -->
+            <el-sub-menu index="/party-document-group">
+              <template #title>
+                <el-icon><User /></el-icon>
+                <span class="menu-label">
+                  <span class="menu-label__main">{{ $t('nav.partyAndDocument') }}</span>
+                  <span class="menu-label__sub">Party & Documents</span>
+                </span>
+              </template>
+              <el-menu-item index="/organizations">
+                <template #title>
+                  <span class="menu-label">
+                    <span class="menu-label__main">{{ $t('nav.organization') }}</span>
+                    <span class="menu-label__sub">Organization</span>
+                  </span>
+                </template>
+              </el-menu-item>
+              <el-menu-item index="/individuals">
+                <template #title>
+                  <span class="menu-label">
+                    <span class="menu-label__main">{{ $t('nav.individual') }}</span>
+                    <span class="menu-label__sub">Individual</span>
+                  </span>
+                </template>
+              </el-menu-item>
+              <el-menu-item index="/contacts">
+                <template #title>
+                  <span class="menu-label">
+                    <span class="menu-label__main">{{ $t('nav.contact') }}</span>
+                    <span class="menu-label__sub">Contact</span>
+                  </span>
+                </template>
+              </el-menu-item>
+              <el-menu-item index="/reference-documents">
+                <template #title>
+                  <span class="menu-label">
+                    <span class="menu-label__main">{{ $t('nav.referenceDocument') }}</span>
+                    <span class="menu-label__sub">Reference Document</span>
                   </span>
                 </template>
               </el-menu-item>
