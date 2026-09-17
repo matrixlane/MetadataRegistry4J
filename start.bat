@@ -47,7 +47,13 @@ if not exist "metadata-registry-web\target\metadata-registry-web-0.1.0-SNAPSHOT.
 )
 
 echo [1/2] Starting backend on :8081...
-start "Backend" "%JAVA_HOME%\bin\javaw.exe" -jar "%~dp0metadata-registry-web\target\metadata-registry-web-0.1.0-SNAPSHOT.jar"
+rem No console window (javaw is GUI) + startup logs for failure diagnosis.
+rem Start-Process sets stdout/stderr file handles natively and does not wait,
+rem so no lingering "Backend" window (cmd /c would wait on the javapath shim
+rem and keep the window for the whole backend lifetime - verified).
+rem The logs are truncated on each start; they grow during a run (app logs)
+rem and are meant for startup troubleshooting - safe to delete anytime.
+powershell -NoProfile -Command "Start-Process '%JAVA_HOME%\bin\javaw.exe' -ArgumentList '-jar','%~dp0metadata-registry-web\target\metadata-registry-web-0.1.0-SNAPSHOT.jar' -RedirectStandardOutput '%~dp0logs\backend-stdout.log' -RedirectStandardError '%~dp0logs\backend-stderr.log'"
 
 echo [2/2] Starting frontend on :5173...
 cd /d "%~dp0metadata-registry-ui"

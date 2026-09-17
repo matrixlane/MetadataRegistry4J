@@ -7,6 +7,7 @@ import * as ElementPlusIconsVue from '@element-plus/icons-vue';
 import App from './App.vue';
 import router from './router';
 import i18n from './i18n';
+import { waitForBackendReady } from '@/utils/backendStartup';
 
 import './styles/layout.scss';
 
@@ -32,4 +33,9 @@ app.use(router);
 app.use(ElementPlus, { locale: zhCn });
 app.use(i18n);
 
+// 后端完成启动（含数据初始化）前不挂载应用：index.html 中的启动屏持续显示，
+// 期间不发起任何业务请求，避免启动窗口内出现"服务器内部错误"提示。
+// 就绪后挂载并移除启动屏，进入既有流程（向导 / 登录 / 目标页）。
+await waitForBackendReady();
 app.mount('#app');
+document.getElementById('boot-screen')?.remove();

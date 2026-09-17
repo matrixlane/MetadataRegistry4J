@@ -34,6 +34,10 @@ export default defineConfig({
       },
     },
   },
+  // main.ts 使用 top-level await（后端就绪后再挂载应用），需要 es2022 构建目标
+  build: {
+    target: 'es2022',
+  },
   server: {
     host: '0.0.0.0',
     port: 5173,

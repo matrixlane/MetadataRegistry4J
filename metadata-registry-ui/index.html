@@ -5,8 +5,169 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>元数据注册中心 / Metadata Registry</title>
+    <style>
+      /* 启动等待屏：后端完成启动前显示（见 src/utils/backendStartup.ts）。
+         纯 HTML/CSS，不依赖 JS bundle，首帧即显示。 */
+      #boot-screen {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(135deg, #14301f 0%, #1e4530 50%, #2d5a3d 100%);
+        font-family: -apple-system, 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+        overflow: hidden;
+        /* 延迟淡入：后端已就绪时，探测+挂载在其浮现前完成，避免"闪现"启动屏；
+           真正需要等待时（>0.35s）再浮现 */
+        opacity: 0;
+        animation: boot-fade-in 0.4s ease-out 0.35s forwards;
+      }
+
+      #boot-screen::before,
+      #boot-screen::after {
+        content: '';
+        position: absolute;
+        border-radius: 50%;
+        filter: blur(80px);
+        opacity: 0.35;
+        pointer-events: none;
+      }
+
+      #boot-screen::before {
+        width: 400px;
+        height: 400px;
+        background: #3f8f5f;
+        top: -100px;
+        left: -100px;
+      }
+
+      #boot-screen::after {
+        width: 500px;
+        height: 500px;
+        background: #16a34a;
+        bottom: -150px;
+        right: -150px;
+      }
+
+      #boot-screen .boot-card {
+        position: relative;
+        z-index: 1;
+        width: 340px;
+        padding: 40px 32px 32px;
+        box-sizing: border-box;
+        text-align: center;
+        background: rgba(255, 255, 255, 0.98);
+        border-radius: 16px;
+        border: 1px solid rgba(255, 255, 255, 0.5);
+        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+      }
+
+      #boot-screen .boot-logo {
+        filter: drop-shadow(0 4px 8px rgba(22, 163, 74, 0.25));
+      }
+
+      #boot-screen .boot-title {
+        margin: 16px 0 4px;
+        font-size: 22px;
+        font-weight: 700;
+        color: #1e4530;
+        letter-spacing: 0.5px;
+      }
+
+      #boot-screen .boot-subtitle {
+        margin: 0;
+        color: #6b7c93;
+        font-size: 13px;
+        letter-spacing: 1px;
+      }
+
+      #boot-screen .boot-spinner {
+        width: 36px;
+        height: 36px;
+        margin: 28px auto 20px;
+        border-radius: 50%;
+        border: 3px solid #e5e7eb;
+        border-top-color: #16a34a;
+        animation: boot-spin 0.9s linear infinite;
+      }
+
+      #boot-screen .boot-status {
+        margin: 0;
+        font-size: 15px;
+        font-weight: 600;
+        color: #374151;
+      }
+
+      #boot-screen .boot-hint {
+        margin: 8px 0 0;
+        font-size: 13px;
+        color: #6b7280;
+      }
+
+      #boot-screen .boot-timer {
+        margin: 16px 0 0;
+        font-size: 12px;
+        color: #9ca3af;
+        min-height: 16px;
+      }
+
+      #boot-screen .boot-slow-tip {
+        margin-top: 16px;
+        padding: 12px;
+        border-radius: 10px;
+        background: #fef3c7;
+        border: 1px solid #fcd34d;
+      }
+
+      #boot-screen .boot-slow-tip p {
+        margin: 0 0 10px;
+        font-size: 12px;
+        color: #92400e;
+        line-height: 1.6;
+      }
+
+      #boot-screen .boot-slow-tip button {
+        padding: 6px 20px;
+        font-size: 13px;
+        font-weight: 600;
+        color: #ffffff;
+        background: linear-gradient(135deg, #16a34a, #059669);
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+      }
+
+      #boot-screen .boot-slow-tip button:hover {
+        background: linear-gradient(135deg, #17b14e, #06a06c);
+      }
+
+      @keyframes boot-spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+      }
+
+      @keyframes boot-fade-in {
+        to { opacity: 1; }
+      }
+    </style>
   </head>
   <body>
+    <div id="boot-screen">
+      <div class="boot-card">
+        <img class="boot-logo" src="/favicon.svg" width="56" height="56" alt="logo" />
+        <h1 class="boot-title">元数据注册中心</h1>
+        <p class="boot-subtitle">MetaDataRegistry</p>
+        <div class="boot-spinner" aria-hidden="true"></div>
+        <p class="boot-status">应用正在启动，请稍候…</p>
+        <p class="boot-hint">初始化完成后将自动进入登录页</p>
+        <p class="boot-timer" id="boot-timer"></p>
+        <div class="boot-slow-tip" id="boot-slow-tip" hidden>
+          <p>后端启动时间较长，请检查 start.bat 启动的后端窗口是否存在报错；确认无误后重试。</p>
+          <button id="boot-retry" type="button" onclick="location.reload()">重试</button>
+        </div>
+      </div>
+    </div>
     <div id="app"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>

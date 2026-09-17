@@ -54,6 +54,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/auth/login", "/api/v1/auth/register", "/api/v1/auth/allow-registration",
                                 "/api/v1/datasource/**",
                                 "/api/v1/migration/**",
+                                "/api/v1/startup/status",
                                 "/api/v1/init-wizard/status", "/api/v1/init-wizard/wizard-state",
                                 "/api/v1/init-wizard/setup", "/api/v1/init-wizard/commit",
                                 "/api/v1/init-wizard/abort",
