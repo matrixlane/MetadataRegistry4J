@@ -22,7 +22,7 @@ public class SqliteFkConstraintStrategy implements FkConstraintStrategy {
     }
 
     @Override
-    public void beforeBulkDelete(Connection conn, List<String> tables) throws SQLException {
+    public void beforeBulkDelete(Connection conn, List<TableRef> tables) throws SQLException {
         try (Statement st = conn.createStatement()) {
             st.execute("PRAGMA defer_foreign_keys = ON");
         }

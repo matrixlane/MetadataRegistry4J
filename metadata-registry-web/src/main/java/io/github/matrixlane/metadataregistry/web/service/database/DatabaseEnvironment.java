@@ -20,6 +20,7 @@ public class DatabaseEnvironment {
             "identifier_strategy_config", "identifier_sequence_registry", "identifier_version_history",
             "scoped_identifier_lifecycle", "namespace_identifier_settings",
             "contact_account_binding", "language_governance", "naming_convention_rules",
+            "ai_generation_record",
             "account",
             "mapping_scheme", "mapping_subscription", "fhir_element_mapping", "interop_mapping",
             "interop_data_set", "interop_data_element",
@@ -67,8 +68,13 @@ public class DatabaseEnvironment {
      * (portable across SQL Server, SQLite and Dameng).
      */
     public String qualify(String tableName) {
+        return qualify(schema, tableName);
+    }
+
+    /** 按显式 schema 限定表引用;schema 为 null(SQLite)时仅引用表名。 */
+    public String qualify(String schemaName, String tableName) {
         String quoted = "\"" + tableName + "\"";
-        return schema == null ? quoted : "\"" + schema + "\"." + quoted;
+        return schemaName == null ? quoted : "\"" + schemaName + "\"." + quoted;
     }
 
     /** 扩展 schema(SQLite 为 null)。 */
@@ -78,8 +84,7 @@ public class DatabaseEnvironment {
 
     /** EXT 表的限定引用。 */
     public String qualifyExt(String tableName) {
-        String quoted = "\"" + tableName + "\"";
-        return extSchema == null ? quoted : "\"" + extSchema + "\"." + quoted;
+        return qualify(extSchema, tableName);
     }
 
     /** 表所属 schema(EXT 表返回 extSchema,其余返回 schema;JDBC 元数据查询用)。 */

@@ -14,12 +14,12 @@ public interface FkConstraintStrategy {
     DatabaseVendor vendor();
 
     /** Invoked before any DELETE statement is issued. */
-    default void beforeBulkDelete(Connection conn, List<String> tables) throws SQLException {
+    default void beforeBulkDelete(Connection conn, List<TableRef> tables) throws SQLException {
         // default: nothing to do
     }
 
     /** Invoked after all DELETE statements succeeded. */
-    default void afterBulkDelete(Connection conn, List<String> tables) throws SQLException {
+    default void afterBulkDelete(Connection conn, List<TableRef> tables) throws SQLException {
         // default: nothing to do
     }
 }

@@ -26,19 +26,19 @@ public class SqlServerFkConstraintStrategy implements FkConstraintStrategy {
     }
 
     @Override
-    public void beforeBulkDelete(Connection conn, List<String> tables) throws SQLException {
+    public void beforeBulkDelete(Connection conn, List<TableRef> tables) throws SQLException {
         executeOnEach(conn, tables, " NOCHECK CONSTRAINT ALL");
     }
 
     @Override
-    public void afterBulkDelete(Connection conn, List<String> tables) throws SQLException {
+    public void afterBulkDelete(Connection conn, List<TableRef> tables) throws SQLException {
         executeOnEach(conn, tables, " WITH CHECK CHECK CONSTRAINT ALL");
     }
 
-    private void executeOnEach(Connection conn, List<String> tables, String suffix) throws SQLException {
+    private void executeOnEach(Connection conn, List<TableRef> tables, String suffix) throws SQLException {
         try (Statement st = conn.createStatement()) {
-            for (String table : tables) {
-                st.execute("ALTER TABLE " + env.qualifyAuto(table) + suffix);
+            for (TableRef table : tables) {
+                st.execute("ALTER TABLE " + env.qualify(table.schema(), table.name()) + suffix);
             }
         }
     }

@@ -73,7 +73,7 @@ public class DatabaseCleaner {
      * 例如迁移导入的清空+写入+提交序列）。
      */
     public void clearTables(Connection conn, Set<String> preserveTables) throws SQLException {
-        List<String> tables = discoverTables(conn, preserveTables);
+        List<TableRef> tables = discoverTables(conn, preserveTables);
         log.info("database-cleaner: clearing {} tables on {} (preserving {})",
                 tables.size(), env.vendor(), preserveTables);
         FkConstraintStrategy strategy = strategies.get(env.vendor());
@@ -93,7 +93,7 @@ public class DatabaseCleaner {
     public void disableForeignKeys(Connection conn, List<String> tables) throws SQLException {
         FkConstraintStrategy strategy = strategies.get(env.vendor());
         if (strategy != null) {
-            strategy.beforeBulkDelete(conn, tables);
+            strategy.beforeBulkDelete(conn, toTableRefs(tables));
         }
     }
 
@@ -103,16 +103,23 @@ public class DatabaseCleaner {
     public void enableForeignKeys(Connection conn, List<String> tables) throws SQLException {
         FkConstraintStrategy strategy = strategies.get(env.vendor());
         if (strategy != null) {
-            strategy.afterBulkDelete(conn, tables);
+            strategy.afterBulkDelete(conn, toTableRefs(tables));
         }
     }
 
-    private List<String> discoverTables(Connection conn, Set<String> preserveTables) throws SQLException {
+    /** 裸表名按 EXT 清单路由 schema(迁移导入等场景,表清单来自导出文件)。 */
+    private List<TableRef> toTableRefs(List<String> tables) {
+        return tables.stream()
+                .map(name -> new TableRef(env.schemaOf(name), name))
+                .collect(Collectors.toList());
+    }
+
+    private List<TableRef> discoverTables(Connection conn, Set<String> preserveTables) throws SQLException {
         Set<String> preserve = preserveTables.stream()
                 .map(t -> t.toLowerCase(Locale.ROOT))
                 .collect(Collectors.toSet());
         DatabaseMetaData md = conn.getMetaData();
-        List<String> tables = new ArrayList<>();
+        List<TableRef> tables = new ArrayList<>();
         discoverTablesInSchema(conn, md, env.schema(), preserve, tables);
         if (env.extSchema() != null && !env.extSchema().equalsIgnoreCase(env.schema() == null ? "" : env.schema())) {
             discoverTablesInSchema(conn, md, env.extSchema(), preserve, tables);
@@ -121,7 +128,7 @@ public class DatabaseCleaner {
     }
 
     private void discoverTablesInSchema(Connection conn, DatabaseMetaData md, String schema,
-            Set<String> preserve, List<String> tables) throws SQLException {
+            Set<String> preserve, List<TableRef> tables) throws SQLException {
         try (ResultSet rs = md.getTables(conn.getCatalog(), schema, null, new String[]{"TABLE"})) {
             while (rs.next()) {
                 String name = rs.getString("TABLE_NAME");
@@ -140,21 +147,21 @@ public class DatabaseCleaner {
                 if (preserve.contains(lower)) {
                     continue;
                 }
-                tables.add(name);
+                tables.add(new TableRef(schema, name));
             }
         }
     }
 
-    private void deleteWithRetry(Connection conn, List<String> tables) throws SQLException {
-        List<String> remaining = new ArrayList<>(tables);
+    private void deleteWithRetry(Connection conn, List<TableRef> tables) throws SQLException {
+        List<TableRef> remaining = new ArrayList<>(tables);
         for (int pass = 1; pass <= MAX_DELETE_PASSES && !remaining.isEmpty(); pass++) {
-            List<String> failed = new ArrayList<>();
-            for (String table : remaining) {
+            List<TableRef> failed = new ArrayList<>();
+            for (TableRef table : remaining) {
                 try (Statement st = conn.createStatement()) {
-                    int deleted = st.executeUpdate("DELETE FROM " + env.qualifyAuto(table));
-                    log.debug("database-cleaner: deleted {} rows from [{}]", deleted, table);
+                    int deleted = st.executeUpdate("DELETE FROM " + env.qualify(table.schema(), table.name()));
+                    log.debug("database-cleaner: deleted {} rows from [{}]", deleted, table.name());
                 } catch (SQLException e) {
-                    log.debug("database-cleaner: delete from [{}] failed on pass {}: {}", table, pass, e.getMessage());
+                    log.debug("database-cleaner: delete from [{}] failed on pass {}: {}", table.name(), pass, e.getMessage());
                     failed.add(table);
                 }
             }
@@ -165,7 +172,8 @@ public class DatabaseCleaner {
             remaining = failed;
         }
         if (!remaining.isEmpty()) {
-            throw new SQLException("以下表在多轮删除后仍未清空: " + remaining);
+            throw new SQLException("以下表在多轮删除后仍未清空: "
+                    + remaining.stream().map(t -> t.schema() + "." + t.name()).collect(Collectors.joining(", ")));
         }
     }
 }
