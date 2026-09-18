@@ -24,6 +24,8 @@ import static org.assertj.core.api.Assertions.assertThat;
         // 取消用户主目录 application-local.yml 导入并显式锁定内存 SQLite,
         // 使本测试与宿主机数据源配置无关(导入的配置优先级高于非 profile 默认值)。
         "spring.config.import=",
+        // 置空 mapping-resources：用户主目录 application-local.yml 可能注入 orm-team.xml（SQL Server 专用），内存 SQLite 测试无需 EXT schema 覆盖。
+        "spring.jpa.mapping-resources=",
         "spring.datasource.url=jdbc:sqlite:file:individual-service-it?mode=memory&cache=shared",
         "spring.datasource.driver-class-name=org.sqlite.JDBC",
         "spring.datasource.username=",
@@ -102,13 +104,14 @@ class IndividualServiceIntegrationTest {
 
         // Create individual setting request
         IndividualRequest request = new IndividualRequest(
-                "My Name", "My Title", "My Address",
+                "My Name", null, "My Title", "My Address",
                 List.of("test@test.com"), List.of("1234567")
         );
 
         // Update profile
         IndividualResponse updatedRes = authService.updateMyIndividual(user.getId(), request);
         assertThat(updatedRes).isNotNull();
+        assertThat(updatedRes.identifier()).isEqualTo(user.getUsername() + "-individual");
         assertThat(updatedRes.name()).isEqualTo("My Name");
         assertThat(updatedRes.title()).isEqualTo("My Title");
         assertThat(updatedRes.mailAddress()).isEqualTo("My Address");

@@ -1,12 +1,15 @@
 package io.github.matrixlane.metadataregistry.web.auth;
 
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Account;
+import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Individual;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.SystemRole;
+import io.github.matrixlane.metadataregistry.commonfacilities.registration.Registrar;
 import io.github.matrixlane.metadataregistry.web.auth.dto.AccountCreateRequest;
 import io.github.matrixlane.metadataregistry.web.auth.dto.ChangePasswordRequest;
 import io.github.matrixlane.metadataregistry.web.auth.dto.LoginRequest;
 import io.github.matrixlane.metadataregistry.web.auth.dto.LoginResponse;
 import io.github.matrixlane.metadataregistry.web.common.BusinessException;
+import io.github.matrixlane.metadataregistry.web.dto.individual.IndividualRequest;
 import io.github.matrixlane.metadataregistry.web.repository.ContactRepository;
 import io.github.matrixlane.metadataregistry.web.repository.IndividualRepository;
 import io.github.matrixlane.metadataregistry.web.service.SystemSettingService;
@@ -53,6 +56,9 @@ class AuthServiceTest {
 
     @Mock
     private ContactRepository contactRepository;
+
+    @Mock
+    private io.github.matrixlane.metadataregistry.web.repository.RegistrarRepository registrarRepository;
 
     @Mock
     private io.github.matrixlane.metadataregistry.web.service.ContactAccountBindingService contactAccountBindingService;
@@ -228,5 +234,53 @@ class AuthServiceTest {
         assertThatThrownBy(() -> authService.register(request))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("系统已关闭自主注册功能");
+    }
+
+    @Test
+    @DisplayName("保存我的姓名：首次保存时将 Individual 回填到账号绑定的 Registrar")
+    void updateMyIndividual_firstTime_backfillsBoundRegistrar() {
+        UUID userId = UUID.randomUUID();
+        Account user = new Account();
+        user.setId(userId);
+        user.setUsername("zhangsan");
+
+        Registrar registrar = new Registrar();
+        registrar.setIndividual(null);
+
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        when(individualRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(contactAccountBindingService.contactsOfAccount(any())).thenReturn(java.util.List.of());
+        when(contactAccountBindingService.registrarsOfAccount(userId)).thenReturn(java.util.List.of(registrar));
+
+        IndividualRequest request = new IndividualRequest("张三", null, null, null, null, null);
+        authService.updateMyIndividual(userId, request);
+
+        assertThat(registrar.getIndividual()).isNotNull();
+        assertThat(registrar.getIndividual().getName().getValue()).isEqualTo("张三");
+        verify(registrarRepository).save(registrar);
+    }
+
+    @Test
+    @DisplayName("保存我的姓名：Registrar 已关联其他 Individual 时不覆盖")
+    void updateMyIndividual_registrarAlreadyLinked_keepsExistingIndividual() {
+        UUID userId = UUID.randomUUID();
+        Account user = new Account();
+        user.setId(userId);
+        user.setUsername("zhangsan");
+
+        Individual existing = new Individual();
+        Registrar registrar = new Registrar();
+        registrar.setIndividual(existing);
+
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        when(individualRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(contactAccountBindingService.contactsOfAccount(any())).thenReturn(java.util.List.of());
+        when(contactAccountBindingService.registrarsOfAccount(userId)).thenReturn(java.util.List.of(registrar));
+
+        IndividualRequest request = new IndividualRequest("张三", null, null, null, null, null);
+        authService.updateMyIndividual(userId, request);
+
+        assertThat(registrar.getIndividual()).isSameAs(existing);
+        verify(registrarRepository, never()).save(any());
     }
 }

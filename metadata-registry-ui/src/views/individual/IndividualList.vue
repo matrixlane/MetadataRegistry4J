@@ -12,7 +12,7 @@
         <el-table-column prop="identifier" label="标识符" width="160" sortable />
         <el-table-column label="姓名">
           <template #default="{ row }">
-            {{ row.name?.sign || '-' }}
+            {{ row.name || '-' }}
           </template>
         </el-table-column>
         <el-table-column prop="title" label="职位" />
@@ -26,8 +26,8 @@
       @success="tableRef?.fetchData()"
     >
       <template #fields="{ form }">
-        <el-form-item label="标识符" prop="identifier" required>
-          <el-input v-model="form.identifier" />
+        <el-form-item label="标识符" prop="identifier">
+          <el-input v-model="form.identifier" placeholder="留空自动生成" />
         </el-form-item>
         <el-form-item label="姓名">
           <el-input v-model="form.name" />

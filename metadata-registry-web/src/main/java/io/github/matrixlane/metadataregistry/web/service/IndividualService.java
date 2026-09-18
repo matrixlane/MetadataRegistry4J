@@ -40,6 +40,7 @@ public class IndividualService {
         if (keyword != null && !keyword.isBlank()) {
             String like = "%" + keyword.toLowerCase() + "%";
             spec = spec.and((root, q, cb) -> cb.or(
+                    cb.like(cb.lower(root.get("identifier")), like),
                     cb.like(cb.lower(root.get("name").get("value")), like),
                     cb.like(cb.lower(root.get("title")), like)));
         }
@@ -76,6 +77,12 @@ public class IndividualService {
     }
 
     private void applyRequest(Individual entity, IndividualRequest request) {
+        if (request.identifier() != null && !request.identifier().isBlank()) {
+            entity.setIdentifier(request.identifier());
+        }
+        if (entity.getIdentifier() == null || entity.getIdentifier().isBlank()) {
+            entity.setIdentifier(generateIdentifier());
+        }
         entity.setName(Sign.of(request.name()));
         entity.setTitle(request.title());
         entity.setMailAddress(request.mailAddress() == null
@@ -99,10 +106,16 @@ public class IndividualService {
     private IndividualResponse toResponse(Individual entity) {
         return new IndividualResponse(
                 entity.getId(),
+                entity.getIdentifier(),
                 entity.getName() == null ? null : entity.getName().getValue(),
                 entity.getTitle(),
                 entity.getMailAddress() == null ? null : entity.getMailAddress().getValue(),
                 entity.getEmailAddress().stream().toList(),
                 entity.getPhoneNumber().stream().map(PhoneNumber::getValue).toList());
+    }
+
+    /** 标识符缺失时自动生成（应用扩展属性，非 ISO/IEC 11179-3 标准属性）。 */
+    private String generateIdentifier() {
+        return "individual-" + UUID.randomUUID().toString().substring(0, 8);
     }
 }

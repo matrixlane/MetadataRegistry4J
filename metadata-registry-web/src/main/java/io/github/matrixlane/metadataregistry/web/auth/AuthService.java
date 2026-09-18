@@ -11,7 +11,9 @@ import io.github.matrixlane.metadataregistry.web.auth.dto.LoginResponse;
 import io.github.matrixlane.metadataregistry.web.auth.dto.AccountProfileResponse;
 import io.github.matrixlane.metadataregistry.web.common.BusinessException;
 import io.github.matrixlane.metadataregistry.web.common.ResourceNotFoundException;
+import io.github.matrixlane.metadataregistry.commonfacilities.registration.Registrar;
 import io.github.matrixlane.metadataregistry.web.repository.ContactRepository;
+import io.github.matrixlane.metadataregistry.web.repository.RegistrarRepository;
 import io.github.matrixlane.metadataregistry.web.service.SystemSettingService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -48,6 +50,7 @@ public class AuthService {
     private final JwtService jwtService;
     private final IndividualRepository individualRepository;
     private final ContactRepository contactRepository;
+    private final RegistrarRepository registrarRepository;
     private final io.github.matrixlane.metadataregistry.web.service.ContactAccountBindingService contactAccountBindingService;
     private final SystemSettingService systemSettingService;
 
@@ -351,12 +354,16 @@ public class AuthService {
         boolean isFirstTime = (entity == null);
         if (entity == null) {
             entity = new Individual();
+            entity.setIdentifier(user.getUsername() + "-individual");
             entity = individualRepository.save(entity);
             user.setIndividual(entity);
             userRepository.save(user);
         }
 
         applyIndividualRequest(entity, request);
+        if (entity.getIdentifier() == null || entity.getIdentifier().isBlank()) {
+            entity.setIdentifier(user.getUsername() + "-individual");
+        }
         entity = individualRepository.save(entity);
 
         if (isFirstTime) {
@@ -367,6 +374,15 @@ public class AuthService {
                     contact.setIndividual(entity);
                     contactRepository.save(contact);
                 }
+            }
+        }
+
+        // 账号绑定的 Registrar 未关联 Individual 时回填(如 createRegistrarForUser 创建的
+        // registrar 初始 individual 为空),使注册人员列表能展示姓名。
+        for (Registrar registrar : contactAccountBindingService.registrarsOfAccount(user.getId())) {
+            if (registrar.getIndividual() == null) {
+                registrar.setIndividual(entity);
+                registrarRepository.save(registrar);
             }
         }
 
@@ -397,6 +413,7 @@ public class AuthService {
     private IndividualResponse toIndividualResponse(Individual entity) {
         return new IndividualResponse(
                 entity.getId(),
+                entity.getIdentifier(),
                 entity.getName() == null ? null : entity.getName().getValue(),
                 entity.getTitle(),
                 entity.getMailAddress() == null ? null : entity.getMailAddress().getValue(),
@@ -434,7 +451,9 @@ public class AuthService {
                 .orElseThrow(() -> new ResourceNotFoundException("Account", userId));
         Individual entity = user.getIndividual();
         if (entity == null) {
-            entity = individualRepository.save(new Individual());
+            Individual created = new Individual();
+            created.setIdentifier(user.getUsername() + "-individual");
+            entity = individualRepository.save(created);
             user.setIndividual(entity);
             userRepository.save(user);
         }

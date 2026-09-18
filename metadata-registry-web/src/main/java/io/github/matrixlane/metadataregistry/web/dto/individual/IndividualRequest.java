@@ -7,6 +7,7 @@ import java.util.List;
 public record IndividualRequest(
         @NotBlank(message = "name 不能为空")
         String name,
+        String identifier,
         String title,
         String mailAddress,
         List<String> emailAddress,

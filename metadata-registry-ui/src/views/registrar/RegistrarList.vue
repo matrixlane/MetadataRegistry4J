@@ -12,7 +12,7 @@
         <el-table-column prop="identifier" label="标识符" width="160" sortable />
         <el-table-column label="名称">
           <template #default="{ row }">
-            {{ row.identifier || '-' }}
+            {{ row.individualName || row.organizationName || row.identifier || '-' }}
           </template>
         </el-table-column>
       </template>

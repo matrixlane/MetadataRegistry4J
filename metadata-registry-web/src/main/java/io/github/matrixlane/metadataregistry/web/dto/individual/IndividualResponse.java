@@ -5,6 +5,7 @@ import java.util.UUID;
 
 public record IndividualResponse(
         UUID id,
+        String identifier,
         String name,
         String title,
         String mailAddress,
