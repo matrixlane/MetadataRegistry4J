@@ -192,6 +192,8 @@ function removeContext(rowIndex: number, ctxIndex: number) {
   flex-direction: column;
   gap: 12px;
   align-items: flex-start;
+  align-self: stretch;
+  width: 100%;
 }
 .text-line-card {
   align-self: stretch;
@@ -205,7 +207,7 @@ function removeContext(rowIndex: number, ctxIndex: number) {
   width: 100%;
   height: auto;
   margin-left: 0;
-  padding: 18px 0;
+  padding: 8px 0;
   border: 1.5px dashed var(--el-border-color);
   border-radius: 8px;
   color: var(--el-color-primary);

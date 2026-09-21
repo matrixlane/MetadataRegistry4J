@@ -98,7 +98,7 @@
           <el-option
             v-for="doc in referenceDocuments"
             :key="doc.id"
-            :label="doc.title || doc.identifier || doc.id.slice(0, 8)"
+            :label="doc.title || doc.identifier || '—'"
             :value="doc.id"
           />
         </el-select>
@@ -195,7 +195,7 @@
                 <el-option
                   v-for="nc in namingConventionOptions"
                   :key="nc.id"
-                  :label="nc.label || nc.scopeRule || nc.id.slice(0, 8)"
+                  :label="nc.label || nc.scopeRule || '—'"
                   :value="nc.id"
                 />
               </el-select>
@@ -421,6 +421,8 @@ defineExpose({ isIsolated, preferredConflicts, isolatedWarnings, updateConflicts
   flex-direction: column;
   gap: 12px;
   align-items: flex-start;
+  align-self: stretch;
+  width: 100%;
 }
 .multilingual-card {
   align-self: stretch;
@@ -434,7 +436,7 @@ defineExpose({ isIsolated, preferredConflicts, isolatedWarnings, updateConflicts
   width: 100%;
   height: auto;
   margin-left: 0;
-  padding: 18px 0;
+  padding: 8px 0;
   border: 1.5px dashed var(--el-border-color);
   border-radius: 8px;
   color: var(--el-color-primary);
