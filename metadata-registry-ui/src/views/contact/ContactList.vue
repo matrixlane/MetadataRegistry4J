@@ -11,8 +11,9 @@
     >
       <template #columns>
         <el-table-column prop="identifier" label="标识符" width="160" sortable />
-        <el-table-column prop="organizationName" label="组织" />
-        <el-table-column prop="individualName" label="个人" />
+        <el-table-column prop="individualName" label="个人" min-width="160" />
+        <el-table-column prop="roleName" label="角色" min-width="140" />
+        <el-table-column prop="organizationName" label="组织" min-width="180" />
       </template>
     </DataTablePage>
 

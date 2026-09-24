@@ -20,6 +20,20 @@
 - **WHEN** 系统中存在一条 Registrar 仅关联了 Organization 而未关联 Individual 与 Role
 - **THEN** 列表该行"姓名"列与"角色"列显示空值；"组织"列显示该 Organization.name；不许从其他字段派生填充
 
+### Requirement: 联系人列表按三要素独立列展示
+
+联系人列表 MUST 与注册人员列表的列结构一致：「标识符」「个人」「角色」「组织」。姓名 MUST 来源于所关联的 `Individual.name`；角色 MUST 来源于所关联的 `Role.roleName`；组织 MUST 来源于所关联的 `Organization.name`。列表 MUST NOT 使用任何 fallback 链从其他字段派生显示内容（任一列无值即留空，不许从其他列兜底）。两列表的列顺序 MUST 保持一致——便于用户跨页对照"哪些个人/组织/角色已存在"。
+
+#### Scenario: 联系人行三要素完整展示
+
+- **WHEN** 系统中存在一条普通 Contact（非 Registrar）且已关联 Individual、Role、Organization 实体
+- **THEN** 列表该行"个人"列显示 `Individual.name`，"角色"列显示 `Role.roleName`，"组织"列显示 `Organization.name`
+
+#### Scenario: 联系人行三要素缺失时的留空
+
+- **WHEN** 系统中存在一条普通 Contact 仅关联 Organization，未关联 Individual 与 Role
+- **THEN** 列表该行"个人"列与"角色"列显示空值；"组织"列显示该 Organization.name；列表不许从其他列派生填充
+
 ### Requirement: 注册人员编辑表单支持编辑三要素
 
 编辑注册人员的表单 MUST 支持编辑三要素，且三要素在表单内各自独立、不耦合。具体形态：
