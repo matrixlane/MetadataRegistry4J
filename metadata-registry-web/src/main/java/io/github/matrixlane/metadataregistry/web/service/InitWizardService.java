@@ -149,11 +149,16 @@ public class InitWizardService {
         boolean createNamespace = true;
         if (edition == DeploymentEdition.PERSONAL) {
             if (raName == null || raName.isBlank()) {
-                raName = "注册管理员";
+                // 注册机构(Registration_Authority)是组织机构层级；个人版下默认名为
+                // "默认注册机构"。Registrar 是 admin 兼任的注册管理员，名称由绑定流程另赋，
+                // 不应与组织机构同名。
+                raName = "默认注册机构";
             }
             selfAsRegistrar = true;
             if (registryName == null || registryName.isBlank()) {
-                registryName = "个人元数据注册表规范";
+                // 注册规范名称：与注册机构名称解耦，使用稳定的默认字面值，避免
+                // 跟着 RA 名称拼接成不可控的长串。
+                registryName = "默认注册规范";
             }
         } else if (raName == null || raName.isBlank()) {
             throw new BusinessException(ApiCodes.VALIDATION_FAILED, "注册机构名称不能为空");

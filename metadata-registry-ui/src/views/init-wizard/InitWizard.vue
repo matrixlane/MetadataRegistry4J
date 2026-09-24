@@ -730,19 +730,24 @@ const displayActive = computed(() => {
   return currentStep.value;
 });
 
-// Auto-fill registry name when RA name changes
+// Pre-fill registry specification name with a stable default regardless of
+// how the registration authority is named — the wizard does not chain the
+// two so users see a deterministic, easy-to-edit value instead of a
+// generated string that fights edits to either field.
 watch(() => form.registrationAuthorityName, (newVal) => {
   if (newVal && !form.registryName.trim()) {
-    form.registryName = newVal + '元数据注册表规范';
+    form.registryName = '默认注册规范';
   }
 });
 
 // 个人版预填治理字段默认值（可修改）；团队版要求显式填写。
 // 个人版下 Admin 自动成为 Registrar（后端强制 selfAsRegistrar=true），前端同步锁定为 true。
+// 注册机构(Registration_Authority)是组织机构层级，默认名"默认注册机构"；
+// Registrar 是 admin 兼任的注册管理员（与组织机构区分），名称由绑定流程赋予。
 watch(() => form.edition, (val) => {
   if (val === 'PERSONAL') {
     if (!form.registrationAuthorityName.trim()) {
-      form.registrationAuthorityName = '注册管理员';
+      form.registrationAuthorityName = '默认注册机构';
     }
     form.selfAsRegistrar = true;
   }

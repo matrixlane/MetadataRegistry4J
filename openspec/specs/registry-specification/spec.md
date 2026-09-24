@@ -14,7 +14,7 @@ This capability defines the core rules and settings that govern how the metadata
 
 #### Scenario: 注册规范属性留空使用默认值
 - **WHEN** 超级管理员不修改注册规范步骤的预填默认值（或清空可选字段）直接提交
-- **THEN** System SHALL 以默认值创建注册规范（字符集 UTF-8、标准 ISO/IEC 11179-3:2023、默认语言 zh-CN、时区 +0800 等），PERSONAL 版名称缺省取"个人元数据注册表规范"
+- **THEN** System SHALL 以默认值创建注册规范（字符集 UTF-8、标准 ISO/IEC 11179-3:2023、默认语言 zh-CN、时区 +0800 等），PERSONAL 版名称缺省取"默认注册规范"
 
 #### Scenario: 非法时区被初始化向导拒绝
 - **WHEN** 提交的 default_time_zone 不匹配 [-+]HHMM 格式

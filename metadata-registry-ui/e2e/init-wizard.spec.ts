@@ -103,7 +103,7 @@ function mockWizardApis(page: Page, opts: { currentVendor: string; expectEdition
 }
 
 test('个人版初始化流程（版本 → 数据库 → 治理配置预填默认值 → 密码）', async ({ page }) => {
-  mockWizardApis(page, { currentVendor: 'sqlite', expectEdition: 'PERSONAL', raName: '注册管理员' });
+  mockWizardApis(page, { currentVendor: 'sqlite', expectEdition: 'PERSONAL', raName: '默认注册机构' });
 
   await page.goto('/init-wizard');
 
@@ -122,7 +122,7 @@ test('个人版初始化流程（版本 → 数据库 → 治理配置预填默�
 
   // 个人版同样展示治理步骤，治理字段预填默认值
   await expect(stepTitle).toContainText('配置默认注册机构');
-  await expect(page.locator('input[placeholder*="信息化管理部"]')).toHaveValue('注册管理员');
+  await expect(page.locator('input[placeholder*="信息化管理部"]')).toHaveValue('默认注册机构');
   await page.click('button:has-text("下一步")');
 
   // 命名空间：独立的策略配置步骤（标识与版本输入模式各渲染一组相同的单选按钮）
@@ -131,9 +131,9 @@ test('个人版初始化流程（版本 → 数据库 → 治理配置预填默�
   await expect(page.locator('.el-select', { hasText: '语义化版本' })).toBeVisible();
   await page.click('button:has-text("下一步")');
 
-  // 注册规范：完整属性表单，系统默认值预填（名称随注册机构联动，时区 +0800）
+  // 注册规范：完整属性表单，系统默认值预填（名称为稳定默认值，时区 +0800）
   await expect(stepTitle).toContainText('配置注册规范');
-  await expect(page.locator('.wizard-form input').nth(0)).toHaveValue('注册管理员元数据注册表规范');
+  await expect(page.locator('.wizard-form input').nth(0)).toHaveValue('默认注册规范');
   await expect(page.locator('.wizard-form input[placeholder*="HHMM"]')).toHaveValue('+0800');
   await page.click('button:has-text("下一步")');
 
