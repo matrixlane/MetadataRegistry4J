@@ -84,27 +84,38 @@ public class RegistrarService {
     private void applyRequest(Registrar entity, RegistrarRequest request) {
         entity.setIdentifier(request.identifier());
 
+        // RA：null 时保留现有（编辑表单通常不动 RA）
         if (request.registrationAuthorityId() != null) {
             RegistrationAuthority ra = registrationAuthorityRepository.findById(request.registrationAuthorityId())
                     .orElseThrow(() -> new ResourceNotFoundException("RegistrationAuthority", request.registrationAuthorityId()));
             entity.setRegistrationAuthority(ra);
-        } else {
-            entity.setRegistrationAuthority(null);
         }
-
 
         // 组织：必填（RegistrarRequest 校验），按 id 解析
         Organization org = organizationRepository.findById(request.organizationId())
                 .orElseThrow(() -> new ResourceNotFoundException("Organization", request.organizationId()));
         entity.setOrganization(org);
 
+        // Individual 三种情形：
+        //   1) individualId 非空 → 改绑到指定 Individual（按 individualName 可选地更新其 name）
+        //   2) individualId 为空 + individualName 非空 → 创建新 Individual 并绑定
+        //   3) individualId 为空 + individualName 为空 → 保留现有 Individual（不清空）
+        String requestedName = request.individualName() == null ? null : request.individualName().trim();
         if (request.individualId() != null) {
             Individual ind = individualRepository.findById(request.individualId())
                     .orElseThrow(() -> new ResourceNotFoundException("Individual", request.individualId()));
+            if (!requestedName.isEmpty()) {
+                ind.getName().clear();
+                ind.getName().add(Sign.of(requestedName));
+                individualRepository.save(ind);
+            }
             entity.setIndividual(ind);
-        } else {
-            entity.setIndividual(null);
+        } else if (requestedName != null && !requestedName.isEmpty()) {
+            Individual created = new Individual();
+            created.getName().add(Sign.of(requestedName));
+            entity.setIndividual(individualRepository.save(created));
         }
+        // else：保留 entity.getIndividual()
 
         // 角色：可空（角色可清空）；按 id 解析或 setRole(null)
         if (request.roleId() != null) {

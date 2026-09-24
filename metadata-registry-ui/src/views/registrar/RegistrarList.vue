@@ -97,6 +97,11 @@ function submitFn(data: Record<string, unknown>) {
     userId: data.userId ?? null,
     organizationId: data.organizationId,
     individualId: data.individualId ?? null,
+    // 个体姓名由后端在 Individual 三种情形下处理（add-registrar-three-elements）：
+    //   1) individualId 非空 → 改现有 Individual.name
+    //   2) individualId 为空 + individualName 非空 → 新建 Individual 并关联
+    //   3) 全空 → 保留现有关联
+    individualName: (data.individualName as string | undefined)?.trim() || null,
     roleId: data.roleId ?? null,
   };
   if (data.id) return registrarApi.update(data.id as string, payload);

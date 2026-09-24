@@ -92,7 +92,7 @@ class RegistrarServiceTest {
 
         RegistrarRequest req = new RegistrarRequest(
                 "admin-registrar",
-                null, null, organization.getId(), null, role.getId());
+                null, null, organization.getId(), null, null, role.getId());
 
         service.create(req);
 
@@ -108,7 +108,7 @@ class RegistrarServiceTest {
 
         RegistrarRequest req = new RegistrarRequest(
                 "admin-registrar",
-                null, null, organization.getId(), null, null);
+                null, null, organization.getId(), null, null, null);
 
         service.create(req);
 
@@ -125,7 +125,7 @@ class RegistrarServiceTest {
 
         RegistrarRequest req = new RegistrarRequest(
                 "admin-registrar",
-                null, null, missing, null, null);
+                null, null, missing, null, null, null);
 
         assertThatThrownBy(() -> service.create(req))
                 .isInstanceOf(ResourceNotFoundException.class);
@@ -140,7 +140,7 @@ class RegistrarServiceTest {
 
         RegistrarRequest req = new RegistrarRequest(
                 "admin-registrar",
-                null, null, organization.getId(), null, missingRole);
+                null, null, organization.getId(), null, null, missingRole);
 
         assertThatThrownBy(() -> service.create(req))
                 .isInstanceOf(ResourceNotFoundException.class);
@@ -153,7 +153,7 @@ class RegistrarServiceTest {
 
         RegistrarRequest req = new RegistrarRequest(
                 "admin-registrar",
-                null, null, organization.getId(), null, null);
+                null, null, organization.getId(), null, null, null);
 
         service.create(req);
 
@@ -161,6 +161,126 @@ class RegistrarServiceTest {
         verify(registrarRepository).save(captor.capture());
         assertThat(captor.getValue().getIndividual()).isNull();
         verify(individualRepository, never()).findById(any(UUID.class));
+    }
+
+    // ───── add-registrar-three-elements bug fix: 修复后端误清空 RA/Individual + individualName 三情形 ─────
+
+    @Test
+    void applyRequest_registrationAuthorityIdNull_keepsExistingRA() {
+        // B3 fix: 编辑表单不传 RA id 时，service 不应清空 entity 现有 RA 关联。
+        // service.update() 内部会 loadOrThrow(id) → load 现有 Registrar，
+        // 然后 applyRequest() → 期望 RA 字段不被清空。
+        RegistrationAuthority existingRa = ra();
+        Organization organization = org(UUID.randomUUID());
+        UUID registrarId = UUID.randomUUID();
+        Registrar existing = new Registrar(existingRa);
+        existing.setId(registrarId);
+        existing.setOrganization(organization);
+        when(registrarRepository.findById(registrarId)).thenReturn(Optional.of(existing));
+        when(organizationRepository.findById(organization.getId())).thenReturn(Optional.of(organization));
+        when(registrarRepository.save(any(Registrar.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        RegistrarRequest req = new RegistrarRequest(
+                "admin-registrar",
+                null, null, organization.getId(), null, null, null);
+
+        service.update(registrarId, req);
+
+        assertThat(existing.getRegistrationAuthority()).isSameAs(existingRa);
+    }
+
+    @Test
+    void applyRequest_individualBothBlank_keepsExistingIndividual() {
+        // 编辑表单 individualId+individualName 都为空时，entity 现有 Individual 关联必须保留。
+        Organization organization = org(UUID.randomUUID());
+        UUID registrarId = UUID.randomUUID();
+        RegistrationAuthority existingRa = ra();
+        Registrar existing = new Registrar(existingRa);
+        existing.setId(registrarId);
+        existing.setOrganization(organization);
+        Individual existingIndividual = individual(UUID.randomUUID());
+        existingIndividual.getName().add(
+                io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.Sign.of("李雷"));
+        existing.setIndividual(existingIndividual);
+        when(registrarRepository.findById(registrarId)).thenReturn(Optional.of(existing));
+        when(organizationRepository.findById(organization.getId())).thenReturn(Optional.of(organization));
+        when(registrarRepository.save(any(Registrar.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        RegistrarRequest req = new RegistrarRequest(
+                "admin-registrar",
+                null, null, organization.getId(),
+                null, null, null);
+
+        service.update(registrarId, req);
+
+        // entity Individual 关联保持不变
+        assertThat(existing.getIndividual()).isSameAs(existingIndividual);
+        verify(individualRepository, never()).save(any(Individual.class));
+    }
+
+    @Test
+    void applyRequest_individualNameProvided_createsNewIndividual() {
+        Organization organization = org(UUID.randomUUID());
+        when(organizationRepository.findById(organization.getId())).thenReturn(Optional.of(organization));
+        when(individualRepository.save(any(Individual.class))).thenAnswer(inv -> {
+            Individual i = inv.getArgument(0);
+            i.setId(UUID.randomUUID());
+            return i;
+        });
+
+        // individualId null + individualName="张习" → 创建新 Individual 并关联
+        RegistrarRequest req = new RegistrarRequest(
+                "admin-registrar",
+                null, null, organization.getId(),
+                null, "张习", null);
+
+        service.create(req);
+
+        ArgumentCaptor<Registrar> captor = ArgumentCaptor.forClass(Registrar.class);
+        verify(registrarRepository).save(captor.capture());
+        assertThat(captor.getValue().getIndividual()).isNotNull();
+        assertThat(captor.getValue().getIndividual().getName().getValue()).isEqualTo("张习");
+        verify(individualRepository).save(any(Individual.class));
+    }
+
+    @Test
+    void applyRequest_individualNameProvided_existingIndividual_updatesName() {
+        // individualId 非空 + individualName="新名字" → 改现有 Individual.name
+        Organization organization = org(UUID.randomUUID());
+        Individual existing = individual(UUID.randomUUID());
+        existing.getName().add(io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.Sign.of("旧名字"));
+        when(organizationRepository.findById(organization.getId())).thenReturn(Optional.of(organization));
+        when(individualRepository.findById(existing.getId())).thenReturn(Optional.of(existing));
+        when(individualRepository.save(any(Individual.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        RegistrarRequest req = new RegistrarRequest(
+                "admin-registrar",
+                null, null, organization.getId(),
+                existing.getId(), "新名字", null);
+
+        service.create(req);
+
+        assertThat(existing.getName().getValue()).isEqualTo("新名字");
+        verify(individualRepository).save(existing);
+    }
+
+    @Test
+    void applyRequest_individualIdNull_individualNameBlank_createPathDoesNotSetIndividual() {
+        // create 路径：individualId + individualName 都为空 → 不创建 Individual（与 update 不同语义）
+        Organization organization = org(UUID.randomUUID());
+        when(organizationRepository.findById(organization.getId())).thenReturn(Optional.of(organization));
+
+        RegistrarRequest req = new RegistrarRequest(
+                "admin-registrar",
+                null, null, organization.getId(),
+                null, null, null);
+
+        service.create(req);
+
+        ArgumentCaptor<Registrar> captor = ArgumentCaptor.forClass(Registrar.class);
+        verify(registrarRepository).save(captor.capture());
+        assertThat(captor.getValue().getIndividual()).isNull();
+        verify(individualRepository, never()).save(any(Individual.class));
     }
 
     // ─────────────────── createRegistrarForUser ───────────────────
