@@ -24,12 +24,12 @@ async function mountLayout(path: string) {
 }
 
 describe('SystemLayout', () => {
-  it('渲染一级平面菜单：通用/用户管理/数据源/危险区域', async () => {
+  it('渲染一级平面菜单：通用/用户管理/数据库设置/危险区域', async () => {
     const wrapper = await mountLayout('/system/general');
     expect(wrapper.find('[data-testid="system-title"]').text()).toContain('系统');
     expect(wrapper.find('[data-testid="system-nav-general"]').text()).toContain('通用');
     expect(wrapper.find('[data-testid="system-nav-users"]').text()).toContain('用户管理');
-    expect(wrapper.find('[data-testid="system-nav-datasource"]').text()).toContain('数据源');
+    expect(wrapper.find('[data-testid="system-nav-datasource"]').text()).toContain('数据库设置');
     expect(wrapper.find('[data-testid="system-nav-danger"]').text()).toContain('危险区域');
   });
 

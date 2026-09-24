@@ -332,7 +332,7 @@ class InitWizardServiceIntegrationTest {
 
         List<RegistrationAuthority> authorities = registrationAuthorityRepository.findAll();
         RegistrationAuthority ra = authorities.stream()
-                .filter(a -> !a.getName().isEmpty() && "个人注册机构".equals(a.getName().get(0).getValue()))
+                .filter(a -> !a.getName().isEmpty() && "注册管理员".equals(a.getName().get(0).getValue()))
                 .findFirst()
                 .orElse(null);
         assertThat(ra).isNotNull();

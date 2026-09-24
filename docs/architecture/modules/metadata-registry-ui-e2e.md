@@ -65,7 +65,7 @@ export async function setupAuthenticatedPage(page: Page)
 - `/datasource/config`（GET 返回当前数据源，PUT 直接确认）
 
 测试场景：
-- **个人版完整流程**：版本选择 → 数据库（保持当前 SQLite）→ 治理配置（预填"个人注册机构"）→ 命名空间 → 注册规范 → 设置管理员密码 → commit 后跳转 `/login`。
+- **个人版完整流程**：版本选择 → 数据库（保持当前 SQLite）→ 治理配置（预填"注册管理员"）→ 命名空间 → 注册规范 → 设置管理员密码 → commit 后跳转 `/login`。
 - **跳过命名空间**：关闭"创建基于注册机构的命名空间"开关，断言 `createNamespace: false` 随 setup 请求提交；注册规范开关必选（`is-disabled` 且保持开启）。
 - **团队版流程**：可正常走完；`setup` 请求断言 `edition: 'TEAM'`、`identifierStrategy: 'UUID'`、`versionPolicy: 'SEMVER'`。
 - **团队版 + SQLite 阻断**：数据库步骤点击下一步时提示"团队版不支持 SQLite"并停留在当前步骤。

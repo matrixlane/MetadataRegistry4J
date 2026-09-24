@@ -24,14 +24,7 @@
     </el-tabs>
 
     <div class="page-card" style="margin-bottom: 16px; margin-top: 16px;">
-      <div v-if="selectedSubmittableIds.length > 0" class="batch-bar">
-        <span class="batch-bar-text">{{ $t('common.selectedCount', { count: selectedSubmittableIds.length }) }}</span>
-        <el-button type="primary" :icon="TopRight" data-testid="batch-submit-btn" @click="openBatchSubmit">
-          {{ $t('workspace.actions.submit') }}
-        </el-button>
-      </div>
       <DataTablePage
-        v-else
         ref="tableRef"
         :fetch-fn="fetchItems"
         :selectable="true"
@@ -132,6 +125,17 @@
             @click="revise(row)"
           >
             {{ $t('workspace.actions.revise') }}
+          </el-button>
+        </template>
+        <template #batch-actions>
+          <el-button
+            type="primary"
+            :icon="TopRight"
+            :disabled="selectedSubmittableIds.length === 0"
+            data-testid="batch-submit-btn"
+            @click="openBatchSubmit"
+          >
+            {{ $t('workspace.actions.submit') }}
           </el-button>
         </template>
       </DataTablePage>
@@ -441,18 +445,5 @@ async function revise(row: WorkspaceItemResponse) {
 .workspace-tab-badge {
   margin-left: 8px;
   vertical-align: middle;
-}
-
-.batch-bar {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 24px;
-  border-bottom: 1px solid #f1f5f9;
-
-  .batch-bar-text {
-    font-size: 13px;
-    color: var(--el-text-color-secondary);
-  }
 }
 </style>

@@ -3,7 +3,7 @@
   <div class="system-layout" :class="{ 'is-users-view': isUsersView }">
     <h2 class="system-title" data-testid="system-title">{{ $t('nav.system') }}</h2>
     <div class="system-body">
-      <!-- 一级平面菜单：通用 / 用户管理 / 数据源 / 危险区域 -->
+      <!-- 一级平面菜单：通用 / 用户管理 / 数据库设置 / 危险区域 -->
       <el-menu class="system-nav" :default-active="activeMenu" router>
         <el-menu-item index="/system/general" data-testid="system-nav-general">
           {{ $t('systemSettings.nav.general') }}

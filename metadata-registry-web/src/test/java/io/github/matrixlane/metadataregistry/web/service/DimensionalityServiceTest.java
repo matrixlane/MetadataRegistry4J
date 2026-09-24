@@ -159,12 +159,15 @@ class DimensionalityServiceTest {
         when(conceptualDomainRepository.countByDimensionality_Id(id)).thenReturn(0L);
         lenient().when(databaseEnvironment.qualify("submission_record_registered_item"))
                 .thenReturn("submission_record_registered_item");
+        lenient().when(databaseEnvironment.qualify("identified_item"))
+                .thenReturn("identified_item");
         lenient().when(databaseEnvironment.toJdbcUuid(id)).thenReturn(id);
 
         service.delete(id);
 
         verify(jdbcTemplate).update(
-                "DELETE FROM submission_record_registered_item WHERE registered_item_id = ?",
+                "DELETE FROM submission_record_registered_item "
+                        + "WHERE registered_item_id IN (SELECT id FROM identified_item WHERE item_id = ?)",
                 id);
         verify(repository).deleteById(id);
     }

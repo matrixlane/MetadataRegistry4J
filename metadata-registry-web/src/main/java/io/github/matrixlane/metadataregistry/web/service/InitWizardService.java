@@ -149,7 +149,7 @@ public class InitWizardService {
         boolean createNamespace = true;
         if (edition == DeploymentEdition.PERSONAL) {
             if (raName == null || raName.isBlank()) {
-                raName = "个人注册机构";
+                raName = "注册管理员";
             }
             selfAsRegistrar = true;
             if (registryName == null || registryName.isBlank()) {
@@ -350,8 +350,8 @@ public class InitWizardService {
         if (!request.newPassword().equals(request.confirmPassword())) {
             throw new BusinessException(ApiCodes.VALIDATION_FAILED, "两次输入的密码不一致");
         }
-        if (request.newPassword().length() < 6 || request.newPassword().length() > 20) {
-            throw new BusinessException(ApiCodes.VALIDATION_FAILED, "密码长度需在 6 到 20 个字符之间");
+        if (request.newPassword().length() < 8 || request.newPassword().length() > 64) {
+            throw new BusinessException(ApiCodes.VALIDATION_FAILED, "密码长度需在 8-64 个字符之间");
         }
 
         // The admin must currently be in the "NO_PASSWORD" state, since

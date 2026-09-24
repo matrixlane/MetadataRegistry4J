@@ -32,13 +32,14 @@ const PAGE = {
 
 const mounted: VueWrapper[] = [];
 
-function mountTable(props: Record<string, unknown> = {}) {
+function mountTable(props: Record<string, unknown> = {}, slots: Record<string, string> = {}) {
   const wrapper = mount(DataTablePage, {
     attachTo: document.body,
     props: { fetchFn: vi.fn().mockResolvedValue(PAGE), ...props },
     global: { plugins: [ElementPlus, i18n] },
     slots: {
       columns: `<el-table-column prop="name" label="名称" />`,
+      ...slots,
     },
   });
   mounted.push(wrapper);
@@ -89,7 +90,7 @@ describe('DataTablePage 批量删除', () => {
     await wrapper.vm.$nextTick();
 
     expect(wrapper.emitted('selection-change')?.[0]).toEqual([rows]);
-    expect((wrapper.vm as any).selectedRows).toEqual([rows]);
+    expect((wrapper.vm as any).selectedRows).toEqual(rows);
   });
 
   it('传入 deleteFn：渲染多选列与批量条，勾选后确认删除→按 id 调用→成功汇总→重新取数', async () => {
@@ -147,5 +148,57 @@ describe('DataTablePage 批量删除', () => {
 
     expect(deleteFn).not.toHaveBeenCalled();
     expect(fetchFn).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('DataTablePage 自定义批量条', () => {
+  it('未传 #batch-actions：不渲染批量条', async () => {
+    const wrapper = mountTable({ selectable: true });
+    await flushPromises();
+
+    expect(wrapper.find('.batch-bar').exists()).toBe(false);
+
+    selectRows(wrapper, [{ id: '1' }]);
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.find('.batch-bar').exists()).toBe(false);
+  });
+
+  it('传 #batch-actions 插槽：勾选后渲染批量条，表格仍然可见且插槽内容出现', async () => {
+    const wrapper = mountTable(
+      { selectable: true },
+      {
+        'batch-actions': `<el-button data-testid="custom-batch-btn">批量提交</el-button>`,
+      }
+    );
+    await flushPromises();
+
+    expect(wrapper.find('.batch-bar').exists()).toBe(false);
+
+    selectRows(wrapper, [{ id: '1' }, { id: '2' }]);
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.find('.batch-bar').exists()).toBe(true);
+    expect(wrapper.find('.batch-bar-text').text()).toContain('已选 2 条');
+    expect(wrapper.find('[data-testid="custom-batch-btn"]').exists()).toBe(true);
+    expect(wrapper.find('.el-table').exists()).toBe(true);
+  });
+
+  it('批量条显隐跟随选中行变化：取消勾选后批量条隐藏', async () => {
+    const wrapper = mountTable(
+      { selectable: true },
+      {
+        'batch-actions': `<el-button data-testid="custom-batch-btn">批量提交</el-button>`,
+      }
+    );
+    await flushPromises();
+
+    selectRows(wrapper, [{ id: '1' }]);
+    await wrapper.vm.$nextTick();
+    expect(wrapper.find('.batch-bar').exists()).toBe(true);
+
+    selectRows(wrapper, []);
+    await wrapper.vm.$nextTick();
+    expect(wrapper.find('.batch-bar').exists()).toBe(false);
   });
 });

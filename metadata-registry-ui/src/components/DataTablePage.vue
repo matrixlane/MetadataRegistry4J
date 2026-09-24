@@ -32,17 +32,27 @@
     </div>
 
     <div class="page-card table-card">
-      <div v-if="batchEnabled" class="batch-bar">
+      <div
+        v-if="batchEnabled || (!!$slots['batch-actions'] && selectedRows.length > 0)"
+        class="batch-bar"
+      >
         <span class="batch-bar-text">{{ t('common.selectedCount', { count: selectedCount }) }}</span>
-        <el-button
-          type="danger"
-          :icon="Delete"
-          :disabled="selectedCount === 0 || batchDeleting"
-          :loading="batchDeleting"
-          @click="handleBatchDelete"
-        >
-          {{ t('common.batchDelete') }}
-        </el-button>
+        <template v-if="batchEnabled">
+          <el-button
+            type="danger"
+            :icon="Delete"
+            :disabled="selectedCount === 0 || batchDeleting"
+            :loading="batchDeleting"
+            @click="handleBatchDelete"
+          >
+            {{ t('common.batchDelete') }}
+          </el-button>
+        </template>
+        <slot
+          v-else
+          name="batch-actions"
+          :selected-rows="selectedRows"
+        />
       </div>
       <el-table
         ref="tableRef"

@@ -244,6 +244,33 @@ describe('WorkspaceView', () => {
     expect(wrapper.find('[data-testid="submission-contact-select"]').exists()).toBe(true);
   });
 
+  it('回归：勾选行后表格仍然可见（不被批量条覆盖）', async () => {
+    const wrapper = mountWorkspace();
+    mounted.push(wrapper);
+    await flushPromises();
+
+    expect(wrapper.find('.el-table').exists()).toBe(true);
+
+    selectRows(wrapper, [rowFixtures.draft]);
+    await wrapper.vm.$nextTick();
+    await flushPromises();
+
+    expect(wrapper.find('.batch-bar').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="batch-submit-btn"]').exists()).toBe(true);
+    expect(wrapper.find('.el-table').exists()).toBe(true);
+
+    selectRows(wrapper, [
+      rowFixtures.draft,
+      { ...rowFixtures.draft, itemId: 'item-1b', label: '草稿项 B', flags: { ...rowFixtures.draft.flags, canSubmit: false } },
+    ]);
+    await wrapper.vm.$nextTick();
+    await flushPromises();
+
+    expect(wrapper.find('.batch-bar').exists()).toBe(true);
+    expect(wrapper.find('.el-table').exists()).toBe(true);
+    expect((wrapper.find('[data-testid="batch-submit-btn"]').element as HTMLButtonElement).disabled).toBe(false);
+  });
+
   it('行级提交打开 picker，确认后调用 workspaceApi.submit', async () => {
     const wrapper = mountWorkspace();
     mounted.push(wrapper);

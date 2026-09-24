@@ -63,7 +63,7 @@
 - **THEN** 系统 SHALL 处于可重新初始化的干净状态，管理员账号密码重置为待设置状态
 
 ### Requirement: 提交语义
-`commit` MUST 校验管理员处于待设置密码状态、两次密码输入一致且长度合规（6-20 字符），随后持久化管理员密码哈希、写入 `system.edition`、写入注册表治理策略，并将 `system.initialized` 置为 `true`。提交后 `abort` MUST NOT 再清除业务数据。
+`commit` MUST 校验管理员处于待设置密码状态、两次密码输入一致且长度合规（8-64 字符），随后持久化管理员密码哈希、写入 `system.edition`、写入注册表治理策略，并将 `system.initialized` 置为 `true`。提交后 `abort` MUST NOT 再清除业务数据。
 
 #### Scenario: 成功提交
 - **WHEN** 管理员完成 setup 后提交合法的新密码

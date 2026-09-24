@@ -405,7 +405,7 @@
                 type="password"
                 name="newPassword"
                 autocomplete="new-password"
-                placeholder="6-20 个字符"
+                placeholder="8-64 个字符"
                 size="large"
                 show-password
               />
@@ -708,7 +708,7 @@ const validateConfirmPassword = (rule: any, value: any, callback: any) => {
 const rulesStep5 = reactive<FormRules>({
   newPassword: [
     { required: true, message: '请输入新密码', trigger: 'blur' },
-    { min: 6, max: 20, message: '密码长度需在 6 到 20 个字符之间', trigger: 'blur' }
+    { min: 8, max: 64, message: '密码长度需在 8-64 个字符之间', trigger: 'blur' }
   ],
   confirmPassword: [
     { required: true, validator: validateConfirmPassword, trigger: 'blur' }
@@ -742,7 +742,7 @@ watch(() => form.registrationAuthorityName, (newVal) => {
 watch(() => form.edition, (val) => {
   if (val === 'PERSONAL') {
     if (!form.registrationAuthorityName.trim()) {
-      form.registrationAuthorityName = '个人注册机构';
+      form.registrationAuthorityName = '注册管理员';
     }
     form.selfAsRegistrar = true;
   }
@@ -972,7 +972,7 @@ async function handleCommit() {
     isValid = false;
   }
   if (!isValid) {
-    ElMessage.error('请检查新密码是否符合要求（6-20 位，两次输入一致）');
+    ElMessage.error('请检查新密码是否符合要求（8-64 位，两次输入一致）');
     return;
   }
 
