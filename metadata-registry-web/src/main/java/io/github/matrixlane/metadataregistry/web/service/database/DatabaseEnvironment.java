@@ -14,15 +14,27 @@ import java.util.UUID;
 @Component
 public class DatabaseEnvironment {
 
-    /** 扩展(EXT)表集:归 ext schema;与 orm/orm-team.xml 清单一致(OrmTeamXmlTest 守卫;含 V20260901015 补迁的 interop 两表)。 */
+    /**
+     * 扩展(EXT)表集:归 ext schema;与 orm/orm-team.xml 清单一致(OrmTeamXmlTest 守卫;含 V20260901015 补迁的 interop 两表)。
+     *
+     * <p><b>同名表警示</b>:V20260919001 语言名称扩展与标准表同名——团队库物理名均为
+     * {@code language_identification}(仅以 schema 区分),SQLite 下 EXT 表物理名为
+     * {@code ext_language_identification}。因此本清单中的裸键 {@code language_identification}
+     * 仅代表 EXT 表;标准表 {@code mdr.language_identification} 必须走
+     * {@link #qualify(String)} / {@link #qualifyStandard(String)},
+     * 禁止走 {@link #schemaOf(String)} / {@link #qualifyAuto(String)}(后者会把同名标准表路由到 ext schema)。
+     */
     private static final java.util.Set<String> EXT_TABLES = java.util.Set.of(
             "classification_scheme", "classification_node",
             "identifier_strategy_config", "identifier_sequence_registry", "identifier_version_history",
             "scoped_identifier_lifecycle", "namespace_identifier_settings",
             "contact_account_binding", "language_governance", "naming_convention_rules",
+            // V20260919001 语言名称扩展:团队库与标准表同名(language_identification,schema 区分);
+            // SQLite 无 schema,物理名加 ext_ 前缀(ext_language_identification)。
+            "language_identification", "ext_language_identification",
             "ai_generation_record",
             "account",
-            "mapping_scheme", "mapping_subscription", "fhir_element_mapping", "interop_mapping",
+            "fhir_element_mapping", "interop_mapping",
             "interop_data_set", "interop_data_element",
             "item_link", "merge_request", "merge_request_item",
             "namespace_permission", "registry_node", "sync_watermark", "system_setting", "version_history");
@@ -87,16 +99,37 @@ public class DatabaseEnvironment {
         return qualify(extSchema, tableName);
     }
 
-    /** 表所属 schema(EXT 表返回 extSchema,其余返回 schema;JDBC 元数据查询用)。 */
+    /**
+     * 表所属 schema(EXT 表返回 extSchema,其余返回 schema;JDBC 元数据查询用)。
+     *
+     * <p>仅用于"裸表名确定属于 EXT 表"的语境;同名标准表(如 language_identification)
+     * 会被本方法路由到 ext schema,标准表语境请直接使用 {@link #schema()}。
+     */
     public String schemaOf(String tableName) {
         return EXT_TABLES.contains(tableName.toLowerCase(java.util.Locale.ROOT)) ? extSchema : schema;
     }
 
-    /** 按表名自动选择 schema:EXT 表走 {@link #qualifyExt},其余走 {@link #qualify}。 */
+    /**
+     * 按表名自动选择 schema:EXT 表走 {@link #qualifyExt},其余走 {@link #qualify}。
+     *
+     * <p>仅用于"裸表名确定属于 EXT 表"的语境;同名标准表(如 language_identification)
+     * 会被本方法限定到 ext schema,标准表语境请使用 {@link #qualify(String)} / {@link #qualifyStandard(String)}。
+     */
     public String qualifyAuto(String tableName) {
         return EXT_TABLES.contains(tableName.toLowerCase(java.util.Locale.ROOT))
                 ? qualifyExt(tableName)
                 : qualify(tableName);
+    }
+
+    /**
+     * 标准 schema 语境的表限定:永远限定到主 schema,不做 EXT 路由。
+     *
+     * <p>供调用方已知表属于标准 schema 时使用——典型场景是迁移导入:导出文件中的裸表名
+     * 均来自主 schema(见 MigrationService 导出),其中 {@code language_identification}
+     * 指标准表而非同名 EXT 表,若走 {@link #qualifyAuto(String)} 会被错误路由到 ext schema。
+     */
+    public String qualifyStandard(String tableName) {
+        return qualify(schema, tableName);
     }
 
     /**

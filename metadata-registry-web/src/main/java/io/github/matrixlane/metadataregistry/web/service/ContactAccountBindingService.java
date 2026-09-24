@@ -72,13 +72,40 @@ public class ContactAccountBindingService {
         return registrarRepository.findAllById(contactIds);
     }
 
-    /** 建立/更新绑定(upsert,按 contactId 唯一)。 */
+    /** 账号是否绑定了任何 Contact（含 Registrar 行）；是 Submitter 能力的判定。 */
+    public boolean hasAnyContact(UUID accountId) {
+        if (accountId == null) {
+            return false;
+        }
+        return !bindingRepository.findByAccountId(accountId).isEmpty();
+    }
+
+    /** 账号的默认联系人绑定；未设置时为空。 */
+    public Optional<ContactAccountBinding> defaultBindingOf(UUID accountId) {
+        if (accountId == null) {
+            return Optional.empty();
+        }
+        return bindingRepository.findByAccountIdAndIsDefaultTrue(accountId);
+    }
+
+    /** 账号的全部绑定（按 contactId 升序，"最早绑定"即首条）。 */
+    public List<ContactAccountBinding> bindingsOfAccount(UUID accountId) {
+        if (accountId == null) {
+            return List.of();
+        }
+        return bindingRepository.findByAccountIdOrderByContactIdAsc(accountId);
+    }
+
+    /** 建立/更新绑定(upsert,按 contactId 唯一)。新建绑定时若为该账号的首个
+     *  身份,自动标记为默认(add-submitter-contact-identity：唯一身份即默认)。 */
     public void bind(UUID contactId, UUID accountId) {
-        ContactAccountBinding binding = bindingRepository.findByContactId(contactId)
-                .orElseGet(ContactAccountBinding::new);
-        binding.setContactId(contactId);
-        binding.setAccountId(accountId);
-        bindingRepository.save(binding);
+        bindingRepository.findByContactId(contactId).ifPresentOrElse(existing -> {
+            existing.setAccountId(accountId);
+            bindingRepository.save(existing);
+        }, () -> {
+            boolean first = bindingRepository.findByAccountId(accountId).isEmpty();
+            bindingRepository.save(new ContactAccountBinding(contactId, accountId, first));
+        });
     }
 
     /** 解除绑定;未绑定时为 no-op。 */
@@ -86,5 +113,42 @@ public class ContactAccountBindingService {
         if (contactId != null) {
             bindingRepository.deleteByContactId(contactId);
         }
+    }
+
+    /** 建立绑定并落库,返回绑定实体。 */
+    public ContactAccountBinding bindAndSave(UUID contactId, UUID accountId, boolean isDefault) {
+        ContactAccountBinding binding = bindingRepository.findByContactId(contactId)
+                .orElseGet(ContactAccountBinding::new);
+        binding.setContactId(contactId);
+        binding.setAccountId(accountId);
+        binding.setDefault(isDefault);
+        return bindingRepository.save(binding);
+    }
+
+    /**
+     * 将账号下指定绑定设为唯一默认：同一事务内清除该账号其他绑定的默认标志。
+     * 绑定必须属于该账号。
+     */
+    public void markDefault(UUID accountId, UUID contactId) {
+        ContactAccountBinding target = bindingRepository.findByContactId(contactId)
+                .filter(b -> accountId.equals(b.getAccountId()))
+                .orElseThrow(() -> new io.github.matrixlane.metadataregistry.web.common.BusinessException(
+                        io.github.matrixlane.metadataregistry.web.common.ApiCodes.VALIDATION_FAILED,
+                        "该联系人身份不属于当前账号"));
+        for (ContactAccountBinding b : bindingRepository.findByAccountId(accountId)) {
+            if (!b.getId().equals(target.getId()) && b.isDefault()) {
+                b.setDefault(false);
+                bindingRepository.save(b);
+            }
+        }
+        if (!target.isDefault()) {
+            target.setDefault(true);
+            bindingRepository.save(target);
+        }
+    }
+
+    /** 账号绑定中最早（contactId 最小）的一条；无绑定时为空。 */
+    public Optional<ContactAccountBinding> firstBindingOf(UUID accountId) {
+        return bindingsOfAccount(accountId).stream().findFirst();
     }
 }

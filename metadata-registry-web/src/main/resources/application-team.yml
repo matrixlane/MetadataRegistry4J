@@ -12,10 +12,15 @@ spring:
       maximum-pool-size: 20
       minimum-idle: 5
   jpa:
-    # EXT 实体(23 个)的 schema="ext" 覆盖;SQLite profile 不加载(实体注解无 schema,见 orm-team.xml 头注)
-    mapping-resources: classpath:orm/orm-team.xml
+    # EXT 实体(28 个物理表名,27 实体类;口径见 orm-team.xml 头注)的 schema="ext" 覆盖;SQLite profile 不加载(实体注解无 schema,见 orm-team.xml 头注)
+    # 注意: mapping-resources 不可用 classpath: 前缀(Hibernate 6.6.11 只剥 classpath://),须用裸路径
+    mapping-resources: orm/orm-team.xml
     properties:
       hibernate:
         default_schema: ${DB_DEFAULT_SCHEMA:mdr}
   flyway:
     locations: classpath:db/migration/${DB_VENDOR:sqlserver}
+    # Flyway 默认只看连接的默认 schema(dbo),而应用表在 mdr/ext 下;不显式指定时
+    # 既有库会被判定为空 schema 而跳过基线、从头重放老迁移(不可重放)。schema 历史
+    # 表落在首个 schema(mdr)。达梦以用户即模式,可用 FLYWAY_SCHEMAS 环境变量覆盖。
+    schemas: ${FLYWAY_SCHEMAS:mdr,ext}

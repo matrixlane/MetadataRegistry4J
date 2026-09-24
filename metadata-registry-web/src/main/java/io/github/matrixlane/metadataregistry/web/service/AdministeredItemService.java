@@ -11,6 +11,8 @@ import io.github.matrixlane.metadataregistry.commonfacilities.registration.Regis
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationStatus;
 import io.github.matrixlane.metadataregistry.web.common.ResourceNotFoundException;
 import io.github.matrixlane.metadataregistry.web.dto.administereditem.AdministeredItemResponse;
+import io.github.matrixlane.metadataregistry.web.dto.registration.ApprovalResultResponse;
+import io.github.matrixlane.metadataregistry.web.dto.registration.AvailableTransitionView;
 import io.github.matrixlane.metadataregistry.web.repository.AdministeredItemRepository;
 import io.github.matrixlane.metadataregistry.web.repository.ConstraintSetRepository;
 import io.github.matrixlane.metadataregistry.web.repository.ReferenceDocumentRepository;
@@ -33,7 +35,7 @@ import java.util.stream.Collectors;
 public class AdministeredItemService {
 
     private final AdministeredItemRepository repository;
-    private final RegistrationLifecycleService registrationLifecycleService;
+    private final RegistrationProcessService registrationProcessService;
     private final ReferenceDocumentRepository referenceDocumentRepository;
     private final ConstraintSetRepository constraintSetRepository;
 
@@ -54,9 +56,40 @@ public class AdministeredItemService {
         return toResponse(ai);
     }
 
-    public AdministeredItemResponse transition(UUID id, RegistrationStatus to, String administrativeNote) {
-        AdministeredItem ai = registrationLifecycleService.transition(id, to, administrativeNote);
-        return toResponse(ai);
+    /**
+     * 推进流程：该项当前状态的可达迁移动作视图（registration-process-designer）。
+     */
+    public List<AvailableTransitionView> availableTransitions(UUID id, UUID accountId) {
+        return registrationProcessService.availableTransitions(id, accountId);
+    }
+
+    /**
+     * 推进流程：直接执行无需审核的迁移；生效后返回最新注册项视图。
+     */
+    public AdministeredItemResponse executeTransition(UUID id, RegistrationStatus to, String note,
+                                                      UUID accountId) {
+        return toResponse(registrationProcessService.execute(id, to, note, accountId));
+    }
+
+    /**
+     * 推进流程：批准需审核的迁移；达 quorum 自动生效，返回生效标记与最新迁移动作视图。
+     */
+    public ApprovalResultResponse approveTransition(UUID id, RegistrationStatus to, UUID accountId) {
+        return registrationProcessService.approve(id, to, accountId);
+    }
+
+    /**
+     * 推进流程：驳回进行中的 RECORDED→QUALIFIED 申请。
+     */
+    public AdministeredItemResponse rejectTransition(UUID id, String note, UUID accountId) {
+        return toResponse(registrationProcessService.reject(id, note, accountId));
+    }
+
+    /**
+     * 主管申请合格：置 PROVISIONALLY_QUALIFIED 并启动 RECORDED→QUALIFIED 审核流。
+     */
+    public AdministeredItemResponse requestQualification(UUID id, UUID accountId) {
+        return toResponse(registrationProcessService.requestQualification(id, accountId));
     }
 
     public AdministeredItemResponse updateConstraintSet(UUID id, UUID constraintSetId) {

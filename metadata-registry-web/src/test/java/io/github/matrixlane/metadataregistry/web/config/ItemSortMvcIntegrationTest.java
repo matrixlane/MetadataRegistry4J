@@ -30,7 +30,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK, properties = {
         "spring.config.import=",
-        "spring.jpa.mapping-resources=",
+        "spring.jpa.mapping-resources=orm/orm-sqlite.xml",
         "spring.datasource.url=jdbc:sqlite:file:item-sort-mvc-it?mode=memory&cache=shared",
         "spring.datasource.driver-class-name=org.sqlite.JDBC",
         "spring.datasource.username=",

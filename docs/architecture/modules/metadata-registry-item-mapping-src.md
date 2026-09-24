@@ -18,7 +18,7 @@
 |---|---|---|
 | `dto` | `FhirMappingConflictWarning` | FHIR 一对多/冲突场景下的警告 DTO，支持自动生成可读消息 |
 | `entity` | `ItemMapping`, `ItemMappingSubject`, `ItemMappingObject` | ISO 11179 风格映射关系、subject/object 端点 |
-| `entity` | `MappingScheme` | 版本化映射方案容器，支持 draft/published/archived 生命周期 |
+| `entity` | `ItemMapping` | 条目映射（Item 子类），degree 14 标准值 + 转换规则/记法，1..* 主体/客体关联绑定 |
 | `entity` | `FhirElementMapping` | 本地项到 FHIR Element 的映射，含 path/resource/equivalence/type |
 | `entity` | `InteropMapping` | 匹配引擎产生的映射结果，保存置信度、策略、状态与撤销字段 |
 | `notification` | `MappingSubscription`, `MappingSubscriptionRepository` | 用户按 scheme 或 item 订阅映射变更 |
@@ -84,7 +84,7 @@ ItemMapping mapping = new ItemMapping(subject, object, MappingType.EQUIVALENT);
 
 ### `MappingScheme`
 
-`MappingScheme` 是版本化映射方案容器，字段包括 `name`、`sourceUri`、`targetUri`、`description`、`version`、`status`、`parentId`。核心约束是 `(parent_id, version)` 唯一，用于保证同一条版本链路上不会出现重复版本。
+`ItemMapping` 是 Item 的直接子类（ISO/IEC 11179-3:2023 11.3.1），字段包括 `degree`（14 标准值）、`description`、`transformationRule`、`transformationRuleNotation`；主体/客体经 `ItemMappingSubject`/`ItemMappingObject` 关联类（各 1..*，携带 `mappingVariableName`）绑定注册条目，层级经 `MappingHierarchy`（superset/subset，防环）建模。
 
 版本规则：
 

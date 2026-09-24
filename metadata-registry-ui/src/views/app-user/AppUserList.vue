@@ -4,6 +4,7 @@
     <DataTablePage
       ref="tableRef"
       :fetch-fn="appUserApi.list"
+      :delete-fn="appUserApi.delete"
       :show-action="false"
       @create="dialog?.open({ enabled: true })"
       @edit="(r) => dialog?.open(r)"

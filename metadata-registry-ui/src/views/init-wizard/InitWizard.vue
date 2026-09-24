@@ -197,12 +197,21 @@
           </el-form>
 
           <div class="wizard-settings-box">
-            <div class="setting-item">
+            <!-- 个人版：Admin 自动成为 Registrar，无需选择（后端同样强制 selfAsRegistrar=true）；
+                 仅团队版提供该开关 -->
+            <div v-if="form.edition === 'TEAM'" class="setting-item">
               <div class="setting-label-section">
                 <h4>将当前超级管理员设为该机构的注册管理员</h4>
                 <p>勾选后，当前登录的超级管理员将直接兼任该注册机构的注册管理员，从而拥有在该机构下创建命名空间、导入联系人的权限。</p>
               </div>
               <el-switch v-model="form.selfAsRegistrar" size="large" />
+            </div>
+            <div v-else class="setting-item">
+              <div class="setting-label-section">
+                <h4>当前超级管理员自动成为该机构的注册管理员</h4>
+                <p>个人版下无需选择：当前超级管理员将自动兼任该注册机构的注册管理员。</p>
+              </div>
+              <el-tag type="success" effect="dark" size="large">自动</el-tag>
             </div>
           </div>
         </div>
@@ -292,7 +301,7 @@
         <!-- Step 5: Registry Specification Configuration -->
         <div v-if="currentStep === 4" class="step-pane fade-in">
           <h3 class="step-title">配置注册规范</h3>
-          <p class="step-desc">注册规范描述注册表的运行环境，是注册表的固有组成部分（ISO/IEC 11179-3 表 28）。以下为系统默认配置，可按部署实际调整</p>
+          <p class="step-desc">注册规范描述注册表的运行环境，是注册表的固有组成部分。以下为系统默认配置，可按部署实际调整</p>
 
           <el-form
             ref="formStep4Ref"
@@ -327,6 +336,17 @@
               />
             </el-form-item>
 
+            <el-form-item label="默认时区" prop="registryDefaultTimeZone">
+              <el-input v-model="form.registryDefaultTimeZone" placeholder="[-+]HHMM，如 +0800、-0230" size="large" />
+            </el-form-item>
+
+            <el-form-item label="默认语言">
+              <el-select v-model="form.defaultLanguage" size="large" style="width: 100%;">
+                <el-option label="简体中文 (zh-CN)" value="zh-CN" />
+                <el-option label="英文 (en-US)" value="en-US" />
+              </el-select>
+            </el-form-item>
+
             <el-form-item label="字符集" prop="registryCharacterRepertoire">
               <el-input v-model="form.registryCharacterRepertoire" size="large" />
             </el-form-item>
@@ -342,70 +362,6 @@
               </el-select>
             </el-form-item>
 
-            <el-form-item label="合规等级">
-              <el-input v-model="form.registryConformanceLevel" size="large" />
-            </el-form-item>
-
-            <el-form-item label="合规标签">
-              <el-input v-model="form.registryConformanceLabel" size="large" />
-            </el-form-item>
-
-            <el-form-item label="包含特性">
-              <el-input v-model="form.registryIncludedFeatures" type="textarea" :rows="2" />
-            </el-form-item>
-
-            <el-form-item label="排除特性">
-              <el-input v-model="form.registryExcludedFeatures" type="textarea" :rows="2" />
-            </el-form-item>
-
-            <el-form-item label="默认时区" prop="registryDefaultTimeZone">
-              <el-input v-model="form.registryDefaultTimeZone" placeholder="[-+]HHMM，如 +0800、-0230" size="large" />
-            </el-form-item>
-
-            <el-form-item label="默认语言">
-              <el-select v-model="form.defaultLanguage" size="large" style="width: 100%;">
-                <el-option label="简体中文 (zh-CN)" value="zh-CN" />
-                <el-option label="英文 (en-US)" value="en-US" />
-              </el-select>
-            </el-form-item>
-
-            <el-form-item label="替代语言">
-              <el-select
-                v-model="form.registryAlternativeLanguages"
-                multiple
-                clearable
-                size="large"
-                style="width: 100%;"
-                placeholder="选择注册表中使用的其他语言"
-              >
-                <el-option label="简体中文 (zh-CN)" value="zh-CN" />
-                <el-option label="英文 (en-US)" value="en-US" />
-              </el-select>
-            </el-form-item>
-
-            <el-form-item label="表示类方案标识">
-              <el-input v-model="form.registryRepresentationClassSchemeId" placeholder="表示类分类方案标识（可选）" size="large" />
-            </el-form-item>
-
-            <el-form-item label="参考文档标识种类">
-              <el-select
-                v-model="form.registryReferenceDocumentIdentifierKinds"
-                multiple
-                filterable
-                allow-create
-                default-first-option
-                size="large"
-                style="width: 100%;"
-                placeholder="输入后回车添加，如 URI、内部文档编号"
-              >
-                <el-option
-                  v-for="kind in form.registryReferenceDocumentIdentifierKinds"
-                  :key="kind"
-                  :label="kind"
-                  :value="kind"
-                />
-              </el-select>
-            </el-form-item>
           </el-form>
         </div>
 
@@ -782,9 +738,13 @@ watch(() => form.registrationAuthorityName, (newVal) => {
 });
 
 // 个人版预填治理字段默认值（可修改）；团队版要求显式填写。
+// 个人版下 Admin 自动成为 Registrar（后端强制 selfAsRegistrar=true），前端同步锁定为 true。
 watch(() => form.edition, (val) => {
-  if (val === 'PERSONAL' && !form.registrationAuthorityName.trim()) {
-    form.registrationAuthorityName = '个人注册机构';
+  if (val === 'PERSONAL') {
+    if (!form.registrationAuthorityName.trim()) {
+      form.registrationAuthorityName = '个人注册机构';
+    }
+    form.selfAsRegistrar = true;
   }
 }, { immediate: true });
 

@@ -52,13 +52,17 @@ public class RegistrySpecificationService {
    public RegistrySpecificationResponse create(RegistrySpecificationRequest request) {
        RegistrySpecification entity = new RegistrySpecification();
        applyRequest(entity, request);
-       return toResponse(repository.save(entity));
+       RegistrySpecification saved = repository.save(entity);
+       itemAdministrationService.recordSubmission(saved, request.registration());
+       return toResponse(saved);
    }
 
    public RegistrySpecificationResponse update(UUID id, RegistrySpecificationRequest request) {
         RegistrySpecification entity = loadOrThrow(id);
         applyRequest(entity, request);
-        return toResponse(repository.save(entity));
+        RegistrySpecification saved = repository.save(entity);
+        itemAdministrationService.recordSubmission(saved, request.registration());
+        return toResponse(saved);
     }
 
    public void delete(UUID id) {

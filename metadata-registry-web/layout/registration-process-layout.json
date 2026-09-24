@@ -1,0 +1,146 @@
+{
+  "nodes" : {
+    "INCOMPLETE" : {
+      "x" : 0,
+      "y" : 0
+    },
+    "CANDIDATE" : {
+      "x" : 236,
+      "y" : 0
+    },
+    "RECORDED" : {
+      "x" : 472,
+      "y" : 0
+    },
+    "QUALIFIED" : {
+      "x" : 712,
+      "y" : 0
+    },
+    "STANDARD" : {
+      "x" : 947,
+      "y" : 0
+    },
+    "PREFERRED_STANDARD" : {
+      "x" : 1181,
+      "y" : 0
+    },
+    "SUPERSEDED" : {
+      "x" : 832,
+      "y" : 219
+    },
+    "RETIRED" : {
+      "x" : 1181,
+      "y" : 219
+    },
+    "HISTORICAL" : {
+      "x" : 0,
+      "y" : 219
+    },
+    "APPLICATION" : {
+      "x" : 236,
+      "y" : 219
+    }
+  },
+  "edgeOverrides" : {
+    "INCOMPLETE->CANDIDATE" : {
+      "sx" : 89,
+      "laneY" : -41,
+      "tx" : 325
+    },
+    "INCOMPLETE->HISTORICAL" : {
+      "sx" : 90,
+      "laneY" : 100,
+      "tx" : 90
+    },
+    "INCOMPLETE->APPLICATION" : {
+      "sx" : 90,
+      "laneY" : 106,
+      "tx" : 287
+    },
+    "CANDIDATE->RECORDED" : {
+      "sx" : 325,
+      "laneY" : -41,
+      "tx" : 518
+    },
+    "CANDIDATE->HISTORICAL" : {
+      "sx" : 326,
+      "laneY" : 146,
+      "tx" : 134
+    },
+    "CANDIDATE->APPLICATION" : {
+      "sx" : 326,
+      "laneY" : 100,
+      "tx" : 326
+    },
+    "RECORDED->QUALIFIED" : {
+      "sx" : 562,
+      "laneY" : -43,
+      "tx" : 800
+    },
+    "RECORDED->SUPERSEDED" : {
+      "sx" : 562,
+      "laneY" : 97,
+      "tx" : 877
+    },
+    "RECORDED->RETIRED" : {
+      "sx" : 562,
+      "laneY" : 97,
+      "tx" : 1230
+    },
+    "QUALIFIED->STANDARD" : {
+      "sx" : 800,
+      "laneY" : -43,
+      "tx" : 1036
+    },
+    "QUALIFIED->SUPERSEDED" : {
+      "sx" : 802,
+      "laneY" : 127,
+      "tx" : 922
+    },
+    "QUALIFIED->RETIRED" : {
+      "sx" : 802,
+      "laneY" : 127,
+      "tx" : 1271
+    },
+    "STANDARD->PREFERRED_STANDARD" : {
+      "sx" : 1036,
+      "laneY" : -43,
+      "tx" : 1271
+    },
+    "STANDARD->SUPERSEDED" : {
+      "sx" : 1037,
+      "laneY" : 157,
+      "tx" : 922
+    },
+    "STANDARD->RETIRED" : {
+      "sx" : 1037,
+      "laneY" : 157,
+      "tx" : 1271
+    },
+    "PREFERRED_STANDARD->STANDARD" : {
+      "sx" : 1271,
+      "laneY" : -82,
+      "tx" : 1088
+    },
+    "PREFERRED_STANDARD->SUPERSEDED" : {
+      "sx" : 1271,
+      "laneY" : 186,
+      "tx" : 922
+    },
+    "PREFERRED_STANDARD->RETIRED" : {
+      "sx" : 1271,
+      "laneY" : 157,
+      "tx" : 1271
+    },
+    "SUPERSEDED->RETIRED" : {
+      "sx" : 922,
+      "laneY" : 330,
+      "tx" : 1271
+    },
+    "APPLICATION->CANDIDATE" : {
+      "sx" : 326,
+      "laneY" : 182,
+      "tx" : 379
+    }
+  }
+}

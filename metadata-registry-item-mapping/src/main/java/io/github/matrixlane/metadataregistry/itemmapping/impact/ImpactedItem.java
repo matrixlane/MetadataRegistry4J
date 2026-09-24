@@ -1,25 +1,25 @@
 package io.github.matrixlane.metadataregistry.itemmapping.impact;
 
-import io.github.matrixlane.metadataregistry.itemmapping.enums.MappingType;
+import io.github.matrixlane.metadataregistry.itemmapping.enums.MappingDegree;
 
 import java.util.UUID;
 
 /**
- * Represents a single item affected by a mapping change.
+ * 受映射变更影响的单个条目。
  *
- * @param itemId          the UUID of the affected administered item
- * @param impactLevel     the level of impact (direct / indirect / cascade)
- * @param impactDirection the direction of impact
- * @param mappingId       the UUID of the mapping relationship causing the impact
- * @param mappingType     the type of the mapping relationship
- * @param suggestedAction a human-readable suggestion for remediation
+ * @param itemId          受影响条目的 UUID
+ * @param impactLevel     影响级别（direct / indirect / cascade）
+ * @param impactDirection 影响方向
+ * @param mappingId       造成影响的映射 UUID
+ * @param degree          映射度
+ * @param suggestedAction 可读的处置建议
  */
 public record ImpactedItem(
         UUID itemId,
         ImpactLevel impactLevel,
         ImpactDirection impactDirection,
         UUID mappingId,
-        MappingType mappingType,
+        MappingDegree degree,
         String suggestedAction
 ) {
 }

@@ -1,5 +1,7 @@
 package io.github.matrixlane.metadataregistry.web.controller;
 
+import io.github.matrixlane.metadataregistry.datasetregistration.entity.InteropDataElement;
+import io.github.matrixlane.metadataregistry.datasetregistration.repository.InteropDataElementRepository;
 import io.github.matrixlane.metadataregistry.itemmapping.entity.InteropMapping;
 import io.github.matrixlane.metadataregistry.itemmapping.enums.InteropMappingStatus;
 import io.github.matrixlane.metadataregistry.itemmapping.service.InteropMappingResultService;
@@ -48,6 +50,7 @@ import java.util.UUID;
 public class InteropMappingController {
 
     private final InteropMappingResultService interopMappingResultService;
+    private final InteropDataElementRepository interopDataElementRepository;
 
     // ── List & Filter ───────────────────────────────────────────────
 
@@ -211,12 +214,23 @@ public class InteropMappingController {
     // ── Mapping ─────────────────────────────────────────────────────
 
     private InteropMappingResponse toResponse(InteropMapping mapping) {
+        // 界面禁显 UUID：数据集元素侧以「标识符 | 名称」呈现；本地条目名由前端经
+        // metadata search 反查（localItemId 是受管条目 UUID，不在此处展示）。
+        String dataElementDisplay = interopDataElementRepository.findById(mapping.getInteropDataElementId())
+                .map(el -> {
+                    String name = el.getDeName();
+                    if (name == null || name.isBlank()) {
+                        return el.getDeIdentifier();
+                    }
+                    return el.getDeIdentifier() + " | " + name;
+                })
+                .orElse(null);
         return new InteropMappingResponse(
                 mapping.getId(),
                 mapping.getInteropDataElementId(),
-                null, // interopDataElementName — populated by front-end or future enhancement
+                dataElementDisplay,
                 mapping.getLocalItemId(),
-                null, // localItemName — populated by front-end or future enhancement
+                null, // localItemName — 前端经 metadata search 反查业务标识/指称
                 mapping.getConfidenceScore(),
                 mapping.getStrategy(),
                 mapping.getStatus(),

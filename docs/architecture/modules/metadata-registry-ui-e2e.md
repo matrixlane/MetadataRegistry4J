@@ -95,7 +95,9 @@ export async function setupAuthenticatedPage(page: Page)
 
 侧边栏菜单结构回归测试。重点包括：
 
-- 菜单分组与子项顺序断言（注册通用设施、概念区域、表示区域等）；
+- 菜单分组与子项顺序断言（概念模块、表示模块、基础与核心模块、标识与命名模块、注册模块、分类模块、项目映射模块等，见 `openspec/specs/standardize-menu-layout/spec.md`）；
+- 新接入菜单项的导航断言（值含义、文档类型、注册流程、项目映射）与规划中项（维度、角色、分类项）的占位页断言；
+- 启动就绪门控 mock：`/api/v1/startup/status` 必须返回 `ready: true`，否则应用停留在启动屏；
 - "系统"菜单仅对管理员可见；
 - 折叠按钮切换 `.collapsed` 类；
 - **`"我的"` 位置守卫测试**：通过 `data-testid="nav-my"` / `data-testid="sidebar-footer"` / `data-testid="header-right"` 断言"我的"固定在侧边栏底部而非头部，防止 AI 编辑回归移动该入口；折叠后图标仍可见、文字标签隐藏。

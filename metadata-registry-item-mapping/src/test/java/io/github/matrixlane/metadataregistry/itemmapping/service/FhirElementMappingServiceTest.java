@@ -54,7 +54,7 @@ class FhirElementMappingServiceTest {
 
         FhirElementMapping result = service.createOneToOneMapping(
                 itemId, "Patient.name.given", "Patient",
-                FhirMappingEquivalence.EQUIVALENT, "Desc", null, userId);
+                FhirMappingEquivalence.EQUIVALENT, "Desc", userId);
 
         assertThat(result.getId()).isEqualTo(saved.getId());
         assertThat(result.getMappingType()).isEqualTo(FhirMappingType.ONE_TO_ONE);
@@ -69,7 +69,7 @@ class FhirElementMappingServiceTest {
 
         assertThatThrownBy(() -> service.createOneToOneMapping(
                 itemId, "Patient.name.given", "Patient",
-                FhirMappingEquivalence.EQUIVALENT, null, null, UUID.randomUUID()))
+                FhirMappingEquivalence.EQUIVALENT, null, UUID.randomUUID()))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Duplicate mapping");
     }
@@ -83,7 +83,7 @@ class FhirElementMappingServiceTest {
         FhirElementMapping saved = new FhirElementMapping(
                 itemId, "Patient.name.family", "Patient",
                 FhirMappingEquivalence.EQUIVALENT,
-                FhirMappingType.ONE_TO_MANY, "family", "Family name", null
+                FhirMappingType.ONE_TO_MANY, "family", "Family name"
         );
         saved.setId(UUID.randomUUID());
 
@@ -94,7 +94,7 @@ class FhirElementMappingServiceTest {
         FhirElementMapping result = service.createOneToManyMapping(
                 itemId, "Patient.name.family", "Patient",
                 FhirMappingEquivalence.EQUIVALENT, "family",
-                "Family name", null, userId);
+                "Family name", userId);
 
         assertThat(result.getMappingType()).isEqualTo(FhirMappingType.ONE_TO_MANY);
         assertThat(result.getMappingVariable()).isEqualTo("family");
@@ -106,7 +106,7 @@ class FhirElementMappingServiceTest {
         assertThatThrownBy(() -> service.createOneToManyMapping(
                 itemId, "Patient.name.family", "Patient",
                 FhirMappingEquivalence.EQUIVALENT, "  ",
-                null, null, UUID.randomUUID()))
+                null, UUID.randomUUID()))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("mappingVariable");
     }
@@ -117,7 +117,7 @@ class FhirElementMappingServiceTest {
         assertThatThrownBy(() -> service.createOneToManyMapping(
                 itemId, "Patient.name.family", "Patient",
                 FhirMappingEquivalence.EQUIVALENT, null,
-                null, null, UUID.randomUUID()))
+                null, UUID.randomUUID()))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("mappingVariable");
     }
@@ -143,17 +143,6 @@ class FhirElementMappingServiceTest {
 
         assertThat(result).isEmpty();
         verify(repository).findByFhirResourceType("Patient");
-    }
-
-    @Test
-    void findBySchemeId_shouldReturnMappings() {
-        UUID schemeId = UUID.randomUUID();
-        when(repository.findByMappingSchemeId(schemeId)).thenReturn(List.of());
-
-        List<FhirElementMapping> result = service.findBySchemeId(schemeId);
-
-        assertThat(result).isEmpty();
-        verify(repository).findByMappingSchemeId(schemeId);
     }
 
     @Test
@@ -288,17 +277,5 @@ class FhirElementMappingServiceTest {
 
         assertThat(result).isSameAs(warnings);
         verify(conflictDetector).detectAllConflicts();
-    }
-
-    @Test
-    void detectConflictsByScheme_shouldDelegateToDetector() {
-        UUID schemeId = UUID.randomUUID();
-        List<FhirMappingConflictWarning> warnings = List.of();
-        when(conflictDetector.detectConflictsByScheme(schemeId)).thenReturn(warnings);
-
-        List<FhirMappingConflictWarning> result = service.detectConflictsByScheme(schemeId);
-
-        assertThat(result).isSameAs(warnings);
-        verify(conflictDetector).detectConflictsByScheme(schemeId);
     }
 }

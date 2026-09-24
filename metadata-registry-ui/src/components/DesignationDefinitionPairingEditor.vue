@@ -238,13 +238,13 @@ function duplicateError(index: number): boolean {
 }
 
 function lineLabel(line: LineOption): string {
-  return line.value || line.id;
+  return line.value || t('common.deletedEntry');
 }
 
-/** 已保存配对引用的展示文本：从行集合中解析，缺失时回退为原始 id。 */
+/** 已保存配对引用的展示文本：从行集合中解析，缺失时显示占位（不回退 id）。 */
 function savedLineText(id: string, lines: LineOption[]): string {
   const line = lines.find((l) => l.id === id);
-  return line ? lineLabel(line) : id;
+  return line ? lineLabel(line) : t('common.deletedEntry');
 }
 
 function findDesignation(id: string): LineOption | undefined {

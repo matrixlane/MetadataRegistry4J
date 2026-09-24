@@ -472,7 +472,8 @@ const hotkeys = ref<Record<string, string>>({ ...DEFAULT_HOTKEYS });
 const settingsSaving = ref(false);
 const settingsLoadFailed = ref(false);
 
-const canSaveSettings = computed(() => !!auth.isAdmin);
+// 应用设置：AI 辅助偏好（候选数/快捷键）对每一位登录用户开放读写（add-workspace-administrative-status）
+const canSaveSettings = computed(() => !!auth.user);
 
 /** 命令清单：首条为调试侧栏开合（服务端默认合并保证存在） */
 const hotkeyRows = computed(() =>

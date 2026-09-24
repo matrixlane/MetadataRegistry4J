@@ -36,6 +36,8 @@ class NamespacePermissionEvaluatorTest {
     @Mock
     private ContactRepository contactRepository;
     @Mock private ContactAccountBindingService contactAccountBindingService;
+    @Mock private io.github.matrixlane.metadataregistry.web.repository.NamespaceRepository namespaceRepository;
+    @Mock private io.github.matrixlane.metadataregistry.web.repository.RegistrationAuthorityRepository registrationAuthorityRepository;
 
     @InjectMocks
     private NamespacePermissionEvaluator evaluator;
@@ -164,5 +166,62 @@ class NamespacePermissionEvaluatorTest {
 
         assertThat(hasRead).isTrue();
         assertThat(hasWrite).isFalse();
+    }
+
+    // ---- Submitter 通道（add-submitter-contact-identity）：注册机构自有命名空间 ----
+
+    @Test
+    void hasWritePermission_submitterAllowedInSystemUniqueRaNamespace() {
+        when(accountRepository.findById(accountId)).thenReturn(Optional.of(account));
+        when(namespacePermissionRepository.findByNamespaceIdAndAccountId(namespaceId, accountId))
+                .thenReturn(Optional.empty());
+        when(contactAccountBindingService.hasAnyContact(accountId)).thenReturn(true);
+
+        var ra = new io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationAuthority();
+        ra.setId(UUID.randomUUID());
+        var ns = new io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace();
+        ns.setId(namespaceId);
+        ns.setRegistrationAuthority(ra);
+        when(namespaceRepository.findById(namespaceId)).thenReturn(Optional.of(ns));
+        when(registrationAuthorityRepository.findAll()).thenReturn(List.of(ra));
+
+        assertThat(evaluator.hasWritePermission(namespaceId, accountId)).isTrue();
+    }
+
+    @Test
+    void hasWritePermission_submitterDeniedWhenMultipleRegistries() {
+        when(accountRepository.findById(accountId)).thenReturn(Optional.of(account));
+        when(namespacePermissionRepository.findByNamespaceIdAndAccountId(namespaceId, accountId))
+                .thenReturn(Optional.empty());
+        when(contactAccountBindingService.hasAnyContact(accountId)).thenReturn(true);
+
+        var ra = new io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationAuthority();
+        ra.setId(UUID.randomUUID());
+        var ns = new io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace();
+        ns.setId(namespaceId);
+        ns.setRegistrationAuthority(ra);
+        when(namespaceRepository.findById(namespaceId)).thenReturn(Optional.of(ns));
+        // 多注册机构（未来多注册表模式）：通道关闭，回落组织授权判定
+        when(registrationAuthorityRepository.findAll())
+                .thenReturn(List.of(ra, new io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationAuthority()));
+        when(contactAccountBindingService.contactsOfAccount(account)).thenReturn(Collections.emptyList());
+
+        assertThat(evaluator.hasWritePermission(namespaceId, accountId)).isFalse();
+    }
+
+    @Test
+    void hasWritePermission_submitterDeniedInNamespaceWithoutRa() {
+        when(accountRepository.findById(accountId)).thenReturn(Optional.of(account));
+        when(namespacePermissionRepository.findByNamespaceIdAndAccountId(namespaceId, accountId))
+                .thenReturn(Optional.empty());
+        when(contactAccountBindingService.hasAnyContact(accountId)).thenReturn(true);
+
+        var ns = new io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace();
+        ns.setId(namespaceId);
+        ns.setRegistrationAuthority(null);
+        when(namespaceRepository.findById(namespaceId)).thenReturn(Optional.of(ns));
+        when(contactAccountBindingService.contactsOfAccount(account)).thenReturn(Collections.emptyList());
+
+        assertThat(evaluator.hasWritePermission(namespaceId, accountId)).isFalse();
     }
 }

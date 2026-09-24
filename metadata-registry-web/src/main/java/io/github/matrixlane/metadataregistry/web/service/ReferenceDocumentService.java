@@ -14,7 +14,6 @@ import io.github.matrixlane.metadataregistry.web.repository.DocumentTypeReposito
 import io.github.matrixlane.metadataregistry.web.repository.LanguageIdentificationRepository;
 import io.github.matrixlane.metadataregistry.web.repository.ReferenceDocumentRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -23,7 +22,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.UUID;
 
 @Service
@@ -35,6 +33,7 @@ public class ReferenceDocumentService {
     private final DocumentTypeRepository documentTypeRepository;
     private final LanguageIdentificationRepository languageRepository;
     private final LanguageGovernanceService governanceService;
+    private final LanguageExtensionService extensionService;
 
     @Transactional(readOnly = true)
     public Page<ReferenceDocumentResponse> list(String keyword, Pageable pageable) {
@@ -112,15 +111,17 @@ public class ReferenceDocumentService {
         DocumentType type = entity.getTypeDescription();
         List<LanguageResponse> langs = new ArrayList<>();
         if (entity.getLanguage() != null) {
-            Locale displayLocale = LocaleContextHolder.getLocale();
             for (LanguageIdentification li : entity.getLanguage()) {
+                // 语言名称/地区名称仅取扩展表持久化值(纯展示字段,缺失或为空时返回 null,不做运行时解析)
+                io.github.matrixlane.metadataregistry.ext.basicandcore.LanguageIdentificationExtension extension =
+                        extensionService.getOrDefault(li.getId());
                 langs.add(new LanguageResponse(
                         li.getId(),
                         li.getLanguageIdentifier(),
                         li.getScriptIdentifier(),
                         li.getGeopoliticalTerritoryIdentifier(),
-                        LanguageDisplayNames.languageName(li.getLanguageIdentifier(), displayLocale),
-                        LanguageDisplayNames.territoryName(li.getGeopoliticalTerritoryIdentifier(), displayLocale),
+                        extension == null ? null : extension.getLanguageName(),
+                        extension == null ? null : extension.getTerritoryName(),
                         new ArrayList<>(li.getVariantIdentifier()),
                         new ArrayList<>(li.getExtensionIdentifier()),
                         li.getPrivateUseQualifier(),

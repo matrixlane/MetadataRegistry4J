@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page, type Locator } from '@playwright/test';
 import { setupAuthenticatedPage } from './auth.setup';
 
 test.describe('Sidebar Menu Reorganization', () => {
@@ -8,7 +8,20 @@ test.describe('Sidebar Menu Reorganization', () => {
     // Catch-all mock for other API endpoints to prevent 401 redirects when page initializes
     await page.route('**/api/v1/**', async (route) => {
       const url = route.request().url();
-      
+
+      // Handle backend startup readiness probe (gates app mount in main.ts)
+      if (url.includes('/api/v1/startup/status')) {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            code: 0,
+            data: { ready: true },
+          }),
+        });
+        return;
+      }
+
       // Handle auth/me check
       if (url.includes('/api/v1/auth/me')) {
         await route.fulfill({
@@ -61,80 +74,176 @@ test.describe('Sidebar Menu Reorganization', () => {
     });
   });
 
-  test('should display menu groups and submenus matching the new spec', async ({ page }) => {
+  function mainLabel(scope: Page | Locator, text: string): Locator {
+    return scope.locator('.menu-label__main').filter({ hasText: new RegExp(`^${text}$`) });
+  }
+
+  async function expandGroup(page: Page, groupTitle: string): Promise<Locator> {
+    const group = page.locator('.el-sub-menu').filter({
+      has: page.locator('> .el-sub-menu__title > .menu-label > .menu-label__main', {
+        hasText: new RegExp(`^${groupTitle}$`),
+      }),
+    });
+    // 幂等展开：目标路由激活时 el-menu 会自动展开所属子菜单，
+    // 此时再点标题反而会将其折叠
+    const submenu = group.locator('> ul.el-menu');
+    if (!(await submenu.isVisible())) {
+      await group.locator('> .el-sub-menu__title').click();
+    }
+    return group;
+  }
+
+  async function expectGroupItems(page: Page, groupTitle: string, labels: string[]) {
+    const group = await expandGroup(page, groupTitle);
+    const items = group.locator('.el-menu-item .menu-label__main');
+    await expect(items).toHaveCount(labels.length);
+    for (let i = 0; i < labels.length; i++) {
+      await expect(items.nth(i)).toHaveText(new RegExp(`^${labels[i]}$`));
+    }
+  }
+
+  test('should display menu groups and submenus matching the redefined spec', async ({ page }) => {
     await page.goto('/dashboard');
 
     // Sidebar should be visible
     await expect(page.locator('.app-sidebar')).toBeVisible();
 
-    // 1. Verify primary elements and group titles exist
-    await expect(page.locator('.el-menu-item').filter({ hasText: /^概览$/ })).toBeVisible();
-    await expect(page.locator('.el-menu-item').filter({ hasText: /^数据字典$/ })).toBeVisible();
+    // 1. Verify top-level items exist
+    await expect(mainLabel(page, '概览')).toBeVisible();
+    await expect(mainLabel(page, '数据字典')).toBeVisible();
 
-    // 2. Verify sub-menu title texts
-    await expect(page.locator('.el-sub-menu__title').filter({ hasText: /^注册通用设施$/ })).toBeVisible();
-    await expect(page.locator('.el-sub-menu__title').filter({ hasText: /^主体与文档$/ })).toBeVisible();
-    await expect(page.locator('.el-sub-menu__title').filter({ hasText: /^概念区域$/ })).toBeVisible();
-    await expect(page.locator('.el-sub-menu__title').filter({ hasText: /^表示区域$/ })).toBeVisible();
-    await expect(page.locator('.el-sub-menu__title').filter({ hasText: /^分类与映射$/ })).toBeVisible();
-    await expect(page.locator('.el-sub-menu__title').filter({ hasText: /^系统$/ })).toBeVisible();
+    // 1b. 顶栏右上角：工作空间（含徽标容器）与应用设置入口均可见
+    const headerRight = page.locator('[data-testid="header-right"]');
+    await expect(headerRight.locator('[data-testid="workspace-entry-btn"]')).toBeVisible();
+    await expect(headerRight.locator('[data-testid="workspace-entry-badge"]')).toBeVisible();
+    await expect(headerRight.locator('[data-testid="app-settings-entry-btn"]')).toBeVisible();
+    // 侧边栏不含工作空间/系统菜单项
+    await expect(mainLabel(page, '工作空间')).toHaveCount(0);
+    await expect(mainLabel(page, '系统')).toHaveCount(0);
 
-    // Verify items under '注册通用设施' in exact order
-    const regSubmenu = page.locator('.el-sub-menu').filter({
-      has: page.locator('> .el-sub-menu__title').filter({ hasText: /^注册通用设施$/ })
-    });
-    await regSubmenu.locator('> .el-sub-menu__title').click();
+    // 1c. 底栏（我的下方）：管理员可见合并后的"系统"入口
+    const footer = page.locator('[data-testid="sidebar-footer"]');
+    await expect(footer.locator('[data-testid="nav-system"]')).toBeVisible();
 
-    const regItems = regSubmenu.locator('.el-menu-item');
-    await expect(regItems.nth(0)).toHaveText(/^注册机构$/);
-    await expect(regItems.nth(1)).toHaveText(/^注册规范$/);
-    await expect(regItems.nth(2)).toHaveText(/^注册人员$/);
-    await expect(regItems.nth(3)).toHaveText(/^命名空间$/);
-    await expect(regItems.nth(4)).toHaveText(/^语言$/);
-    await expect(regItems.nth(5)).toHaveText(/^上下文$/);
+    // 2. Verify sub-menu group titles（系统已移至"我的"之下的底栏，不在侧边栏菜单）
+    for (const group of ['概念模块', '表示模块', '基础与核心模块', '标识与命名模块', '注册模块', '分类模块', '项目映射模块']) {
+      await expect(mainLabel(page, group)).toBeVisible();
+    }
 
-    // 3. Expand Concept Region and verify items
-    const conceptSubmenu = page.locator('.el-sub-menu').filter({
-      has: page.locator('> .el-sub-menu__title').filter({ hasText: /^概念区域$/ })
-    });
-    await conceptSubmenu.locator('> .el-sub-menu__title').click();
+    // 3. Verify items of each group in exact order
+    await expectGroupItems(page, '概念模块', [
+      '对象类',
+      '特性',
+      '数据元概念',
+      '概念域',
+      '值含义',
+      '维度',
+      '计量类',
+      '计量单位',
+    ]);
 
-    await expect(conceptSubmenu.locator('.el-menu-item').filter({ hasText: /^对象类$/ })).toBeVisible();
-    await expect(conceptSubmenu.locator('.el-menu-item').filter({ hasText: /^特性$/ })).toBeVisible();
-    await expect(conceptSubmenu.locator('.el-menu-item').filter({ hasText: /^数据元概念$/ })).toBeVisible();
-    await expect(conceptSubmenu.locator('.el-menu-item').filter({ hasText: /^概念域$/ })).toBeVisible();
-    await expect(conceptSubmenu.locator('.el-menu-item').filter({ hasText: /^计量单位$/ })).toBeVisible();
-    await expect(conceptSubmenu.locator('.el-menu-item').filter({ hasText: /^计量类$/ })).toBeVisible();
-    await expect(conceptSubmenu.locator('.el-menu-item').filter({ hasText: /^维度$/ })).toBeVisible();
+    await expectGroupItems(page, '表示模块', [
+      '数据元',
+      '值域',
+      '数据类型方案',
+      '数据类型',
+    ]);
 
-    // 4. Expand Representation Region and verify items
-    const representationSubmenu = page.locator('.el-sub-menu').filter({
-      has: page.locator('> .el-sub-menu__title').filter({ hasText: /^表示区域$/ })
-    });
-    await representationSubmenu.locator('> .el-sub-menu__title').click();
-    await expect(representationSubmenu.locator('.el-menu-item').filter({ hasText: /^数据元$/ })).toBeVisible();
-    await expect(representationSubmenu.locator('.el-menu-item').filter({ hasText: /^值域$/ })).toBeVisible();
-    await expect(representationSubmenu.locator('.el-menu-item').filter({ hasText: /^数据类型$/ })).toBeVisible();
-    await expect(representationSubmenu.locator('.el-menu-item').filter({ hasText: /^数据类型方案$/ })).toBeVisible();
+    await expectGroupItems(page, '基础与核心模块', [
+      '个人',
+      '组织',
+      '角色',
+      '联系人',
+      '文档类型',
+      '语言',
+      '参考文档',
+      '上下文',
+    ]);
+
+    await expectGroupItems(page, '标识与命名模块', [
+      '命名空间',
+      '命名规范',
+    ]);
+
+    await expectGroupItems(page, '注册模块', [
+      '注册机构',
+      '注册规范',
+      '注册人员',
+      '注册流程',
+      '注册项',
+    ]);
+
+    await expectGroupItems(page, '分类模块', [
+      '分类方案',
+      '分类项',
+    ]);
+
+    await expectGroupItems(page, '项目映射模块', [
+      '条目映射',
+    ]);
   });
 
-  test('should navigate correctly and display placeholder page when clicking 维度', async ({ page }) => {
+  test('should navigate correctly from newly wired menu entries', async ({ page }) => {
     await page.goto('/dashboard');
     await expect(page.locator('.app-sidebar')).toBeVisible();
 
-    // Expand Concept Region
-    const conceptSubmenu = page.locator('.el-sub-menu').filter({
-      has: page.locator('> .el-sub-menu__title').filter({ hasText: /^概念区域$/ })
-    });
-    await conceptSubmenu.locator('> .el-sub-menu__title').click();
+    // 工作空间（顶栏右上角入口）
+    await page.locator('[data-testid="workspace-entry-btn"]').click();
+    await expect(page).toHaveURL(/\/workspace/);
 
-    // Click on 维度
-    await conceptSubmenu.locator('.el-menu-item').filter({ hasText: /^维度$/ }).click();
+    // 概念模块 → 值含义
+    let group = await expandGroup(page, '概念模块');
+    await group.locator('.el-menu-item').filter({ has: mainLabel(page, '值含义') }).click();
+    await expect(page).toHaveURL(/\/value-meanings/);
 
-    // Verify redirect and placeholder content
+    // 基础与核心模块 → 文档类型
+    group = await expandGroup(page, '基础与核心模块');
+    await group.locator('.el-menu-item').filter({ has: mainLabel(page, '文档类型') }).click();
+    await expect(page).toHaveURL(/\/document-types/);
+
+    // 注册模块 → 注册流程（注册流程展示页）
+    group = await expandGroup(page, '注册模块');
+    await group.locator('.el-menu-item').filter({ has: mainLabel(page, '注册流程') }).click();
+    await expect(page).toHaveURL(/\/registration-process/);
+
+    // 项目映射模块 → 条目映射
+    group = await expandGroup(page, '项目映射模块');
+    await group.locator('.el-menu-item').filter({ has: mainLabel(page, '条目映射') }).click();
+    await expect(page).toHaveURL(/\/item-mappings/);
+  });
+
+  test('should navigate to placeholder pages for planned menu items', async ({ page }) => {
+    await page.goto('/dashboard');
+    await expect(page.locator('.app-sidebar')).toBeVisible();
+
+    // 概念模块 → 维度（已实现为维度管理页，不再是占位页）
+    let group = await expandGroup(page, '概念模块');
+    await group.locator('.el-menu-item').filter({ has: mainLabel(page, '维度') }).click();
     await expect(page).toHaveURL(/\/dimensionality/);
-    await expect(page.locator('.placeholder-title')).toHaveText('维度');
-    await expect(page.locator('.placeholder-desc')).toHaveText('功能开发中，敬请期待');
+    await expect(page.locator('.placeholder-title')).toHaveCount(0);
+    await expect(page.locator('h2', { hasText: '维度' })).toBeVisible();
+
+    // 基础与核心模块 → 角色（已实现为角色管理页，不再是占位页）
+    group = await expandGroup(page, '基础与核心模块');
+    await group.locator('.el-menu-item').filter({ has: mainLabel(page, '角色') }).click();
+    await expect(page).toHaveURL(/\/roles/);
+    await expect(page.locator('.placeholder-title')).toHaveCount(0);
+    await expect(page.locator('h2', { hasText: '角色' })).toBeVisible();
+
+    // 分类模块 → 分类项（规划中）
+    group = await expandGroup(page, '分类模块');
+    await group.locator('.el-menu-item').filter({ has: mainLabel(page, '分类项') }).click();
+    await expect(page).toHaveURL(/\/classification-items/);
+    await expect(page.locator('.placeholder-title')).toHaveText('分类项');
+  });
+
+  test('should no longer expose removed mapping menu entries', async ({ page }) => {
+    await page.goto('/dashboard');
+    await expect(page.locator('.app-sidebar')).toBeVisible();
+
+    // 旧“分类与映射”组已拆分：映射网络 / 匹配结果管理不再出现在侧边栏
+    await expect(mainLabel(page, '映射网络')).toHaveCount(0);
+    await expect(mainLabel(page, '匹配结果管理')).toHaveCount(0);
   });
 
   test('should hide system menu for non-admin user', async ({ page }) => {
@@ -159,8 +268,15 @@ test.describe('Sidebar Menu Reorganization', () => {
     await page.goto('/dashboard');
     await expect(page.locator('.app-sidebar')).toBeVisible();
 
-    // Verify system submenu is NOT visible
-    await expect(page.locator('.el-sub-menu__title').filter({ hasText: /^系统$/ })).toHaveCount(0);
+    // 非管理员：底栏无"系统"入口；应用设置入口仍可见；侧边栏无系统组
+    const footer = page.locator('[data-testid="sidebar-footer"]');
+    await expect(footer.locator('[data-testid="nav-system"]')).toHaveCount(0);
+    await expect(
+      page.locator('[data-testid="header-right"]').locator('[data-testid="app-settings-entry-btn"]')
+    ).toBeVisible();
+    await expect(
+      page.locator('.el-sub-menu__title').filter({ has: mainLabel(page, '系统') })
+    ).toHaveCount(0);
   });
 
   test('should collapse sidebar when collapse button is clicked', async ({ page }) => {

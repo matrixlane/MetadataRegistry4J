@@ -1,9 +1,17 @@
 package io.github.matrixlane.metadataregistry.web.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.Item;
+import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.Sign;
+import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.Designation;
+import io.github.matrixlane.metadataregistry.commonfacilities.registration.AdministeredItem;
+import io.github.matrixlane.metadataregistry.commonfacilities.registration.AdministrativeStatus;
+import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationState;
+import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationStatus;
 import io.github.matrixlane.metadataregistry.dataspecification.DataElement;
 import io.github.matrixlane.metadataregistry.web.dto.version.FieldDiffEntry;
+import io.github.matrixlane.metadataregistry.web.dto.version.SnapshotKind;
 import io.github.matrixlane.metadataregistry.web.dto.version.VersionDiffResponse;
 import io.github.matrixlane.metadataregistry.web.dto.version.VersionHistoryEntryResponse;
 import io.github.matrixlane.metadataregistry.web.dto.version.VersionSnapshotResponse;
@@ -18,6 +26,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 
@@ -33,10 +43,14 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 class VersionHistoryServiceTest {
 
     @Mock
     private VersionHistoryRepository repository;
+
+    @Mock
+    private ItemAdministrationService itemAdministrationService;
 
     @Spy
     private ObjectMapper objectMapper = new ObjectMapper();
@@ -45,6 +59,17 @@ class VersionHistoryServiceTest {
     private VersionHistoryService service;
 
     private static final UUID ITEM_ID = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+
+    @BeforeEach
+    void setUp() {
+        SecurityContextHolder.clearContext();
+        when(itemAdministrationService.isRestoreInProgress()).thenReturn(false);
+    }
+
+    @AfterEach
+    void tearDown() {
+        SecurityContextHolder.clearContext();
+    }
 
     @Test
     void listVersions_shouldReturnEntriesInDescOrder() {
@@ -66,12 +91,8 @@ class VersionHistoryServiceTest {
 
     @Test
     void diff_shouldDetectAddedField() {
-        String base = """
-                {"name":"old","id":"1"}
-                """;
-        String compare = """
-                {"name":"old","id":"1","newField":"value"}
-                """;
+        String base = wrapItem("{\"name\":\"old\",\"id\":\"1\"}");
+        String compare = wrapItem("{\"name\":\"old\",\"id\":\"1\",\"newField\":\"value\"}");
         setupDiffMocks(base, compare);
 
         VersionDiffResponse result = service.diff(ITEM_ID, 1, 2);
@@ -88,12 +109,8 @@ class VersionHistoryServiceTest {
 
     @Test
     void diff_shouldDetectRemovedField() {
-        String base = """
-                {"name":"old","id":"1","removed":"val"}
-                """;
-        String compare = """
-                {"name":"old","id":"1"}
-                """;
+        String base = wrapItem("{\"name\":\"old\",\"id\":\"1\",\"removed\":\"val\"}");
+        String compare = wrapItem("{\"name\":\"old\",\"id\":\"1\"}");
         setupDiffMocks(base, compare);
 
         VersionDiffResponse result = service.diff(ITEM_ID, 1, 2);
@@ -110,12 +127,8 @@ class VersionHistoryServiceTest {
 
     @Test
     void diff_shouldDetectModifiedField() {
-        String base = """
-                {"name":"old","id":"1"}
-                """;
-        String compare = """
-                {"name":"new","id":"1"}
-                """;
+        String base = wrapItem("{\"name\":\"old\",\"id\":\"1\"}");
+        String compare = wrapItem("{\"name\":\"new\",\"id\":\"1\"}");
         setupDiffMocks(base, compare);
 
         VersionDiffResponse result = service.diff(ITEM_ID, 1, 2);
@@ -132,12 +145,8 @@ class VersionHistoryServiceTest {
 
     @Test
     void diff_shouldDetectUnchangedField() {
-        String base = """
-                {"name":"same","id":"1"}
-                """;
-        String compare = """
-                {"name":"same","id":"1"}
-                """;
+        String base = wrapItem("{\"name\":\"same\",\"id\":\"1\"}");
+        String compare = wrapItem("{\"name\":\"same\",\"id\":\"1\"}");
         setupDiffMocks(base, compare);
 
         VersionDiffResponse result = service.diff(ITEM_ID, 1, 2);
@@ -149,12 +158,8 @@ class VersionHistoryServiceTest {
 
     @Test
     void diff_shouldDetectNestedFieldChanges() {
-        String base = """
-                {"outer":{"inner":"a","keep":"x"}}
-                """;
-        String compare = """
-                {"outer":{"inner":"b","keep":"x"}}
-                """;
+        String base = wrapItem("{\"outer\":{\"inner\":\"a\",\"keep\":\"x\"}}");
+        String compare = wrapItem("{\"outer\":{\"inner\":\"b\",\"keep\":\"x\"}}");
         setupDiffMocks(base, compare);
 
         VersionDiffResponse result = service.diff(ITEM_ID, 1, 2);
@@ -170,8 +175,8 @@ class VersionHistoryServiceTest {
 
     @Test
     void diff_shouldHandleEmptyDiff() {
-        String base = "{}";
-        String compare = "{}";
+        String base = wrapItem("{}");
+        String compare = wrapItem("{}");
         setupDiffMocks(base, compare);
 
         VersionDiffResponse result = service.diff(ITEM_ID, 1, 2);
@@ -181,10 +186,8 @@ class VersionHistoryServiceTest {
     }
 
     @Test
-    void getSnapshot_shouldReturnSnapshot() {
-        String snapshot = """
-                {"name":"test"}
-                """;
+    void getSnapshot_shouldReturnInnerItemForCompatibility() {
+        String snapshot = "{\"meta\":{\"itemType\":\"DataElement\",\"kind\":\"SUBMITTED\"},\"item\":{\"name\":\"test\"}}";
         VersionHistory vh = VersionHistory.of(ITEM_ID, "DataElement", 1, "CREATE",
                 "admin", LocalDateTime.of(2024, 1, 1, 10, 0),
                 snapshot, "Created");
@@ -195,16 +198,13 @@ class VersionHistoryServiceTest {
 
         assertThat(result.versionNumber()).isEqualTo(1);
         assertThat(result.snapshot().get("name").asText()).isEqualTo("test");
+        assertThat(result.snapshot().has("meta")).isFalse();
     }
 
     @Test
     void computeDiff_shouldDetectArrayChanges() {
-        String base = """
-                {"tags":["a","b"]}
-                """;
-        String compare = """
-                {"tags":["a","c"]}
-                """;
+        String base = wrapItem("{\"tags\":[\"a\",\"b\"]}");
+        String compare = wrapItem("{\"tags\":[\"a\",\"c\"]}");
 
         List<FieldDiffEntry> result = service.computeDiff(base, compare);
 
@@ -219,16 +219,6 @@ class VersionHistoryServiceTest {
         List<Object> newList = (List<Object>) tags.newValue();
         assertThat(oldList).containsExactly("a", "b");
         assertThat(newList).containsExactly("a", "c");
-    }
-
-    @BeforeEach
-    void setUp() {
-        SecurityContextHolder.clearContext();
-    }
-
-    @AfterEach
-    void tearDown() {
-        SecurityContextHolder.clearContext();
     }
 
     @Test
@@ -259,7 +249,6 @@ class VersionHistoryServiceTest {
 
     @Test
     void recordSnapshot_shouldDoNothing_whenItemTypeIsNotAudited() {
-        // Use an anonymous subclass of Item that's not in the audited list
         Item item = new Item() {};
         item.setId(ITEM_ID);
         service.recordSnapshot(item, "CREATE");
@@ -308,8 +297,6 @@ class VersionHistoryServiceTest {
     void recordSnapshot_shouldTruncateLongSummary() {
         DataElement item = new DataElement();
         item.setId(ITEM_ID);
-        // Set a very long toString result through designations (toString uses designations)
-        // The buildChangeSummary truncates at 500 chars
 
         when(repository.findTopByItemIdOrderByVersionNumberDesc(ITEM_ID))
                 .thenReturn(Optional.empty());
@@ -327,20 +314,168 @@ class VersionHistoryServiceTest {
         DataElement item = new DataElement();
         item.setId(ITEM_ID);
 
-        when(repository.findTopByItemIdOrderByVersionNumberDesc(ITEM_ID))
-                .thenReturn(Optional.empty());
         when(objectMapper.writeValueAsString(any())).thenThrow(new RuntimeException("Serialization failed"));
 
-        // Should not throw
         service.recordSnapshot(item, "CREATE");
         verify(repository, never()).save(any());
     }
 
     @Test
+    void recordSnapshot_shouldCaptureDesignationsWithoutRecursion() throws Exception {
+        DataElement item = new DataElement();
+        item.setId(ITEM_ID);
+        Designation d = new Designation();
+        d.setId(UUID.randomUUID());
+        Sign sign = new Sign();
+        sign.setValue("TestA");
+        d.setSign(sign);
+        d.setItem(item);
+        item.getDesignations().add(d);
+
+        when(repository.findTopByItemIdOrderByVersionNumberDesc(ITEM_ID))
+                .thenReturn(Optional.empty());
+        when(repository.save(any(VersionHistory.class))).thenAnswer(i -> i.getArgument(0));
+
+        service.recordSnapshot(item, "CREATE");
+
+        ArgumentCaptor<VersionHistory> captor = ArgumentCaptor.forClass(VersionHistory.class);
+        verify(repository).save(captor.capture());
+        JsonNode snapshot = objectMapper.readTree(captor.getValue().getSnapshotJson());
+        JsonNode itemNode = snapshot.get("item");
+        assertThat(itemNode).isNotNull();
+        assertThat(itemNode.get("designations").get(0).get("value").asText()).isEqualTo("TestA");
+        assertThat(itemNode.get("designations").get(0).has("item")).isFalse();
+        assertThat(snapshot.get("meta").get("kind").asText()).isEqualTo("SUBMITTED");
+        assertThat(captor.getValue().getChangeSummary()).contains("CREATE").contains("TestA");
+    }
+
+    @Test
+    void recordSnapshot_fullDto_shouldWriteMetaWithKindSubmittedOnCreate() throws Exception {
+        DataElement item = new DataElement();
+        item.setId(ITEM_ID);
+        bindAdministeredItem(item, RegistrationStatus.RECORDED, null);
+
+        when(repository.findTopByItemIdOrderByVersionNumberDesc(ITEM_ID))
+                .thenReturn(Optional.empty());
+        when(repository.save(any(VersionHistory.class))).thenAnswer(i -> i.getArgument(0));
+
+        service.recordSnapshot(item, "CREATE", new TestResponseDto("FullA"));
+
+        ArgumentCaptor<VersionHistory> captor = ArgumentCaptor.forClass(VersionHistory.class);
+        verify(repository).save(captor.capture());
+        JsonNode snapshot = objectMapper.readTree(captor.getValue().getSnapshotJson());
+        assertThat(snapshot.get("meta").get("kind").asText()).isEqualTo("SUBMITTED");
+        assertThat(snapshot.get("meta").get("registrationStatus").asText()).isEqualTo("RECORDED");
+        assertThat(snapshot.get("meta").get("administrativeStatus").isNull()).isTrue();
+        assertThat(snapshot.get("item").get("name").asText()).isEqualTo("FullA");
+    }
+
+    @Test
+    void recordSnapshot_fullDto_shouldWriteKindDraftEditWhenDraft() throws Exception {
+        DataElement item = new DataElement();
+        item.setId(ITEM_ID);
+        bindAdministeredItem(item, RegistrationStatus.RECORDED, AdministrativeStatus.DRAFT);
+
+        when(repository.findTopByItemIdOrderByVersionNumberDesc(ITEM_ID))
+                .thenReturn(Optional.empty());
+        when(repository.save(any(VersionHistory.class))).thenAnswer(i -> i.getArgument(0));
+
+        service.recordSnapshot(item, "UPDATE", new TestResponseDto("FullB"));
+
+        ArgumentCaptor<VersionHistory> captor = ArgumentCaptor.forClass(VersionHistory.class);
+        verify(repository).save(captor.capture());
+        JsonNode snapshot = objectMapper.readTree(captor.getValue().getSnapshotJson());
+        assertThat(snapshot.get("meta").get("kind").asText()).isEqualTo("DRAFT_EDIT");
+        assertThat(snapshot.get("meta").get("administrativeStatus").asText()).isEqualTo("draft");
+    }
+
+    @Test
+    void recordSnapshot_restoreInProgress_shouldWriteKindRolledBack() throws Exception {
+        DataElement item = new DataElement();
+        item.setId(ITEM_ID);
+        bindAdministeredItem(item, RegistrationStatus.RECORDED, AdministrativeStatus.DRAFT);
+        when(itemAdministrationService.isRestoreInProgress()).thenReturn(true);
+
+        when(repository.findTopByItemIdOrderByVersionNumberDesc(ITEM_ID))
+                .thenReturn(Optional.empty());
+        when(repository.save(any(VersionHistory.class))).thenAnswer(i -> i.getArgument(0));
+
+        service.recordSnapshot(item, "UPDATE", new TestResponseDto("FullC"));
+
+        ArgumentCaptor<VersionHistory> captor = ArgumentCaptor.forClass(VersionHistory.class);
+        verify(repository).save(captor.capture());
+        JsonNode snapshot = objectMapper.readTree(captor.getValue().getSnapshotJson());
+        assertThat(snapshot.get("meta").get("kind").asText()).isEqualTo("ROLLED_BACK");
+    }
+
+    @Test
+    void captureBaselineIfEnteringDraft_shouldCreateBaselineWhenStatusNull() throws Exception {
+        DataElement item = new DataElement();
+        item.setId(ITEM_ID);
+        bindAdministeredItem(item, RegistrationStatus.RECORDED, null);
+
+        when(repository.findTopByItemIdOrderByVersionNumberDesc(ITEM_ID))
+                .thenReturn(Optional.empty());
+        when(repository.save(any(VersionHistory.class))).thenAnswer(i -> i.getArgument(0));
+
+        service.captureBaselineIfEnteringDraft(item, new TestResponseDto("BaselineA"));
+
+        ArgumentCaptor<VersionHistory> captor = ArgumentCaptor.forClass(VersionHistory.class);
+        verify(repository).save(captor.capture());
+        JsonNode snapshot = objectMapper.readTree(captor.getValue().getSnapshotJson());
+        assertThat(snapshot.get("meta").get("kind").asText()).isEqualTo("BASELINE");
+        assertThat(captor.getValue().getChangeType()).isEqualTo("BASELINE");
+    }
+
+    @Test
+    void captureBaselineIfEnteringDraft_shouldSkipWhenStatusDraft() {
+        DataElement item = new DataElement();
+        item.setId(ITEM_ID);
+        bindAdministeredItem(item, RegistrationStatus.RECORDED, AdministrativeStatus.DRAFT);
+
+        service.captureBaselineIfEnteringDraft(item, new TestResponseDto("BaselineB"));
+
+        verify(repository, never()).save(any());
+    }
+
+    @Test
+    void captureBaselineIfEnteringDraft_shouldSkipWhenStatusRejected() {
+        DataElement item = new DataElement();
+        item.setId(ITEM_ID);
+        bindAdministeredItem(item, RegistrationStatus.RECORDED, AdministrativeStatus.REJECTED);
+
+        service.captureBaselineIfEnteringDraft(item, new TestResponseDto("BaselineC"));
+
+        verify(repository, never()).save(any());
+    }
+
+    @Test
+    void findLatestBaseline_shouldReturnMostRecentBaseline() {
+        String baselineSnapshot = "{\"meta\":{\"itemType\":\"DataElement\",\"kind\":\"BASELINE\"},\"item\":{}}";
+        String otherSnapshot = "{\"meta\":{\"itemType\":\"DataElement\",\"kind\":\"DRAFT_EDIT\"},\"item\":{}}";
+        VersionHistory v1 = VersionHistory.of(ITEM_ID, "DataElement", 1, "CREATE",
+                "admin", LocalDateTime.of(2024, 1, 1, 10, 0),
+                baselineSnapshot, "Created");
+        VersionHistory v2 = VersionHistory.of(ITEM_ID, "DataElement", 2, "UPDATE",
+                "admin", LocalDateTime.of(2024, 1, 2, 10, 0),
+                otherSnapshot, "Updated");
+        VersionHistory v3 = VersionHistory.of(ITEM_ID, "DataElement", 3, "BASELINE",
+                "admin", LocalDateTime.of(2024, 1, 3, 10, 0),
+                baselineSnapshot, "Baseline");
+        when(repository.findByItemIdOrderByVersionNumberDesc(ITEM_ID))
+                .thenReturn(List.of(v3, v2, v1));
+
+        Optional<VersionHistory> result = service.findLatestBaseline(ITEM_ID);
+
+        assertThat(result).isPresent();
+        assertThat(result.get().getVersionNumber()).isEqualTo(3);
+    }
+
+    @Test
     void diff_shouldHandleVeryLongTextField() {
         String longText = "a".repeat(5000);
-        String base = String.format("{\"name\":\"%s\",\"id\":\"1\"}", longText);
-        String compare = String.format("{\"name\":\"%s\",\"id\":\"1\"}", longText + "b");
+        String base = wrapItem(String.format("{\"name\":\"%s\",\"id\":\"1\"}", longText));
+        String compare = wrapItem(String.format("{\"name\":\"%s\",\"id\":\"1\"}", longText + "b"));
         setupDiffMocks(base, compare);
 
         VersionDiffResponse result = service.diff(ITEM_ID, 1, 2);
@@ -406,7 +541,7 @@ class VersionHistoryServiceTest {
 
     @Test
     void computeDiff_shouldHandleNullBaseJson() {
-        String compare = "{\"name\":\"test\"}";
+        String compare = wrapItem("{\"name\":\"test\"}");
 
         List<FieldDiffEntry> result = service.computeDiff(null, compare);
 
@@ -419,7 +554,7 @@ class VersionHistoryServiceTest {
 
     @Test
     void computeDiff_shouldHandleNullCompareJson() {
-        String base = "{\"name\":\"test\"}";
+        String base = wrapItem("{\"name\":\"test\"}");
 
         List<FieldDiffEntry> result = service.computeDiff(base, null);
 
@@ -432,12 +567,8 @@ class VersionHistoryServiceTest {
 
     @Test
     void computeDiff_shouldHandleDeepNestedChanges() {
-        String base = """
-                {"a":{"b":{"c":"old","d":"keep"}}}
-                """;
-        String compare = """
-                {"a":{"b":{"c":"new","d":"keep"}}}
-                """;
+        String base = wrapItem("{\"a\":{\"b\":{\"c\":\"old\",\"d\":\"keep\"}}}");
+        String compare = wrapItem("{\"a\":{\"b\":{\"c\":\"new\",\"d\":\"keep\"}}}");
 
         List<FieldDiffEntry> result = service.computeDiff(base, compare);
 
@@ -452,12 +583,8 @@ class VersionHistoryServiceTest {
 
     @Test
     void computeDiff_shouldHandleBooleanAndNumberChanges() {
-        String base = """
-                {"flag":true,"count":42}
-                """;
-        String compare = """
-                {"flag":false,"count":99}
-                """;
+        String base = wrapItem("{\"flag\":true,\"count\":42}");
+        String compare = wrapItem("{\"flag\":false,\"count\":99}");
 
         List<FieldDiffEntry> result = service.computeDiff(base, compare);
 
@@ -490,9 +617,7 @@ class VersionHistoryServiceTest {
 
     @Test
     void diff_shouldReturnNoDifferences_whenBothSnapshotsAreIdenticalComplexObjects() {
-        String base = """
-                {"name":"same","tags":["a","b"],"nested":{"key":"val"},"count":5}
-                """;
+        String base = wrapItem("{\"name\":\"same\",\"tags\":[\"a\",\"b\"],\"nested\":{\"key\":\"val\"},\"count\":5}");
         setupDiffMocks(base, base);
 
         VersionDiffResponse result = service.diff(ITEM_ID, 1, 2);
@@ -512,5 +637,21 @@ class VersionHistoryServiceTest {
                 .thenReturn(Optional.of(base));
         when(repository.findByItemIdAndVersionNumber(ITEM_ID, 2))
                 .thenReturn(Optional.of(compare));
+    }
+
+    private String wrapItem(String itemJson) {
+        return "{\"meta\":{\"itemType\":\"DataElement\",\"kind\":\"SUBMITTED\"},\"item\":" + itemJson + "}";
+    }
+
+    private void bindAdministeredItem(DataElement item, RegistrationStatus status, AdministrativeStatus adminStatus) {
+        AdministeredItem ai = new AdministeredItem(item);
+        RegistrationState state = new RegistrationState();
+        state.setRegistrationStatus(status);
+        state.setAdministrativeStatus(adminStatus);
+        ai.setRegistrationState(state);
+        item.setIdentifiedItem(ai);
+    }
+
+    public record TestResponseDto(String name) {
     }
 }

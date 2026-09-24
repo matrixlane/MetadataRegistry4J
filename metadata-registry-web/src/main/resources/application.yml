@@ -14,6 +14,9 @@ spring:
       connection-timeout: 30000
       idle-timeout: 600000
       max-lifetime: 1800000
+      # 与下方 hibernate.connection.provider_disables_autocommit=true 配对:
+      # 由连接池关闭自动提交,否则事务提交报 "database in auto-commit mode"
+      auto-commit: false
   jpa:
     properties:
       hibernate:
@@ -36,10 +39,19 @@ spring:
       ddl-auto: ${DDL_AUTO:update}
     show-sql: false
     open-in-view: false
+    # 让 Hibernate ddl-auto 先于 Flyway 执行:既有库表由 ddl-auto 历史创建、老迁移不可重放,
+    # 全新库先由 Hibernate 建表使 schema 非空,Flyway 方以 baseline-on-migrate 基线化,
+    # 只应用基线之后的两个带幂等守卫的新迁移(V20260919001/V20260919002)。
+    # 注意:Boot 3.5 下 defer 与 Flyway 互相登记 depends-on 会循环依赖,
+    # 由 FlywayAfterJpaConfig 摘除 entityManagerFactory→flyway 边、保留反向依赖固定顺序。
+    defer-datasource-initialization: true
   flyway:
     baseline-on-migrate: true
+    # 基线到既有最大版本号 20260918002:既有库首次启用 Flyway 时基线化,
+    # 只应用其后的 V20260919001/V20260919002(两脚本均带幂等守卫,可安全重入)。
+    baseline-version: "20260918002"
     locations: classpath:db/migration/${DB_VENDOR:sqlite}
-    enabled: ${FLYWAY_ENABLED:false}
+    enabled: ${FLYWAY_ENABLED:true}
   jackson:
     default-property-inclusion: non_null
     serialization:

@@ -4,6 +4,7 @@
     <DataTablePage
       ref="tableRef"
       :fetch-fn="registrarApi.list"
+      :delete-fn="registrarApi.delete"
       @create="dialog?.open()"
       @edit="(r) => dialog?.open(r)"
       @delete="handleDelete"

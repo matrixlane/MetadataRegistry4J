@@ -2,8 +2,8 @@ package io.github.matrixlane.metadataregistry.web.controller;
 
 import io.github.matrixlane.metadataregistry.web.common.ApiResponse;
 import io.github.matrixlane.metadataregistry.web.common.PageResponse;
-import io.github.matrixlane.metadataregistry.web.dto.concept.ConceptRequest;
-import io.github.matrixlane.metadataregistry.web.dto.concept.ConceptResponse;
+import io.github.matrixlane.metadataregistry.web.dto.measureclass.MeasureClassRequest;
+import io.github.matrixlane.metadataregistry.web.dto.measureclass.MeasureClassResponse;
 import io.github.matrixlane.metadataregistry.web.service.MeasureClassService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -32,27 +32,27 @@ public class MeasureClassController {
 
     @GetMapping
     @Operation(summary = "分页列出计量类")
-    public ApiResponse<PageResponse<ConceptResponse>> list(@RequestParam(required = false) String q,
-                                                           Pageable pageable) {
+    public ApiResponse<PageResponse<MeasureClassResponse>> list(@RequestParam(required = false) String q,
+                                                                Pageable pageable) {
         return ApiResponse.ok(PageResponse.of(service.list(q, pageable)));
     }
 
     @GetMapping("/{id}")
     @Operation(summary = "查询计量类详情")
-    public ApiResponse<ConceptResponse> get(@PathVariable UUID id) {
+    public ApiResponse<MeasureClassResponse> get(@PathVariable UUID id) {
         return ApiResponse.ok(service.get(id));
     }
 
     @PostMapping
-    @Operation(summary = "新增计量类")
-    public ApiResponse<ConceptResponse> create(@Valid @RequestBody ConceptRequest request) {
+    @Operation(summary = "新增计量类", description = "同时维护计量类与维度的 0..* 关联")
+    public ApiResponse<MeasureClassResponse> create(@Valid @RequestBody MeasureClassRequest request) {
         return ApiResponse.ok(service.create(request));
     }
 
     @PutMapping("/{id}")
-    @Operation(summary = "更新计量类")
-    public ApiResponse<ConceptResponse> update(@PathVariable UUID id,
-                                               @Valid @RequestBody ConceptRequest request) {
+    @Operation(summary = "更新计量类", description = "同时维护计量类与维度的 0..* 关联")
+    public ApiResponse<MeasureClassResponse> update(@PathVariable UUID id,
+                                                    @Valid @RequestBody MeasureClassRequest request) {
         return ApiResponse.ok(service.update(id, request));
     }
 

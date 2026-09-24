@@ -36,6 +36,7 @@ public class RegistrationAuthorityService {
     private final NamespaceRepository namespaceRepository;
     private final LanguageIdentificationRepository languageRepository;
     private final SystemSettingService systemSettingService;
+    private final RegistrationProcessService registrationProcessService;
 
     @Transactional(readOnly = true)
     public Page<RegistrationAuthorityResponse> list(String keyword, Pageable pageable) {
@@ -62,7 +63,10 @@ public class RegistrationAuthorityService {
         }
         RegistrationAuthority entity = new RegistrationAuthority();
         applyRequest(entity, request);
-        return toResponse(repository.save(entity));
+        RegistrationAuthority saved = repository.save(entity);
+        // registration-process-designer：新注册机构创建即幂等播种标准注册流程规则
+        registrationProcessService.ensureSeed(saved.getId());
+        return toResponse(saved);
     }
 
     public RegistrationAuthorityResponse update(UUID id, RegistrationAuthorityRequest request) {

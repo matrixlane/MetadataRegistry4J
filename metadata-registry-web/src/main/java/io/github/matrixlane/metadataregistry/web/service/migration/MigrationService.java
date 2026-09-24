@@ -242,11 +242,14 @@ public class MigrationService {
             for (JsonNode tableNode : tables) {
                 tableNames.add(tableNode.path("name").asText());
             }
-            databaseCleaner.disableForeignKeys(conn, tableNames);
+            // 导出文件只含主 schema 表的裸名(导出走 env.schema() 发现),
+            // 显式指定主 schema 限定,避免同名 EXT 表(language_identification)
+            // 按 EXT 清单劫持路由(见 DatabaseEnvironment.EXT_TABLES 同名表警示)。
+            databaseCleaner.disableForeignKeys(conn, env.schema(), tableNames);
             for (JsonNode tableNode : tables) {
                 totalRows += importTable(conn, tableNode);
             }
-            databaseCleaner.enableForeignKeys(conn, tableNames);
+            databaseCleaner.enableForeignKeys(conn, env.schema(), tableNames);
 
             // 逐表行数校验
             for (JsonNode tableNode : tables) {

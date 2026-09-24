@@ -1,0 +1,37 @@
+{
+  "comment": "注册流程画布初始布局（开放式脚本，可手工编辑）。nodes=节点画布坐标；edgeOverrides=正交连线折线段微调（laneY=水平走廊y，sx=源侧垂直段x，tx=目标侧垂直段x，绝对画布坐标）。缺失项回落内置默认。",
+  "nodes": {
+    "INCOMPLETE": { "x": 0, "y": 0 },
+    "CANDIDATE": { "x": 236, "y": 0 },
+    "RECORDED": { "x": 472, "y": 0 },
+    "QUALIFIED": { "x": 712, "y": 0 },
+    "STANDARD": { "x": 947, "y": 0 },
+    "PREFERRED_STANDARD": { "x": 1181, "y": 0 },
+    "HISTORICAL": { "x": 0, "y": 219 },
+    "APPLICATION": { "x": 236, "y": 219 },
+    "SUPERSEDED": { "x": 832, "y": 219 },
+    "RETIRED": { "x": 1181, "y": 219 }
+  },
+  "edgeOverrides": {
+    "INCOMPLETE->CANDIDATE": { "laneY": -39, "sx": 107, "tx": 322 },
+    "CANDIDATE->RECORDED": { "laneY": -39, "sx": 326, "tx": 518 },
+    "RECORDED->QUALIFIED": { "laneY": -43, "sx": 562, "tx": 796 },
+    "QUALIFIED->STANDARD": { "laneY": -43, "sx": 802, "tx": 1023 },
+    "STANDARD->PREFERRED_STANDARD": { "laneY": -43, "sx": 1037, "tx": 1271 },
+    "PREFERRED_STANDARD->STANDARD": { "laneY": -39, "sx": 1271, "tx": 1088 },
+    "INCOMPLETE->HISTORICAL": { "laneY": 100, "sx": 90, "tx": 90 },
+    "CANDIDATE->HISTORICAL": { "laneY": 100, "sx": 326, "tx": 134 },
+    "INCOMPLETE->APPLICATION": { "laneY": 100, "sx": 90, "tx": 287 },
+    "CANDIDATE->APPLICATION": { "laneY": 100, "sx": 326, "tx": 322 },
+    "RECORDED->SUPERSEDED": { "laneY": 100, "sx": 562, "tx": 877 },
+    "RECORDED->RETIRED": { "laneY": 100, "sx": 562, "tx": 1230 },
+    "QUALIFIED->SUPERSEDED": { "laneY": 124, "sx": 802, "tx": 922 },
+    "QUALIFIED->RETIRED": { "laneY": 124, "sx": 802, "tx": 1271 },
+    "STANDARD->SUPERSEDED": { "laneY": 157, "sx": 1037, "tx": 922 },
+    "STANDARD->RETIRED": { "laneY": 157, "sx": 1037, "tx": 1271 },
+    "PREFERRED_STANDARD->SUPERSEDED": { "laneY": 157, "sx": 1271, "tx": 922 },
+    "PREFERRED_STANDARD->RETIRED": { "laneY": 157, "sx": 1271, "tx": 1271 },
+    "APPLICATION->CANDIDATE": { "laneY": 100, "sx": 326, "tx": 326 },
+    "SUPERSEDED->RETIRED": { "laneY": 330, "sx": 922, "tx": 1271 }
+  }
+}

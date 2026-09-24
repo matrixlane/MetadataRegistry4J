@@ -67,7 +67,7 @@
         <div class="ai-debug-detail">
           <div v-if="exchange.itemId" class="ai-debug-row">
             <span class="ai-debug-label">{{ $t('aiDebug.itemId') }}</span>
-            <span class="ai-debug-value" data-test="ai-debug-item-id">{{ exchange.itemId }}</span>
+            <span class="ai-debug-value" data-test="ai-debug-item-id">{{ $t('common.internalIdHidden') }}</span>
           </div>
 
           <div v-if="exchange.selection?.text" class="ai-debug-block">

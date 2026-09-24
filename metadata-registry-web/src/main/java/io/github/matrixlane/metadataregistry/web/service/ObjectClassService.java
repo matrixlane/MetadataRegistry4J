@@ -42,23 +42,26 @@ public class ObjectClassService {
         conceptContentApplier.applyConcept(entity, request.sourceUri(),
                 request.designations(), request.definitions(), request.registration());
         ObjectClass saved = repository.save(entity);
-        versionHistoryService.recordSnapshot(saved, "CREATE");
+        itemAdministrationService.recordSubmission(saved, request.registration());
+        versionHistoryService.recordSnapshot(saved, "CREATE", toResponse(saved));
         return toResponse(saved);
     }
 
     public ConceptResponse update(UUID id, ConceptRequest request) {
         ObjectClass entity = loadOrThrow(id);
+        versionHistoryService.captureBaselineIfEnteringDraft(entity, toResponse(entity));
         conceptContentApplier.applyConcept(entity, request.sourceUri(),
                 request.designations(), request.definitions(), request.registration());
         ObjectClass saved = repository.save(entity);
-        versionHistoryService.recordSnapshot(saved, "UPDATE");
+        itemAdministrationService.recordSubmission(saved, request.registration());
+        versionHistoryService.recordSnapshot(saved, "UPDATE", toResponse(saved));
         return toResponse(saved);
     }
 
     public void delete(UUID id) {
         ObjectClass entity = repository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("ObjectClass", id));
-        versionHistoryService.recordSnapshot(entity, "DELETE");
+        versionHistoryService.recordSnapshot(entity, "DELETE", toResponse(entity));
         repository.deleteById(id);
     }
 

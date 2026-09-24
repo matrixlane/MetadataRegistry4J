@@ -2,8 +2,8 @@ package io.github.matrixlane.metadataregistry.web.controller;
 
 import io.github.matrixlane.metadataregistry.web.common.ApiResponse;
 import io.github.matrixlane.metadataregistry.web.common.PageResponse;
-import io.github.matrixlane.metadataregistry.web.dto.concept.ConceptRequest;
-import io.github.matrixlane.metadataregistry.web.dto.concept.ConceptResponse;
+import io.github.matrixlane.metadataregistry.web.dto.unitofmeasure.UnitOfMeasureRequest;
+import io.github.matrixlane.metadataregistry.web.dto.unitofmeasure.UnitOfMeasureResponse;
 import io.github.matrixlane.metadataregistry.web.service.UnitOfMeasureService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -32,27 +32,27 @@ public class UnitOfMeasureController {
 
     @GetMapping
     @Operation(summary = "分页列出计量单位")
-    public ApiResponse<PageResponse<ConceptResponse>> list(@RequestParam(required = false) String q,
-                                                           Pageable pageable) {
+    public ApiResponse<PageResponse<UnitOfMeasureResponse>> list(@RequestParam(required = false) String q,
+                                                               Pageable pageable) {
         return ApiResponse.ok(PageResponse.of(service.list(q, pageable)));
     }
 
     @GetMapping("/{id}")
     @Operation(summary = "查询计量单位详情")
-    public ApiResponse<ConceptResponse> get(@PathVariable UUID id) {
+    public ApiResponse<UnitOfMeasureResponse> get(@PathVariable UUID id) {
         return ApiResponse.ok(service.get(id));
     }
 
     @PostMapping
-    @Operation(summary = "新增计量单位")
-    public ApiResponse<ConceptResponse> create(@Valid @RequestBody ConceptRequest request) {
+    @Operation(summary = "新增计量单位", description = "计量单位必须至少归属一个计量类(measureClassIds)")
+    public ApiResponse<UnitOfMeasureResponse> create(@Valid @RequestBody UnitOfMeasureRequest request) {
         return ApiResponse.ok(service.create(request));
     }
 
     @PutMapping("/{id}")
-    @Operation(summary = "更新计量单位")
-    public ApiResponse<ConceptResponse> update(@PathVariable UUID id,
-                                               @Valid @RequestBody ConceptRequest request) {
+    @Operation(summary = "更新计量单位", description = "measureClassIds 整组替换")
+    public ApiResponse<UnitOfMeasureResponse> update(@PathVariable UUID id,
+                                                     @Valid @RequestBody UnitOfMeasureRequest request) {
         return ApiResponse.ok(service.update(id, request));
     }
 

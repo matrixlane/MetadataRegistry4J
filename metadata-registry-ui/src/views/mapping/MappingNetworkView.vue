@@ -4,7 +4,7 @@
     <div class="header-section">
       <div class="header-left">
         <h2>{{ $t('nav.mappingNetwork') }}</h2>
-        <p class="subtitle">ISO/IEC 11179 Clause 11 — {{ $t('mappingNetwork.subtitle') }}</p>
+        <p class="subtitle">{{ $t('mappingNetwork.subtitle') }}</p>
       </div>
     </div>
 
@@ -12,12 +12,14 @@
     <el-card shadow="never" class="controls-card">
       <el-form :inline="true" size="small" label-width="auto">
         <el-form-item :label="$t('mappingNetwork.centerItem')">
-          <el-input
-            v-model="centerItemId"
-            :placeholder="$t('mappingNetwork.centerPlaceholder')"
-            style="width: 280px"
-            clearable
-          />
+          <div style="width: 320px">
+            <SmartItemPicker
+              v-model="centerItemId"
+              :scope="'all'"
+              clearable
+              :placeholder="$t('mappingNetwork.centerPlaceholder')"
+            />
+          </div>
         </el-form-item>
         <el-form-item :label="$t('mappingNetwork.depth')">
           <el-select v-model="depth" style="width: 100px">
@@ -28,10 +30,14 @@
         </el-form-item>
         <el-form-item :label="$t('mappingNetwork.filterTypes')">
           <el-select v-model="filterTypes" multiple clearable collapse-tags style="width: 240px">
-            <el-option value="EQUIVALENT" :label="$t('mappingNetwork.equivalent')" />
-            <el-option value="DERIVED" :label="$t('mappingNetwork.derived')" />
-            <el-option value="AGGREGATED" :label="$t('mappingNetwork.aggregated')" />
-            <el-option value="SUBDIVIDED" :label="$t('mappingNetwork.subdivided')" />
+            <el-option value="same as" :label="$t('itemMapping.degree.SAME_AS')" />
+            <el-option value="semantically equivalent" :label="$t('itemMapping.degree.SEMANTICALLY_EQUIVALENT')" />
+            <el-option value="derived from" :label="$t('itemMapping.degree.DERIVED_FROM')" />
+            <el-option value="has derivation" :label="$t('itemMapping.degree.HAS_DERIVATION')" />
+            <el-option value="broader than" :label="$t('itemMapping.degree.BROADER_THAN')" />
+            <el-option value="narrower than" :label="$t('itemMapping.degree.NARROWER_THAN')" />
+            <el-option value="contains" :label="$t('itemMapping.degree.CONTAINS')" />
+            <el-option value="contained in" :label="$t('itemMapping.degree.CONTAINED_IN')" />
           </el-select>
         </el-form-item>
         <el-form-item>
@@ -81,6 +87,8 @@ import { useRouter } from 'vue-router';
 import * as echarts from 'echarts';
 import { Search, Connection, Link } from '@element-plus/icons-vue';
 import { getMappingNetwork } from '@/api/resources';
+import { useItemLabelCache } from '@/composables/useItemLabelCache';
+import SmartItemPicker from '@/components/SmartItemPicker.vue';
 import { ElMessage } from 'element-plus';
 
 interface NetworkNode {
@@ -93,7 +101,7 @@ interface NetworkEdge {
   mappingId: string;
   sourceId: string;
   targetId: string;
-  mappingType: string;
+  degree: string;
   description: string | null;
 }
 
@@ -105,6 +113,12 @@ interface NetworkResponse {
 }
 
 const router = useRouter();
+const { requestAll: requestLabels, labelFor, version: labelVersion } = useItemLabelCache();
+
+// 标签异步解析完成后重绘图（节点显示「标识符 | 指称」而非 id）
+watch(labelVersion, () => {
+  if (nodes.value.length > 0) renderChart();
+});
 
 // State
 const centerItemId = ref('');
@@ -119,19 +133,39 @@ const totalCount = ref(0);
 const chartRef = ref<HTMLDivElement>();
 let chartInstance: echarts.ECharts | null = null;
 
-// Color mapping for mapping types
+// Color mapping for mapping degrees
 const typeColors: Record<string, string> = {
-  EQUIVALENT: '#67c23a',
-  DERIVED: '#409eff',
-  AGGREGATED: '#e6a23c',
-  SUBDIVIDED: '#f56c6c',
+  'same as': '#67c23a',
+  'semantically equivalent': '#8bc34a',
+  'derived from': '#409eff',
+  'has derivation': '#64b5f6',
+  'broader than': '#e6a23c',
+  'narrower than': '#fb8c00',
+  'contains': '#ab47bc',
+  'contained in': '#8e24aa',
+  'related to': '#909399',
+  'semantically similar': '#a5d6a7',
+  'child of': '#26a69a',
+  'parent of': '#00897b',
+  'instance of': '#5c6bc0',
+  'has instance': '#3949ab',
 };
 
 const typeLabels: Record<string, string> = {
-  EQUIVALENT: '等价',
-  DERIVED: '派生',
-  AGGREGATED: '聚合',
-  SUBDIVIDED: '细分',
+  'same as': '同一',
+  'semantically equivalent': '语义等价',
+  'derived from': '派生自',
+  'has derivation': '有派生',
+  'broader than': '宽于',
+  'narrower than': '窄于',
+  'contains': '包含',
+  'contained in': '被包含',
+  'related to': '相关',
+  'semantically similar': '语义相似',
+  'child of': '子级',
+  'parent of': '父级',
+  'instance of': '实例',
+  'has instance': '有实例',
 };
 
 // Depth-based node sizes
@@ -164,7 +198,8 @@ function buildGraphOption(): echarts.EChartsOption {
     const depthIndex = n.isCenter ? 0 : Math.min(n.depth, 3);
     return {
       id: n.itemId,
-      name: n.itemId.substring(0, 8) + '...',
+      // 节点标签经共享缓存反查「标识符 | 指称」，绝不显示 id/短码
+      name: labelFor(n.itemId),
       value: n.itemId,
       category: depthIndex,
       symbolSize: getNodeSize(n.depth, n.isCenter),
@@ -186,15 +221,15 @@ function buildGraphOption(): echarts.EChartsOption {
     id: e.mappingId,
     source: e.sourceId,
     target: e.targetId,
-    value: e.mappingType === 'EQUIVALENT' ? 2 : 1,
+    value: (e.degree === 'same as' || e.degree === 'semantically equivalent') ? 2 : 1,
     lineStyle: {
-      color: typeColors[e.mappingType] || '#999',
-      width: e.mappingType === 'EQUIVALENT' ? 2.5 : 2,
+      color: typeColors[e.degree] || '#999',
+      width: (e.degree === 'same as' || e.degree === 'semantically equivalent') ? 2.5 : 2,
       curveness: 0.15,
-      type: (e.mappingType === 'EQUIVALENT' ? 'solid' : 'dashed') as 'solid' | 'dashed',
+      type: ((e.degree === 'same as' || e.degree === 'semantically equivalent') ? 'solid' : 'dashed') as 'solid' | 'dashed',
     },
     // Store description for tooltip
-    rawMappingType: e.mappingType,
+    rawDegree: e.degree,
     rawDescription: e.description,
   }));
 
@@ -209,13 +244,13 @@ function buildGraphOption(): echarts.EChartsOption {
           const node = params.data as any;
           const depthLabel = node.rawIsCenter ? '中心节点' : `第 ${node.rawDepth} 层`;
           return `<strong>元数据项</strong><br/>
-                  ID: ${node.value}<br/>
+                  ${node.name}<br/>
                   ${depthLabel}`;
         } else if (params.dataType === 'edge') {
           const edge = params.data as any;
-          const typeLabel = typeLabels[edge.rawMappingType] || edge.rawMappingType;
+          const typeLabel = typeLabels[edge.rawDegree] || edge.rawDegree;
           let html = `<strong>映射关系</strong><br/>
-                      类型: ${typeLabel} (${edge.rawMappingType})`;
+                      类型: ${typeLabel} (${edge.rawDegree})`;
           if (edge.rawDescription) {
             html += `<br/>描述: ${edge.rawDescription}`;
           }
@@ -305,6 +340,7 @@ async function loadNetwork() {
     edges.value = response.edges;
     truncated.value = response.truncated;
     totalCount.value = response.totalCount;
+    requestLabels(response.nodes.map((n) => n.itemId));
 
     await nextTick();
     renderChart();

@@ -89,28 +89,52 @@ public class DatabaseCleaner {
     /**
      * 批量写入前停用外键约束（供迁移导入等场景复用）。
      * 与 {@link #clearTables} 使用同一方言策略。
+     *
+     * <p>裸表名按 EXT 清单自动路由 schema;存在与 EXT 表同名的标准表时
+     * (如 language_identification)会被路由到 ext schema,标准表清单请改用
+     * {@link #disableForeignKeys(Connection, String, List)} 显式指定 schema。
      */
     public void disableForeignKeys(Connection conn, List<String> tables) throws SQLException {
+        disableForeignKeys(conn, null, tables);
+    }
+
+    /**
+     * 批量写入前停用外键约束,调用方显式指定表所在 schema(schema 为 null 时按
+     * EXT 清单自动路由,见 {@link #disableForeignKeys(Connection, List)})。
+     */
+    public void disableForeignKeys(Connection conn, String schema, List<String> tables) throws SQLException {
         FkConstraintStrategy strategy = strategies.get(env.vendor());
         if (strategy != null) {
-            strategy.beforeBulkDelete(conn, toTableRefs(tables));
+            strategy.beforeBulkDelete(conn, toTableRefs(schema, tables));
         }
     }
 
     /**
-     * 批量写入后恢复外键约束。
+     * 批量写入后恢复外键约束。同名表路由注意事项同
+     * {@link #disableForeignKeys(Connection, List)}。
      */
     public void enableForeignKeys(Connection conn, List<String> tables) throws SQLException {
+        enableForeignKeys(conn, null, tables);
+    }
+
+    /**
+     * 批量写入后恢复外键约束,调用方显式指定表所在 schema。
+     */
+    public void enableForeignKeys(Connection conn, String schema, List<String> tables) throws SQLException {
         FkConstraintStrategy strategy = strategies.get(env.vendor());
         if (strategy != null) {
-            strategy.afterBulkDelete(conn, toTableRefs(tables));
+            strategy.afterBulkDelete(conn, toTableRefs(schema, tables));
         }
     }
 
-    /** 裸表名按 EXT 清单路由 schema(迁移导入等场景,表清单来自导出文件)。 */
-    private List<TableRef> toTableRefs(List<String> tables) {
+    /**
+     * 表名转 {@link TableRef}:schema 为 null 时按 EXT 清单路由
+     * (迁移导入等场景,表清单来自导出文件);显式传入 schema 时一律采用
+     * (导出文件的裸表名均来自主 schema,同名 EXT 表不得劫持路由)。
+     */
+    private List<TableRef> toTableRefs(String schema, List<String> tables) {
         return tables.stream()
-                .map(name -> new TableRef(env.schemaOf(name), name))
+                .map(name -> new TableRef(schema != null ? schema : env.schemaOf(name), name))
                 .collect(Collectors.toList());
     }
 

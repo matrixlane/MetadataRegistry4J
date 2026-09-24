@@ -50,4 +50,20 @@ public interface DesignationRepository extends JpaRepository<Designation, UUID> 
     List<Designation> findPreferredByItemIdAndLanguageId(
             @Param("itemId") UUID itemId,
             @Param("languageId") UUID languageId);
+
+    /**
+     * 瘦查询版首选指称（按 ItemNamingHelper.pickByLanguage 语言排序语义，避开 Item 联合子类整图加载——
+     * SQL Server 选择列表 4096 列上限 / SQLite 64 表 join 上限）。
+     */
+    @Query("""
+            SELECT d.sign.value FROM Designation d
+            WHERE d.item.id = :itemId
+            ORDER BY
+                CASE WHEN d.language.languageIdentifier IS NULL THEN 9
+                     WHEN d.language.languageIdentifier = 'zh-CN' THEN 0
+                     WHEN d.language.languageIdentifier = 'en-US' THEN 1
+                     ELSE 5 END,
+                d.id
+            """)
+    List<String> findSignValuesByItemIdOrdered(@Param("itemId") UUID itemId);
 }

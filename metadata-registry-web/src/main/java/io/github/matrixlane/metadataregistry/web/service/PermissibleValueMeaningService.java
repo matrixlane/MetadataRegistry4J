@@ -62,6 +62,7 @@ public class PermissibleValueMeaningService {
         itemAdministrationService.ensureAdministeredItem(pvm, request.registration());
 
         pvm = repository.save(pvm);
+        itemAdministrationService.recordSubmission(pvm, request.registration());
 
         pv.getPermissibleValueMeanings().add(pvm);
         permissibleValueRepository.save(pv);
@@ -93,7 +94,9 @@ public class PermissibleValueMeaningService {
         }
         itemAdministrationService.ensureAdministeredItem(pvm, request.registration());
 
-        return toResponse(repository.save(pvm));
+        PermissibleValueMeaning saved = repository.save(pvm);
+        itemAdministrationService.recordSubmission(saved, request.registration());
+        return toResponse(saved);
     }
 
     public void delete(UUID id) {

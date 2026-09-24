@@ -10,12 +10,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
-import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
-import java.util.Locale;
 import java.util.UUID;
 
 @Service
@@ -25,6 +23,7 @@ public class LanguageIdentificationService {
 
     private final LanguageIdentificationRepository repository;
     private final LanguageGovernanceService governanceService;
+    private final LanguageExtensionService extensionService;
 
     @Transactional(readOnly = true)
     public Page<LanguageResponse> list(String keyword, Boolean enabled, Pageable pageable) {
@@ -44,9 +43,12 @@ public class LanguageIdentificationService {
                     : (disabledIds.isEmpty() ? cb.disjunction() : root.get("id").in(disabledIds)));
         }
         Page<LanguageIdentification> page = repository.findAll(spec, pageable);
+        java.util.List<UUID> languageIds = page.getContent().stream().map(LanguageIdentification::getId).toList();
         java.util.Map<UUID, io.github.matrixlane.metadataregistry.ext.basicandcore.LanguageGovernance> governanceMap =
-                governanceService.mapByLanguageIds(page.getContent().stream().map(LanguageIdentification::getId).toList());
-        return page.map(entity -> toResponse(entity, governanceMap));
+                governanceService.mapByLanguageIds(languageIds);
+        java.util.Map<UUID, io.github.matrixlane.metadataregistry.ext.basicandcore.LanguageIdentificationExtension> extensionMap =
+                extensionService.mapByLanguageIds(languageIds);
+        return page.map(entity -> toResponse(entity, governanceMap, extensionMap));
     }
 
     @Transactional(readOnly = true)
@@ -62,6 +64,7 @@ public class LanguageIdentificationService {
         applyRequest(entity, request);
         LanguageIdentification saved = repository.save(entity);
         applyGovernance(saved.getId(), request.enabled());
+        applyExtensionNames(saved, request);
         return toResponse(saved);
     }
 
@@ -74,6 +77,7 @@ public class LanguageIdentificationService {
         applyRequest(entity, request);
         LanguageIdentification saved = repository.save(entity);
         applyGovernance(saved.getId(), request.enabled());
+        applyExtensionNames(saved, request);
         return toResponse(saved);
     }
 
@@ -110,8 +114,25 @@ public class LanguageIdentificationService {
         }
     }
 
+    /**
+     * 语言名称/地区名称持久化:请求留空(空白/null)时存 null,
+     * 不做运行时解析,名称数据仅可来自扩展表或 SQL 预置。
+     */
+    private void applyExtensionNames(LanguageIdentification entity, LanguageRequest request) {
+        extensionService.upsert(entity.getId(),
+                blankToNull(request.languageName()),
+                blankToNull(request.territoryName()));
+    }
+
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value;
+    }
+
     private LanguageResponse toResponse(LanguageIdentification entity) {
-        return toResponse(entity, java.util.Map.of());
+        io.github.matrixlane.metadataregistry.ext.basicandcore.LanguageIdentificationExtension extension =
+                extensionService.getOrDefault(entity.getId());
+        return toResponse(entity, java.util.Map.of(),
+                extension == null ? java.util.Map.of() : java.util.Map.of(entity.getId(), extension));
     }
 
     private io.github.matrixlane.metadataregistry.ext.basicandcore.LanguageGovernance governanceOf(
@@ -124,18 +145,25 @@ public class LanguageIdentificationService {
     }
 
     private LanguageResponse toResponse(LanguageIdentification entity,
-            java.util.Map<UUID, io.github.matrixlane.metadataregistry.ext.basicandcore.LanguageGovernance> governanceMap) {
-        Locale displayLocale = LocaleContextHolder.getLocale();
+            java.util.Map<UUID, io.github.matrixlane.metadataregistry.ext.basicandcore.LanguageGovernance> governanceMap,
+            java.util.Map<UUID, io.github.matrixlane.metadataregistry.ext.basicandcore.LanguageIdentificationExtension> extensionMap) {
+        io.github.matrixlane.metadataregistry.ext.basicandcore.LanguageIdentificationExtension extension =
+                entity.getId() == null ? null : extensionMap.get(entity.getId());
         return new LanguageResponse(
                 entity.getId(),
                 entity.getLanguageIdentifier(),
                 entity.getScriptIdentifier(),
                 entity.getGeopoliticalTerritoryIdentifier(),
-                LanguageDisplayNames.languageName(entity.getLanguageIdentifier(), displayLocale),
-                LanguageDisplayNames.territoryName(entity.getGeopoliticalTerritoryIdentifier(), displayLocale),
+                persistedName(extension == null ? null : extension.getLanguageName()),
+                persistedName(extension == null ? null : extension.getTerritoryName()),
                 new ArrayList<>(entity.getVariantIdentifier()),
                 new ArrayList<>(entity.getExtensionIdentifier()),
                 entity.getPrivateUseQualifier(),
                 governanceOf(entity, governanceMap).getEnabled());
+    }
+
+    /** 名称仅取扩展表持久化值;记录缺失或名称为空白时返回 null(前端展示为空)。 */
+    private static String persistedName(String name) {
+        return name == null || name.isBlank() ? null : name;
     }
 }

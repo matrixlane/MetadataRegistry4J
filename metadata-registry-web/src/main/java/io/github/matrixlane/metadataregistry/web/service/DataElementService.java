@@ -48,22 +48,25 @@ public class DataElementService {
         DataElement entity = new DataElement();
         applyRequest(entity, request);
         DataElement saved = repository.save(entity);
-        versionHistoryService.recordSnapshot(saved, "CREATE");
+        itemAdministrationService.recordSubmission(saved, request.registration());
+        versionHistoryService.recordSnapshot(saved, "CREATE", toResponse(saved));
         return toResponse(saved);
     }
 
     public DataElementResponse update(UUID id, DataElementRequest request) {
         DataElement entity = loadOrThrow(id);
+        versionHistoryService.captureBaselineIfEnteringDraft(entity, toResponse(entity));
         applyRequest(entity, request);
         DataElement saved = repository.save(entity);
-        versionHistoryService.recordSnapshot(saved, "UPDATE");
+        itemAdministrationService.recordSubmission(saved, request.registration());
+        versionHistoryService.recordSnapshot(saved, "UPDATE", toResponse(saved));
         return toResponse(saved);
     }
 
     public void delete(UUID id) {
         DataElement entity = repository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("DataElement", id));
-        versionHistoryService.recordSnapshot(entity, "DELETE");
+        versionHistoryService.recordSnapshot(entity, "DELETE", toResponse(entity));
         repository.deleteById(id);
     }
 

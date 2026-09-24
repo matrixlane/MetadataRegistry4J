@@ -1,6 +1,6 @@
 package io.github.matrixlane.metadataregistry.web.controller;
 
-import io.github.matrixlane.metadataregistry.itemmapping.enums.MappingType;
+import io.github.matrixlane.metadataregistry.itemmapping.enums.MappingDegree;
 import io.github.matrixlane.metadataregistry.itemmapping.service.ItemMappingService;
 import io.github.matrixlane.metadataregistry.web.common.ApiResponse;
 import io.github.matrixlane.metadataregistry.web.dto.mapping.MappingNetworkResponse;
@@ -40,7 +40,7 @@ public class MappingNetworkController {
     public ApiResponse<MappingNetworkResponse> getNetwork(
             @RequestParam(required = false) UUID centerId,
             @RequestParam(defaultValue = "3") int depth,
-            @RequestParam(required = false) List<MappingType> filterTypes) {
+            @RequestParam(required = false) List<MappingDegree> filterTypes) {
 
         if (centerId == null) {
             return ApiResponse.ok(new MappingNetworkResponse(
@@ -61,7 +61,7 @@ public class MappingNetworkController {
         List<MappingNetworkResponse.NetworkEdge> edges = result.edges().stream()
                 .map(e -> new MappingNetworkResponse.NetworkEdge(
                         e.mappingId(), e.sourceId(), e.targetId(),
-                        e.mappingType(), e.description()))
+                        e.degree(), e.description()))
                 .toList();
 
         MappingNetworkResponse response = new MappingNetworkResponse(

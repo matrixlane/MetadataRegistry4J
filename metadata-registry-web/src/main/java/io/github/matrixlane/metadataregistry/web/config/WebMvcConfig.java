@@ -1,8 +1,10 @@
 package io.github.matrixlane.metadataregistry.web.config;
 
+import io.github.matrixlane.metadataregistry.itemmapping.enums.MappingDegree;
 import io.github.matrixlane.metadataregistry.web.logging.ApiLoggingInterceptor;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.format.FormatterRegistry;
 import org.springframework.web.method.support.HandlerMethodArgumentResolver;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
@@ -21,6 +23,13 @@ public class WebMvcConfig implements WebMvcConfigurer {
     private final InitializationWizardInterceptor initializationWizardInterceptor;
     private final ForcePasswordResetInterceptor forcePasswordResetInterceptor;
     private final MaintenanceModeInterceptor maintenanceModeInterceptor;
+
+    @Override
+    public void addFormatters(FormatterRegistry registry) {
+        // 映射度查询参数使用标准小写值
+        // （如 "related to"），此处注册解析器以支持 @RequestParam 绑定。
+        registry.addConverter(String.class, MappingDegree.class, MappingDegree::fromStandardValue);
+    }
 
     @Override
     public void addArgumentResolvers(List<HandlerMethodArgumentResolver> resolvers) {

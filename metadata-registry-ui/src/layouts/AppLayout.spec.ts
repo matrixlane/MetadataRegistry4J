@@ -8,6 +8,7 @@ import { useAiChatStore } from '@/stores/aiChat';
 
 const state = vi.hoisted(() => ({
   isRegistrarUser: true,
+  user: { id: 'user-1', username: 'registrar-1', displayName: '注册员' } as any,
 }));
 
 const mocks = vi.hoisted(() => ({
@@ -21,7 +22,7 @@ vi.mock('vue-router', () => ({
 
 vi.mock('@/stores/auth', () => ({
   useAuthStore: () => ({
-    user: { username: 'registrar-1', displayName: '注册员' },
+    user: state.user,
     isRegistrarUser: state.isRegistrarUser,
     isAdmin: false,
     logout: vi.fn(),
@@ -229,5 +230,45 @@ describe('AppLayout 全局划词「问 AI」', () => {
     await flushPromises();
     expect(body().querySelector('[data-test="ai-ask-button"]')).toBeNull();
     host.remove();
+  });
+});
+
+describe('AppLayout 首登完善联系人提示', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    state.user = { id: 'user-1', username: 'registrar-1', displayName: '注册员' };
+  });
+
+  afterEach(() => {
+    localStorage.clear();
+  });
+
+  it('profilePrompt=true 时显示提示弹窗', async () => {
+    state.user = { id: 'user-1', username: 'registrar-1', displayName: '注册员', profilePrompt: true };
+    await mountLayout();
+    expect(body().querySelector('[data-testid="profile-prompt-dialog"]')).toBeTruthy();
+  });
+
+  it('profilePrompt=false 时不显示提示弹窗', async () => {
+    state.user = { id: 'user-1', username: 'registrar-1', displayName: '注册员', profilePrompt: false };
+    await mountLayout();
+    expect(body().querySelector('[data-testid="profile-prompt-dialog"]')).toBeNull();
+  });
+
+  it('点击「跳过」后记录 localStorage 并不再显示', async () => {
+    state.user = { id: 'user-1', username: 'registrar-1', displayName: '注册员', profilePrompt: true };
+    const { wrapper } = await mountLayout();
+    const skipBtn = body().querySelector('[data-testid="profile-prompt-skip"]') as HTMLElement;
+    expect(skipBtn).toBeTruthy();
+    skipBtn.click();
+    await flushPromises();
+    expect((wrapper.vm as any).showProfilePromptDialog).toBe(false);
+    expect(localStorage.getItem('profilePromptDismissed:user-1')).toBe('true');
+  });
+
+  it('改密弹窗优先：forceChangePassword=true 时不显示提示弹窗', async () => {
+    state.user = { id: 'user-1', username: 'registrar-1', displayName: '注册员', profilePrompt: true, forceChangePassword: true };
+    await mountLayout();
+    expect(body().querySelector('[data-testid="profile-prompt-dialog"]')).toBeNull();
   });
 });

@@ -12,7 +12,7 @@ const mocks = vi.hoisted(() => ({
   settingsSave: vi.fn(),
 }));
 
-const authState = vi.hoisted(() => ({ isAdmin: true }));
+const authState = vi.hoisted(() => ({ isAdmin: true, user: { username: 'admin' } as unknown }));
 
 vi.mock('@/api/inference', () => ({
   inferenceAgentApi: {
@@ -27,7 +27,7 @@ vi.mock('@/api/assistant', () => ({
 }));
 
 vi.mock('@/stores/auth', () => ({
-  useAuthStore: () => ({ isAdmin: authState.isAdmin }),
+  useAuthStore: () => ({ isAdmin: authState.isAdmin, user: authState.user }),
 }));
 
 vi.mock('vue-i18n', () => ({
@@ -92,6 +92,7 @@ function pressKey(init: KeyboardEventInit) {
 beforeEach(() => {
   vi.clearAllMocks();
   authState.isAdmin = true;
+  authState.user = { username: 'admin' } as unknown;
   mocks.getAgents.mockResolvedValue(AGENTS_VIEW);
   mocks.probeAgents.mockResolvedValue(AGENTS_VIEW);
   mocks.saveAgents.mockResolvedValue(AGENTS_VIEW);
@@ -129,11 +130,19 @@ describe('AiAssistSettingsPage Agent 管理', () => {
     }));
   });
 
-  it('非超级管理员：Agent 只读提示且不加载，设置保存按钮禁用', async () => {
+  it('非超级管理员：Agent 只读提示且不加载；应用设置保存对登录用户可用', async () => {
     authState.isAdmin = false;
     await mountPage();
     expect(mocks.getAgents).not.toHaveBeenCalled();
     expect(body().textContent).toContain('systemInference.superAdminOnly');
+    // 应用设置（AI 辅助偏好）属每位登录用户：保存按钮不再禁用（add-workspace-administrative-status）
+    expect((body().querySelector('[data-test="settings-save"]') as HTMLButtonElement).disabled)
+      .toBe(false);
+  });
+
+  it('未登录用户：应用设置保存按钮禁用', async () => {
+    authState.user = null;
+    await mountPage();
     expect((body().querySelector('[data-test="settings-save"]') as HTMLButtonElement).disabled)
       .toBe(true);
   });

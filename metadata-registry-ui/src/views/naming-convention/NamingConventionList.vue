@@ -4,19 +4,16 @@
     <DataTablePage
       ref="tableRef"
       :fetch-fn="(params) => namingConventionApi.list(params as any)"
+      :delete-fn="namingConventionApi.delete"
       @create="handleCreate"
       @edit="(r) => handleEdit(r as any)"
       @delete="(r) => handleDelete(r as any)"
     >
       <template #columns>
-        <el-table-column :label="$t('common.identifier')" width="120">
-          <template #default="{ row }">
-            <code style="font-size: 12px;">{{ row.id?.slice(0, 8) || '-' }}</code>
-          </template>
-        </el-table-column>
-        <el-table-column :label="$t('common.name')" min-width="180">
+        <el-table-column :label="$t('common.name')" min-width="220">
           <template #default="{ row }">
             {{ row.label || preferredDesignation(row) || '-' }}
+            <code v-if="row.authorityRule" class="authority-hint" :title="row.authorityRule">{{ truncate(row.authorityRule, 40) }}</code>
           </template>
         </el-table-column>
         <el-table-column :label="$t('namingConvention.scopeRule')" min-width="180">
@@ -238,7 +235,7 @@ async function handleDelete(row: NamingConventionResponse) {
     } catch {
       refCount = 0;
     }
-    const label = row.label || preferredDesignation(row) || row.id.slice(0, 8);
+    const label = row.label || preferredDesignation(row) || '—';
     let msg: string;
     if (refCount > 0) {
       msg = `命名规范「${label}」已被 ${refCount} 个命名空间引用，确认删除？`;
@@ -258,3 +255,12 @@ async function handleDelete(row: NamingConventionResponse) {
   }
 }
 </script>
+
+<style scoped>
+.authority-hint {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--el-text-color-secondary);
+}
+</style>

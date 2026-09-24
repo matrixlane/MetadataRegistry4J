@@ -128,7 +128,7 @@ describe('AiDebugDrawer 列表渲染', () => {
     expect(body().querySelector('[data-test="ai-debug-count"]')!.textContent).toContain('aiDebug.count');
   });
 
-  it('展开条目显示 itemId、所选文本、提示词与响应原文（纯文本 pre）', async () => {
+  it('展开条目隐藏内部 itemId、显示所选文本、提示词与响应原文（纯文本 pre）', async () => {
     const wrapper = await mountDrawer();
     // el-collapse 展开第二项（成功项）；断言限定在该条目内（折叠条目内容仍在 DOM 中）
     const items = body().querySelectorAll('[data-test="ai-debug-item"]');
@@ -136,7 +136,8 @@ describe('AiDebugDrawer 列表渲染', () => {
     (target.querySelector('.el-collapse-item__header') as HTMLElement).click();
     await flushPromises();
     await wrapper.vm.$nextTick();
-    expect(target.querySelector('[data-test="ai-debug-item-id"]')!.textContent).toBe('item-1');
+    // 界面禁显 UUID：itemId 以占位文案代替（测试环境 $t 回显 key）
+    expect(target.querySelector('[data-test="ai-debug-item-id"]')!.textContent).toBe('common.internalIdHidden');
     const prompt = target.querySelector('[data-test="ai-debug-prompt"]');
     expect(prompt!.tagName).toBe('PRE');
     expect(prompt!.textContent).toContain('请补全元数据');

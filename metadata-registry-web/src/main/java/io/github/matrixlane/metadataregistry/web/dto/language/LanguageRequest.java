@@ -12,5 +12,8 @@ public record LanguageRequest(
         List<String> variantIdentifier,
         List<String> extensionIdentifier,
         String privateUseQualifier,
-        Boolean enabled) {
+        Boolean enabled,
+        // 语言名称/地区名称(可选):仅来自请求或扩展表持久化值,留空时存 null,不做运行时解析
+        String languageName,
+        String territoryName) {
 }

@@ -1,169 +1,74 @@
 package io.github.matrixlane.metadataregistry.itemmapping.entity;
 
-import io.github.matrixlane.metadataregistry.itemmapping.enums.MappingType;
+import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.Item;
+import io.github.matrixlane.metadataregistry.itemmapping.enums.MappingDegree;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-import java.time.LocalDateTime;
-import java.util.Objects;
-import java.util.UUID;
-
 /**
- * Represents a mapping relationship between two administered items or
- * between an administered item and an external resource.
+ * 条目映射（Item_Mapping）。
  *
- * <p>This is the core entity for ISO/IEC 11179-3:2023 Clause 11 — Item Mapping.
- * A mapping consists of:
- * <ul>
- *   <li>A subject (source) — either an internal {@code AdministeredItem}
- *       or an external URI</li>
- *   <li>An object (target) — either an internal {@code AdministeredItem}
- *       or an external URI</li>
- *   <li>A mapping type that classifies the relationship</li>
- * </ul>
+ * <p>Item_Mapping 是 Item 的直接子类，因此映射条目本身可被
+ * 标识、命名、定义、分类并纳入注册状态流转。属性说明：
+ * degree（1）、description（0..1）、transformation_rule（0..1）、
+ * transformation_rule_notation（0..1，transformation_rule 存在时必填，
+ * 由应用层校验）。
  *
- * <p>MVP: Mapping always resolves to the latest version of {@code AdministeredItem}
- * (no version pinning). Version binding will be evaluated for V1.
+ * <p>主体（subject）与客体（object）经关联类 {@link ItemMappingSubject} /
+ * {@link ItemMappingObject} 绑定注册条目并携带 mapping_variable_name。
+ * 映射层级经 {@link MappingHierarchy} 建模。
  */
 @Entity
 @Table(name = "item_mapping")
 @Getter
 @Setter
 @NoArgsConstructor
-public class ItemMapping {
-
-    @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    @Column(name = "id", nullable = false, updatable = false)
-    private UUID id;
+public class ItemMapping extends Item {
 
     /**
-     * The subject (source) of the mapping relationship.
+     * 映射度（degree，必填），14 个标准值见 {@link MappingDegree}。
+     * 持久化经 {@code MappingDegreeConverter} 落库标准小写值（@Enumerated 会
+     * 覆盖 autoApply 转换器，故此处不标注）。
      */
-    @ManyToOne(fetch = FetchType.LAZY, cascade = {CascadeType.PERSIST, CascadeType.MERGE})
-    @JoinColumn(name = "subject_id", nullable = false)
-    private ItemMappingSubject subject;
+    @Column(name = "degree", nullable = false, length = 32)
+    private MappingDegree degree;
 
     /**
-     * The object (target) of the mapping relationship.
-     */
-    @ManyToOne(fetch = FetchType.LAZY, cascade = {CascadeType.PERSIST, CascadeType.MERGE})
-    @JoinColumn(name = "object_id", nullable = false)
-    private ItemMappingObject object;
-
-    /**
-     * The type of mapping relationship.
-     */
-    @Enumerated(EnumType.STRING)
-    @Column(name = "mapping_type", nullable = false, length = 32)
-    private MappingType mappingType;
-
-    /**
-     * Human-readable description of this mapping (optional).
+     * 映射的可读描述（description，0..1），尤其在 degree 为 related to 时提供。
      */
     @Column(name = "description", length = 2000)
     private String description;
 
     /**
-     * Transformation rule for converting between subject and object
-     * (e.g. a formula, code snippet, or reference to a transformation spec).
-     * Relevant for DERIVED, AGGREGATED, and SUBDIVIDED mappings.
+     * 转换规则（transformation_rule，0..1）：把主体条目转换为
+     * 客体条目的规则文本，可引用关联类上的 mapping_variable_name。
      */
     @Column(name = "transformation_rule", length = 4000)
     private String transformationRule;
 
     /**
-     * The mapping scheme this mapping belongs to.
+     * 转换规则记法（transformation_rule_notation，0..1，条件必填）：
+     * 描述转换规则的表示格式（如 EBNF）。transformation_rule 存在时必填。
      */
-    @ManyToOne(fetch = FetchType.LAZY, cascade = {CascadeType.PERSIST, CascadeType.MERGE})
-    @JoinColumn(name = "mapping_scheme_id")
-    private MappingScheme mappingScheme;
+    @Column(name = "transformation_rule_notation", length = 255)
+    private String transformationRuleNotation;
 
     /**
-     * Timestamp when this mapping was created.
+     * 映射主体绑定（Subject_Mapping 关联类侧写，1..*，子表持有外键）。
+     * Item 与 Item_Mapping 为多对多关系，每个绑定携带各自的 mapping_variable_name。
      */
-    @Column(name = "created_at", nullable = false, updatable = false)
-    private LocalDateTime createdAt;
+    @OneToMany(mappedBy = "itemMapping", cascade = CascadeType.ALL, orphanRemoval = true)
+    private java.util.List<ItemMappingSubject> subjects = new java.util.ArrayList<>();
 
     /**
-     * Creates a new ItemMapping with the current timestamp.
-     *
-     * @param subject     the subject (source) reference
-     * @param object      the object (target) reference
-     * @param mappingType the type of mapping relationship
+     * 映射客体绑定（Object_Mapping 关联类侧写，1..*，子表持有外键）。
      */
-    public ItemMapping(ItemMappingSubject subject, ItemMappingObject object, MappingType mappingType) {
-        this.subject = Objects.requireNonNull(subject, "subject must not be null");
-        this.object = Objects.requireNonNull(object, "object must not be null");
-        this.mappingType = Objects.requireNonNull(mappingType, "mappingType must not be null");
-        this.createdAt = LocalDateTime.now();
-    }
-
-    /**
-     * Creates a new ItemMapping with an explicit description.
-     *
-     * @param subject     the subject (source) reference
-     * @param object      the object (target) reference
-     * @param mappingType the type of mapping relationship
-     * @param description optional human-readable description
-     */
-    public ItemMapping(ItemMappingSubject subject, ItemMappingObject object,
-                       MappingType mappingType, String description) {
-        this(subject, object, mappingType);
-        this.description = description;
-    }
-
-    /**
-     * Creates a new ItemMapping with scheme and transformation rule.
-     *
-     * @param subject           the subject (source) reference
-     * @param object            the object (target) reference
-     * @param mappingType       the type of mapping relationship
-     * @param description       optional human-readable description
-     * @param transformationRule optional transformation rule
-     * @param mappingScheme      the mapping scheme this mapping belongs to
-     */
-    public ItemMapping(ItemMappingSubject subject, ItemMappingObject object,
-                       MappingType mappingType, String description,
-                       String transformationRule, MappingScheme mappingScheme) {
-        this(subject, object, mappingType, description);
-        this.transformationRule = transformationRule;
-        this.mappingScheme = mappingScheme;
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (!(o instanceof ItemMapping that)) return false;
-        if (id == null || that.id == null) return false;
-        return Objects.equals(id, that.id);
-    }
-
-    @Override
-    public int hashCode() {
-        return id == null ? 0 : id.hashCode();
-    }
-
-    @Override
-    public String toString() {
-        return "ItemMapping{" +
-                "id=" + id +
-                ", mappingType=" + mappingType +
-                ", createdAt=" + createdAt +
-                '}';
-    }
+    @OneToMany(mappedBy = "itemMapping", cascade = CascadeType.ALL, orphanRemoval = true)
+    private java.util.List<ItemMappingObject> objects = new java.util.ArrayList<>();
 }
-

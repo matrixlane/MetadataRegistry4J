@@ -52,6 +52,8 @@ public class AuthController {
                 profile.lastLoginAt(),
                 profile.individualId(),
                 profile.isRegistrar(),
+                profile.hasContact(),
+                profile.profilePrompt(),
                 user.forceChangePassword(),
                 user.emergencyLogin(),
                 user.tempPasswordUsed()

@@ -72,10 +72,21 @@ public class SecurityConfig {
                                 "/actuator/info").permitAll()
                         .requestMatchers("/actuator/loggers/**").hasRole("SUPER_ADMIN")
                         .requestMatchers("/api/v1/system/**").hasRole("SUPER_ADMIN")
-                        // AI 使用类端点整体限注册人员业务角色（REGISTRAR），配置类端点维持 SUPER_ADMIN：
-                        // 显式置于下方通用规则（GET 登录即可、写 SUPER_ADMIN/REGISTRAR）之前，不依赖平台默认值
-                        .requestMatchers(HttpMethod.GET, "/api/v1/assistant/settings").hasRole("REGISTRAR")
-                        .requestMatchers(HttpMethod.PUT, "/api/v1/assistant/settings").hasRole("SUPER_ADMIN")
+                        // AI 使用类端点整体限注册人员业务角色（REGISTRAR）；
+                        // AI 辅助设置（候选数/快捷键等应用级偏好）属"应用设置"，
+                        // 每一位登录用户均可读写（add-workspace-administrative-status：
+                        // 从系统设置迁至右上角应用设置入口）；显式置于通用规则之前。
+                        .requestMatchers(HttpMethod.GET, "/api/v1/assistant/settings").authenticated()
+                        .requestMatchers(HttpMethod.PUT, "/api/v1/assistant/settings").authenticated()
+                        // "我的"入口（联系人身份管理等）：任何登录用户可管理自己的资料，
+                        // 越权由服务层按账号归属校验（add-submitter-contact-identity）
+                        .requestMatchers("/api/v1/my/**").authenticated()
+                        // 生命周期状态治理仍仅 Registrar/Admin（add-submitter-contact-identity D6），
+                        // 显式前置收紧，不依赖服务层兜底
+                        .requestMatchers(HttpMethod.POST, "/api/v1/administered-items/*/transitions/**")
+                            .hasAnyRole("SUPER_ADMIN", "REGISTRAR")
+                        // 注册流程画布布局：GET 登录可读（渲染恢复），保存仅 SUPER_ADMIN（显式前置）
+                        .requestMatchers(HttpMethod.PUT, "/api/v1/registration-process/layout").hasRole("SUPER_ADMIN")
                         .requestMatchers("/api/v1/inference/**", "/api/v1/assistant/**").hasRole("REGISTRAR")
                         .requestMatchers("/api/v1/federation/inbound/**").permitAll()
                         .requestMatchers("/api/v1/federation/**").hasRole("SUPER_ADMIN")
@@ -84,16 +95,20 @@ public class SecurityConfig {
                         .requestMatchers(RegexRequestMatcher.regexMatcher(HttpMethod.GET,
                                 "^/(?!api(?:/.*)?$|v3(?:/.*)?$|swagger-ui|actuator(?:/.*)?$|assets(?:/.*)?$|favicon\\.svg$|index\\.html$).*$"))
                         .permitAll()
+                        // 工作空间：GET summary/items 登录即可；写操作需 SUBMITTER/REGISTRAR/ADMIN
+                        .requestMatchers(HttpMethod.GET, "/api/v1/workspace/summary", "/api/v1/workspace/items")
+                            .authenticated()
+                        .requestMatchers("/api/v1/workspace/**").hasAnyRole("SUPER_ADMIN", "REGISTRAR", "SUBMITTER")
                         .requestMatchers(HttpMethod.GET, "/api/v1/**").authenticated()
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/change-password").authenticated()
                         .requestMatchers(HttpMethod.PUT, "/api/v1/auth/me/individual").authenticated()
                         .requestMatchers(HttpMethod.POST, "/api/v1/accounts/**").hasRole("SUPER_ADMIN")
                         .requestMatchers(HttpMethod.PUT, "/api/v1/accounts/**").hasRole("SUPER_ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/api/v1/accounts/**").hasRole("SUPER_ADMIN")
-                        .requestMatchers(HttpMethod.POST, "/api/v1/**").hasAnyRole("SUPER_ADMIN", "REGISTRAR")
-                        .requestMatchers(HttpMethod.PUT, "/api/v1/**").hasAnyRole("SUPER_ADMIN", "REGISTRAR")
-                        .requestMatchers(HttpMethod.PATCH, "/api/v1/**").hasAnyRole("SUPER_ADMIN", "REGISTRAR")
-                        .requestMatchers(HttpMethod.DELETE, "/api/v1/**").hasAnyRole("SUPER_ADMIN", "REGISTRAR")
+                        .requestMatchers(HttpMethod.POST, "/api/v1/**").hasAnyRole("SUPER_ADMIN", "REGISTRAR", "SUBMITTER")
+                        .requestMatchers(HttpMethod.PUT, "/api/v1/**").hasAnyRole("SUPER_ADMIN", "REGISTRAR", "SUBMITTER")
+                        .requestMatchers(HttpMethod.PATCH, "/api/v1/**").hasAnyRole("SUPER_ADMIN", "REGISTRAR", "SUBMITTER")
+                        .requestMatchers(HttpMethod.DELETE, "/api/v1/**").hasAnyRole("SUPER_ADMIN", "REGISTRAR", "SUBMITTER")
                         .anyRequest().authenticated())
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();

@@ -13,7 +13,7 @@ import org.springframework.test.context.ActiveProfiles;
 
 @SpringBootTest(properties = {
         "spring.config.import=",
-        "spring.jpa.mapping-resources=",
+        "spring.jpa.mapping-resources=orm/orm-sqlite.xml",
         "spring.datasource.url=jdbc:sqlite:file:reset-database-helper-test?mode=memory&cache=shared",
         "spring.datasource.driver-class-name=org.sqlite.JDBC",
         "spring.datasource.username=",

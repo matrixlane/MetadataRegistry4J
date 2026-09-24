@@ -37,7 +37,7 @@ class FhirElementMappingTest {
                 itemId, "Patient.name.family", "Patient",
                 FhirMappingEquivalence.EQUIVALENT,
                 FhirMappingType.ONE_TO_MANY,
-                "family", "Family name", null
+                "family", "Family name"
         );
 
         assertThat(mapping.getMappingType()).isEqualTo(FhirMappingType.ONE_TO_MANY);
@@ -130,7 +130,7 @@ class FhirElementMappingTest {
         FhirElementMapping mapping = new FhirElementMapping(
                 itemId, "Patient.name.given", "Patient",
                 FhirMappingEquivalence.EQUIVALENT,
-                FhirMappingType.ONE_TO_MANY, "var", "desc", null
+                FhirMappingType.ONE_TO_MANY, "var", "desc"
         );
 
         mapping.update(null, null, null, "", null, null);

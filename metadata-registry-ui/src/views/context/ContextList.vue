@@ -4,6 +4,7 @@
     <DataTablePage
       ref="tableRef"
       :fetch-fn="contextApi.list"
+      :delete-fn="contextApi.delete"
       :action-width="250"
       @create="dialog?.open()"
       @edit="(r) => dialog?.open(r)"
@@ -95,7 +96,7 @@ function openUsages(row: any) {
   usageContextLabel.value = row.designations?.find((d: any) => d.languageCode === 'zh-CN')?.value
     || row.designations?.[0]?.value
     || row.meta?.identifier
-    || row.id;
+    || '—';
   usageDialog.value?.open(row.id, usageContextLabel.value);
 }
 </script>

@@ -198,6 +198,9 @@ class InferencePromptBuilderTest {
                 null,
                 null,
                 null,
+                null,
+                null,
+                null,
                 null);
     }
 

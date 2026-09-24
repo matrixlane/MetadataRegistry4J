@@ -85,15 +85,17 @@ public class ValueDomainService {
         applyCommon(entity, request);
         applyTypeSpecific(entity, request);
         ValueDomain saved = repository.save(entity);
+        itemAdministrationService.recordSubmission(saved, request.registration());
         if (saved instanceof LocalEnumeratedValueDomain levd) {
             applyPermissibleValues(levd, request.permissibleValues());
         }
-        versionHistoryService.recordSnapshot(saved, "CREATE");
+        versionHistoryService.recordSnapshot(saved, "CREATE", toResponse(saved));
         return toResponse(saved);
     }
 
     public ValueDomainResponse update(UUID id, ValueDomainRequest request) {
         ValueDomain entity = loadOrThrow(id);
+        versionHistoryService.captureBaselineIfEnteringDraft(entity, toResponse(entity));
         ValueDomainType fromType = inferType(entity);
         ValueDomainType toType = request.type() == null ? fromType : request.type();
         validateReferenceEnumerated(request.permittedValuesFieldname(),
@@ -103,10 +105,11 @@ public class ValueDomainService {
         applyCommon(mutable, request);
         applyTypeSpecific(mutable, request);
         ValueDomain saved = repository.save(mutable);
+        itemAdministrationService.recordSubmission(saved, request.registration());
         if (saved instanceof LocalEnumeratedValueDomain levd) {
             applyPermissibleValues(levd, request.permissibleValues());
         }
-        versionHistoryService.recordSnapshot(saved, "UPDATE");
+        versionHistoryService.recordSnapshot(saved, "UPDATE", toResponse(saved));
         return toResponse(saved);
     }
 
@@ -172,7 +175,7 @@ public class ValueDomainService {
     public void delete(UUID id) {
         ValueDomain entity = repository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("ValueDomain", id));
-        versionHistoryService.recordSnapshot(entity, "DELETE");
+        versionHistoryService.recordSnapshot(entity, "DELETE", toResponse(entity));
         if (entity instanceof LocalEnumeratedValueDomain levd) {
             cleanupPermissibleValues(levd);
         }

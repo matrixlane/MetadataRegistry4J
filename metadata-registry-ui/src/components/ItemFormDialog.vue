@@ -34,72 +34,83 @@
           />
         </el-tab-pane>
 
-        <!-- Designations Tab -->
-        <el-tab-pane name="designations">
+        <!-- 指称与定义（一级 Tab）：指称 / 定义 / 指称-定义配对 三个二级 Tab -->
+        <el-tab-pane name="designationDefinition">
           <template #label>
             <span class="tab-label-container">
-              <span>指称</span>
-              <el-icon v-if="hasTabError('designations')" class="tab-error-icon"><Warning /></el-icon>
+              <span>指称与定义</span>
+              <el-icon v-if="hasNamingTabError()" class="tab-error-icon"><Warning /></el-icon>
             </span>
           </template>
-          <el-form-item label="指称" prop="designations">
-            <MultilingualTextEditor
-              ref="designationEditorRef"
-              v-model="form.designations"
-              label="指称"
-              :naming-convention-options="designationNamingConventionOptions"
-              :require-naming-conventions="namespaceMandatoryNC"
-              :pairings="form.pairings"
-              :default-language-id="defaultLanguageId || undefined"
-              :self-context-option="selfContextOption"
-              :ai-generate="canAiGenerate"
-              @conflicts="designationConflicts = $event"
-              @ai-generate="(i) => onAiGenerate('designation', i)"
-              @ai-generate-hover="(h, i) => onAiGenerateHover('designation', i, h)"
-            />
-          </el-form-item>
-        </el-tab-pane>
+          <el-tabs v-model="activeSubTab" class="naming-sub-tabs">
+            <!-- Designations Sub-Tab -->
+            <el-tab-pane name="designations">
+              <template #label>
+                <span class="tab-label-container">
+                  <span>指称</span>
+                  <el-icon v-if="hasTabError('designations')" class="tab-error-icon"><Warning /></el-icon>
+                </span>
+              </template>
+              <el-form-item label="指称" prop="designations">
+                <MultilingualTextEditor
+                  ref="designationEditorRef"
+                  v-model="form.designations"
+                  label="指称"
+                  :naming-convention-options="designationNamingConventionOptions"
+                  :require-naming-conventions="namespaceMandatoryNC"
+                  :pairings="form.pairings"
+                  :default-language-id="defaultLanguageId || undefined"
+                  :self-context-option="selfContextOption"
+                  :ai-generate="canAiGenerate"
+                  @conflicts="designationConflicts = $event"
+                  @ai-generate="(i) => onAiGenerate('designation', i)"
+                  @ai-generate-hover="(h, i) => onAiGenerateHover('designation', i, h)"
+                />
+              </el-form-item>
+            </el-tab-pane>
 
-        <!-- Definitions Tab -->
-        <el-tab-pane name="definitions">
-          <template #label>
-            <span class="tab-label-container">
-              <span>定义</span>
-              <el-icon v-if="hasTabError('definitions')" class="tab-error-icon"><Warning /></el-icon>
-            </span>
-          </template>
-          <el-form-item label="定义">
-            <MultilingualTextEditor
-              ref="definitionEditorRef"
-              v-model="form.definitions"
-              label="定义"
-              multiline
-              :pairings="form.pairings"
-              :default-language-id="defaultLanguageId || undefined"
-              :self-context-option="selfContextOption"
-              :ai-generate="canAiGenerate"
-              @conflicts="definitionConflicts = $event"
-              @ai-generate="(i) => onAiGenerate('definition', i)"
-              @ai-generate-hover="(h, i) => onAiGenerateHover('definition', i, h)"
-            />
-          </el-form-item>
-        </el-tab-pane>
+            <!-- Definitions Sub-Tab -->
+            <el-tab-pane name="definitions">
+              <template #label>
+                <span class="tab-label-container">
+                  <span>定义</span>
+                  <el-icon v-if="hasTabError('definitions')" class="tab-error-icon"><Warning /></el-icon>
+                </span>
+              </template>
+              <el-form-item label="定义">
+                <MultilingualTextEditor
+                  ref="definitionEditorRef"
+                  v-model="form.definitions"
+                  label="定义"
+                  multiline
+                  :pairings="form.pairings"
+                  :default-language-id="defaultLanguageId || undefined"
+                  :self-context-option="selfContextOption"
+                  :ai-generate="canAiGenerate"
+                  @conflicts="definitionConflicts = $event"
+                  @ai-generate="(i) => onAiGenerate('definition', i)"
+                  @ai-generate-hover="(h, i) => onAiGenerateHover('definition', i, h)"
+                />
+              </el-form-item>
+            </el-tab-pane>
 
-        <!-- Pairings Tab（新建时也可配对：未保存行以 clientKey 临时引用，保存后映射为真实 id；
-             亦可直接输入新指称/定义文本随配对一并创建，见 createDesignationLine/createDefinitionLine） -->
-        <el-tab-pane label="指称-定义配对" name="pairings">
-        <DesignationDefinitionPairingEditor
-          ref="pairingEditorRef"
-          v-model="form.pairings"
-          :designations="designationOptions"
-          :definitions="definitionOptions"
-          :self-context-option="selfContextOption"
-          :create-designation="createDesignationLine"
-          :create-definition="createDefinitionLine"
-          :unlink-designation="unlinkDesignationLine"
-          :unlink-definition="unlinkDefinitionLine"
-          @delete-saved-row="onDeleteSavedPairing"
-        />
+            <!-- Pairings Sub-Tab（新建时也可配对：未保存行以 clientKey 临时引用，保存后映射为真实 id；
+                 亦可直接输入新指称/定义文本随配对一并创建，见 createDesignationLine/createDefinitionLine） -->
+            <el-tab-pane label="指称-定义配对" name="pairings">
+              <DesignationDefinitionPairingEditor
+                ref="pairingEditorRef"
+                v-model="form.pairings"
+                :designations="designationOptions"
+                :definitions="definitionOptions"
+                :self-context-option="selfContextOption"
+                :create-designation="createDesignationLine"
+                :create-definition="createDefinitionLine"
+                :unlink-designation="unlinkDesignationLine"
+                :unlink-definition="unlinkDefinitionLine"
+                @delete-saved-row="onDeleteSavedPairing"
+              />
+            </el-tab-pane>
+          </el-tabs>
         </el-tab-pane>
 
         <!-- Resource-specific fields Tab -->
@@ -124,7 +135,7 @@
           <slot name="associations" :form="form" />
         </el-tab-pane>
 
-        <!-- Registration_State Tab：11179-3:2023 表 22 注册状态属性，置于末位 -->
+        <!-- Registration_State Tab：11179-3:2023 表 22 注册状态属性 -->
         <el-tab-pane v-if="showRegistration" name="registrationState">
           <template #label>
             <span class="tab-label-container">
@@ -132,7 +143,99 @@
               <el-icon v-if="hasTabError('registrationState')" class="tab-error-icon"><Warning /></el-icon>
             </span>
           </template>
-          <ItemRegistrationStateSection v-model="form.registration" />
+          <ItemRegistrationStateSection v-model="form.registration" :is-editing="isEditing" />
+        </el-tab-pane>
+
+        <!-- Registration Records Tab：提交记录 + 主管记录 -->
+        <el-tab-pane v-if="showRegistration" name="registrationRecords">
+          <template #label>
+            <span class="tab-label-container">
+              <span>{{ $t('itemForm.registrationRecordsTab') }}</span>
+              <el-icon v-if="hasTabError('registrationRecords')" class="tab-error-icon"><Warning /></el-icon>
+            </span>
+          </template>
+          <el-collapse v-if="contacts.length > 0" v-model="registrationRecordsCollapse" style="margin-top: 16px;">
+            <el-collapse-item :title="$t('itemForm.submissionInfo.title')" name="submission">
+              <el-form-item :label="$t('itemForm.submissionInfo.contact')">
+                <el-select
+                  v-model="form.registration.submission.contactId"
+                  :placeholder="$t('itemForm.submissionInfo.contactPlaceholder')"
+                  clearable
+                  style="width: 100%;"
+                  data-testid="submission-contact-select"
+                  @change="onContactChange"
+                >
+                  <el-option
+                    v-for="c in contacts"
+                    :key="c.id"
+                    :label="contactLabel(c)"
+                    :value="c.id"
+                  />
+                </el-select>
+              </el-form-item>
+              <el-form-item :label="$t('itemForm.submissionInfo.organization')">
+                <el-select
+                  v-model="form.registration.submission.organizationId"
+                  :placeholder="$t('itemForm.submissionInfo.organizationPlaceholder')"
+                  clearable
+                  filterable
+                  style="width: 100%;"
+                  data-testid="submission-organization-select"
+                >
+                  <el-option
+                    v-for="org in organizationOptions"
+                    :key="org.id"
+                    :label="org.label"
+                    :value="org.id"
+                  />
+                </el-select>
+              </el-form-item>
+            </el-collapse-item>
+            <el-collapse-item :title="$t('itemForm.stewardshipInfo.title')" name="stewardship">
+              <el-form-item :label="$t('itemForm.submissionInfo.contact')">
+                <el-select
+                  v-model="form.registration.stewardship.contactId"
+                  :placeholder="$t('itemForm.submissionInfo.contactPlaceholder')"
+                  clearable
+                  style="width: 100%;"
+                  data-testid="stewardship-contact-select"
+                  @change="onStewardshipContactChange"
+                >
+                  <el-option
+                    v-for="c in contacts"
+                    :key="c.id"
+                    :label="contactLabel(c)"
+                    :value="c.id"
+                  />
+                </el-select>
+              </el-form-item>
+              <el-form-item :label="$t('itemForm.submissionInfo.organization')">
+                <el-select
+                  v-model="form.registration.stewardship.organizationId"
+                  :placeholder="$t('itemForm.submissionInfo.organizationPlaceholder')"
+                  clearable
+                  filterable
+                  style="width: 100%;"
+                  data-testid="stewardship-organization-select"
+                >
+                  <el-option
+                    v-for="org in organizationOptions"
+                    :key="org.id"
+                    :label="org.label"
+                    :value="org.id"
+                  />
+                </el-select>
+              </el-form-item>
+            </el-collapse-item>
+          </el-collapse>
+          <el-alert
+            v-else-if="contactsLoaded"
+            :title="$t('itemForm.stewardshipInfo.noContact')"
+            type="info"
+            :closable="false"
+            style="margin-top: 12px;"
+            data-testid="stewardship-no-contact-alert"
+          />
         </el-tab-pane>
       </el-tabs>
     </el-form>
@@ -241,7 +344,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, onMounted, computed, nextTick } from 'vue';
+import { reactive, ref, computed, nextTick } from 'vue';
 import { useI18n } from 'vue-i18n';
 const { t } = useI18n();
 import { ElMessage } from 'element-plus';
@@ -254,11 +357,11 @@ import ItemRegistrationSection from './ItemRegistrationSection.vue';
 import ItemRegistrationStateSection from './ItemRegistrationStateSection.vue';
 import AiCandidatePopover from './assistant/AiCandidatePopover.vue';
 import type { FieldCandidate, AiDraft } from './assistant/AiCandidatePopover.vue';
-import { namingConventionApi, namespaceApi, pairingApi } from '@/api/resources';
+import { namingConventionApi, namespaceApi, pairingApi, myContactApi, organizationApi } from '@/api/resources';
 import { languageApi } from '@/api/resources';
 import { useRegistryDefaultLanguage } from '@/composables/useRegistryDefaultLanguage';
 import { useAuthStore } from '@/stores/auth';
-import type { TextLineForm, PairingForm, NamespaceDetailResponse } from '@/types/common';
+import type { TextLineForm, PairingForm, NamespaceDetailResponse, MyContactResponse, SubmissionInfo } from '@/types/common';
 import { SELF_CONTEXT_REFERENCE } from '@/types/common';
 
 const auth = useAuthStore();
@@ -276,6 +379,10 @@ interface RegistrationForm {
   unresolvedIssue?: string;
   /** 条目解释性注释（explanatory comment）；null/undefined = 不变更，空串 = 清空 */
   explanatoryComment?: string;
+  /** 提交信息（联系人 + 所属组织） */
+  submission: SubmissionInfo;
+  /** 主管信息（联系人 + 所属组织） */
+  stewardship: { contactId: string | null; organizationId: string | null };
 }
 
 interface ItemForm {
@@ -326,7 +433,9 @@ const { defaultLanguageId } = useRegistryDefaultLanguage();
 const formRef = ref<FormInstance>();
 const registrationSectionRef = ref<InstanceType<typeof ItemRegistrationSection>>();
 const pairingEditorRef = ref<InstanceType<typeof DesignationDefinitionPairingEditor>>();
-const activeTab = ref('designations');
+const activeTab = ref('designationDefinition');
+/** "指称与定义"一级 Tab 内的二级 Tab：designations / definitions / pairings */
+const activeSubTab = ref('designations');
 const designationEditorRef = ref<InstanceType<typeof MultilingualTextEditor>>();
 const definitionEditorRef = ref<InstanceType<typeof MultilingualTextEditor>>();
 
@@ -380,7 +489,7 @@ function confirmDeleteSavedPairing() {
   pairingDeleteTarget.value = null;
 }
 
-function handleFieldValidate(prop: any, isValid: boolean) {
+function handleFieldValidate(prop: unknown, isValid: boolean) {
   if (typeof prop === 'string') {
     if (isValid) {
       invalidFields.value.delete(prop);
@@ -411,11 +520,22 @@ function hasTabError(tabName: string): boolean {
   return false;
 }
 
+/** "指称与定义"一级 Tab：任一二级（指称/定义/配对）有校验错误即显示角标。 */
+function hasNamingTabError(): boolean {
+  return hasTabError('designations') || hasTabError('definitions') || hasTabError('pairings');
+}
+
+/** 切换到"指称与定义"一级 Tab 并定位到指定二级 Tab。 */
+function activateNamingTab(sub: 'designations' | 'definitions' | 'pairings') {
+  activeTab.value = 'designationDefinition';
+  activeSubTab.value = sub;
+}
+
 const form = reactive<ItemForm>({
   designations: [],
   definitions: [],
   pairings: [],
-  registration: {},
+  registration: { submission: { contactId: null, organizationId: null }, stewardship: { contactId: null, organizationId: null } },
 });
 
 /** 编辑既有条目时其后端归属注册机构名 */
@@ -568,6 +688,64 @@ const rules = computed<FormRules>(() => ({
 
 const loaded = ref(false);
 
+// ── 提交信息（submission-record）──────────────────────────────────────
+const contacts = ref<MyContactResponse[]>([]);
+const contactsLoaded = ref(false);
+const organizationOptions = ref<{ id: string; label: string }[]>([]);
+const submissionCollapse = ref<string[]>(['submission']);
+const registrationRecordsCollapse = ref<string[]>(['submission', 'stewardship']);
+
+function contactLabel(contact: MyContactResponse): string {
+  const parts = [
+    contact.individualName || contact.organizationName,
+    contact.organizationName && contact.individualName ? `(${contact.organizationName})` : undefined,
+    contact.roleName,
+  ].filter(Boolean);
+  const label = parts.join(' · ') || contact.id;
+  return contact.isDefault ? `${label} (${t('contactIdentity.default')})` : label;
+}
+
+async function loadContacts() {
+  if (contactsLoaded.value) return;
+  try {
+    contacts.value = await myContactApi.list();
+  } catch {
+    contacts.value = [];
+  } finally {
+    contactsLoaded.value = true;
+  }
+}
+
+async function loadOrganizations() {
+  try {
+    const res = await organizationApi.list({ size: 200 });
+    organizationOptions.value = (res.content || []).map((o: { id: string; name?: string; englishName?: string; identifier?: string }) => ({
+      id: o.id,
+      label: `${o.name || o.englishName || o.identifier || '—'}${o.identifier ? ` (${o.identifier})` : ''}`,
+    }));
+  } catch {
+    organizationOptions.value = [];
+  }
+}
+
+function prefillSubmissionInfo() {
+  const defaultContact = contacts.value.find((c) => c.isDefault);
+  if (defaultContact && !form.registration.submission.contactId) {
+    form.registration.submission.contactId = defaultContact.id;
+    form.registration.submission.organizationId = defaultContact.organizationId;
+  }
+}
+
+function onContactChange(contactId: string) {
+  const contact = contacts.value.find((c) => c.id === contactId);
+  form.registration.submission.organizationId = contact?.organizationId || null;
+}
+
+function onStewardshipContactChange(contactId: string) {
+  const contact = contacts.value.find((c) => c.id === contactId);
+  form.registration.stewardship.organizationId = contact?.organizationId || null;
+}
+
 async function loadNamespaceDetail(namespaceId: string | undefined) {
   if (!namespaceId) {
     namespaceNamingConventions.value = [];
@@ -585,7 +763,7 @@ async function loadNamespaceDetail(namespaceId: string | undefined) {
     // Try to fetch full naming convention labels
     try {
       const ncRes = await namingConventionApi.list({ size: 200 });
-      const ncMap = new Map(((ncRes.content || []) as any[]).map((n) => [n.id, n]));
+      const ncMap = new Map(((ncRes.content || []) as { id: string; label?: string; scopeRule?: string }[]).map((n) => [n.id, n]));
       namespaceNamingConventions.value = namespaceNamingConventions.value.map((nc) => {
         const found = ncMap.get(nc.id);
         return found
@@ -605,16 +783,18 @@ async function loadOptions() {
   if (loaded.value) return;
   try {
     const langRes = await languageApi.list({ size: 100 });
-    languages.value = (langRes.content || []) as any;
+    languages.value = (langRes.content || []) as { id: string; languageIdentifier?: string; languageCode?: string }[];
     loaded.value = true;
   } catch {
     // ignore
   }
+  await loadOrganizations();
 }
 
 async function open(initial?: Record<string, unknown>) {
   reset();
   await loadOptions();
+  await loadContacts();
   editingRaName.value = (initial?.meta as any)?.registrationAuthorityName || null;
   editingIdentifierCreationMode.value = (initial?.meta as any)?.identifierCreationMode ?? null;
   editingVersionCreationMode.value = (initial?.meta as any)?.versionCreationMode ?? null;
@@ -637,7 +817,11 @@ async function open(initial?: Record<string, unknown>) {
       }
     }
   }
-  activeTab.value = props.showRegistration ? 'registration' : 'designations';
+  if (contacts.value.length > 0) {
+    prefillSubmissionInfo();
+  }
+  activeTab.value = props.showRegistration ? 'registration' : 'designationDefinition';
+  activeSubTab.value = 'designations';
   visible.value = true;
 }
 
@@ -650,7 +834,7 @@ function reset() {
   form.designations = [];
   form.definitions = [];
   form.pairings = [];
-  form.registration = {};
+  form.registration = { submission: { contactId: null, organizationId: null }, stewardship: { contactId: null, organizationId: null } };
   initialExplanatoryComment.value = undefined;
   invalidFields.value.clear();
   pendingPairingDeletions.value = [];
@@ -658,6 +842,10 @@ function reset() {
   pairingDeleteTarget.value = null;
   editingIdentifierCreationMode.value = null;
   editingVersionCreationMode.value = null;
+  contacts.value = [];
+  contactsLoaded.value = false;
+  submissionCollapse.value = ['submission'];
+  registrationRecordsCollapse.value = ['submission', 'stewardship'];
   registrationSectionRef.value?.reset();
   formRef.value?.resetFields();
   // 对话框关闭/重开：行级候选缓存、进行中/失败态与会话内悬停态一并失效
@@ -901,7 +1089,12 @@ function normalizeRegistration(
   raw: Record<string, unknown> | undefined,
   meta: Record<string, unknown> | undefined
 ): RegistrationForm {
-  const reg = (raw || {}) as RegistrationForm;
+  const reg = (raw || {}) as Partial<RegistrationForm>;
+  const submission = (reg.submission || meta?.submission || undefined) as SubmissionInfo | undefined;
+  const stewardship = reg.stewardship || {
+    contactId: (meta?.stewardshipContactId as string) || null,
+    organizationId: (meta?.stewardshipOrganizationId as string) || null,
+  };
   return {
     namespaceId: reg.namespaceId || (meta?.namespaceId as string) || undefined,
     identifier: reg.identifier || (meta?.identifier as string) || undefined,
@@ -915,6 +1108,8 @@ function normalizeRegistration(
     unresolvedIssue: reg.unresolvedIssue || (meta?.unresolvedIssue as string) || undefined,
     // 解释性注释：后端响应 meta 暂未回显该字段，随 initial 携带时回填；未携带则留空（不变更）
     explanatoryComment: reg.explanatoryComment || (meta?.explanatoryComment as string) || undefined,
+    submission: submission || { contactId: null, organizationId: null },
+    stewardship,
   };
 }
 
@@ -922,7 +1117,7 @@ async function handleSubmit() {
   if (!formRef.value) return;
   const pairingsValid = pairingEditorRef.value?.validate() ?? true;
   if (!pairingsValid) {
-    activeTab.value = 'pairings';
+    activateNamingTab('pairings');
     ElMessage.warning('配对信息不完整或存在重复，请检查');
     return;
   }
@@ -972,7 +1167,12 @@ async function handleSubmitInternal() {
         });
 
         const firstField = Object.keys(fields)[0];
-        activeTab.value = getTabForField(firstField);
+        const targetTab = getTabForField(firstField);
+        if (targetTab === 'designations' || targetTab === 'definitions' || targetTab === 'pairings') {
+          activateNamingTab(targetTab);
+        } else {
+          activeTab.value = targetTab;
+        }
 
         ElMessage.warning('表单验证失败，请检查所有标签页中的必填/非空项');
       }
@@ -1001,7 +1201,7 @@ async function handleSubmitInternal() {
         .filter((d) => d.value?.trim())
         .map((d) => ({
           id: d.id || null,
-          languageId: d.languageId || defaultLanguageId || null,
+          languageId: d.languageId || defaultLanguageId.value || null,
           value: d.value.trim(),
           sourceId: d.sourceId || null,
           namingConventionIds: d.namingConventionIds || [],
@@ -1015,7 +1215,7 @@ async function handleSubmitInternal() {
         .filter((d) => d.value?.trim())
         .map((d) => ({
           id: d.id || null,
-          languageId: d.languageId || defaultLanguageId || null,
+          languageId: d.languageId || defaultLanguageId.value || null,
           value: d.value.trim(),
           sourceId: d.sourceId || null,
           namingConventionIds: d.namingConventionIds || [],
@@ -1039,6 +1239,29 @@ async function handleSubmitInternal() {
           payload.registration = {
             ...(payload.registration as Record<string, unknown>),
             explanatoryComment: comment,
+          };
+        }
+        // 提交信息：存在联系人或原值有时按表单值携带，否则忽略该字段
+        if (
+          form.registration.submission &&
+          (contacts.value.length > 0 || form.registration.submission.contactId)
+        ) {
+          payload.registration = {
+            ...(payload.registration as Record<string, unknown>),
+            submission: {
+              contactId: form.registration.submission.contactId || null,
+              organizationId: form.registration.submission.organizationId || null,
+            },
+          };
+        }
+        // 主管信息：仅当显式选择联系人时携带（organizationId 可空传 null）
+        if (form.registration.stewardship?.contactId) {
+          payload.registration = {
+            ...(payload.registration as Record<string, unknown>),
+            stewardship: {
+              contactId: form.registration.stewardship.contactId || null,
+              organizationId: form.registration.stewardship.organizationId || null,
+            },
           };
         }
       }
@@ -1066,6 +1289,11 @@ async function handleSubmitInternal() {
       // submitFn implementations usually show their own ElMessage.error;
       // swallow the error here so it does not become an unhandled rejection.
       console.error('提交失败', err);
+      // 请求未发出的本地错误（如 payload 含不可序列化对象导致 axios 序列化失败）
+      // 没有响应拦截器兜底，必须显式提示，否则用户误以为已保存。
+      if (!err?.response) {
+        ElMessage.error(t('itemForm.saveFailed', { message: String(err?.message || err) }));
+      }
     } finally {
       saving.value = false;
     }
@@ -1138,6 +1366,13 @@ defineExpose({ open, form });
 </script>
 
 <style scoped>
+/* "指称与定义"内嵌二级 Tab：弱化边框，避免与外层 border-card 叠加过重 */
+.naming-sub-tabs :deep(.el-tabs__header) {
+  margin-bottom: 16px;
+}
+.naming-sub-tabs :deep(.el-tabs__nav-wrap::after) {
+  height: 1px;
+}
 .tab-label-container {
   display: inline-flex;
   align-items: center;

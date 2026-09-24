@@ -24,8 +24,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * 权限矩阵（ai-assist-ux-revamp D2）：AI 使用类端点仅 REGISTRAR——无 Registrar 身份的
- * SUPER_ADMIN 一律 403；GET settings 限 REGISTRAR、PUT settings 限 SUPER_ADMIN。
+ * 权限矩阵（ai-assist-ux-revamp D2，add-workspace-administrative-status 修订）：AI 使用类端点仅
+ * REGISTRAR——无 Registrar 身份的 SUPER_ADMIN 一律 403；AI 辅助设置（应用设置）任何登录用户
+ * 可读写（GET/PUT /assistant.settings 均为 authenticated）。
  */
 @WebMvcTest({AssistantController.class, AiAssistSettingsController.class, InferenceController.class})
 @Import(SecurityConfig.class)
@@ -97,7 +98,7 @@ class AiAssistPermissionSecurityTest {
 
     @Test
     @WithMockUser(roles = "SUPER_ADMIN")
-    void putSettings_superAdmin_ok_butRegistrar_forbidden() throws Exception {
+    void putSettings_superAdmin_ok() throws Exception {
         when(settingsService.current()).thenReturn(AiAssistSettings.empty());
         String body = "{\"candidateCount\":3,\"hotkeys\":{\"aiDebug.toggle\":\"Ctrl+Shift+D\"}}";
 
@@ -105,16 +106,33 @@ class AiAssistPermissionSecurityTest {
                         .contentType("application/json").content(body))
                 .andExpect(status().isOk());
         mockMvc.perform(get("/api/v1/assistant/settings"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isOk());
     }
 
     @Test
     @WithMockUser(roles = "REGISTRAR")
-    void putSettings_registrar_isForbidden() throws Exception {
+    void putSettings_registrar_ok() throws Exception {
+        when(settingsService.current()).thenReturn(AiAssistSettings.empty());
         String body = "{\"candidateCount\":3,\"hotkeys\":{}}";
 
         mockMvc.perform(put("/api/v1/assistant/settings")
                         .contentType("application/json").content(body))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(roles = "SUBMITTER")
+    void plainUser_canReadAndSaveAppSettings_butNotAiUsage() throws Exception {
+        when(settingsService.current()).thenReturn(AiAssistSettings.empty());
+        String body = "{\"candidateCount\":2,\"hotkeys\":{}}";
+
+        mockMvc.perform(get("/api/v1/assistant/settings"))
+                .andExpect(status().isOk());
+        mockMvc.perform(put("/api/v1/assistant/settings")
+                        .contentType("application/json").content(body))
+                .andExpect(status().isOk());
+        // AI 使用类端点仍限 REGISTRAR
+        mockMvc.perform(get("/api/v1/assistant/tasks"))
                 .andExpect(status().isForbidden());
     }
 

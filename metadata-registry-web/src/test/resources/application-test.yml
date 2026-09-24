@@ -4,7 +4,12 @@ spring:
       # SQLite 文件库只允许一个写者；busy_timeout 让并发写入等待而非立即
       # 报 SQLITE_BUSY（xerial 驱动默认 busy timeout 为 0）。
       connection-init-sql: PRAGMA busy_timeout=30000
+      # application.yml 的 hibernate.connection.provider_disables_autocommit=true
+      # 要求池层关闭自动提交;显式声明,避免依赖用户本地配置(application-local.yml)副作用。
+      auto-commit: false
   jpa:
+    # 与 personal profile 同理:SQLite 测试库以 ext_ 物理名前缀模拟 EXT schema
+    mapping-resources: orm/orm-sqlite.xml
     hibernate:
       ddl-auto: update
   flyway:

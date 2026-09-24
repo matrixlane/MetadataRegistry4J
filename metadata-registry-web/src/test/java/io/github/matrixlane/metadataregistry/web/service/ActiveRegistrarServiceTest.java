@@ -30,6 +30,7 @@ class ActiveRegistrarServiceTest {
     @Mock private ContactAccountBindingService contactAccountBindingService;
     @Mock private AccountRepository accountRepository;
     @Mock private AdministeredItemRepository administeredItemRepository;
+    @Mock private io.github.matrixlane.metadataregistry.web.repository.RegistrationAuthorityRepository registrationAuthorityRepository;
 
     @InjectMocks
     private ActiveRegistrarService service;
@@ -188,5 +189,78 @@ class ActiveRegistrarServiceTest {
         ActiveRegistrarService spy = spy(service);
 
         spy.assertCanModify(ai); // 无归属历史遗留条目：维持既有行为
+    }
+
+    // ---- Submitter 通道（add-submitter-contact-identity） ----
+
+    @Test
+    void assertCanModify_allowsSubmitterWhenOwnerIsSystemUniqueRa() {
+        UUID accountId = UUID.randomUUID();
+        RegistrationAuthority owner = newRa();
+        AdministeredItem ai = mock(AdministeredItem.class);
+        when(ai.getRegistrationAuthority()).thenReturn(owner);
+
+        ActiveRegistrarService spy = spy(service);
+        doReturn(accountId).when(spy).currentAccountIdOrNull();
+        doReturn(Optional.empty()).when(spy).resolveActiveRegistrar(accountId);
+        when(contactAccountBindingService.hasAnyContact(accountId)).thenReturn(true);
+        when(registrationAuthorityRepository.findAll()).thenReturn(List.of(owner));
+
+        spy.assertCanModify(ai);
+    }
+
+    @Test
+    void assertCanModify_deniesSubmitterWhenNotUniqueRa() {
+        UUID accountId = UUID.randomUUID();
+        RegistrationAuthority owner = newRa();
+        AdministeredItem ai = mock(AdministeredItem.class);
+        when(ai.getRegistrationAuthority()).thenReturn(owner);
+
+        ActiveRegistrarService spy = spy(service);
+        doReturn(accountId).when(spy).currentAccountIdOrNull();
+        doReturn(Optional.empty()).when(spy).resolveActiveRegistrar(accountId);
+        when(contactAccountBindingService.hasAnyContact(accountId)).thenReturn(true);
+        // 多注册机构（未来多注册表模式）：Submitter 通道关闭
+        when(registrationAuthorityRepository.findAll()).thenReturn(List.of(owner, newRa()));
+
+        assertThatThrownBy(() -> spy.assertCanModify(ai))
+                .isInstanceOf(AccessDeniedException.class);
+    }
+
+    @Test
+    void assertCanModify_deniesAccountWithoutRegistrarNorContact() {
+        UUID accountId = UUID.randomUUID();
+        RegistrationAuthority owner = newRa();
+        AdministeredItem ai = mock(AdministeredItem.class);
+        when(ai.getRegistrationAuthority()).thenReturn(owner);
+
+        ActiveRegistrarService spy = spy(service);
+        doReturn(accountId).when(spy).currentAccountIdOrNull();
+        doReturn(Optional.empty()).when(spy).resolveActiveRegistrar(accountId);
+        when(contactAccountBindingService.hasAnyContact(accountId)).thenReturn(false);
+
+        assertThatThrownBy(() -> spy.assertCanModify(ai))
+                .isInstanceOf(AccessDeniedException.class);
+    }
+
+    @Test
+    void isSubmitter_delegatesToBindingService() {
+        UUID accountId = UUID.randomUUID();
+        when(contactAccountBindingService.hasAnyContact(accountId)).thenReturn(true);
+        assertThat(service.isSubmitter(accountId)).isTrue();
+        assertThat(service.isSubmitter(null)).isFalse();
+    }
+
+    @Test
+    void systemUniqueRegistrationAuthority_onlyWhenExactlyOne() {
+        RegistrationAuthority ra = newRa();
+        when(registrationAuthorityRepository.findAll()).thenReturn(List.of(ra));
+        assertThat(service.systemUniqueRegistrationAuthority()).contains(ra);
+
+        when(registrationAuthorityRepository.findAll()).thenReturn(List.of(ra, newRa()));
+        assertThat(service.systemUniqueRegistrationAuthority()).isEmpty();
+
+        when(registrationAuthorityRepository.findAll()).thenReturn(List.of());
+        assertThat(service.systemUniqueRegistrationAuthority()).isEmpty();
     }
 }

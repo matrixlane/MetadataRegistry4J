@@ -4,6 +4,7 @@
     <DataTablePage
       ref="tableRef"
       :fetch-fn="registrationAuthorityApi.list"
+      :delete-fn="registrationAuthorityApi.delete"
       :can-create="canCreate"
       @create="dialog?.open()"
       @edit="(r) => dialog?.open(r)"

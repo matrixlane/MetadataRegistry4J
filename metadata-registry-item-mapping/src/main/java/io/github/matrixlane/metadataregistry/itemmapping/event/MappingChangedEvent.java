@@ -11,8 +11,7 @@ import java.util.UUID;
  * <p>Subscribers in other modules (e.g. web notification layer) can listen
  * to this event to trigger notifications, impact analysis, audit logging, etc.
  *
- * <p>V1: Published for CREATED and DELETED operations.
- * Future versions may add MODIFIED events when mapping updates are supported.
+ * <p>Published for CREATED, MODIFIED, and DELETED operations.
  */
 public class MappingChangedEvent extends ApplicationEvent {
 

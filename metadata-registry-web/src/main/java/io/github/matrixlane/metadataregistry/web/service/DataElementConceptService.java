@@ -58,17 +58,20 @@ public class DataElementConceptService {
         DataElementConcept entity = new DataElementConcept();
         applyRequest(entity, request);
         DataElementConcept saved = repository.save(entity);
+        itemAdministrationService.recordSubmission(saved, request.registration());
         applyConceptualDomainLinks(saved, request.conceptualDomainIds());
-        versionHistoryService.recordSnapshot(saved, "CREATE");
+        versionHistoryService.recordSnapshot(saved, "CREATE", toResponse(saved));
         return toResponse(saved);
     }
 
     public DataElementConceptResponse update(UUID id, DataElementConceptRequest request) {
         DataElementConcept entity = loadOrThrow(id);
+        versionHistoryService.captureBaselineIfEnteringDraft(entity, toResponse(entity));
         applyRequest(entity, request);
         applyConceptualDomainLinks(entity, request.conceptualDomainIds());
         DataElementConcept saved = repository.save(entity);
-        versionHistoryService.recordSnapshot(saved, "UPDATE");
+        itemAdministrationService.recordSubmission(saved, request.registration());
+        versionHistoryService.recordSnapshot(saved, "UPDATE", toResponse(saved));
         return toResponse(saved);
     }
 
@@ -77,7 +80,7 @@ public class DataElementConceptService {
                 .orElseThrow(() -> new ResourceNotFoundException("DataElementConcept", id));
         // 先清理多对多反向引用，再删除实体
         clearConceptualDomainLinks(entity);
-        versionHistoryService.recordSnapshot(entity, "DELETE");
+        versionHistoryService.recordSnapshot(entity, "DELETE", toResponse(entity));
         repository.deleteById(id);
     }
 

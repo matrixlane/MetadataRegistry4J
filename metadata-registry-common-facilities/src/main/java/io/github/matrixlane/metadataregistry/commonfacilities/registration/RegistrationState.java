@@ -32,7 +32,7 @@ public class RegistrationState extends Entity {
 
     private String unresolvedIssue;
 
-    private String administrativeStatus;
+    private AdministrativeStatus administrativeStatus;
 
     @OneToOne
     @JoinColumn(name = "previous_state_id")

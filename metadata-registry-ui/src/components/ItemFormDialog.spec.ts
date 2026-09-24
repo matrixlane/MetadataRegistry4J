@@ -2,6 +2,19 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
 import ElementPlus from 'element-plus';
 import ItemFormDialog from './ItemFormDialog.vue';
+import { myContactApi } from '@/api/resources';
+import type { MyContactResponse, SubmissionInfo } from '@/types/common';
+
+type DialogVm = InstanceType<typeof ItemFormDialog> & {
+  contacts: MyContactResponse[];
+  form: { registration: { submission: SubmissionInfo; stewardship: { contactId: string | null; organizationId: string | null } } };
+  onContactChange: (id: string) => void;
+  onStewardshipContactChange: (id: string) => void;
+  handleSubmit: () => Promise<void>;
+  activeTab: string;
+  activeSubTab: string;
+  activateNamingTab: (sub: 'designations' | 'definitions' | 'pairings') => void;
+};
 
 const namespaces = vi.hoisted(() => [
   {
@@ -27,6 +40,27 @@ const namespaces = vi.hoisted(() => [
   },
 ]);
 
+const mockContacts = vi.hoisted(() => ([
+  {
+    id: 'contact-1',
+    organizationId: 'org-1',
+    organizationName: 'Org One',
+    individualName: '张三',
+    roleName: '管理员',
+    isRegistrar: false,
+    isDefault: true,
+  },
+  {
+    id: 'contact-2',
+    organizationId: 'org-2',
+    organizationName: 'Org Two',
+    individualName: '李四',
+    roleName: '提交人',
+    isRegistrar: false,
+    isDefault: false,
+  },
+]));
+
 vi.mock('@/api/resources', () => ({
   namespaceApi: {
     list: vi.fn().mockImplementation(() => Promise.resolve({ content: namespaces })),
@@ -43,6 +77,17 @@ vi.mock('@/api/resources', () => ({
     delete: vi.fn(),
   },
   readinessApi: { raNamespaceExists: vi.fn().mockResolvedValue({ exists: true }) },
+  myContactApi: {
+    list: vi.fn().mockResolvedValue(mockContacts),
+  },
+  organizationApi: {
+    list: vi.fn().mockResolvedValue({
+      content: [
+        { id: 'org-1', name: 'Org One', identifier: 'org-one' },
+        { id: 'org-2', name: 'Org Two', identifier: 'org-two' },
+      ],
+    }),
+  },
 }));
 
 vi.mock('vue-router', () => ({
@@ -72,7 +117,7 @@ vi.mock('@/stores/auth', () => ({
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
-    t: (key: string, params?: any) => (params ? `${key} ${JSON.stringify(params)}` : key),
+    t: (key: string, params?: unknown) => (params ? `${key} ${JSON.stringify(params)}` : key),
   }),
 }));
 
@@ -91,7 +136,7 @@ describe('ItemFormDialog 命名空间输入模式联动', () => {
       global: {
         plugins: [ElementPlus],
         mocks: {
-          $t: (key: string, params?: any) => (params ? `${key} ${JSON.stringify(params)}` : key),
+          $t: (key: string, params?: unknown) => (params ? `${key} ${JSON.stringify(params)}` : key),
         },
       },
     });
@@ -166,7 +211,7 @@ describe('ItemFormDialog itemType 资源索引', () => {
       global: {
         plugins: [ElementPlus],
         mocks: {
-          $t: (key: string, params?: any) => (params ? `${key} ${JSON.stringify(params)}` : key),
+          $t: (key: string, params?: unknown) => (params ? `${key} ${JSON.stringify(params)}` : key),
         },
       },
     });
@@ -234,7 +279,7 @@ describe('ItemFormDialog 解释性注释提交', () => {
       global: {
         plugins: [ElementPlus],
         mocks: {
-          $t: (key: string, params?: any) => (params ? `${key} ${JSON.stringify(params)}` : key),
+          $t: (key: string, params?: unknown) => (params ? `${key} ${JSON.stringify(params)}` : key),
         },
       },
     });
@@ -255,7 +300,7 @@ describe('ItemFormDialog 解释性注释提交', () => {
       global: {
         plugins: [ElementPlus],
         mocks: {
-          $t: (key: string, params?: any) => (params ? `${key} ${JSON.stringify(params)}` : key),
+          $t: (key: string, params?: unknown) => (params ? `${key} ${JSON.stringify(params)}` : key),
         },
       },
     });
@@ -270,6 +315,7 @@ describe('ItemFormDialog 解释性注释提交', () => {
     const payload = submitFn.mock.calls[0][0];
     expect('explanatoryComment' in payload.registration).toBe(false);
   });
+});
 
 describe('ItemFormDialog 字段级 AI 生成', () => {
   beforeEach(() => {
@@ -288,7 +334,7 @@ describe('ItemFormDialog 字段级 AI 生成', () => {
       global: {
         plugins: [ElementPlus],
         mocks: {
-          $t: (key: string, params?: any) => (params ? `${key} ${JSON.stringify(params)}` : key),
+          $t: (key: string, params?: unknown) => (params ? `${key} ${JSON.stringify(params)}` : key),
         },
       },
     });
@@ -448,7 +494,7 @@ describe('ItemFormDialog 字段级 AI 生成', () => {
       global: {
         plugins: [ElementPlus],
         mocks: {
-          $t: (key: string, params?: any) => (params ? `${key} ${JSON.stringify(params)}` : key),
+          $t: (key: string, params?: unknown) => (params ? `${key} ${JSON.stringify(params)}` : key),
         },
       },
     });
@@ -541,4 +587,182 @@ describe('ItemFormDialog 字段级 AI 生成', () => {
     wrapper.unmount();
   });
 });
+
+describe('ItemFormDialog 提交信息预填', () => {
+  async function mountWithContacts() {
+    const wrapper = mount(ItemFormDialog, {
+      props: {
+        itemType: 'dataElement',
+        submitFn: vi.fn().mockResolvedValue({}),
+        showRegistration: true,
+      },
+      global: {
+        plugins: [ElementPlus],
+        mocks: {
+          $t: (key: string, params?: unknown) => (params ? `${key} ${JSON.stringify(params)}` : key),
+        },
+      },
+    });
+    await (wrapper.vm as unknown as DialogVm).open({});
+    await wrapper.vm.$nextTick();
+    return wrapper;
+  }
+
+  it('有联系人时默认选中 isDefault 项并联动所属组织', async () => {
+    const wrapper = await mountWithContacts();
+    const vm = wrapper.vm as unknown as DialogVm;
+    expect(vm.contacts.length).toBe(2);
+    expect(vm.form.registration.submission.contactId).toBe('contact-1');
+    expect(vm.form.registration.submission.organizationId).toBe('org-1');
+    wrapper.unmount();
+  });
+
+  it('切换联系人时所属组织联动更新', async () => {
+    const wrapper = await mountWithContacts();
+    const vm = wrapper.vm as unknown as DialogVm;
+    vm.form.registration.submission.contactId = 'contact-2';
+    await wrapper.vm.$nextTick();
+    vm.onContactChange('contact-2');
+    await wrapper.vm.$nextTick();
+    expect(vm.form.registration.submission.organizationId).toBe('org-2');
+    wrapper.unmount();
+  });
+
+  it('保存时 registration payload 包含 submission 字段', async () => {
+    const submitFn = vi.fn().mockResolvedValue({});
+    const wrapper = mount(ItemFormDialog, {
+      props: { itemType: 'dataElement', submitFn, showRegistration: true },
+      global: {
+        plugins: [ElementPlus],
+        mocks: {
+          $t: (key: string, params?: unknown) => (params ? `${key} ${JSON.stringify(params)}` : key),
+        },
+      },
+    });
+    await (wrapper.vm as unknown as DialogVm).open({
+      designations: [{ id: 'dg-1', languageId: '', value: '测试', contexts: [{ contextId: 'ctx-1', acceptability: 'ADMITTED' }] }],
+      registration: { namespaceId: 'ns-awo' },
+    });
+    await wrapper.vm.$nextTick();
+    const vm = wrapper.vm as unknown as DialogVm;
+    vm.form.registration.submission.contactId = 'contact-2';
+    vm.form.registration.submission.organizationId = 'org-2';
+    await wrapper.vm.$nextTick();
+
+    await vm.handleSubmit();
+    await flushPromises();
+
+    const payload = submitFn.mock.calls[0][0];
+    expect(payload.registration.submission).toEqual({
+      contactId: 'contact-2',
+      organizationId: 'org-2',
+    });
+    wrapper.unmount();
+  });
+
+  it('无联系人时显示 noContact 提示', async () => {
+    vi.mocked(myContactApi).list.mockResolvedValueOnce([]);
+    const wrapper = await mountWithContacts();
+    expect(wrapper.find('[data-testid="stewardship-no-contact-alert"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="submission-contact-select"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="stewardship-contact-select"]').exists()).toBe(false);
+    wrapper.unmount();
+  });
+
+  it('registrationRecords 标签页存在且包含 submission/stewardship 两个 collapse', async () => {
+    const wrapper = await mountWithContacts();
+    const pane = wrapper.findComponent({ name: 'ElTabPane' });
+    expect(pane.exists()).toBe(true);
+    const collapseItems = wrapper.findAllComponents({ name: 'ElCollapseItem' });
+    expect(collapseItems.length).toBeGreaterThanOrEqual(2);
+    expect(collapseItems.some((c) => c.props('name') === 'submission')).toBe(true);
+    expect(collapseItems.some((c) => c.props('name') === 'stewardship')).toBe(true);
+    wrapper.unmount();
+  });
+
+  it('stewardship 切换联系人时所属组织联动更新', async () => {
+    const wrapper = await mountWithContacts();
+    const vm = wrapper.vm as unknown as DialogVm;
+    vm.form.registration.stewardship.contactId = 'contact-2';
+    await wrapper.vm.$nextTick();
+    vm.onStewardshipContactChange('contact-2');
+    await wrapper.vm.$nextTick();
+    expect(vm.form.registration.stewardship.organizationId).toBe('org-2');
+    wrapper.unmount();
+  });
+
+  it('保存时 registration payload 包含 stewardship 字段', async () => {
+    const submitFn = vi.fn().mockResolvedValue({});
+    const wrapper = mount(ItemFormDialog, {
+      props: { itemType: 'dataElement', submitFn, showRegistration: true },
+      global: {
+        plugins: [ElementPlus],
+        mocks: {
+          $t: (key: string, params?: unknown) => (params ? `${key} ${JSON.stringify(params)}` : key),
+        },
+      },
+    });
+    await (wrapper.vm as unknown as DialogVm).open({
+      designations: [{ id: 'dg-1', languageId: '', value: '测试', contexts: [{ contextId: 'ctx-1', acceptability: 'ADMITTED' }] }],
+      registration: { namespaceId: 'ns-awo' },
+    });
+    await wrapper.vm.$nextTick();
+    const vm = wrapper.vm as unknown as DialogVm;
+    vm.form.registration.stewardship.contactId = 'contact-1';
+    vm.form.registration.stewardship.organizationId = 'org-1';
+    await wrapper.vm.$nextTick();
+
+    await vm.handleSubmit();
+    await flushPromises();
+
+    const payload = submitFn.mock.calls[0][0];
+    expect(payload.registration.stewardship).toEqual({
+      contactId: 'contact-1',
+      organizationId: 'org-1',
+    });
+    wrapper.unmount();
+  });
+});
+
+describe('ItemFormDialog 指称与定义合并 Tab', () => {
+  async function mountAndOpen() {
+    const wrapper = mount(ItemFormDialog, {
+      props: {
+        itemType: 'dataElement',
+        submitFn: vi.fn().mockResolvedValue({}),
+        showRegistration: true,
+      },
+      global: {
+        plugins: [ElementPlus],
+        mocks: {
+          $t: (key: string, params?: unknown) => (params ? `${key} ${JSON.stringify(params)}` : key),
+        },
+      },
+    });
+    await (wrapper.vm as unknown as DialogVm).open({});
+    await wrapper.vm.$nextTick();
+    return wrapper;
+  }
+
+  it('"指称与定义"一级 Tab 含指称/定义/指称-定义配对三个二级 Tab', async () => {
+    const wrapper = await mountAndOpen();
+    const panes = wrapper.findAllComponents({ name: 'ElTabPane' });
+    const outer = panes.find((p) => p.props('name') === 'designationDefinition');
+    expect(outer).toBeDefined();
+    const names = panes.map((p) => p.props('name'));
+    expect(names).toContain('designations');
+    expect(names).toContain('definitions');
+    expect(names).toContain('pairings');
+    wrapper.unmount();
+  });
+
+  it('activateNamingTab 同时定位一级与二级 Tab', async () => {
+    const wrapper = await mountAndOpen();
+    const vm = wrapper.vm as unknown as DialogVm;
+    vm.activeTab = 'registration';
+    vm.activateNamingTab('pairings');
+    expect(vm.activeTab).toBe('designationDefinition');
+    expect(vm.activeSubTab).toBe('pairings');
+    wrapper.unmount();
+  });
 });

@@ -105,13 +105,13 @@
         <el-table-column type="index" width="50" align="center" />
         <el-table-column label="互联互通数据元" min-width="180" show-overflow-tooltip>
           <template #default="{ row }">
-            <div class="element-name">{{ row.interopDataElementName || row.interopDataElementId }}</div>
+            <div class="element-name">{{ row.interopDataElementName || '—' }}</div>
             <el-tag size="small" type="info">{{ row.strategy }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column label="建议匹配本地项" min-width="180" show-overflow-tooltip>
           <template #default="{ row }">
-            <div class="element-name">{{ row.localItemName || row.localItemId }}</div>
+            <div class="element-name">{{ row.localItemName || localItemLabel(row.localItemId) }}</div>
           </template>
         </el-table-column>
         <el-table-column label="置信度" width="120" align="center">
@@ -176,7 +176,12 @@
     <el-dialog v-model="manualMapVisible" title="手动指定本地元数据项" width="500px" destroy-on-close>
       <el-form ref="manualMapFormRef" :model="manualMapForm" :rules="manualMapRules" label-width="120px">
         <el-form-item label="目标本地项">
-          <el-input v-model="manualMapForm.localItemId" placeholder="输入本地元数据项 ID" />
+          <SmartItemPicker
+            v-model="manualMapForm.localItemId"
+            :scope="'all'"
+            clearable
+            placeholder="搜索本地元数据项（标识符 / 名称）"
+          />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -203,7 +208,16 @@ import {
   CircleClose,
 } from '@element-plus/icons-vue';
 import { interopMappingApi } from '@/api/resources';
+import SmartItemPicker from '@/components/SmartItemPicker.vue';
+import { useItemLabelCache } from '@/composables/useItemLabelCache';
 import type { PageQuery } from '@/types/common';
+
+const { requestAll: requestLabels, labelFor } = useItemLabelCache();
+
+/** 本地项展示：优先后端给定名称，缺失时经共享缓存反查「标识符 | 指称」，不显示 id */
+function localItemLabel(localItemId: string | null | undefined): string {
+  return labelFor(localItemId);
+}
 
 // ==================== State ====================
 
@@ -234,7 +248,7 @@ const manualMapSaving = ref(false);
 const manualMapFormRef = ref<any>();
 const manualMapForm = reactive({ localItemId: '', mappingId: '' });
 const manualMapRules = {
-  localItemId: [{ required: true, message: '请输入本地元数据项 ID', trigger: 'blur' }],
+  localItemId: [{ required: true, message: '请输入本地元数据项 ID', trigger: 'change' }],
 };
 
 // ==================== Helpers ====================
@@ -296,6 +310,7 @@ async function fetchData() {
     const res = await interopMappingApi.list(params as PageQuery);
     rows.value = res.content || [];
     total.value = res.totalElements || 0;
+    requestLabels(rows.value.map((r: any) => r.localItemId));
 
     await fetchQualityScore();
     await fetchEmptyCheck();
@@ -616,6 +631,7 @@ onMounted(() => {
 .modern-table {
   --el-table-border-color: transparent;
 
+  // 主表头底色
   :deep(.el-table__header-wrapper) {
     th.el-table__cell {
       background: #f8fafc;

@@ -51,22 +51,21 @@ public class LanguageInitializer implements ApplicationRunner {
         upsertLanguage("tr-TR", "Latn", "TR");
         upsertLanguage("id-ID", "Latn", "ID");
 
-        log.info("内置语言标识数据初始化完成");
+        log.info("内置语言标识数据初始化完成（语言名称/地区名称预置数据仅存在于 SQL 迁移脚本）");
     }
 
     private void upsertLanguage(String identifier, String script, String territory) {
-        languageRepository.findByLanguageIdentifier(identifier).ifPresentOrElse(
-            existing -> {
-                // Already exists, do nothing
-            },
-            () -> {
-                LanguageIdentification lang = new LanguageIdentification();
-                lang.setLanguageIdentifier(identifier);
-                lang.setScriptIdentifier(script);
-                lang.setGeopoliticalTerritoryIdentifier(territory);
-                languageRepository.save(lang);
-                log.info("已新增内置语言标识: {}", identifier);
-            }
-        );
+        languageRepository.findByLanguageIdentifier(identifier)
+                .orElseGet(() -> createLanguage(identifier, script, territory));
+    }
+
+    private LanguageIdentification createLanguage(String identifier, String script, String territory) {
+        LanguageIdentification lang = new LanguageIdentification();
+        lang.setLanguageIdentifier(identifier);
+        lang.setScriptIdentifier(script);
+        lang.setGeopoliticalTerritoryIdentifier(territory);
+        LanguageIdentification saved = languageRepository.save(lang);
+        log.info("已新增内置语言标识: {}", identifier);
+        return saved;
     }
 }

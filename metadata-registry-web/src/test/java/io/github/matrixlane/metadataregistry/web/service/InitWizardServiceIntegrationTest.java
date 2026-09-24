@@ -8,10 +8,14 @@ import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basic
 import io.github.matrixlane.metadataregistry.web.auth.AccountRepository;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.Registrar;
 import io.github.matrixlane.metadataregistry.web.repository.RegistrarRepository;
+import io.github.matrixlane.metadataregistry.web.dto.initwizard.InitWizardCommitRequest;
 import io.github.matrixlane.metadataregistry.web.dto.initwizard.InitWizardSetupRequest;
 import io.github.matrixlane.metadataregistry.web.dto.initwizard.InitWizardSpecAttributes;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.DegreeOfConformance;
+import io.github.matrixlane.metadataregistry.web.repository.ContextRepository;
 import io.github.matrixlane.metadataregistry.web.repository.LanguageIdentificationRepository;
+import io.github.matrixlane.metadataregistry.web.repository.RegistrySpecificationRepository;
+import io.github.matrixlane.metadataregistry.web.repository.ScopedIdentifierRepository;
 import io.github.matrixlane.metadataregistry.web.seed.SystemDefaultNamespaceInitializer;
 import java.util.Optional;
 import io.github.matrixlane.metadataregistry.web.repository.NamespaceRepository;
@@ -42,9 +46,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
         "spring.datasource.password=",
         "spring.jpa.properties.hibernate.dialect=org.hibernate.community.dialect.SQLiteDialect",
         "spring.jpa.properties.hibernate.default_schema=main",
-        // 置空 mapping-resources：用户主目录 application-local.yml 可能注入
-        // orm-team.xml（SQL Server 专用），内存 SQLite 测试无需 EXT schema 覆盖。
-        "spring.jpa.mapping-resources="
+        // 覆盖 mapping-resources：用户主目录 application-local.yml 可能注入
+        // orm-team.xml（SQL Server 专用）；内存 SQLite 测试改用 orm-sqlite.xml（EXT 物理名 ext_ 前缀），否则与标准表同名冲突。
+        "spring.jpa.mapping-resources=orm/orm-sqlite.xml"
 })
 @Transactional
 @ActiveProfiles("test")
@@ -83,6 +87,15 @@ class InitWizardServiceIntegrationTest {
 
     @Autowired
     private LanguageIdentificationRepository languageRepository;
+
+    @Autowired
+    private ContextRepository contextRepository;
+
+    @Autowired
+    private RegistrySpecificationRepository registrySpecificationRepository;
+
+    @Autowired
+    private ScopedIdentifierRepository scopedIdentifierRepository;
 
     @Autowired
     private Optional<SystemDefaultNamespaceInitializer> systemDefaultNamespaceInitializer;
@@ -173,13 +186,14 @@ class InitWizardServiceIntegrationTest {
         assertThat(nsSettings.getIdentifierInputMode()).isEqualTo("AUTO_WITH_OVERRIDE");
         assertThat(nsSettings.getVersionInputMode()).isEqualTo("AUTO_WITH_OVERRIDE");
 
-        // 4. Verify Super Admin User is assigned Registrar contact
+        // 4. Verify Super Admin User is assigned Registrar contact（身份由 Registrar 子类实例
+        //    确定；Role 仅描述性元数据，创建时有意置空，由用户后续自建自关联）
         List<Registrar> registrars = registrarRepository.findAll();
-        boolean hasRegistrarRole = registrars.stream()
+        boolean registrarAssigned = registrars.stream()
                 .anyMatch(r -> contactAccountBindingService.accountIdOfContact(r.getId()).map(appUserId::equals).orElse(false) &&
-                        r.getRole() != null && "注册管理员".equals(r.getRole().getRoleName()) &&
+                        r.getRole() == null &&
                         r.getRegistrationAuthority() != null && createdRa.getId().equals(r.getRegistrationAuthority().getId()));
-        assertThat(hasRegistrarRole).isTrue();
+        assertThat(registrarAssigned).isTrue();
 
         // 5. Verify G20 languages are initialized
         assertThat(languageRepository.count()).isGreaterThanOrEqualTo(22);
@@ -193,6 +207,31 @@ class InitWizardServiceIntegrationTest {
         assertThat(specPage.getContent()).isNotEmpty();
         assertThat(specPage.getContent().get(0).defaultLanguageId()).isEqualTo(zhCnLanguageId);
         assertThat(specPage.getContent().get(0).defaultLanguageIdentifier()).isEqualTo("zh-CN");
+
+        // 5.2 setup 阶段不创建 Registry Context（其创建需要独立事务，须待 setup 数据提交后
+        // 在 commit() 中执行）
+        assertThat(contextRepository.findById(RegistryContextBootstrapService.REGISTRY_CONTEXT_ID)).isEmpty();
+
+        // 5.3 commit 完成初始化：Registry Context 创建（固定 id、自指、spec.context 回填）
+        initWizardService.commit(new InitWizardCommitRequest("reg-ctx-int-123", "reg-ctx-int-123"));
+        initWizardService.createRegistryContextAfterInitialization();
+        assertThat(systemSettingService.isInitialized()).isTrue();
+
+        var registryContext = contextRepository.findById(RegistryContextBootstrapService.REGISTRY_CONTEXT_ID).orElseThrow();
+        assertThat(registryContext.getId()).isEqualTo(RegistryContextBootstrapService.REGISTRY_CONTEXT_ID);
+        assertThat(registryContext.getDesignations()).hasSize(2);
+        assertThat(registryContext.getDefinitions()).hasSize(2);
+
+        var spec = registrySpecificationRepository.findAll().get(0);
+        assertThat(spec.getContext()).isNotNull();
+        assertThat(spec.getContext().getId()).isEqualTo(registryContext.getId());
+
+        var registryContextIdentifiers = scopedIdentifierRepository.findByItemId(registryContext.getId());
+        assertThat(registryContextIdentifiers).hasSize(1);
+        var registryContextSi = registryContextIdentifiers.get(0);
+        assertThat(registryContextSi.getNamespace().getId()).isEqualTo(createdNs.getId());
+        assertThat(registryContextSi.getIdentifier()).isEqualTo("CTX.00001");
+        assertThat(registryContextSi.getVersion()).isNotBlank();
 
         // 6. Verify System Default Namespace is created (if initializer bean is present)
         if (systemDefaultNamespaceInitializer.isPresent()) {

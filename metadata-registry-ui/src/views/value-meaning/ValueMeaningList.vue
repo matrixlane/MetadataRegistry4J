@@ -4,6 +4,7 @@
     <DataTablePage
       ref="tableRef"
       :fetch-fn="valueMeaningApi.list"
+      :delete-fn="valueMeaningApi.delete"
       @create="dialog?.open()"
       @edit="(r) => dialog?.open(r)"
       @delete="handleDelete"

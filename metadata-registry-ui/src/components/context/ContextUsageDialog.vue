@@ -32,7 +32,7 @@
           <el-table-column label="条目" min-width="160">
             <template #default="{ row }">
               <el-link type="primary" @click="navigateToItem(row.itemId)">
-                {{ row.itemLabel || row.itemId }}
+                {{ row.itemLabel || labelFor(row.itemId) }}
               </el-link>
             </template>
           </el-table-column>
@@ -83,7 +83,10 @@ import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import type { ElTagType } from '@/types/common';
 import { contextApi } from '@/api/resources';
+import { useItemLabelCache } from '@/composables/useItemLabelCache';
 import type { ContextUsageResponse, ContextUsageGroup, ContextUsageAssociation } from '@/types/common';
+
+const { requestAll: requestLabels, labelFor } = useItemLabelCache();
 
 interface Props {
   contextLabel?: string;
@@ -97,7 +100,7 @@ const contextId = ref<string>('');
 const router = useRouter();
 
 const title = computed(() => {
-  const label = props.contextLabel || contextId.value || '上下文';
+  const label = props.contextLabel || t('context.title') || '上下文';
   return `「${label}」的引用`;
 });
 
@@ -148,6 +151,9 @@ async function open(id: string, label?: string) {
   loading.value = true;
   try {
     response.value = await contextApi.usages(id);
+    if (response.value) {
+      requestLabels(response.value.groups.flatMap((g) => g.items.map((it) => it.itemId)));
+    }
   } catch (err: any) {
     ElMessage.error(err?.message || '加载引用失败');
   } finally {

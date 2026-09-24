@@ -9,6 +9,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -40,4 +41,12 @@ public interface IdentifiedItemRepository extends JpaRepository<IdentifiedItem, 
     @Transactional
     @Query("delete from IdentifiedItem ii where ii.id in :ids")
     void deleteAllByIdIn(@Param("ids") Collection<UUID> ids);
+
+    /**
+     * 批量查询条目的注册状态：[itemId, registrationStatus]。
+     * 仅命中已注册（有 AdministeredItem 外壳）的条目；未注册条目不在结果中。
+     */
+    @Query("SELECT ai.item.id, ai.registrationState.registrationStatus " +
+           "FROM AdministeredItem ai WHERE ai.item.id IN :itemIds")
+    List<Object[]> findRegistrationStatusRowsByItemIds(@Param("itemIds") Collection<UUID> itemIds);
 }

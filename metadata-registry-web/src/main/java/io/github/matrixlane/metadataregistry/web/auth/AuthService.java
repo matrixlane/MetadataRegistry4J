@@ -160,7 +160,7 @@ public class AuthService {
         userRepository.save(user);
         
         String token = jwtService.generateToken(user, forceChangePassword, emergencyLogin,
-                user.isTempPasswordUsed(), isRegistrar(user));
+                user.isTempPasswordUsed(), isRegistrar(user), isSubmitter(user));
         return LoginResponse.of(token, jwtService.expiresInSeconds(), toProfile(user, forceChangePassword, emergencyLogin, user.isTempPasswordUsed()));
     }
 
@@ -213,7 +213,7 @@ public class AuthService {
         // for a non-existent previous password.
         user.setLastLoginAt(null);
         userRepository.save(user);
-        String token = jwtService.generateToken(user, true, false, false, isRegistrar(user));
+        String token = jwtService.generateToken(user, true, false, false, isRegistrar(user), isSubmitter(user));
         return LoginResponse.of(token, jwtService.expiresInSeconds(),
                 toProfile(user, true, false, false));
     }
@@ -493,6 +493,9 @@ public class AuthService {
     }
 
     private AccountProfileResponse toProfile(Account user, boolean forceChangePassword, boolean emergencyLogin, boolean tempPasswordUsed) {
+        boolean registrar = isRegistrar(user);
+        boolean hasContact = isSubmitter(user);
+        boolean profilePrompt = user.getSysRole() != SystemRole.SUPER_ADMIN && !registrar && !hasContact;
         return new AccountProfileResponse(
                 user.getId(),
                 user.getUsername(),
@@ -501,22 +504,33 @@ public class AuthService {
                 user.getCreatedAt(),
                 user.getLastLoginAt(),
                 user.getIndividual() != null ? user.getIndividual().getId() : null,
-                isRegistrar(user),
+                registrar,
+                hasContact,
+                profilePrompt,
                 forceChangePassword,
                 emergencyLogin,
                 tempPasswordUsed);
     }
 
     /**
-     * 注册人员业务标志：SUPER_ADMIN 恒为注册人员；其余账户当其任一联系人角色为
-     * 「注册管理员」时为注册人员。该标志随令牌 claim 下发并装配为 ROLE_REGISTRAR。
+     * Submitter 业务标志：账号绑定了任一 Contact（含 Registrar 行）即视为
+     * Submitter（add-submitter-contact-identity），装配为 ROLE_SUBMITTER。
+     */
+    private boolean isSubmitter(Account user) {
+        return user.getId() != null && contactAccountBindingService.hasAnyContact(user.getId());
+    }
+
+    /**
+     * 注册人员业务标志：SUPER_ADMIN 恒为注册人员；其余账户当其绑定的 Contact 中存在
+     * Registrar 子类实例（ISO/IEC 11179-3：Registrar 是 Contact 的特化，身份由类型
+     * 确定，与 Role 无关——Role 仅为描述性元数据）时为注册人员。
+     * 该标志随令牌 claim 下发并装配为 ROLE_REGISTRAR。
      */
     private boolean isRegistrar(Account user) {
         if (user.getSysRole() == SystemRole.SUPER_ADMIN) {
             return true;
         }
-        return contactAccountBindingService.contactsOfAccount(user).stream()
-                .anyMatch(c -> c.getRole() != null && "注册管理员".equals(c.getRole().getRoleName()));
+        return user.getId() != null && !contactAccountBindingService.registrarsOfAccount(user.getId()).isEmpty();
     }
 
     private AccountProfileResponse toProfile(Account user) {

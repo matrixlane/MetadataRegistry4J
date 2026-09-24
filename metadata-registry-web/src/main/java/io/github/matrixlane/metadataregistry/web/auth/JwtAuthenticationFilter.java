@@ -55,6 +55,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 if (Boolean.TRUE.equals(claims.get("registrar", Boolean.class))) {
                     authorities.add(new SimpleGrantedAuthority("ROLE_REGISTRAR"));
                 }
+                // Submitter 业务标志（已登记为 Contact）装配为 ROLE_SUBMITTER：
+                // 写操作端点对已登记联系人放行（add-submitter-contact-identity）
+                if (Boolean.TRUE.equals(claims.get("submitter", Boolean.class))) {
+                    authorities.add(new SimpleGrantedAuthority("ROLE_SUBMITTER"));
+                }
 
                 AuthenticatedUser principal = new AuthenticatedUser(
                         UUID.fromString(userId),

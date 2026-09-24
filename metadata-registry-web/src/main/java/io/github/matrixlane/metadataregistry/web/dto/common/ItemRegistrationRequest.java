@@ -24,9 +24,11 @@ public record ItemRegistrationRequest(
         IdentifierCreationMode identifierMode,
         /** 创建时显式声明的版本生成方式（可选；NULL 表示由后端按 version 字段反推）。 */
         IdentifierCreationMode versionMode,
-        /** ISO/IEC 11179-3:2023 表 22 registration_status；NULL = 不变更（创建落默认 RECORDED）。 */
+        /** ISO/IEC 11179-3:2023 表 22 registration_status；NULL = 不变更（创建落默认 INCOMPLETE，
+         *   生命周期入口态）。显式值仅限 APPLICATION/HISTORICAL 文档态入口标定
+         *  （仅限真正新建；其余初始状态一律 1125 拒绝，须经推进流程获得）。 */
         RegistrationStatus registrationStatus,
-        /** 表 22 administrative_status（自由文本）；NULL = 不变更，空串 = 清空。 */
+        /** 表 22 administrative_status；保留在 DTO 中但不再生效，由工作空间流程系统治理。 */
         String administrativeStatus,
         /** 表 22 effective_date；NULL = 不变更（创建落当前时间）。 */
         LocalDateTime effectiveDate,
@@ -37,7 +39,13 @@ public record ItemRegistrationRequest(
         /** 表 22 unresolved_issue；NULL = 不变更，空串 = 清空。 */
         String unresolvedIssue,
         /** 条目解释性注释（explanatory comment）；NULL = 不变更，空串 = 清空。 */
-        String explanatoryComment) {
+        String explanatoryComment,
+        /** 提交信息（SubmissionRecord 联系人与所属组织）；NULL = 服务端按提交者默认联系人预填。 */
+        @Valid
+        SubmissionInfo submission,
+        /** 主管信息（Stewardship_Record 联系人与所属组织）；NULL = 不变更（不清除）。 */
+        @Valid
+        StewardshipInfo stewardship) {
 
     /** Backward-compatible constructor without segment variables.
      *  归属注册机构不在 API 请求体中携带（active-registrar-ownership）：
@@ -45,7 +53,7 @@ public record ItemRegistrationRequest(
     public ItemRegistrationRequest(UUID namespaceId, String identifier, String version,
                                    List<TextLine> designations, List<TextLine> definitions) {
         this(namespaceId, identifier, version, designations, definitions, null, null, null,
-                null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null);
     }
 
     /** Backward-compatible constructor with segment variables but no creation modes. */
@@ -53,7 +61,19 @@ public record ItemRegistrationRequest(
                                    List<TextLine> designations, List<TextLine> definitions,
                                    Map<String, String> variables) {
         this(namespaceId, identifier, version, designations, definitions, variables, null, null,
-                null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null);
+    }
+
+    /** Backward-compatible constructor without submission info (no creation modes). */
+    public ItemRegistrationRequest(UUID namespaceId, String identifier, String version,
+                                   List<TextLine> designations, List<TextLine> definitions,
+                                   Map<String, String> variables, IdentifierCreationMode identifierMode,
+                                   IdentifierCreationMode versionMode, RegistrationStatus registrationStatus,
+                                   String administrativeStatus, LocalDateTime effectiveDate, LocalDateTime untilDate,
+                                   String administrativeNote, String unresolvedIssue, String explanatoryComment) {
+        this(namespaceId, identifier, version, designations, definitions, variables, identifierMode, versionMode,
+                registrationStatus, administrativeStatus, effectiveDate, untilDate, administrativeNote,
+                unresolvedIssue, explanatoryComment, null, null);
     }
 
     /**

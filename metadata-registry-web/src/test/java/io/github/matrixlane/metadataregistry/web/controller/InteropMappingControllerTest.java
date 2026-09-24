@@ -49,6 +49,9 @@ class InteropMappingControllerTest {
     private InteropMappingResultService interopMappingResultService;
 
     @MockBean
+    private io.github.matrixlane.metadataregistry.datasetregistration.repository.InteropDataElementRepository interopDataElementRepository;
+
+    @MockBean
     private JwtService jwtService;
 
     @MockBean

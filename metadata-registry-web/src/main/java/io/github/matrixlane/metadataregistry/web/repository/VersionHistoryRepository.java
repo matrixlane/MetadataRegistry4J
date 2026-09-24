@@ -28,4 +28,6 @@ public interface VersionHistoryRepository extends JpaRepository<VersionHistory, 
 
     @Query("SELECT DISTINCT v.itemId FROM VersionHistory v WHERE v.changedAt > :since")
     List<UUID> findDistinctItemIdsChangedAfter(@Param("since") LocalDateTime since);
+
+    boolean existsByItemIdAndChangeType(UUID itemId, String changeType);
 }

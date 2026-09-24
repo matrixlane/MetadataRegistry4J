@@ -19,7 +19,7 @@
                 :command="identity.registrarId"
               >
                 <el-icon v-if="identity.registrarId === activeRegistrar.active?.registrarId" style="margin-right: 4px;"><Check /></el-icon>
-                {{ identity.registrationAuthorityName || identity.registrarId }}
+                {{ identity.registrationAuthorityName || $t('common.unknownRegistrar') }}
               </el-dropdown-item>
             </el-dropdown-menu>
           </template>
@@ -35,6 +35,8 @@
         </el-tag>
       </div>
       <div class="header-right" data-testid="header-right">
+        <WorkspaceEntry />
+        <AppSettingsEntry />
         <el-tag v-if="auth.user" type="primary" effect="light" round style="cursor: pointer;" @click="goToProfile" data-testid="header-user-tag">
           <el-icon><UserFilled /></el-icon>
           {{ auth.user.displayName || auth.user.username }}
@@ -105,13 +107,13 @@
               </template>
             </el-menu-item>
 
-            <!-- 概念区域 -->
-            <el-sub-menu index="/concept-region-group">
+            <!-- 概念模块 -->
+            <el-sub-menu index="/concept-module-group">
               <template #title>
                 <el-icon><SetUp /></el-icon>
                 <span class="menu-label">
-                  <span class="menu-label__main">{{ $t('nav.conceptRegion') }}</span>
-                  <span class="menu-label__sub">Concept Region</span>
+                  <span class="menu-label__main">{{ $t('nav.conceptModule') }}</span>
+                  <span class="menu-label__sub">Concept</span>
                 </span>
               </template>
               <el-menu-item index="/object-classes">
@@ -146,19 +148,11 @@
                   </span>
                 </template>
               </el-menu-item>
-              <el-menu-item index="/units-of-measure">
+              <el-menu-item index="/value-meanings">
                 <template #title>
                   <span class="menu-label">
-                    <span class="menu-label__main">{{ $t('nav.unitOfMeasure') }}</span>
-                    <span class="menu-label__sub">Unit of Measure</span>
-                  </span>
-                </template>
-              </el-menu-item>
-              <el-menu-item index="/measure-classes">
-                <template #title>
-                  <span class="menu-label">
-                    <span class="menu-label__main">{{ $t('nav.measureClass') }}</span>
-                    <span class="menu-label__sub">Measure Class</span>
+                    <span class="menu-label__main">{{ $t('nav.valueMeaning') }}</span>
+                    <span class="menu-label__sub">Value Meaning</span>
                   </span>
                 </template>
               </el-menu-item>
@@ -170,14 +164,30 @@
                   </span>
                 </template>
               </el-menu-item>
+              <el-menu-item index="/measure-classes">
+                <template #title>
+                  <span class="menu-label">
+                    <span class="menu-label__main">{{ $t('nav.measureClass') }}</span>
+                    <span class="menu-label__sub">Measure Class</span>
+                  </span>
+                </template>
+              </el-menu-item>
+              <el-menu-item index="/units-of-measure">
+                <template #title>
+                  <span class="menu-label">
+                    <span class="menu-label__main">{{ $t('nav.unitOfMeasure') }}</span>
+                    <span class="menu-label__sub">Unit of Measure</span>
+                  </span>
+                </template>
+              </el-menu-item>
             </el-sub-menu>
 
-            <!-- 表示区域 -->
-            <el-sub-menu index="/representation-region-group">
+            <!-- 表示模块 -->
+            <el-sub-menu index="/representation-module-group">
               <template #title>
                 <el-icon><Document /></el-icon>
                 <span class="menu-label">
-                  <span class="menu-label__main">{{ $t('nav.representationRegion') }}</span>
+                  <span class="menu-label__main">{{ $t('nav.representationModule') }}</span>
                   <span class="menu-label__sub">Representation</span>
                 </span>
               </template>
@@ -197,14 +207,6 @@
                   </span>
                 </template>
               </el-menu-item>
-              <el-menu-item index="/data-types">
-                <template #title>
-                  <span class="menu-label">
-                    <span class="menu-label__main">{{ $t('nav.dataType') }}</span>
-                    <span class="menu-label__sub">Data Type</span>
-                  </span>
-                </template>
-              </el-menu-item>
               <el-menu-item index="/data-type-schemes">
                 <template #title>
                   <span class="menu-label">
@@ -213,58 +215,125 @@
                   </span>
                 </template>
               </el-menu-item>
+              <el-menu-item index="/data-types">
+                <template #title>
+                  <span class="menu-label">
+                    <span class="menu-label__main">{{ $t('nav.dataType') }}</span>
+                    <span class="menu-label__sub">Data Type</span>
+                  </span>
+                </template>
+              </el-menu-item>
             </el-sub-menu>
 
-            <!-- 分类与映射 -->
-            <el-sub-menu index="/classification-mapping-group">
+            <!-- 基础与核心模块 -->
+            <el-sub-menu index="/basic-core-module-group">
               <template #title>
-                <el-icon><Connection /></el-icon>
+                <el-icon><User /></el-icon>
                 <span class="menu-label">
-                  <span class="menu-label__main">{{ $t('nav.classificationAndMapping') }}</span>
-                  <span class="menu-label__sub">Classify & Map</span>
+                  <span class="menu-label__main">{{ $t('nav.basicAndCoreModule') }}</span>
+                  <span class="menu-label__sub">Basic &amp; Core</span>
                 </span>
               </template>
-              <el-menu-item index="/classification">
+              <el-menu-item index="/individuals">
                 <template #title>
                   <span class="menu-label">
-                    <span class="menu-label__main">{{ $t('nav.classificationManagement') }}</span>
-                    <span class="menu-label__sub">Classification</span>
+                    <span class="menu-label__main">{{ $t('nav.individual') }}</span>
+                    <span class="menu-label__sub">Individual</span>
                   </span>
                 </template>
               </el-menu-item>
-              <el-menu-item index="/mapping-schemes">
+              <el-menu-item index="/organizations">
                 <template #title>
                   <span class="menu-label">
-                    <span class="menu-label__main">{{ $t('nav.mappingScheme') }}</span>
-                    <span class="menu-label__sub">Mapping Scheme</span>
+                    <span class="menu-label__main">{{ $t('nav.organization') }}</span>
+                    <span class="menu-label__sub">Organization</span>
                   </span>
                 </template>
               </el-menu-item>
-              <el-menu-item index="/mapping-network">
+              <el-menu-item index="/roles">
                 <template #title>
                   <span class="menu-label">
-                    <span class="menu-label__main">{{ $t('nav.mappingNetwork') }}</span>
-                    <span class="menu-label__sub">Mapping Network</span>
+                    <span class="menu-label__main">{{ $t('nav.role') }}</span>
+                    <span class="menu-label__sub">Role</span>
                   </span>
                 </template>
               </el-menu-item>
-              <el-menu-item index="/interop-mappings">
+              <el-menu-item index="/contacts">
                 <template #title>
                   <span class="menu-label">
-                    <span class="menu-label__main">{{ $t('nav.interopMappings') }}</span>
-                    <span class="menu-label__sub">Interop Mapping</span>
+                    <span class="menu-label__main">{{ $t('nav.contact') }}</span>
+                    <span class="menu-label__sub">Contact</span>
+                  </span>
+                </template>
+              </el-menu-item>
+              <el-menu-item index="/document-types">
+                <template #title>
+                  <span class="menu-label">
+                    <span class="menu-label__main">{{ $t('nav.documentType') }}</span>
+                    <span class="menu-label__sub">Document Type</span>
+                  </span>
+                </template>
+              </el-menu-item>
+              <el-menu-item index="/languages">
+                <template #title>
+                  <span class="menu-label">
+                    <span class="menu-label__main">{{ $t('nav.language') }}</span>
+                    <span class="menu-label__sub">Language</span>
+                  </span>
+                </template>
+              </el-menu-item>
+              <el-menu-item index="/reference-documents">
+                <template #title>
+                  <span class="menu-label">
+                    <span class="menu-label__main">{{ $t('nav.referenceDocument') }}</span>
+                    <span class="menu-label__sub">Reference Document</span>
+                  </span>
+                </template>
+              </el-menu-item>
+              <el-menu-item index="/contexts">
+                <template #title>
+                  <span class="menu-label">
+                    <span class="menu-label__main">{{ $t('nav.context') }}</span>
+                    <span class="menu-label__sub">Context</span>
                   </span>
                 </template>
               </el-menu-item>
             </el-sub-menu>
 
-            <!-- 注册通用设施 -->
-            <el-sub-menu index="/common-facilities-group">
+            <!-- 标识与命名模块 -->
+            <el-sub-menu index="/identification-naming-group">
+              <template #title>
+                <el-icon><PriceTag /></el-icon>
+                <span class="menu-label">
+                  <span class="menu-label__main">{{ $t('nav.identificationAndNaming') }}</span>
+                  <span class="menu-label__sub">Identification &amp; Naming</span>
+                </span>
+              </template>
+              <el-menu-item index="/namespaces">
+                <template #title>
+                  <span class="menu-label">
+                    <span class="menu-label__main">{{ $t('nav.namespace') }}</span>
+                    <span class="menu-label__sub">Namespace</span>
+                  </span>
+                </template>
+              </el-menu-item>
+              <el-menu-item index="/naming-conventions">
+                <template #title>
+                  <span class="menu-label">
+                    <span class="menu-label__main">{{ $t('nav.namingConvention') }}</span>
+                    <span class="menu-label__sub">Naming Convention</span>
+                  </span>
+                </template>
+              </el-menu-item>
+            </el-sub-menu>
+
+            <!-- 注册模块 -->
+            <el-sub-menu index="/registration-module-group">
               <template #title>
                 <el-icon><OfficeBuilding /></el-icon>
                 <span class="menu-label">
-                  <span class="menu-label__main">{{ $t('nav.commonFacilities') }}</span>
-                  <span class="menu-label__sub">Common Facilities</span>
+                  <span class="menu-label__main">{{ $t('nav.registrationModule') }}</span>
+                  <span class="menu-label__sub">Registration</span>
                 </span>
               </template>
               <el-menu-item index="/registration-authorities">
@@ -291,105 +360,65 @@
                   </span>
                 </template>
               </el-menu-item>
-              <el-menu-item index="/namespaces">
+              <el-menu-item index="/registration-process">
                 <template #title>
                   <span class="menu-label">
-                    <span class="menu-label__main">{{ $t('nav.namespace') }}</span>
-                    <span class="menu-label__sub">Namespace</span>
+                    <span class="menu-label__main">{{ $t('nav.registrationProcess') }}</span>
+                    <span class="menu-label__sub">Registration Process</span>
                   </span>
                 </template>
               </el-menu-item>
-              <el-menu-item index="/naming-conventions">
+              <el-menu-item index="/administered-items">
                 <template #title>
                   <span class="menu-label">
-                    <span class="menu-label__main">{{ $t('nav.namingConvention') }}</span>
-                    <span class="menu-label__sub">Naming Convention</span>
-                  </span>
-                </template>
-              </el-menu-item>
-              <el-menu-item index="/languages">
-                <template #title>
-                  <span class="menu-label">
-                    <span class="menu-label__main">{{ $t('nav.language') }}</span>
-                    <span class="menu-label__sub">Language</span>
-                  </span>
-                </template>
-              </el-menu-item>
-              <el-menu-item index="/contexts">
-                <template #title>
-                  <span class="menu-label">
-                    <span class="menu-label__main">{{ $t('nav.context') }}</span>
-                    <span class="menu-label__sub">Context</span>
+                    <span class="menu-label__main">{{ $t('nav.administeredItem') }}</span>
+                    <span class="menu-label__sub">Administered Item</span>
                   </span>
                 </template>
               </el-menu-item>
             </el-sub-menu>
 
-            <!-- 主体与文档 -->
-            <el-sub-menu index="/party-document-group">
+            <!-- 分类模块 -->
+            <el-sub-menu index="/classification-module-group">
               <template #title>
-                <el-icon><User /></el-icon>
+                <el-icon><CollectionTag /></el-icon>
                 <span class="menu-label">
-                  <span class="menu-label__main">{{ $t('nav.partyAndDocument') }}</span>
-                  <span class="menu-label__sub">Party & Documents</span>
+                  <span class="menu-label__main">{{ $t('nav.classificationModule') }}</span>
+                  <span class="menu-label__sub">Classification</span>
                 </span>
               </template>
-              <el-menu-item index="/organizations">
+              <el-menu-item index="/classification">
                 <template #title>
                   <span class="menu-label">
-                    <span class="menu-label__main">{{ $t('nav.organization') }}</span>
-                    <span class="menu-label__sub">Organization</span>
+                    <span class="menu-label__main">{{ $t('nav.classificationScheme') }}</span>
+                    <span class="menu-label__sub">Classification Scheme</span>
                   </span>
                 </template>
               </el-menu-item>
-              <el-menu-item index="/individuals">
+              <el-menu-item index="/classification-items">
                 <template #title>
                   <span class="menu-label">
-                    <span class="menu-label__main">{{ $t('nav.individual') }}</span>
-                    <span class="menu-label__sub">Individual</span>
-                  </span>
-                </template>
-              </el-menu-item>
-              <el-menu-item index="/contacts">
-                <template #title>
-                  <span class="menu-label">
-                    <span class="menu-label__main">{{ $t('nav.contact') }}</span>
-                    <span class="menu-label__sub">Contact</span>
-                  </span>
-                </template>
-              </el-menu-item>
-              <el-menu-item index="/reference-documents">
-                <template #title>
-                  <span class="menu-label">
-                    <span class="menu-label__main">{{ $t('nav.referenceDocument') }}</span>
-                    <span class="menu-label__sub">Reference Document</span>
+                    <span class="menu-label__main">{{ $t('nav.classificationItem') }}</span>
+                    <span class="menu-label__sub">Classification Item</span>
                   </span>
                 </template>
               </el-menu-item>
             </el-sub-menu>
 
-            <!-- 系统 -->
-            <el-sub-menu v-if="auth.isAdmin" index="/system-group">
+            <!-- 项目映射模块 -->
+            <el-sub-menu index="/item-mapping-module-group">
               <template #title>
-                <el-icon><Setting /></el-icon>
+                <el-icon><Connection /></el-icon>
                 <span class="menu-label">
-                  <span class="menu-label__main">{{ $t('nav.system') }}</span>
-                  <span class="menu-label__sub">System</span>
+                  <span class="menu-label__main">{{ $t('nav.itemMappingModule') }}</span>
+                  <span class="menu-label__sub">Item Mapping</span>
                 </span>
               </template>
-              <el-menu-item index="/app-users">
+              <el-menu-item index="/item-mappings">
                 <template #title>
                   <span class="menu-label">
-                    <span class="menu-label__main">{{ $t('nav.userManagement') }}</span>
-                    <span class="menu-label__sub">User Management</span>
-                  </span>
-                </template>
-              </el-menu-item>
-              <el-menu-item index="/system-settings">
-                <template #title>
-                  <span class="menu-label">
-                    <span class="menu-label__main">{{ $t('nav.systemSettings') }}</span>
-                    <span class="menu-label__sub">System Settings</span>
+                    <span class="menu-label__main">{{ $t('nav.itemMapping') }}</span>
+                    <span class="menu-label__sub">Item Mapping</span>
                   </span>
                 </template>
               </el-menu-item>
@@ -402,6 +431,11 @@
           <div class="sidebar-footer-item" data-testid="nav-my" @click="goToProfile">
             <el-icon><User /></el-icon>
             <span v-if="!collapsed" class="sidebar-footer-label">{{ $t('nav.my') }}</span>
+          </div>
+          <!-- 系统（仅 Admin）：位于"我的"之下；二级菜单在主内容区展示 -->
+          <div v-if="auth.isAdmin" class="sidebar-footer-item" data-testid="nav-system" @click="goToSystem">
+            <el-icon><Setting /></el-icon>
+            <span v-if="!collapsed" class="sidebar-footer-label">{{ $t('nav.system') }}</span>
           </div>
         </div>
       </aside>
@@ -435,12 +469,35 @@
           :key="identity.registrarId"
           :value="identity.registrarId"
         >
-          {{ identity.registrationAuthorityName || identity.registrarId }}
+          {{ identity.registrationAuthorityName || $t('common.unknownRegistrar') }}
         </el-radio>
       </el-radio-group>
       <template #footer>
         <el-button type="primary" :disabled="!identitySelection" @click="confirmIdentitySelection">
           确认
+        </el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 首登完善联系人信息提示（改密弹窗优先级更高） -->
+    <el-dialog
+      :model-value="showProfilePromptDialog"
+      :title="$t('profilePrompt.title')"
+      :show-close="false"
+      :close-on-click-modal="false"
+      :close-on-press-escape="false"
+      width="420px"
+      data-testid="profile-prompt-dialog"
+    >
+      <p style="margin: 0 0 16px; font-size: 14px; line-height: 1.6;">
+        {{ $t('profilePrompt.message') }}
+      </p>
+      <template #footer>
+        <el-button data-testid="profile-prompt-skip" @click="dismissProfilePrompt">
+          {{ $t('profilePrompt.skip') }}
+        </el-button>
+        <el-button type="primary" data-testid="profile-prompt-complete" @click="goToProfileFromPrompt">
+          {{ $t('profilePrompt.complete') }}
         </el-button>
       </template>
     </el-dialog>
@@ -552,7 +609,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, reactive, onMounted, onBeforeUnmount } from 'vue';
+import { ref, computed, reactive, onMounted, onBeforeUnmount, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { useAiChatStore } from '@/stores/aiChat';
@@ -561,7 +618,7 @@ import AiChatWindow from '@/components/assistant/AiChatWindow.vue';
 import { assistantSettingsApi } from '@/api/assistant';
 import { DEFAULT_HOTKEYS, parseHotkey, eventMatchesHotkey } from '@/utils/hotkey';
 import type { ParsedHotkey } from '@/utils/hotkey';
-import { Reading, ArrowDown, Check } from '@element-plus/icons-vue';
+import { Reading, ArrowDown, Check, Briefcase } from '@element-plus/icons-vue';
 import type { FormInstance } from 'element-plus';
 import { ElMessage } from 'element-plus';
 import request from '@/utils/request';
@@ -731,9 +788,6 @@ if (auth.isRegistrarUser) {
 }
 
 const activeMenu = computed(() => {
-  if (route.path.startsWith('/system-settings')) {
-    return '/system-settings';
-  }
   if (route.query.group) {
     return `${route.path}?group=${route.query.group}`;
   }
@@ -756,8 +810,56 @@ function goToProfile() {
   router.push('/my-profile');
 }
 
+function goToSystem() {
+  router.push('/system');
+}
+
 // ── Password Change Dialog for forceChangePassword ─────────────────
 const showChangePasswordDialog = computed(() => !!auth.user?.forceChangePassword);
+
+// ── First-login profile prompt (contact-identity-management) ────────
+function profilePromptStorageKey(userId: string): string {
+  return `profilePromptDismissed:${userId}`;
+}
+
+const profilePromptDismissed = ref(false);
+
+function refreshProfilePromptDismissed() {
+  if (!auth.user?.id) {
+    profilePromptDismissed.value = false;
+    return;
+  }
+  try {
+    profilePromptDismissed.value = localStorage.getItem(profilePromptStorageKey(auth.user.id)) === 'true';
+  } catch {
+    profilePromptDismissed.value = false;
+  }
+}
+
+watch(() => auth.user?.id, refreshProfilePromptDismissed, { immediate: true });
+
+const showProfilePromptDialog = computed(() =>
+  !!auth.user &&
+  auth.user.profilePrompt === true &&
+  !auth.user.forceChangePassword &&
+  !profilePromptDismissed.value
+);
+
+function dismissProfilePrompt() {
+  if (auth.user?.id) {
+    try {
+      localStorage.setItem(profilePromptStorageKey(auth.user.id), 'true');
+    } catch {
+      // 隐私模式或 localStorage 被禁用时仅回退到内存标记
+    }
+  }
+  profilePromptDismissed.value = true;
+}
+
+function goToProfileFromPrompt() {
+  dismissProfilePrompt();
+  router.push('/my-profile');
+}
 
 const isFirstLoginAdmin = computed(() => {
   return auth.user?.username === 'admin' &&

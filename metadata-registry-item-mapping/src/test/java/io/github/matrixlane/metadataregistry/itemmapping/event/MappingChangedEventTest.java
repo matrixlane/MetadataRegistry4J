@@ -1,9 +1,7 @@
 package io.github.matrixlane.metadataregistry.itemmapping.event;
 
 import io.github.matrixlane.metadataregistry.itemmapping.entity.ItemMapping;
-import io.github.matrixlane.metadataregistry.itemmapping.entity.ItemMappingObject;
-import io.github.matrixlane.metadataregistry.itemmapping.entity.ItemMappingSubject;
-import io.github.matrixlane.metadataregistry.itemmapping.enums.MappingType;
+import io.github.matrixlane.metadataregistry.itemmapping.enums.MappingDegree;
 import org.junit.jupiter.api.Test;
 
 import java.util.UUID;
@@ -18,11 +16,9 @@ class MappingChangedEventTest {
     @Test
     void constructor_shouldStoreAllFields() {
         UUID mappingId = UUID.randomUUID();
-        ItemMapping mapping = new ItemMapping(
-                ItemMappingSubject.forItem(UUID.randomUUID()),
-                ItemMappingObject.forItem(UUID.randomUUID()),
-                MappingType.EQUIVALENT
-        );
+        ItemMapping mapping = new ItemMapping();
+        mapping.setId(mappingId);
+        mapping.setDegree(MappingDegree.SAME_AS);
 
         MappingChangedEvent event = new MappingChangedEvent(
                 this, mappingId, "CREATED", mapping);

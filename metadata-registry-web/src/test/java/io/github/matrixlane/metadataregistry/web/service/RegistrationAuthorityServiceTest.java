@@ -36,6 +36,9 @@ class RegistrationAuthorityServiceTest {
     @Mock
     private SystemSettingService systemSettingService;
 
+    @Mock
+    private RegistrationProcessService registrationProcessService;
+
     @InjectMocks
     private RegistrationAuthorityService service;
 
@@ -59,6 +62,8 @@ class RegistrationAuthorityServiceTest {
         assertThat(response).isNotNull();
         assertThat(response.name()).isEqualTo("Test RA");
         verify(repository).save(any(RegistrationAuthority.class));
+        // registration-process-designer：RA 创建路径接入标准流程规则播种
+        verify(registrationProcessService).ensureSeed(any());
     }
 
     @Test

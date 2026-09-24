@@ -32,7 +32,7 @@
         <el-option
           v-for="ns in namespaces"
           :key="ns.id"
-          :label="ns.label || ns.identifier || ns.name || ns.id"
+          :label="ns.label || ns.identifier || ns.name || '—'"
           :value="ns.id"
         />
       </el-select>

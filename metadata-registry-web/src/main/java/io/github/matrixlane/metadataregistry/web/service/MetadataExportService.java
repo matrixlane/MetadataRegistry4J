@@ -313,13 +313,16 @@ public class MetadataExportService {
         AdministeredItemExport.RegistrationStateExport stateExport = null;
         RegistrationState state = ai.getRegistrationState();
         if (state != null) {
+            String administrativeStatus = state.getAdministrativeStatus() == null
+                    ? null
+                    : state.getAdministrativeStatus().standardValue();
             stateExport = new AdministeredItemExport.RegistrationStateExport(
                     state.getRegistrationStatus(),
                     state.getEffectiveDate(),
                     state.getUntilDate(),
                     state.getAdministrativeNote(),
                     state.getUnresolvedIssue(),
-                    state.getAdministrativeStatus()
+                    administrativeStatus
             );
         }
 

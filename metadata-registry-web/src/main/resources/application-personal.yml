@@ -14,6 +14,8 @@ spring:
       # 下执行 init SQL，SQLite 报 "cannot change into wal mode from within a transaction"。
       # 需要 WAL 时在 JDBC URL 追加查询参数：?journal_mode=WAL
   jpa:
+    # SQLite 下与标准表同名的 EXT 实体,以 ext_ 物理名前缀模拟 schema(见 orm-sqlite.xml 头注)
+    mapping-resources: orm/orm-sqlite.xml
     properties:
       hibernate:
         # 显式指定方言（关闭 JDBC 元数据默认后无法自动探测方言）
@@ -31,6 +33,15 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration/sqlite
+    # 外部导入配置（~/.metadata-registry/application-local.yml，经 spring.config.import
+    # 对所有 profile 生效）为 SQL Server 设定了 schemas: mdr,ext；SQLite 无 schema 概念，
+    # Flyway 检查 mdr.flyway_schema_history 会报 no such table: mdr.sqlite_master 启动失败。
+    # 此处显式清空 schema 列表（profile 特定配置优先于导入配置）。
+    schemas: []
+    # 基线版本继承 application.yml 的 20260918002(既有库经 baseline-on-migrate 基线化,
+    # 只应用两个带幂等守卫的新迁移;既有 personal 库由此获得预置名称)。
+    # 已知限制:全新 personal 空库无核心表,而全量重放老迁移在 V20260727001 即失败
+    # (SQLite 不支持 DROP COLUMN IF EXISTS,该脚本从未可在空库重放),全新库启动失败属既有问题。
 
 app:
   cors:

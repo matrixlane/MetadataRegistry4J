@@ -17,5 +17,8 @@ public record ConceptualDomainResponse(
         List<ValueMeaningResponse> valueMeanings,
         LocalDateTime validPeriodStart,
         LocalDateTime validPeriodEnd,
-        ItemMetaResponse meta) {
+        ItemMetaResponse meta,
+        /** dimensionality(0..1)。 */
+        UUID dimensionalityId,
+        String dimensionalityLabel) {
 }

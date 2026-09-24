@@ -1,6 +1,6 @@
 package io.github.matrixlane.metadataregistry.web.dto.mapping;
 
-import io.github.matrixlane.metadataregistry.itemmapping.enums.MappingType;
+import io.github.matrixlane.metadataregistry.itemmapping.enums.MappingDegree;
 import io.github.matrixlane.metadataregistry.itemmapping.impact.ImpactDirection;
 import io.github.matrixlane.metadataregistry.itemmapping.impact.ImpactLevel;
 
@@ -23,7 +23,7 @@ public record ImpactAnalysisResponse(
             ImpactLevel impactLevel,
             ImpactDirection impactDirection,
             UUID mappingId,
-            MappingType mappingType,
+            MappingDegree degree,
             String suggestedAction
     ) {}
 }

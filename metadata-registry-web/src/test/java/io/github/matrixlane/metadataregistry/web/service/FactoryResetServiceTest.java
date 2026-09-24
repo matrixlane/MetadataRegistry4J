@@ -54,6 +54,9 @@ class FactoryResetServiceTest {
     private LanguageInitializer languageInitializer;
 
     @Mock
+    private io.github.matrixlane.metadataregistry.web.seed.LanguagePresetSeeder languagePresetSeeder;
+
+    @Mock
     private ObjectProvider<SystemDefaultNamespaceInitializer> systemDefaultNamespaceInitializerProvider;
 
     @Mock
@@ -134,6 +137,8 @@ class FactoryResetServiceTest {
 
         verify(languageInitializer).run(null);
         verify(systemDefaultNamespaceInitializerProvider).ifAvailable(any());
+        // 出厂清空语言表后须重放语言预置（Flyway 不会重跑已应用迁移）
+        verify(languagePresetSeeder).reapplyPreset();
     }
 
     @Test

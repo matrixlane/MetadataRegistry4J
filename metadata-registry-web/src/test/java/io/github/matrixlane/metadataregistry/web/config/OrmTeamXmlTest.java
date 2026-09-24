@@ -14,7 +14,7 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * orm-team.xml 漂移守卫:26 个 EXT 实体全限定名可达、表名与实体解析一致、
+ * orm-team.xml 漂移守卫:27 个 EXT 实体全限定名可达、表名与实体解析一致、
  * 全部落在 ext schema。清单依据 design.md 第 3 节(含 V20260901015 补迁的 interop 两表)。
  */
 class OrmTeamXmlTest {
@@ -29,11 +29,10 @@ class OrmTeamXmlTest {
             Map.entry("io.github.matrixlane.metadataregistry.ext.identification.NamespaceIdentifierSettings", "namespace_identifier_settings"),
             Map.entry("io.github.matrixlane.metadataregistry.ext.basicandcore.ContactAccountBinding", "contact_account_binding"),
             Map.entry("io.github.matrixlane.metadataregistry.ext.basicandcore.LanguageGovernance", "language_governance"),
+            Map.entry("io.github.matrixlane.metadataregistry.ext.basicandcore.LanguageIdentificationExtension", "language_identification"),
             Map.entry("io.github.matrixlane.metadataregistry.ext.designationanddefinition.NamingConventionRules", "naming_convention_rules"),
             Map.entry("io.github.matrixlane.metadataregistry.ext.generation.AiGenerationRecord", "ai_generation_record"),
             Map.entry("io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Account", "account"),
-            Map.entry("io.github.matrixlane.metadataregistry.itemmapping.entity.MappingScheme", "mapping_scheme"),
-            Map.entry("io.github.matrixlane.metadataregistry.itemmapping.notification.MappingSubscription", "mapping_subscription"),
             Map.entry("io.github.matrixlane.metadataregistry.itemmapping.entity.FhirElementMapping", "fhir_element_mapping"),
             Map.entry("io.github.matrixlane.metadataregistry.itemmapping.entity.InteropMapping", "interop_mapping"),
             Map.entry("io.github.matrixlane.metadataregistry.datasetregistration.entity.InteropDataSet", "interop_data_set"),

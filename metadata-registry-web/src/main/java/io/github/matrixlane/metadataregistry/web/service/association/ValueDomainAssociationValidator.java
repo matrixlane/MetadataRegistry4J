@@ -3,6 +3,8 @@ package io.github.matrixlane.metadataregistry.web.service.association;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.Item;
 import io.github.matrixlane.metadataregistry.dataspecification.ConceptualDomain;
 import io.github.matrixlane.metadataregistry.dataspecification.DataType;
+import io.github.matrixlane.metadataregistry.dataspecification.Dimensionality;
+import io.github.matrixlane.metadataregistry.dataspecification.MeasureClass;
 import io.github.matrixlane.metadataregistry.dataspecification.UnitOfMeasure;
 import io.github.matrixlane.metadataregistry.dataspecification.ValueDomain;
 
@@ -32,21 +34,55 @@ public class ValueDomainAssociationValidator implements MetadataAssociationValid
                 }
             }
             case VALUE_DOMAIN_TO_UNIT_OF_MEASURE -> {
-                if (!(target instanceof UnitOfMeasure)) {
+                if (!(target instanceof UnitOfMeasure unitOfMeasure)) {
                     throw new MetadataAssociationValidationException(
                             "值域必须关联到 UnitOfMeasure，实际传入 %s".formatted(target.getClass().getSimpleName()));
                 }
+                // 概念域已指定维度时，值域的计量单位必须与该维度一致。
+                assertConsistentDimensionality(unitOfMeasure,
+                        currentConceptualDomainDimensionality((ValueDomain) source));
             }
             case VALUE_DOMAIN_TO_CONCEPTUAL_DOMAIN -> {
                 // ISO/IEC 11179-31:2023 §7.4.5.2.1：值域与概念域子类型必须一致，
                 // 由 ValueDomainConceptualDomains.set 在写入时最终强制。
-                if (!(target instanceof ConceptualDomain)) {
+                if (!(target instanceof ConceptualDomain conceptualDomain)) {
                     throw new MetadataAssociationValidationException(
                             "值域必须关联到 ConceptualDomain，实际传入 %s".formatted(target.getClass().getSimpleName()));
                 }
+                // 值域已挂计量单位且概念域指定维度时，二者必须一致。
+                assertConsistentDimensionality(((ValueDomain) source).getUnitOfMeasure(),
+                        conceptualDomain.getDimensionality());
             }
             default -> throw new UnsupportedMetadataAssociationException("不支持的关联类型：" + type);
         }
+    }
+
+    /**
+     * 一致性：
+     * 概念域的 dimensionality 与值域的 unitOfMeasure 均已指定时,
+     * 计量单位所属计量类必须与维度的计量类存在交集;任一侧未指定不校验
+     * (约束以"指定时"为前提)。
+     */
+    private static void assertConsistentDimensionality(
+            UnitOfMeasure unitOfMeasure, Dimensionality dimensionality) {
+        if (unitOfMeasure == null || dimensionality == null) {
+            return;
+        }
+        java.util.Set<java.util.UUID> unitClasses = unitOfMeasure.getMeasureClasses().stream()
+                .map(MeasureClass::getId)
+                .collect(java.util.stream.Collectors.toSet());
+        boolean consistent = dimensionality.getMeasureClasses().stream()
+                .map(MeasureClass::getId)
+                .anyMatch(unitClasses::contains);
+        if (!consistent) {
+            throw new MetadataAssociationValidationException(
+                    "计量单位所属计量类与概念域维度不一致");
+        }
+    }
+
+    private static Dimensionality currentConceptualDomainDimensionality(ValueDomain valueDomain) {
+        ConceptualDomain current = ValueDomainConceptualDomains.get(valueDomain);
+        return current == null ? null : current.getDimensionality();
     }
 
     @Override

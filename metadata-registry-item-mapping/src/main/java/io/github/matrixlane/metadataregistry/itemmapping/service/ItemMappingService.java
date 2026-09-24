@@ -1,11 +1,13 @@
 package io.github.matrixlane.metadataregistry.itemmapping.service;
 
+import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.Item;
 import io.github.matrixlane.metadataregistry.itemmapping.entity.ItemMapping;
 import io.github.matrixlane.metadataregistry.itemmapping.entity.ItemMappingObject;
 import io.github.matrixlane.metadataregistry.itemmapping.entity.ItemMappingSubject;
-import io.github.matrixlane.metadataregistry.itemmapping.enums.MappingType;
+import io.github.matrixlane.metadataregistry.itemmapping.enums.MappingDegree;
 import io.github.matrixlane.metadataregistry.itemmapping.event.MappingChangedEvent;
 import io.github.matrixlane.metadataregistry.itemmapping.repository.ItemMappingRepository;
+import io.github.matrixlane.metadataregistry.itemmapping.repository.MappingHierarchyRepository;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -14,318 +16,191 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 /**
- * Core service for managing item mapping relationships.
+ * 条目映射领域服务。
  *
- * <p>Per ISO/IEC 11179-3:2023 Clause 11 — Item Mapping.
- * This service provides operations to create, query, and validate
- * mappings between administered items and/or external resources.
+ * <p>负责映射条目的创建、更新、删除与映射网络图查询。校验规则：
+ * degree 必填（枚举层保证）、transformation_rule 存在时
+ * transformation_rule_notation 必填（条件属性）、主体/客体绑定
+ * 各至少一个且被引用条目非空（存在性由调用方在解析条目时校验）。
  *
- * <h3>Mapping Type Mutual Exclusion Matrix</h3>
- * <pre>
- *                    EQUIVALENT  DERIVED  AGGREGATED  SUBDIVIDED
- * EQUIVALENT              -        ✗         ✗           ✗
- * DERIVED                 ✗        -         ✗           ✓
- * AGGREGATED              ✗        ✗         -           ✗
- * SUBDIVIDED              ✗        ✓         ✗           -
- * </pre>
- * Where ✓ = allowed, ✗ = mutually exclusive (disallowed for same pair).
+ * <p>主体/客体为标准多对多关联类形态：一条映射可有 1..* 个主体与
+ * 1..* 个客体，每个绑定（Subject_Mapping/Object_Mapping 行）各自携带
+ * mapping_variable_name。标准未对映射图施加互斥/成环限制（层级关系由
+ * {@link MappingHierarchyRepository} 单独建模）。
  */
 @Service
 @Transactional
 public class ItemMappingService {
 
+    /**
+     * 一个端点绑定：条目 + 可选映射变量名（转换规则中的变量引用）。
+     */
+    public record EndpointBinding(Item item, String variableName) {}
+
     private final ItemMappingRepository mappingRepository;
+    private final MappingHierarchyRepository hierarchyRepository;
     private final ApplicationEventPublisher eventPublisher;
 
     public ItemMappingService(ItemMappingRepository mappingRepository,
+                              MappingHierarchyRepository hierarchyRepository,
                               ApplicationEventPublisher eventPublisher) {
         this.mappingRepository = mappingRepository;
+        this.hierarchyRepository = hierarchyRepository;
         this.eventPublisher = eventPublisher;
     }
 
-    // ---- Mutual Exclusion Matrix ----
-
-    // Pre-defined mutual exclusion rules for mapping types.
-    // Each pair represents (typeA, typeB) — if both exist between the same
-    // two items, the mapping is invalid.
-    private static final Set<Map.Entry<MappingType, MappingType>> MUTUALLY_EXCLUSIVE_PAIRS = Set.of(
-            Map.entry(MappingType.EQUIVALENT, MappingType.DERIVED),
-            Map.entry(MappingType.EQUIVALENT, MappingType.AGGREGATED),
-            Map.entry(MappingType.EQUIVALENT, MappingType.SUBDIVIDED),
-            Map.entry(MappingType.DERIVED, MappingType.AGGREGATED),
-            Map.entry(MappingType.AGGREGATED, MappingType.SUBDIVIDED)
-    );
-
-    // ---- Core Operations ----
+    // ---- 创建 / 更新 ----
 
     /**
-     * Creates a new mapping between two administered items.
+     * 创建一条映射（1..* 主体 × 1..* 客体，忠实标准形态）。
      *
-     * <p>Before creating the mapping, this method performs:
-     * <ol>
-     *   <li>Mapping type mutual exclusion validation</li>
-     *   <li>Cycle detection (for non-EQUIVALENT directional mappings)</li>
-     *   <li>Duplicate mapping prevention</li>
-     * </ol>
-     *
-     * @param subjectItemId the UUID of the subject AdministeredItem
-     * @param objectItemId  the UUID of the object AdministeredItem
-     * @param mappingType   the type of mapping relationship
-     * @return the newly created ItemMapping
-     * @throws IllegalArgumentException if validation fails
+     * @param subjectBindings 主体绑定列表（≥1，条目须已由调用方解析确认存在）
+     * @param objectBindings  客体绑定列表（≥1）
+     * @param degree                  映射度（必填）
+     * @param description             描述（可空）
+     * @param transformationRule      转换规则（可空）
+     * @param transformationRuleNotation 转换规则记法（rule 存在时必填）
+     * @return 持久化后的映射条目
+     * @throws IllegalArgumentException 校验失败
      */
-    public ItemMapping createItemMapping(UUID subjectItemId, UUID objectItemId,
-                                          MappingType mappingType) {
-        return createMapping(
-                ItemMappingSubject.forItem(subjectItemId),
-                ItemMappingObject.forItem(objectItemId),
-                mappingType,
-                null
-        );
-    }
+    public ItemMapping createMapping(List<EndpointBinding> subjectBindings,
+                                     List<EndpointBinding> objectBindings,
+                                     MappingDegree degree,
+                                     String description, String transformationRule,
+                                     String transformationRuleNotation) {
+        validate(degree, transformationRule, transformationRuleNotation,
+                subjectBindings, objectBindings);
 
-    /**
-     * Creates a new mapping between an internal item and an external resource.
-     *
-     * @param subjectItemId the UUID of the subject AdministeredItem
-     * @param externalUri   the URI of the external object resource
-     * @param mappingType   the type of mapping relationship
-     * @return the newly created ItemMapping
-     * @throws IllegalArgumentException if validation fails
-     */
-    public ItemMapping createItemToExternalMapping(UUID subjectItemId, String externalUri,
-                                                    MappingType mappingType) {
-        return createMapping(
-                ItemMappingSubject.forItem(subjectItemId),
-                ItemMappingObject.forExternalUri(externalUri),
-                mappingType,
-                null
-        );
-    }
+        ItemMapping mapping = new ItemMapping();
+        mapping.setDegree(degree);
+        mapping.setDescription(description);
+        mapping.setTransformationRule(transformationRule);
+        mapping.setTransformationRuleNotation(transformationRuleNotation);
 
-    /**
-     * Creates a new mapping between an external resource and an internal item.
-     *
-     * @param externalUri   the URI of the external subject resource
-     * @param objectItemId  the UUID of the object AdministeredItem
-     * @param mappingType   the type of mapping relationship
-     * @return the newly created ItemMapping
-     * @throws IllegalArgumentException if validation fails
-     */
-    public ItemMapping createExternalToItemMapping(String externalUri, UUID objectItemId,
-                                                    MappingType mappingType) {
-        return createMapping(
-                ItemMappingSubject.forExternalUri(externalUri),
-                ItemMappingObject.forItem(objectItemId),
-                mappingType,
-                null
-        );
-    }
-
-    /**
-     * Internal method that performs all validations and creates the mapping.
-     */
-    private ItemMapping createMapping(ItemMappingSubject subject,
-                                       ItemMappingObject object,
-                                       MappingType mappingType,
-                                       String description) {
-        // Validate subject/object reference mutual exclusivity
-        if (!subject.isReferenceMutuallyExclusive()) {
-            throw new IllegalArgumentException(
-                    "Subject must reference exactly one of itemId or externalUri");
+        for (EndpointBinding binding : subjectBindings) {
+            mapping.getSubjects().add(
+                    new ItemMappingSubject(mapping, binding.item(), binding.variableName()));
         }
-        if (!object.isReferenceMutuallyExclusive()) {
-            throw new IllegalArgumentException(
-                    "Object must reference exactly one of itemId or externalUri");
+        for (EndpointBinding binding : objectBindings) {
+            mapping.getObjects().add(
+                    new ItemMappingObject(mapping, binding.item(), binding.variableName()));
         }
 
-        // Skip duplicate and cycle checks for external-only mappings
-        // (no AdministeredItem UUID to check against)
-        UUID subjectItemId = subject.getItemId();
-        UUID objectItemId = object.getItemId();
-
-        if (subjectItemId != null && objectItemId != null) {
-            // Internal-to-internal mapping
-
-            // Validate mutual exclusion with existing mappings of different types
-            validateMutualExclusion(subjectItemId, objectItemId, mappingType);
-
-            // Cycle detection for directional mappings
-            if (mappingType != MappingType.EQUIVALENT) {
-                detectCycle(subjectItemId, objectItemId);
-            }
-        }
-
-        // Create and save the mapping
-        ItemMapping mapping = new ItemMapping(subject, object, mappingType, description);
         ItemMapping saved = mappingRepository.save(mapping);
-
-        // Publish event for downstream notification / impact analysis
         eventPublisher.publishEvent(new MappingChangedEvent(this, saved.getId(), "CREATED", saved));
-
         return saved;
     }
 
-    // ---- Validation Methods ----
-
     /**
-     * Validates that no existing mappings between the same subject and object
-     * violate the mutual exclusion matrix.
-     *
-     * @param subjectItemId the subject item UUID
-     * @param objectItemId  the object item UUID
-     * @param newType       the mapping type being proposed
-     * @throws IllegalArgumentException if a conflicting mapping exists
+     * 更新映射的可变属性并重置主体/客体绑定集合。
      */
-    void validateMutualExclusion(UUID subjectItemId, UUID objectItemId, MappingType newType) {
-        List<ItemMapping> existingMappings = mappingRepository.findByItemId(subjectItemId);
+    public ItemMapping updateMapping(ItemMapping mapping, MappingDegree degree,
+                                     List<EndpointBinding> subjectBindings,
+                                     List<EndpointBinding> objectBindings,
+                                     String description, String transformationRule,
+                                     String transformationRuleNotation) {
+        validate(degree, transformationRule, transformationRuleNotation,
+                subjectBindings, objectBindings);
 
-        for (ItemMapping existing : existingMappings) {
-            UUID existingSubjectId = existing.getSubject().getItemId();
-            UUID existingObjectId = existing.getObject().getItemId();
+        mapping.setDegree(degree);
+        mapping.setDescription(description);
+        mapping.setTransformationRule(transformationRule);
+        mapping.setTransformationRuleNotation(transformationRuleNotation);
 
-            // Only check pairs that involve the same two items
-            boolean samePair = (subjectItemId.equals(existingSubjectId) &&
-                                objectItemId.equals(existingObjectId)) ||
-                               (subjectItemId.equals(existingObjectId) &&
-                                objectItemId.equals(existingSubjectId));
+        mapping.getSubjects().clear();
+        for (EndpointBinding binding : subjectBindings) {
+            mapping.getSubjects().add(
+                    new ItemMappingSubject(mapping, binding.item(), binding.variableName()));
+        }
+        mapping.getObjects().clear();
+        for (EndpointBinding binding : objectBindings) {
+            mapping.getObjects().add(
+                    new ItemMappingObject(mapping, binding.item(), binding.variableName()));
+        }
 
-            if (samePair && areMutuallyExclusive(newType, existing.getMappingType())) {
-                throw new IllegalArgumentException(
-                        String.format("Mapping type %s is mutually exclusive with existing " +
-                                      "type %s between items %s and %s",
-                                newType, existing.getMappingType(),
-                                subjectItemId, objectItemId));
+        ItemMapping saved = mappingRepository.save(mapping);
+        eventPublisher.publishEvent(new MappingChangedEvent(this, saved.getId(), "MODIFIED", saved));
+        return saved;
+    }
+
+    private void validate(MappingDegree degree, String transformationRule,
+                          String transformationRuleNotation,
+                          List<EndpointBinding> subjectBindings,
+                          List<EndpointBinding> objectBindings) {
+        if (degree == null) {
+            throw new IllegalArgumentException("degree must not be null");
+        }
+        if (transformationRule != null && !transformationRule.isBlank()
+                && (transformationRuleNotation == null || transformationRuleNotation.isBlank())) {
+            throw new IllegalArgumentException(
+                    "transformationRuleNotation is required when transformationRule is present");
+        }
+        if (subjectBindings == null || subjectBindings.isEmpty()) {
+            throw new IllegalArgumentException("At least one subject binding is required");
+        }
+        if (objectBindings == null || objectBindings.isEmpty()) {
+            throw new IllegalArgumentException("At least one object binding is required");
+        }
+        for (EndpointBinding binding : subjectBindings) {
+            if (binding == null || binding.item() == null) {
+                throw new IllegalArgumentException("Subject binding item must not be null");
+            }
+        }
+        for (EndpointBinding binding : objectBindings) {
+            if (binding == null || binding.item() == null) {
+                throw new IllegalArgumentException("Object binding item must not be null");
             }
         }
     }
 
-    /**
-     * Checks whether two mapping types are mutually exclusive.
-     */
-    public static boolean areMutuallyExclusive(MappingType a, MappingType b) {
-        if (a == b) {
-            // Same type is always allowed; a given pair can have multiple
-            // mappings of the same type (though duplicates are checked elsewhere)
-            return false;
-        }
-        return MUTUALLY_EXCLUSIVE_PAIRS.contains(Map.entry(a, b)) ||
-               MUTUALLY_EXCLUSIVE_PAIRS.contains(Map.entry(b, a));
-    }
+    // ---- 查询 ----
 
-    /**
-     * Detects whether adding a mapping from {@code sourceId} to {@code targetId}
-     * would create a cycle in the mapping graph.
-     *
-     * <p>Uses DFS-based cycle detection. Time complexity: O(V+E) for
-     * the subgraph reachable from {@code targetId}.
-     *
-     * @param sourceId the subject item UUID (source of the new edge)
-     * @param targetId the object item UUID (target of the new edge)
-     * @throws IllegalArgumentException if a cycle would be created
-     */
-    public void detectCycle(UUID sourceId, UUID targetId) {
-        // Build adjacency list from all non-EQUIVALENT mappings
-        // EQUIVALENT mappings are bidirectional and not subject to cycle detection
-        List<ItemMapping> allMappings = mappingRepository.findAll();
-
-        Map<UUID, Set<UUID>> adjacency = allMappings.stream()
-                .filter(m -> m.getMappingType() != MappingType.EQUIVALENT)
-                .filter(m -> m.getSubject().getItemId() != null &&
-                             m.getObject().getItemId() != null)
-                .collect(Collectors.groupingBy(
-                        m -> m.getSubject().getItemId(),
-                        Collectors.mapping(m -> m.getObject().getItemId(), Collectors.toSet())
-                ));
-
-        // Add the proposed edge
-        adjacency.computeIfAbsent(sourceId, k -> new HashSet<>()).add(targetId);
-
-        // Check if targetId can reach sourceId (would create a cycle)
-        Set<UUID> visited = new HashSet<>();
-        Deque<UUID> stack = new ArrayDeque<>();
-        stack.push(targetId);
-
-        while (!stack.isEmpty()) {
-            UUID current = stack.pop();
-            if (current.equals(sourceId)) {
-                throw new IllegalArgumentException(
-                        String.format("Adding mapping from %s to %s would create a cycle " +
-                                      "in the mapping graph", sourceId, targetId));
-            }
-            if (!visited.add(current)) {
-                continue;
-            }
-            Set<UUID> neighbors = adjacency.getOrDefault(current, Set.of());
-            neighbors.forEach(stack::push);
-        }
-    }
-
-    // ---- Query Operations ----
-
-    /**
-     * Finds all outgoing mappings from a given item (as subject).
-     *
-     * @param itemId the AdministeredItem UUID
-     * @return list of mappings where the item is the subject
-     */
     @Transactional(readOnly = true)
     public List<ItemMapping> getOutgoingMappings(UUID itemId) {
-        return mappingRepository.findBySubjectItemId(itemId);
+        return mappingRepository.findBySubjects_Item_Id(itemId, org.springframework.data.domain.Pageable.unpaged())
+                .getContent();
     }
 
-    /**
-     * Finds all incoming mappings to a given item (as object).
-     *
-     * @param itemId the AdministeredItem UUID
-     * @return list of mappings where the item is the object
-     */
     @Transactional(readOnly = true)
     public List<ItemMapping> getIncomingMappings(UUID itemId) {
-        return mappingRepository.findByObjectItemId(itemId);
+        return mappingRepository.findByObjects_Item_Id(itemId, org.springframework.data.domain.Pageable.unpaged())
+                .getContent();
     }
 
-    /**
-     * Finds all mappings involving a given item (as either subject or object).
-     *
-     * @param itemId the AdministeredItem UUID
-     * @return list of all mappings referencing the item
-     */
     @Transactional(readOnly = true)
     public List<ItemMapping> getAllMappingsForItem(UUID itemId) {
-        return mappingRepository.findByItemId(itemId);
+        Set<ItemMapping> all = new LinkedHashSet<>(getOutgoingMappings(itemId));
+        all.addAll(getIncomingMappings(itemId));
+        return List.copyOf(all);
     }
 
+    // ---- 删除 ----
+
     /**
-     * Deletes a mapping by its ID.
-     *
-     * @param mappingId the UUID of the mapping to delete
-     * @throws IllegalArgumentException if the mapping does not exist
+     * 删除映射条目，并清理其层级关系（作为 superset 与 subset 两侧）。
+     * 主体/客体绑定行经 cascade + orphanRemoval 级联删除。
      */
     public void deleteMapping(UUID mappingId) {
         ItemMapping mapping = mappingRepository.findById(mappingId).orElse(null);
         if (mapping == null) {
             throw new IllegalArgumentException("Mapping not found: " + mappingId);
         }
+        hierarchyRepository.deleteBySupersetMappingId(mappingId);
+        hierarchyRepository.deleteBySubsetMappingId(mappingId);
         mappingRepository.deleteById(mappingId);
-
-        // Publish event after successful deletion
         eventPublisher.publishEvent(new MappingChangedEvent(this, mappingId, "DELETED", mapping));
     }
 
-    // ---- Network Graph Query ----
+    // ---- 映射网络图 ----
 
-    /**
-     * Result of a network graph query containing nodes and edges.
-     */
     public record NetworkGraphResult(
             Set<NetworkNode> nodes,
             List<NetworkEdge> edges,
@@ -333,53 +208,30 @@ public class ItemMappingService {
             int totalNodeCount
     ) {}
 
-    /**
-     * A node in the network graph representing an administered item.
-     */
-    public record NetworkNode(
-            UUID itemId,
-            int depth,
-            boolean isCenter
-    ) {}
+    public record NetworkNode(UUID itemId, int depth, boolean isCenter) {}
+
+    public record NetworkEdge(UUID mappingId, UUID sourceId, UUID targetId,
+                              MappingDegree degree, String description) {}
 
     /**
-     * An edge in the network graph representing a mapping relationship.
-     */
-    public record NetworkEdge(
-            UUID mappingId,
-            UUID sourceId,
-            UUID targetId,
-            MappingType mappingType,
-            String description
-    ) {}
-
-    /**
-     * Queries the local mapping network around a center item.
-     *
-     * <p>Performs BFS traversal up to {@code maxDepth} levels (default 3),
-     * optionally filtered by mapping type. Returns at most 500 nodes;
-     * if the result exceeds 500 nodes, it is truncated and a flag is set.
-     *
-     * @param centerId    the UUID of the center AdministeredItem
-     * @param maxDepth    maximum traversal depth (1-3)
-     * @param filterTypes optional mapping type filter (null or empty = no filter)
-     * @return a NetworkGraphResult containing nodes, edges, and truncation info
+     * 以某条目为中心做 BFS（1-3 层，默认上限 500 节点），可按映射度过滤。
+     * 全程使用标量投影查询，不加载 Item 实体。多主体/多客体映射在网络图中
+     * 展开为 subject×object 的边。
      */
     @Transactional(readOnly = true)
     public NetworkGraphResult getNetworkGraph(UUID centerId, int maxDepth,
-                                               List<MappingType> filterTypes) {
-        // Clamp depth to 1-3
+                                              List<MappingDegree> filterDegrees) {
         maxDepth = Math.max(1, Math.min(3, maxDepth));
 
         Set<UUID> visited = new LinkedHashSet<>();
         List<NetworkEdge> edges = new ArrayList<>();
         Set<UUID> visitedMappings = new HashSet<>();
-
-        // BFS queue: (itemId, depth)
+        Map<UUID, Integer> nodeDepths = new LinkedHashMap<>();
         Deque<Map.Entry<UUID, Integer>> queue = new ArrayDeque<>();
+
         queue.add(Map.entry(centerId, 0));
         visited.add(centerId);
-
+        nodeDepths.put(centerId, 0);
         boolean truncated = false;
 
         while (!queue.isEmpty()) {
@@ -391,111 +243,69 @@ public class ItemMappingService {
                 continue;
             }
 
-            List<ItemMapping> mappings = mappingRepository.findByItemId(currentId);
-
-            for (ItemMapping mapping : mappings) {
-                // Skip already processed mappings
-                if (!visitedMappings.add(mapping.getId())) {
+            for (UUID mappingId : mappingRepository.findMappingIdsByItemId(currentId)) {
+                if (!visitedMappings.add(mappingId)) {
                     continue;
                 }
 
-                // Apply type filter
-                if (filterTypes != null && !filterTypes.isEmpty()
-                        && !filterTypes.contains(mapping.getMappingType())) {
+                List<Object[]> degreeRows = mappingRepository.findDegreesByMappingIds(List.of(mappingId));
+                if (degreeRows.isEmpty()) {
+                    continue;
+                }
+                MappingDegree degree = (MappingDegree) degreeRows.get(0)[1];
+                if (filterDegrees != null && !filterDegrees.isEmpty()
+                        && !filterDegrees.contains(degree)) {
                     continue;
                 }
 
-                // Determine the neighbor item ID
-                UUID subjectId = mapping.getSubject().getItemId();
-                UUID objectId = mapping.getObject().getItemId();
+                List<Object[]> subjectRows = mappingRepository.findSubjectRowsByMappingIds(List.of(mappingId));
+                List<Object[]> objectRows = mappingRepository.findObjectRowsByMappingIds(List.of(mappingId));
 
-                // Skip external mappings (no AdministeredItem reference)
-                if (subjectId == null || objectId == null) {
-                    continue;
+                String description = null;
+                ItemMapping mapping = mappingRepository.findById(mappingId).orElse(null);
+                if (mapping != null) {
+                    description = mapping.getDescription();
                 }
 
-                UUID neighborId = subjectId.equals(currentId) ? objectId : subjectId;
-
-                // Add the edge
-                edges.add(new NetworkEdge(
-                        mapping.getId(),
-                        subjectId,
-                        objectId,
-                        mapping.getMappingType(),
-                        mapping.getDescription()
-                ));
-
-                // Add neighbor to BFS if not visited and within node limit
-                if (!visited.contains(neighborId)) {
-                    if (visited.size() >= 500) {
-                        truncated = true;
-                        continue;
+                for (Object[] subjectRow : subjectRows) {
+                    UUID subjectId = (UUID) subjectRow[1];
+                    for (Object[] objectRow : objectRows) {
+                        UUID objectId = (UUID) objectRow[1];
+                        edges.add(new NetworkEdge(mappingId, subjectId, objectId, degree, description));
                     }
-                    visited.add(neighborId);
-                    queue.add(Map.entry(neighborId, currentDepth + 1));
+                }
+
+                for (Object[] row : subjectRows) {
+                    truncated |= !maybeVisit((UUID) row[1], currentId, currentDepth, visited,
+                            nodeDepths, queue, 500);
+                }
+                for (Object[] row : objectRows) {
+                    truncated |= !maybeVisit((UUID) row[1], currentId, currentDepth, visited,
+                            nodeDepths, queue, 500);
                 }
             }
         }
 
-        // Build node set
         Set<NetworkNode> nodes = new LinkedHashSet<>();
         for (UUID itemId : visited) {
-            int depth = 0;
-            // Find the min depth for this node
-            for (var qe : queue) {
-                if (qe.getKey().equals(itemId)) {
-                    depth = qe.getValue();
-                    break;
-                }
-            }
-            // Better approach: track depths in a separate map
-            nodes.add(new NetworkNode(itemId, 0, itemId.equals(centerId)));
+            nodes.add(new NetworkNode(itemId, nodeDepths.getOrDefault(itemId, 0),
+                    itemId.equals(centerId)));
         }
-
-        // Recalculate depths properly
-        nodes = new LinkedHashSet<>();
-        Map<UUID, Integer> nodeDepths = computeDepths(centerId, edges);
-        for (UUID itemId : visited) {
-            nodes.add(new NetworkNode(
-                    itemId,
-                    nodeDepths.getOrDefault(itemId, 0),
-                    itemId.equals(centerId)
-            ));
-        }
-
         return new NetworkGraphResult(nodes, edges, truncated, visited.size());
     }
 
-    /**
-     * Computes the shortest path depth from center for each node.
-     */
-    private Map<UUID, Integer> computeDepths(UUID centerId, List<NetworkEdge> edges) {
-        // Build adjacency list
-        Map<UUID, Set<UUID>> adjacency = new java.util.HashMap<>();
-        for (NetworkEdge edge : edges) {
-            adjacency.computeIfAbsent(edge.sourceId(), k -> new HashSet<>()).add(edge.targetId());
-            adjacency.computeIfAbsent(edge.targetId(), k -> new HashSet<>()).add(edge.sourceId());
+    private boolean maybeVisit(UUID neighborId, UUID currentId, int currentDepth,
+                               Set<UUID> visited, Map<UUID, Integer> nodeDepths,
+                               Deque<Map.Entry<UUID, Integer>> queue, int limit) {
+        if (neighborId.equals(currentId) || visited.contains(neighborId)) {
+            return true;
         }
-
-        // BFS from center
-        Map<UUID, Integer> depths = new java.util.HashMap<>();
-        Deque<UUID> queue2 = new ArrayDeque<>();
-        depths.put(centerId, 0);
-        queue2.add(centerId);
-
-        while (!queue2.isEmpty()) {
-            UUID current = queue2.poll();
-            int currentDepth = depths.get(current);
-
-            Set<UUID> neighbors = adjacency.getOrDefault(current, Set.of());
-            for (UUID neighbor : neighbors) {
-                if (!depths.containsKey(neighbor)) {
-                    depths.put(neighbor, currentDepth + 1);
-                    queue2.add(neighbor);
-                }
-            }
+        if (visited.size() >= limit) {
+            return false;
         }
-
-        return depths;
+        visited.add(neighborId);
+        nodeDepths.put(neighborId, currentDepth + 1);
+        queue.add(Map.entry(neighborId, currentDepth + 1));
+        return true;
     }
 }

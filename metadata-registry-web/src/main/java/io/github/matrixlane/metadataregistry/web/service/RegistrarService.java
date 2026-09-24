@@ -34,7 +34,6 @@ public class RegistrarService {
     private final AccountRepository accountRepository;
     private final OrganizationRepository organizationRepository;
     private final IndividualRepository individualRepository;
-    private final RoleRepository roleRepository;
     private final ContactAccountBindingService contactAccountBindingService;
 
     @Transactional(readOnly = true)
@@ -145,19 +144,13 @@ public class RegistrarService {
         Account account = accountRepository.findById(accountId)
                 .orElseThrow(() -> new ResourceNotFoundException("Account", accountId));
 
-        // 2. Ensure business Role "注册管理员" exists
-        Role role = roleRepository.findByRoleName("注册管理员")
-                .orElseGet(() -> {
-                    Role r = new Role();
-                    r.setRoleName("注册管理员");
-                    return roleRepository.save(r);
-                });
-
-        // 3. Create Registrar (no Individual generated yet!)
+        // 2. Create Registrar (no Individual generated yet!)
+        // 有意不盖任何 Role：Registrar 身份由 Contact 子类（Registrar 实例）确定，
+        // Role 仅为描述性元数据，由用户后续自行创建并关联（见 add-submitter-contact-identity）。
         Registrar registrar = new Registrar();
         registrar.setIdentifier(username + "-registrar");
         registrar.setIndividual(null); // Keep individual empty initially!
-        registrar.setRole(role);
+        registrar.setRole(null);
         registrar.setRegistrationAuthority(ra);
         registrar.setOrganization(ra); // RegistrationAuthority extends Organization
         Registrar saved = registrarRepository.save(registrar);

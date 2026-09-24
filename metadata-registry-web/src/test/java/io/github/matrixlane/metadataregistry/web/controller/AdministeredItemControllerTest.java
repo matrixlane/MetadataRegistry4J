@@ -6,7 +6,8 @@
  import io.github.matrixlane.metadataregistry.web.config.AppProperties;
  import io.github.matrixlane.metadataregistry.web.dto.administereditem.AdministeredItemResponse;
  import io.github.matrixlane.metadataregistry.web.dto.administereditem.ReferenceDocumentLinkRequest;
- import io.github.matrixlane.metadataregistry.web.service.AdministeredItemService;
+ import io.github.matrixlane.metadataregistry.web.service.ActiveRegistrarService;
+import io.github.matrixlane.metadataregistry.web.service.AdministeredItemService;
  import org.junit.jupiter.api.Test;
  import org.springframework.beans.factory.annotation.Autowired;
  import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -40,6 +41,9 @@
  
      @MockBean
      private AdministeredItemService service;
+
+     @MockBean
+     private ActiveRegistrarService activeRegistrarService;
  
      @MockBean
      private JwtService jwtService;
@@ -121,7 +125,80 @@
                  .andExpect(status().isOk());
      }
  
-     private AdministeredItemResponse createResponse() {
+ 
+    @Test
+    void transitions_shouldReturnOk() throws Exception {
+        when(service.availableTransitions(eq(AI_ID), isNull())).thenReturn(List.of(
+                new io.github.matrixlane.metadataregistry.web.dto.registration.AvailableTransitionView(
+                        RegistrationStatus.RETIRED, null, false, 0, 1, true, false, false)));
+
+        mockMvc.perform(get("/api/v1/administered-items/{id}/transitions", AI_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].to").value("RETIRED"))
+                .andExpect(jsonPath("$.data[0].canExecute").value(true));
+    }
+
+    @Test
+    void executeTransition_shouldReturnOk() throws Exception {
+        when(service.executeTransition(eq(AI_ID), eq(RegistrationStatus.RETIRED), eq("退役"), isNull()))
+                .thenReturn(createResponse());
+
+        mockMvc.perform(post("/api/v1/administered-items/{id}/transitions/execute", AI_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"to\": \"RETIRED\", \"note\": \"退役\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id").value(AI_ID.toString()));
+    }
+
+    @Test
+    void approveTransition_shouldReturnOk() throws Exception {
+        when(service.approveTransition(eq(AI_ID), eq(RegistrationStatus.QUALIFIED), isNull()))
+                .thenReturn(new io.github.matrixlane.metadataregistry.web.dto.registration.ApprovalResultResponse(
+                        true, List.of()));
+
+        mockMvc.perform(post("/api/v1/administered-items/{id}/transitions/approve", AI_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"to\": \"QUALIFIED\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.executed").value(true));
+    }
+
+    @Test
+    void rejectTransition_shouldReturnOk() throws Exception {
+        when(service.rejectTransition(eq(AI_ID), eq("信息不足"), isNull()))
+                .thenReturn(createResponse());
+
+        mockMvc.perform(post("/api/v1/administered-items/{id}/transitions/reject", AI_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"note\": \"信息不足\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id").value(AI_ID.toString()));
+    }
+
+    @Test
+    void requestQualification_shouldReturnOk() throws Exception {
+        when(service.requestQualification(eq(AI_ID), isNull()))
+                .thenReturn(createResponse());
+
+        mockMvc.perform(post("/api/v1/administered-items/{id}/request-qualification", AI_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id").value(AI_ID.toString()));
+    }
+
+    @Test
+    void oldTransitionEndpoint_shouldBeRemoved() throws Exception {
+        // 旧 POST /{id}/transition 已移除：不再有任何处理器承接（MockMvc 无过滤器时
+        // 未匹配路由返回 500，生产经 /error 返回 404；此处只断言不再可用）
+        int status = mockMvc.perform(post("/api/v1/administered-items/{id}/transition", AI_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"to\": \"RETIRED\"}"))
+                .andReturn().getResponse().getStatus();
+        org.assertj.core.api.Assertions.assertThat(status)
+                .isNotEqualTo(200)
+                .isNotEqualTo(201);
+    }
+
+    private AdministeredItemResponse createResponse() {
          return new AdministeredItemResponse(
                  AI_ID,
                  UUID.randomUUID(),

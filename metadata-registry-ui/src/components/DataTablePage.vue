@@ -18,23 +18,43 @@
             <el-button :icon="RefreshRight" @click="handleReset">重置</el-button>
           </el-form-item>
         </div>
-        <div class="search-form-right">
-          <el-form-item v-if="canCreate">
-            <el-button type="success" :icon="Plus" @click="$emit('create')">新建</el-button>
-          </el-form-item>
+        <div class="search-form-right" v-if="canCreate">
+          <el-button
+            type="success"
+            :icon="Plus"
+            data-testid="data-table-create-btn"
+            @click="$emit('create')"
+          >
+            新建
+          </el-button>
         </div>
       </el-form>
     </div>
 
     <div class="page-card table-card">
+      <div v-if="batchEnabled" class="batch-bar">
+        <span class="batch-bar-text">{{ t('common.selectedCount', { count: selectedCount }) }}</span>
+        <el-button
+          type="danger"
+          :icon="Delete"
+          :disabled="selectedCount === 0 || batchDeleting"
+          :loading="batchDeleting"
+          @click="handleBatchDelete"
+        >
+          {{ t('common.batchDelete') }}
+        </el-button>
+      </div>
       <el-table
+        ref="tableRef"
         v-loading="loading"
         :data="rows"
         stripe
         row-key="id"
         @sort-change="handleSort"
+        @selection-change="handleSelectionChange"
         class="modern-table"
       >
+        <el-table-column v-if="selectable || batchEnabled" type="selection" width="48" />
         <slot name="columns" />
         <el-table-column
           v-if="showAction"
@@ -87,9 +107,10 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, watch, onMounted } from 'vue';
+import { computed, reactive, ref, watch, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
 import type { PageResponse } from '@/types/common';
-import { ElMessageBox, ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import { Search, RefreshRight, Plus, Edit, Delete } from '@element-plus/icons-vue';
 
 interface Props {
@@ -100,6 +121,10 @@ interface Props {
   showAction?: boolean;
   /** 操作列宽度：附加操作按钮（actions 插槽）较多时由页面调宽 */
   actionWidth?: number;
+  /** 启用多选列；与 deleteFn 一起决定批量条显隐 */
+  selectable?: boolean;
+  /** 批量删除函数：对每个选中的 id 异步调用；reject 时计入失败 */
+  deleteFn?: (id: string) => Promise<void>;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -108,14 +133,19 @@ const props = withDefaults(defineProps<Props>(), {
   canDelete: true,
   showAction: true,
   actionWidth: 160,
+  selectable: false,
 });
 
 const emit = defineEmits<{
   create: [];
   edit: [row: Record<string, unknown>];
   delete: [row: Record<string, unknown>];
+  'selection-change': [rows: Record<string, unknown>[]];
 }>();
 
+const { t } = useI18n();
+
+const tableRef = ref<InstanceType<typeof import('element-plus').ElTable>>();
 const loading = ref(false);
 const rows = ref<Record<string, unknown>[]>([]);
 const total = ref(0);
@@ -126,6 +156,12 @@ const query = reactive({
   sort: undefined as string | undefined,
   q: undefined as string | undefined,
 });
+
+const selectedRows = ref<Record<string, unknown>[]>([]);
+const batchDeleting = ref(false);
+
+const batchEnabled = computed(() => props.canDelete !== false && !!props.deleteFn);
+const selectedCount = computed(() => selectedRows.value.length);
 
 async function fetchData() {
   loading.value = true;
@@ -161,6 +197,42 @@ function handleDelete(row: Record<string, unknown>) {
       emit('delete', row);
     })
     .catch(() => {});
+}
+
+function handleSelectionChange(rows: Record<string, unknown>[]) {
+  selectedRows.value = rows;
+  emit('selection-change', rows);
+}
+
+async function handleBatchDelete() {
+  const ids = selectedRows.value.map((r) => r.id).filter((id): id is string => typeof id === 'string');
+  if (ids.length === 0) return;
+  try {
+    await ElMessageBox.confirm(
+      `确认删除选中的 ${ids.length} 条记录？`,
+      '提示',
+      { type: 'warning' }
+    );
+  } catch {
+    return;
+  }
+  batchDeleting.value = true;
+  const results = await Promise.allSettled(ids.map((id) => props.deleteFn!(id)));
+  batchDeleting.value = false;
+  const succeeded = results.filter((r) => r.status === 'fulfilled').length;
+  const failed = ids.length - succeeded;
+  if (failed === 0) {
+    ElMessage.success(`已删除 ${ids.length} 条记录`);
+  } else {
+    const firstReason =
+      results.find((r) => r.status === 'rejected')?.reason instanceof Error
+        ? (results.find((r) => r.status === 'rejected')!.reason as Error).message
+        : '未知错误';
+    ElMessage.warning(`成功 ${succeeded} 条，失败 ${failed} 条：${firstReason}`);
+  }
+  selectedRows.value = [];
+  tableRef.value?.clearSelection();
+  await fetchData();
 }
 
 onMounted(fetchData);
@@ -205,6 +277,19 @@ defineExpose({ fetchData });
   :deep(.el-card__body) {
     padding: 0;
   }
+}
+
+.batch-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 24px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.batch-bar-text {
+  font-size: 13px;
+  color: var(--el-text-color-secondary);
 }
 
 .modern-table {

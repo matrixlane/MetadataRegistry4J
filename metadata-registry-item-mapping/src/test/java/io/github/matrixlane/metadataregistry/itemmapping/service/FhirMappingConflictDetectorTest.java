@@ -138,41 +138,6 @@ class FhirMappingConflictDetectorTest {
         verify(repository).findLocalItemIdsWithMultipleMappings();
     }
 
-    // ---- Scheme-scoped conflict detection ----
-
-    @Test
-    void detectConflictsByScheme_noMappings_shouldReturnEmpty() {
-        UUID schemeId = UUID.randomUUID();
-        when(repository.findByMappingSchemeId(schemeId)).thenReturn(Collections.emptyList());
-
-        List<FhirMappingConflictWarning> result = detector.detectConflictsByScheme(schemeId);
-
-        assertThat(result).isEmpty();
-    }
-
-    @Test
-    void detectConflictsByScheme_withConflicts_shouldReturnWarnings() {
-        UUID schemeId = UUID.randomUUID();
-        UUID itemId = UUID.randomUUID();
-
-        FhirElementMapping m1 = new FhirElementMapping(
-                itemId, "Patient.name.given", "Patient",
-                FhirMappingEquivalence.EQUIVALENT,
-                FhirMappingType.ONE_TO_ONE, null, null, schemeId);
-        FhirElementMapping m2 = new FhirElementMapping(
-                itemId, "Patient.name.family", "Patient",
-                FhirMappingEquivalence.EQUIVALENT,
-                FhirMappingType.ONE_TO_ONE, null, null, schemeId);
-
-        when(repository.findByMappingSchemeId(schemeId)).thenReturn(List.of(m1, m2));
-
-        List<FhirMappingConflictWarning> result = detector.detectConflictsByScheme(schemeId);
-
-        assertThat(result).hasSize(1);
-        assertThat(result.get(0).conflictingPaths())
-                .containsExactlyInAnyOrder("Patient.name.given", "Patient.name.family");
-    }
-
     // ---- Performance / scale test ----
 
     @Test

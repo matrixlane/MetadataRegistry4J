@@ -63,7 +63,7 @@ async function load() {
 async function importBundle() {
   try {
     const mr = await federationApi.importBundle(bundlePath.value);
-    ElMessage.success(`合并包已导入（${mr.id}）`);
+    ElMessage.success(`合并包已导入（来源节点：${mr.sourceNodeName || '未知节点'}）`);
     bundlePath.value = '';
     load();
   } catch { /* 拦截器已提示 */ }

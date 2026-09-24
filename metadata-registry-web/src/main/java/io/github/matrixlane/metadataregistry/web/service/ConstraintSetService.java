@@ -37,13 +37,17 @@ public class ConstraintSetService {
     public ConstraintSetResponse create(ConstraintSetRequest request) {
         ConstraintSet entity = new ConstraintSet();
         applyRequest(entity, request);
-        return toResponse(repository.save(entity));
+        ConstraintSet saved = repository.save(entity);
+        itemAdministrationService.recordSubmission(saved, request.registration());
+        return toResponse(saved);
     }
 
     public ConstraintSetResponse update(UUID id, ConstraintSetRequest request) {
         ConstraintSet entity = loadOrThrow(id);
         applyRequest(entity, request);
-        return toResponse(repository.save(entity));
+        ConstraintSet saved = repository.save(entity);
+        itemAdministrationService.recordSubmission(saved, request.registration());
+        return toResponse(saved);
     }
 
     public void delete(UUID id) {

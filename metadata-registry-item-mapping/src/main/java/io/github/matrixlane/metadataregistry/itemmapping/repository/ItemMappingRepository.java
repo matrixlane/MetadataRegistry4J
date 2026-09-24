@@ -1,7 +1,9 @@
 package io.github.matrixlane.metadataregistry.itemmapping.repository;
 
 import io.github.matrixlane.metadataregistry.itemmapping.entity.ItemMapping;
-import io.github.matrixlane.metadataregistry.itemmapping.enums.MappingType;
+import io.github.matrixlane.metadataregistry.itemmapping.enums.MappingDegree;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -11,133 +13,78 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Repository for {@link ItemMapping} entities.
+ * Repository for {@link ItemMapping}（条目映射）。
  *
- * <p>Provides data access operations for item mappings including querying
- * by subject/object item IDs and mapping types.
+ * <p>注意：Item 是 JOINED 继承根（30+ 子类表），任何直接加载 Item 实体
+ * 的操作都会触发多态整图 join（超出 SQLite 单条 SQL 的 FROM 项上限）。
+ * 因此批量/遍历场景一律使用下方返回标量行（mappingId / itemId）的
+ * 投影查询，不初始化 Item 代理。
  */
 @Repository
 public interface ItemMappingRepository extends JpaRepository<ItemMapping, UUID> {
 
-    /**
-     * Finds all mappings where the subject references the given item ID.
-     *
-     * @param itemId the AdministeredItem UUID
-     * @return list of mappings with the given item as subject
-     */
-    @Query("SELECT im FROM ItemMapping im JOIN FETCH im.subject s JOIN FETCH im.object o " +
-           "WHERE s.itemId = :itemId")
-    List<ItemMapping> findBySubjectItemId(@Param("itemId") UUID itemId);
+    // ---- 分页过滤（过滤条件走外键列，不产生 Item join） ----
+
+    Page<ItemMapping> findByDegree(MappingDegree degree, Pageable pageable);
+
+    Page<ItemMapping> findBySubjects_Item_Id(UUID subjectItemId, Pageable pageable);
+
+    Page<ItemMapping> findByObjects_Item_Id(UUID objectItemId, Pageable pageable);
+
+    Page<ItemMapping> findBySubjects_Item_IdAndDegree(UUID subjectItemId, MappingDegree degree,
+                                                     Pageable pageable);
+
+    Page<ItemMapping> findByObjects_Item_IdAndDegree(UUID objectItemId, MappingDegree degree,
+                                                    Pageable pageable);
+
+    Page<ItemMapping> findBySubjects_Item_IdAndObjects_Item_Id(UUID subjectItemId, UUID objectItemId,
+                                                             Pageable pageable);
+
+    Page<ItemMapping> findBySubjects_Item_IdAndObjects_Item_IdAndDegree(UUID subjectItemId,
+                                                                      UUID objectItemId,
+                                                                      MappingDegree degree,
+                                                                      Pageable pageable);
+
+    // ---- 标量投影查询（BFS 遍历 / 批量组装用，不加载 Item） ----
 
     /**
-     * Finds all mappings where the object references the given item ID.
-     *
-     * @param itemId the AdministeredItem UUID
-     * @return list of mappings with the given item as object
+     * 主体为给定条目的全部映射 ID。
      */
-    @Query("SELECT im FROM ItemMapping im JOIN FETCH im.subject s JOIN FETCH im.object o " +
-           "WHERE o.itemId = :itemId")
-    List<ItemMapping> findByObjectItemId(@Param("itemId") UUID itemId);
+    @Query("SELECT DISTINCT s.itemMapping.id FROM ItemMappingSubject s WHERE s.item.id = :itemId")
+    List<UUID> findMappingIdsBySubjectItemId(@Param("itemId") UUID itemId);
 
     /**
-     * Finds all mappings involving the given item ID (as either subject or object).
-     *
-     * @param itemId the AdministeredItem UUID
-     * @return list of all mappings that reference the given item
+     * 客体为给定条目的全部映射 ID。
      */
-    @Query("SELECT im FROM ItemMapping im JOIN FETCH im.subject s JOIN FETCH im.object o " +
-           "WHERE s.itemId = :itemId OR o.itemId = :itemId")
-    List<ItemMapping> findByItemId(@Param("itemId") UUID itemId);
+    @Query("SELECT DISTINCT o.itemMapping.id FROM ItemMappingObject o WHERE o.item.id = :itemId")
+    List<UUID> findMappingIdsByObjectItemId(@Param("itemId") UUID itemId);
 
     /**
-     * Finds mappings by type.
-     *
-     * @param mappingType the mapping type to filter by
-     * @return list of mappings of the given type
+     * 涉及给定条目（主体或客体）的全部映射 ID。
      */
-    List<ItemMapping> findByMappingType(MappingType mappingType);
+    default List<UUID> findMappingIdsByItemId(UUID itemId) {
+        java.util.Set<UUID> ids = new java.util.LinkedHashSet<>(findMappingIdsBySubjectItemId(itemId));
+        ids.addAll(findMappingIdsByObjectItemId(itemId));
+        return List.copyOf(ids);
+    }
 
     /**
-     * Checks whether a mapping already exists between the given subject and object.
-     *
-     * @param subjectId the subject ID
-     * @param objectId  the object ID
-     * @return true if a mapping exists between subject and object
+     * 批量取映射度：[mappingId, degree]。
      */
-    @Query("SELECT COUNT(im) > 0 FROM ItemMapping im " +
-           "WHERE im.subject.id = :subjectId AND im.object.id = :objectId")
-    boolean existsBySubjectAndObject(@Param("subjectId") UUID subjectId,
-                                     @Param("objectId") UUID objectId);
+    @Query("SELECT im.id, im.degree FROM ItemMapping im WHERE im.id IN :ids")
+    List<Object[]> findDegreesByMappingIds(@Param("ids") List<UUID> ids);
 
     /**
-     * Finds all mappings belonging to a specific mapping scheme.
-     *
-     * @param schemeId the mapping scheme UUID
-     * @return list of mappings in the given scheme
+     * 批量取主体行：[mappingId, subjectItemId, mappingVariableName]。
      */
-    @Query("SELECT im FROM ItemMapping im JOIN FETCH im.subject s JOIN FETCH im.object o " +
-           "WHERE im.mappingScheme.id = :schemeId")
-    List<ItemMapping> findByMappingSchemeId(@Param("schemeId") UUID schemeId);
+    @Query("SELECT s.itemMapping.id, s.item.id, s.mappingVariableName FROM ItemMappingSubject s " +
+           "WHERE s.itemMapping.id IN :ids")
+    List<Object[]> findSubjectRowsByMappingIds(@Param("ids") List<UUID> ids);
 
     /**
-     * Counts mappings belonging to a specific mapping scheme.
-     *
-     * @param schemeId the mapping scheme UUID
-     * @return count of mappings in the given scheme
+     * 批量取客体行：[mappingId, objectItemId, mappingVariableName]。
      */
-    long countByMappingSchemeId(@Param("schemeId") UUID schemeId);
-
-    /**
-     * Counts mappings with a non-null description in the given scheme.
-     *
-     * @param schemeId the mapping scheme UUID
-     * @return count of mappings with description
-     */
-    @Query("SELECT COUNT(im) FROM ItemMapping im " +
-           "WHERE im.mappingScheme.id = :schemeId AND im.description IS NOT NULL " +
-           "AND im.description <> ''")
-    long countByMappingSchemeIdAndDescriptionNotEmpty(@Param("schemeId") UUID schemeId);
-
-    /**
-     * Counts mappings with a non-null transformation rule in the given scheme.
-     *
-     * @param schemeId the mapping scheme UUID
-     * @return count of mappings with transformation rule
-     */
-    @Query("SELECT COUNT(im) FROM ItemMapping im " +
-           "WHERE im.mappingScheme.id = :schemeId AND im.transformationRule IS NOT NULL " +
-           "AND im.transformationRule <> ''")
-    long countByMappingSchemeIdAndTransformationRuleNotEmpty(@Param("schemeId") UUID schemeId);
-
-    /**
-     * Finds all distinct item IDs that appear as either subject or object in mappings
-     * within a given mapping scheme.
-     *
-     * @param schemeId the mapping scheme UUID
-     * @return list of distinct item IDs
-     */
-    @Query("SELECT DISTINCT s.itemId FROM ItemMapping im " +
-           "JOIN im.subject s WHERE im.mappingScheme.id = :schemeId AND s.itemId IS NOT NULL")
-    List<UUID> findDistinctSubjectItemIdsBySchemeId(@Param("schemeId") UUID schemeId);
-
-    /**
-     * Finds all distinct object item IDs for mappings in a given scheme.
-     *
-     * @param schemeId the mapping scheme UUID
-     * @return list of distinct object item IDs
-     */
-    @Query("SELECT DISTINCT o.itemId FROM ItemMapping im " +
-           "JOIN im.object o WHERE im.mappingScheme.id = :schemeId AND o.itemId IS NOT NULL")
-    List<UUID> findDistinctObjectItemIdsBySchemeId(@Param("schemeId") UUID schemeId);
-
-    /**
-     * Finds all distinct mapping types used in mappings for a given scheme.
-     *
-     * @param schemeId the mapping scheme UUID
-     * @return list of distinct mapping types
-     */
-    @Query("SELECT DISTINCT im.mappingType FROM ItemMapping im " +
-           "WHERE im.mappingScheme.id = :schemeId")
-    List<MappingType> findDistinctMappingTypesBySchemeId(@Param("schemeId") UUID schemeId);
-
+    @Query("SELECT o.itemMapping.id, o.item.id, o.mappingVariableName FROM ItemMappingObject o " +
+           "WHERE o.itemMapping.id IN :ids")
+    List<Object[]> findObjectRowsByMappingIds(@Param("ids") List<UUID> ids);
 }

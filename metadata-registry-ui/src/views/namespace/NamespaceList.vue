@@ -4,6 +4,8 @@
     <DataTablePage
       ref="tableRef"
       :fetch-fn="(params) => namespaceApi.list(params as any)"
+      :delete-fn="namespaceApi.delete"
+      :batch-pre-check="batchDeletePreCheck"
       @create="handleCreate"
       @edit="(r) => handleEdit(r as any)"
       @delete="(r) => handleDelete(r as any)"
@@ -182,7 +184,7 @@
                 <el-option
                   v-for="nc in namingConventionOptions"
                   :key="nc.id"
-                  :label="nc.label || nc.scopeRule || nc.id.slice(0, 8)"
+                  :label="nc.label || nc.scopeRule || '—'"
                   :value="nc.id"
                 />
               </el-select>
@@ -430,6 +432,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { useI18n } from 'vue-i18n';
 import { QuestionFilled } from '@element-plus/icons-vue';
 import { namespaceApi, organizationApi, namingConventionApi } from '@/api/resources';
 import { identifierStrategyApi, type NamespaceStrategyView } from '@/api/identifierStrategy';
@@ -448,6 +451,8 @@ import SegmentTemplateDesigner from '@/components/identifier/SegmentTemplateDesi
 const tableRef = ref<InstanceType<typeof DataTablePage>>();
 const dialog = ref<InstanceType<typeof ResourceFormDialog>>();
 const activeTab = ref('designations');
+
+const { t } = useI18n();
 
 const { defaultLanguageId } = useRegistryDefaultLanguage();
 
@@ -480,7 +485,7 @@ onMounted(async () => {
     const orgRes = await organizationApi.list({ size: 200 });
     organizationOptions.value = (orgRes.content || []).map((o: any) => ({
       id: o.id,
-      name: o.name || o.englishName || o.identifier || o.id,
+      name: o.name || o.englishName || o.identifier || '—',
       identifier: o.identifier,
     }));
   } catch {
@@ -732,7 +737,7 @@ function buildPayload(data: Record<string, unknown>): NamespaceRequest {
 async function handleDelete(row: NamespaceResponse) {
   try {
     const check = await namespaceApi.deletionCheck(row.id);
-    const label = row.label || preferredDesignation(row) || row.id.slice(0, 8);
+    const label = row.label || preferredDesignation(row) || '—';
     const msg = check.hasIdentifiers
       ? `命名空间「${label}」下还有 ${check.count} 个标识符 / 子命名空间，确认一并删除？`
       : `确认删除命名空间「${label}」？`;
@@ -745,5 +750,17 @@ async function handleDelete(row: NamespaceResponse) {
       ElMessage.error('删除失败');
     }
   }
+}
+
+/** 批量删除预检：并发查询选中命名空间的 deletionCheck，汇总含子命名空间/标识符的数量 */
+async function batchDeletePreCheck(rows: Record<string, unknown>[]): Promise<string | void> {
+  const results = await Promise.all(
+    rows.map((row) => namespaceApi.deletionCheck(row.id as string))
+  );
+  const n = results.filter((r) => r.hasIdentifiers).length;
+  if (n > 0) {
+    return t('common.batchDeleteNamespaceHint', { count: n });
+  }
+  return undefined;
 }
 </script>

@@ -3,15 +3,18 @@ package io.github.matrixlane.metadataregistry.web.service;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Datetime_Period;
 import io.github.matrixlane.metadataregistry.dataspecification.ConceptualDomain;
 import io.github.matrixlane.metadataregistry.dataspecification.DescribedConceptualDomain;
+import io.github.matrixlane.metadataregistry.dataspecification.Dimensionality;
 import io.github.matrixlane.metadataregistry.dataspecification.LocalEnumeratedConceptualDomain;
 import io.github.matrixlane.metadataregistry.dataspecification.ReferenceEnumeratedConceptualDomain;
 import io.github.matrixlane.metadataregistry.web.common.ApiCodes;
 import io.github.matrixlane.metadataregistry.web.common.BusinessException;
+import io.github.matrixlane.metadataregistry.web.common.ResourceNotFoundException;
 import io.github.matrixlane.metadataregistry.web.dto.conceptualdomain.ConceptualDomainRequest;
 import io.github.matrixlane.metadataregistry.web.dto.conceptualdomain.ConceptualDomainResponse;
 import io.github.matrixlane.metadataregistry.web.dto.conceptualdomain.ConceptualDomainType;
 import io.github.matrixlane.metadataregistry.web.dto.common.ItemRegistrationRequest;
 import io.github.matrixlane.metadataregistry.web.repository.ConceptualDomainRepository;
+import io.github.matrixlane.metadataregistry.web.repository.DimensionalityRepository;
 import io.github.matrixlane.metadataregistry.web.repository.ValueMeaningRepository;
 import io.github.matrixlane.metadataregistry.web.repository.ValueMeaningSetRepository;
 import org.junit.jupiter.api.Test;
@@ -42,6 +45,7 @@ class ConceptualDomainServiceTest {
     @Mock private ConceptualDomainRepository repository;
     @Mock private ValueMeaningRepository valueMeaningRepository;
     @Mock private ValueMeaningSetRepository valueMeaningSetRepository;
+    @Mock private DimensionalityRepository dimensionalityRepository;
     @Mock private ConceptContentApplier conceptContentApplier;
     @Mock private ItemAdministrationService itemAdministrationService;
     @Mock private VersionHistoryService versionHistoryService;
@@ -65,6 +69,7 @@ class ConceptualDomainServiceTest {
                 List.of(),
                 List.of(),
                 java.time.LocalDateTime.of(2026, 1, 1, 0, 0),
+                null,
                 null,
                 null);
 
@@ -93,6 +98,7 @@ class ConceptualDomainServiceTest {
                 List.of(),
                 List.of(),
                 List.of(),
+                null,
                 null,
                 null,
                 null);
@@ -124,6 +130,7 @@ class ConceptualDomainServiceTest {
                 List.of(),
                 null,
                 null,
+                null,
                 null);
 
         service.update(id, request);
@@ -139,7 +146,7 @@ class ConceptualDomainServiceTest {
         // ISO/IEC 11179-31:2023 表 2 valid_period 基数为 1：缺起始时间必须拦下
         // （enforce-valid-period 取代旧「默认自创建起生效」行为；导入兜底见 D4）
         assertThatThrownBy(() -> service.create(new ConceptualDomainRequest(
-                null, null, List.of(), List.of(), List.of(), null, null, null)))
+                null, null, List.of(), List.of(), List.of(), null, null, null, null)))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getCode()).isEqualTo(ApiCodes.VALIDATION_FAILED))
                 .hasMessageContaining("有效日期（起始时间）");
@@ -158,7 +165,7 @@ class ConceptualDomainServiceTest {
         // 提供了结束但未提供起始：拒绝（不得把既有 start 清空）
         assertThatThrownBy(() -> service.update(id, new ConceptualDomainRequest(
                 null, null, List.of(), List.of(), List.of(),
-                null, java.time.LocalDateTime.of(2026, 12, 31, 23, 59), null)))
+                null, java.time.LocalDateTime.of(2026, 12, 31, 23, 59), null, null)))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("有效日期（起始时间）");
     }
@@ -176,7 +183,7 @@ class ConceptualDomainServiceTest {
         when(repository.save(any(ConceptualDomain.class))).thenAnswer(inv -> inv.getArgument(0));
 
         service.update(id, new ConceptualDomainRequest(
-                null, null, List.of(), List.of(), List.of(), null, null, null));
+                null, null, List.of(), List.of(), List.of(), null, null, null, null));
 
         ArgumentCaptor<ConceptualDomain> captor = ArgumentCaptor.forClass(ConceptualDomain.class);
         verify(repository).save(captor.capture());
@@ -192,7 +199,7 @@ class ConceptualDomainServiceTest {
                 null, null, List.of(), List.of(), List.of(),
                 java.time.LocalDateTime.of(2026, 1, 1, 0, 0),
                 java.time.LocalDateTime.of(2026, 12, 31, 23, 59),
-                null));
+                null, null));
 
         ArgumentCaptor<ConceptualDomain> captor = ArgumentCaptor.forClass(ConceptualDomain.class);
         verify(repository).save(captor.capture());
@@ -218,10 +225,96 @@ class ConceptualDomainServiceTest {
                 List.of(),
                 java.time.LocalDateTime.of(2026, 1, 1, 0, 0),
                 null,
-                new ItemRegistrationRequest(null, null, null, List.of(), List.of())));
+                new ItemRegistrationRequest(null, null, null, List.of(), List.of()),
+                null));
 
         ArgumentCaptor<ConceptualDomain> captor = ArgumentCaptor.forClass(ConceptualDomain.class);
         verify(repository).save(captor.capture());
         assertThat(captor.getValue()).isInstanceOf(DescribedConceptualDomain.class);
+    }
+
+    @Test
+    void create_withDimensionality_attachesDimensionality() {
+        when(repository.save(any(ConceptualDomain.class))).thenAnswer(inv -> inv.getArgument(0));
+        UUID dimensionalityId = UUID.randomUUID();
+        Dimensionality dimensionality = new Dimensionality();
+        dimensionality.setId(dimensionalityId);
+        when(dimensionalityRepository.findById(dimensionalityId)).thenReturn(Optional.of(dimensionality));
+
+        service.create(new ConceptualDomainRequest(
+                null, null, List.of(), List.of(), List.of(),
+                java.time.LocalDateTime.of(2026, 1, 1, 0, 0),
+                null, null, dimensionalityId));
+
+        ArgumentCaptor<ConceptualDomain> captor = ArgumentCaptor.forClass(ConceptualDomain.class);
+        verify(repository).save(captor.capture());
+        assertThat(captor.getValue().getDimensionality()).isSameAs(dimensionality);
+    }
+
+    @Test
+    void update_withUnknownDimensionalityId_throwsNotFound() {
+        UUID id = UUID.randomUUID();
+        DescribedConceptualDomain existing = new DescribedConceptualDomain();
+        existing.setId(id);
+        Datetime_Period existingPeriod = new Datetime_Period();
+        existingPeriod.setStartDateTime(java.time.OffsetDateTime.of(2026, 1, 1, 0, 0, 0, 0, java.time.ZoneOffset.UTC));
+        existing.setValidPeriod(existingPeriod);
+        when(repository.findById(id)).thenReturn(Optional.of(existing));
+        UUID unknown = UUID.randomUUID();
+        when(dimensionalityRepository.findById(unknown)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.update(id, new ConceptualDomainRequest(
+                null, null, List.of(), List.of(), List.of(), null, null, null, unknown)))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("Dimensionality");
+    }
+
+    @Test
+    void update_withNullDimensionality_clearsDimensionality() {
+        UUID id = UUID.randomUUID();
+        DescribedConceptualDomain existing = new DescribedConceptualDomain();
+        existing.setId(id);
+        Datetime_Period existingPeriod = new Datetime_Period();
+        existingPeriod.setStartDateTime(java.time.OffsetDateTime.of(2026, 1, 1, 0, 0, 0, 0, java.time.ZoneOffset.UTC));
+        existing.setValidPeriod(existingPeriod);
+        Dimensionality old = new Dimensionality();
+        old.setId(UUID.randomUUID());
+        existing.setDimensionality(old);
+        when(repository.findById(id)).thenReturn(Optional.of(existing));
+        when(repository.save(any(ConceptualDomain.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        service.update(id, new ConceptualDomainRequest(
+                null, null, List.of(), List.of(), List.of(), null, null, null, null));
+
+        ArgumentCaptor<ConceptualDomain> captor = ArgumentCaptor.forClass(ConceptualDomain.class);
+        verify(repository).save(captor.capture());
+        assertThat(captor.getValue().getDimensionality()).isNull();
+    }
+
+    @Test
+    void update_typeSwitch_retainsDimensionality() {
+        // 子类型切换(rehydrate)保留维度引用;请求重发同一 dimensionalityId 即整体保留
+        // (ISO/IEC 11179-31:2023 表 2 dimensionality 0..1;null=清除为全量语义)
+        UUID id = UUID.randomUUID();
+        DescribedConceptualDomain existing = new DescribedConceptualDomain();
+        existing.setId(id);
+        Datetime_Period existingPeriod = new Datetime_Period();
+        existingPeriod.setStartDateTime(java.time.OffsetDateTime.of(2026, 1, 1, 0, 0, 0, 0, java.time.ZoneOffset.UTC));
+        existing.setValidPeriod(existingPeriod);
+        Dimensionality dimensionality = new Dimensionality();
+        dimensionality.setId(UUID.randomUUID());
+        existing.setDimensionality(dimensionality);
+        when(repository.findById(id)).thenReturn(Optional.of(existing));
+        when(repository.save(any(ConceptualDomain.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(dimensionalityRepository.findById(dimensionality.getId())).thenReturn(Optional.of(dimensionality));
+
+        service.update(id, new ConceptualDomainRequest(
+                ConceptualDomainType.LOCAL_ENUMERATED,
+                null, List.of(), List.of(), List.of(), null, null, null, dimensionality.getId()));
+
+        ArgumentCaptor<ConceptualDomain> captor = ArgumentCaptor.forClass(ConceptualDomain.class);
+        verify(repository).save(captor.capture());
+        assertThat(captor.getValue()).isInstanceOf(LocalEnumeratedConceptualDomain.class);
+        assertThat(captor.getValue().getDimensionality()).isSameAs(dimensionality);
     }
 }

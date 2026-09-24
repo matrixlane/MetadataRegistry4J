@@ -68,6 +68,8 @@ public class InitWizardController {
     @Operation(summary = "提交第 5 步：设置管理员密码并启用系统")
     public ApiResponse<Void> commit(@Valid @RequestBody InitWizardCommitRequest request) {
         initWizardService.commit(request);
+        // commit 事务已提交、连接已释放后创建 Registry Context（独立事务，失败不阻断）
+        initWizardService.createRegistryContextAfterInitialization();
         return ApiResponse.ok();
     }
 

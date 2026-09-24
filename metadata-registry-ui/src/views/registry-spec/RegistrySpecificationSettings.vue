@@ -4,6 +4,7 @@
     <DataTablePage
       ref="tableRef"
       :fetch-fn="registrySpecificationApi.list"
+      :delete-fn="registrySpecificationApi.delete"
       @create="openDialog()"
       @edit="(r) => openDialog(r)"
       @delete="handleDelete"
@@ -209,7 +210,7 @@ onMounted(async () => {
     const res = await languageApi.list({ size: 100 });
     languageOptions.value = (res.content || []).map((lang: any) => ({
       id: lang.id,
-      languageIdentifier: lang.languageIdentifier || lang.identifier || lang.id,
+      languageIdentifier: lang.languageIdentifier || lang.identifier || '—',
     }));
   } catch {
     // ignore

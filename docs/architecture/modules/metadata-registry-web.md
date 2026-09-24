@@ -41,3 +41,17 @@ flowchart TB
 `MeasureClassController.create()` → `MeasureClassService.create()` → `ConceptContentApplier.applyConcept()/apply()` → `ItemAdministrationService.ensureAdministeredItem()` → `IdentifierInputPolicyService.resolveIdentifier()` → `NamespaceIdentifierPolicyResolver.resolve()` → `NamespaceIdentifierSettingsService.getOrDefault()` → `NamespaceIdentifierSettingsRepository.findByNamespaceId()`。
 
 这条链路体现了模块的核心协作方式：Web 层接收请求，领域服务协调业务对象创建，标识策略服务根据命名空间配置决定或回退到默认规则，最终由持久层读取策略并保存结果。
+
+### 工作空间（Workspace）流程
+
+工作空间为提交者与注册人员提供三视图（草稿 / 待审核 / 已拒绝）与行级操作：
+
+`WorkspaceController` → `WorkspaceService` → `AdministeredItemRepository` / `RegistrationProcessService` / `WorkspaceRollbackService`。
+
+关键端点包括：
+- `GET /api/v1/workspace/summary` 与 `GET /api/v1/workspace/items?view=DRAFTS|PENDING|REJECTED` 返回计数与分页行；
+- `POST /api/v1/workspace/submit` 将草稿批量提交为 INITIAL 并生成 SubmissionRecord；
+- `POST /api/v1/workspace/request-candidate/{itemId}` 在 INCOMPLETE 且具备主管记录时推进为 CANDIDATE；
+- `POST /api/v1/workspace/rollback/{itemId}` 将 RECORDED/QUALIFIED 等可回退状态下的 DRAFT/REJECTED 项恢复到最近 BASELINE 快照。
+
+行级标志（`canSubmit`、`canRequestCandidate`、`canRequestQualification`、`canApprove`、`canReject`、`canRollback`）在 `WorkspaceService.computeFlags` 中按注册状态、管理状态、所有权/主管关系/审核人权限计算，供前端按钮显隐。

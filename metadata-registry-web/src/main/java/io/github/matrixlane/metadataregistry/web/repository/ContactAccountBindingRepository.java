@@ -13,5 +13,9 @@ public interface ContactAccountBindingRepository extends JpaRepository<ContactAc
 
     List<ContactAccountBinding> findByAccountId(UUID accountId);
 
+    Optional<ContactAccountBinding> findByAccountIdAndIsDefaultTrue(UUID accountId);
+
+    List<ContactAccountBinding> findByAccountIdOrderByContactIdAsc(UUID accountId);
+
     void deleteByContactId(UUID contactId);
 }

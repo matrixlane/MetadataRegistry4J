@@ -64,6 +64,7 @@ public class InitWizardService {
     private final PasswordEncoder passwordEncoder;
     private final DatabaseCleaner databaseCleaner;
     private final NamespaceIdentifierSettingsService namespaceIdentifierSettingsService;
+    private final RegistryContextBootstrapService registryContextBootstrapService;
 
     @Transactional(readOnly = true)
     public InitWizardStatusResponse getStatus() {
@@ -379,6 +380,27 @@ public class InitWizardService {
         // PERSONAL 强制 SINGLE 治理策略；TEAM 默认 SINGLE（可在系统设置中切换 MULTI）。
         systemSettingService.setRunningMode("SINGLE");
         systemSettingService.setInitialized(true);
+    }
+
+    /**
+     * 初始化向导完成后创建/回填 Registry Context（注册系统默认上下文，语境自指）。
+     *
+     * <p>必须在 {@link #commit} 事务提交之后、无外层事务时调用（Controller 组合调用）：
+     * Registry Context 的创建需要独立事务——SQLite 连接池为单连接，嵌套事务必然
+     * 死锁；且在向导事务内创建既对独立事务不可见（setup 数据未提交），失败又会
+     * 把外层事务标记为 rollback-only。失败仅 log warn，不阻断初始化；重启后由
+     * 启动补建路径兜底。
+     */
+    public void createRegistryContextAfterInitialization() {
+        try {
+            registrationAuthorityRepository.findAll().stream()
+                    .findFirst()
+                    .ifPresentOrElse(
+                            registryContextBootstrapService::ensureRegistryContext,
+                            () -> log.warn("Registry Context 创建跳过：系统中不存在注册机构"));
+        } catch (Exception e) {
+            log.warn("Registry Context 创建失败，可在重启后自动补建: {}", e.getMessage(), e);
+        }
     }
 
     /**

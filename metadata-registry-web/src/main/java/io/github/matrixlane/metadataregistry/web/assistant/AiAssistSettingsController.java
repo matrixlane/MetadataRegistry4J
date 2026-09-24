@@ -15,8 +15,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * AI 辅助设置端点。安全由 SecurityConfig 显式规则覆盖：
- * GET 限 REGISTRAR（注册人员读取候选数与快捷键以驱动前端行为），
- * PUT 限 SUPER_ADMIN（配置类能力）；规则置于通用规则之前。
+ * GET/PUT 任何登录用户可用（应用设置，add-workspace-administrative-status
+ * 自系统设置迁至右上角应用设置入口）；规则置于通用规则之前。
  *
  * <p>设置持久化到 {@code ~/.metadata-registry/ai-assist.yml}，保存即生效。
  */

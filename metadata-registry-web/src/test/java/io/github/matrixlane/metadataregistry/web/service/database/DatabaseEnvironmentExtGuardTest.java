@@ -48,6 +48,30 @@ class DatabaseEnvironmentExtGuardTest {
         }
     }
 
+    /**
+     * 同名表路由锁定(回归 M2):语言扩展表与标准表同名(language_identification),
+     * 裸键仅代表 EXT 表;标准 schema 语境必须走 qualifyStandard 而非 qualifyAuto/schemaOf。
+     */
+    @Test
+    void sameNamedStandardTableMustUseQualifyStandard() {
+        DatabaseEnvironment env = new DatabaseEnvironment("SQLSERVER", "", null, null);
+
+        // EXT 路由:裸键 language_identification 指向 ext schema 的扩展表
+        assertThat(env.schemaOf("language_identification")).isEqualTo(env.extSchema());
+        assertThat(env.qualifyAuto("language_identification")).isEqualTo("\"ext\".\"language_identification\"");
+
+        // 标准表语境:qualifyStandard 永远限定主 schema,不被 EXT 清单劫持
+        assertThat(env.qualifyStandard("language_identification")).isEqualTo("\"mdr\".\"language_identification\"");
+        assertThat(env.qualify("language_identification")).isEqualTo("\"mdr\".\"language_identification\"");
+        // 其余表不受影响
+        assertThat(env.qualifyStandard("data_element")).isEqualTo("\"mdr\".\"data_element\"");
+
+        // SQLite:ext 表物理名为 ext_language_identification,qualifyStandard 仅引用裸表名
+        DatabaseEnvironment sqlite = new DatabaseEnvironment("SQLITE", "jdbc:sqlite:metadata_registry.db", null, null);
+        assertThat(sqlite.qualifyStandard("language_identification")).isEqualTo("\"language_identification\"");
+        assertThat(sqlite.qualifyStandard("ext_language_identification")).isEqualTo("\"ext_language_identification\"");
+    }
+
     private static String resolveTableName(Class<?> type) {
         jakarta.persistence.Table table = type.getAnnotation(jakarta.persistence.Table.class);
         if (table != null && !table.name().isBlank()) {

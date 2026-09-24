@@ -9,6 +9,7 @@
     <DataTablePage
       ref="tableRef"
       :fetch-fn="dataElementConceptApi.list"
+      :delete-fn="dataElementConceptApi.delete"
       @create="handleCreate"
       @edit="handleEdit"
       @delete="handleDelete"

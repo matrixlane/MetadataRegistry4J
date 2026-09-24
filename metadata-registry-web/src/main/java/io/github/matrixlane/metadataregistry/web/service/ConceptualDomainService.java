@@ -3,6 +3,7 @@ package io.github.matrixlane.metadataregistry.web.service;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Datetime_Period;
 import io.github.matrixlane.metadataregistry.dataspecification.ConceptualDomain;
 import io.github.matrixlane.metadataregistry.dataspecification.DescribedConceptualDomain;
+import io.github.matrixlane.metadataregistry.dataspecification.Dimensionality;
 import io.github.matrixlane.metadataregistry.dataspecification.EnumeratedConceptualDomain;
 import io.github.matrixlane.metadataregistry.dataspecification.LocalEnumeratedConceptualDomain;
 import io.github.matrixlane.metadataregistry.dataspecification.ReferenceEnumeratedConceptualDomain;
@@ -17,6 +18,7 @@ import io.github.matrixlane.metadataregistry.web.dto.conceptualdomain.Conceptual
 import io.github.matrixlane.metadataregistry.web.dto.conceptualdomain.ValueMeaningEntry;
 import io.github.matrixlane.metadataregistry.web.dto.conceptualdomain.ValueMeaningResponse;
 import io.github.matrixlane.metadataregistry.web.repository.ConceptualDomainRepository;
+import io.github.matrixlane.metadataregistry.web.repository.DimensionalityRepository;
 import io.github.matrixlane.metadataregistry.web.repository.ValueMeaningRepository;
 import io.github.matrixlane.metadataregistry.web.repository.ValueMeaningSetRepository;
 import io.github.matrixlane.metadataregistry.web.util.ItemNamingHelper;
@@ -45,6 +47,7 @@ public class ConceptualDomainService {
     private final ConceptualDomainRepository repository;
     private final ValueMeaningRepository valueMeaningRepository;
     private final ValueMeaningSetRepository valueMeaningSetRepository;
+    private final DimensionalityRepository dimensionalityRepository;
     private final ConceptContentApplier conceptContentApplier;
     private final ItemAdministrationService itemAdministrationService;
     private final VersionHistoryService versionHistoryService;
@@ -70,16 +73,19 @@ public class ConceptualDomainService {
         conceptContentApplier.applyConcept(entity, request.sourceUri(),
                 request.designations(), request.definitions(), request.registration());
         applyValidPeriod(entity, request);
+        applyDimensionality(entity, request);
         ConceptualDomain saved = repository.save(entity);
+        itemAdministrationService.recordSubmission(saved, request.registration());
         if (saved instanceof LocalEnumeratedConceptualDomain lecd) {
             applyValueMeanings(lecd, request.valueMeanings());
         }
-        versionHistoryService.recordSnapshot(saved, "CREATE");
+        versionHistoryService.recordSnapshot(saved, "CREATE", toResponse(saved));
         return toResponse(saved);
     }
 
     public ConceptualDomainResponse update(UUID id, ConceptualDomainRequest request) {
         ConceptualDomain entity = loadOrThrow(id);
+        versionHistoryService.captureBaselineIfEnteringDraft(entity, toResponse(entity));
         ConceptualDomainType fromType = inferType(entity);
         ConceptualDomainType toType = request.type() == null ? fromType : request.type();
         cleanupCrossTypeFields(entity, fromType, toType);
@@ -89,14 +95,16 @@ public class ConceptualDomainService {
         conceptContentApplier.applyConcept(mutable, request.sourceUri(),
                 request.designations(), request.definitions(), request.registration());
         applyValidPeriod(mutable, request);
+        applyDimensionality(mutable, request);
         ConceptualDomain saved = repository.save(mutable);
+        itemAdministrationService.recordSubmission(saved, request.registration());
         if (saved instanceof LocalEnumeratedConceptualDomain lecd) {
             applyValueMeanings(lecd, request.valueMeanings());
         } else if (saved instanceof ReferenceEnumeratedConceptualDomain) {
             // 不论 fromType 是什么（尤其从 LOCAL_ENUMERATED 切来），都要清空既有 VM
             // 注意 cleanupCrossTypeFields 已处理 fromType==LOCAL_ENUMERATED 的情形
         }
-        versionHistoryService.recordSnapshot(saved, "UPDATE");
+        versionHistoryService.recordSnapshot(saved, "UPDATE", toResponse(saved));
         return toResponse(saved);
     }
 
@@ -122,6 +130,21 @@ public class ConceptualDomainService {
                             + "§7.4.2.1.5.1 须含 start_datetime）");
         }
         entity.setValidPeriod(period);
+    }
+
+    /**
+     * 写入概念域维度(dimensionality,0..1):
+     * dimensionalityId 非空则校验存在并挂载,空则清除。类型重建(rehydrate)
+     * 已在拷贝源实体维度,此处按请求整体覆盖。
+     */
+    private void applyDimensionality(ConceptualDomain entity, ConceptualDomainRequest request) {
+        if (request.dimensionalityId() == null) {
+            entity.setDimensionality(null);
+            return;
+        }
+        Dimensionality dimensionality = dimensionalityRepository.findById(request.dimensionalityId())
+                .orElseThrow(() -> new ResourceNotFoundException("Dimensionality", request.dimensionalityId()));
+        entity.setDimensionality(dimensionality);
     }
 
     private ConceptualDomain instantiate(ConceptualDomainType type) {
@@ -168,7 +191,7 @@ public class ConceptualDomainService {
     public void delete(UUID id) {
         ConceptualDomain entity = repository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("ConceptualDomain", id));
-        versionHistoryService.recordSnapshot(entity, "DELETE");
+        versionHistoryService.recordSnapshot(entity, "DELETE", toResponse(entity));
         if (entity instanceof LocalEnumeratedConceptualDomain lecd) {
             cleanupValueMeanings(lecd);
         }
@@ -196,7 +219,9 @@ public class ConceptualDomainService {
                 vmResponses,
                 entity.getValidPeriod() == null ? null : toLocal(entity.getValidPeriod().getStartDateTime()),
                 entity.getValidPeriod() == null ? null : toLocal(entity.getValidPeriod().getEndDateTime()),
-                itemAdministrationService.buildItemMeta(entity));
+                itemAdministrationService.buildItemMeta(entity),
+                entity.getDimensionality() == null ? null : entity.getDimensionality().getId(),
+                entity.getDimensionality() == null ? null : ItemNamingHelper.preferredDesignation(entity.getDimensionality()));
     }
 
     /**

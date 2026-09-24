@@ -18,6 +18,8 @@ export interface PageQuery {
   sort?: string;
   q?: string;
   enabled?: boolean;
+  /** 注册状态过滤（注册项列表，后端 GET /administered-items 已支持） */
+  status?: string;
 }
 
 export interface ScopedIdentifierDto {
@@ -54,7 +56,99 @@ export type RegistrationStatus =
   | 'HISTORICAL'
   | 'APPLICATION';
 
+export type WorkspaceItemView = 'DRAFTS' | 'PENDING' | 'REJECTED';
+
+export interface WorkspaceSummaryResponse {
+  drafts: number;
+  pending: number;
+  rejected: number;
+}
+
+export interface WorkspaceItemFlags {
+  canSubmit: boolean;
+  canRequestCandidate: boolean;
+  canRequestQualification: boolean;
+  canApprove: boolean;
+  canReject: boolean;
+  canRollback: boolean;
+}
+
+export interface WorkspaceItemResponse {
+  itemId: string;
+  itemType: string;
+  label: string;
+  registrationStatus: RegistrationStatus;
+  administrativeStatus: string | null;
+  version: string;
+  hasRollbackBaseline: boolean;
+  flags: WorkspaceItemFlags;
+}
+
+export interface WorkspaceSubmitRequest {
+  itemIds: string[];
+  submission?: SubmissionInfo | null;
+}
+
+export interface WorkspaceSubmitResult {
+  itemId: string;
+  success: boolean;
+  errorCode: number | null;
+  message: string | null;
+}
+
 export type ElTagType = 'primary' | 'success' | 'warning' | 'info' | 'danger';
+
+// ── Registration Process（registration-process-designer）──────────────────
+
+/** GET /registration-process 返回的迁移规则（按注册机构作用域） */
+export interface RegistrationProcessTransition {
+  from: RegistrationStatus;
+  to: RegistrationStatus;
+  /** 操作命名；空 = 用默认"迁移到 X" */
+  displayName?: string | null;
+  requiresApproval: boolean;
+  approverMode: 'ALL_REGISTRARS' | 'SELECTED_REGISTRARS';
+  quorumType: 'ANY_ONE' | 'AT_LEAST';
+  quorumCount?: number | null;
+  approverRegistrarIds: string[];
+  enabled: boolean;
+}
+
+export interface RegistrationProcessDefinition {
+  authorityId: string;
+  transitions: RegistrationProcessTransition[];
+}
+
+/** 注册流程画布布局（保存/预加载的开放式 JSON；缺失项回落内置默认） */
+export interface RegistrationProcessLayoutNode {
+  x: number;
+  y: number;
+}
+
+/** 正交连线折线段微调（绝对画布坐标） */
+export interface RegistrationProcessEdgeOverride {
+  laneY?: number;
+  sx?: number;
+  tx?: number;
+}
+
+export interface RegistrationProcessLayout {
+  nodes?: Record<string, RegistrationProcessLayoutNode>;
+  edgeOverrides?: Record<string, RegistrationProcessEdgeOverride>;
+}
+
+/** GET /administered-items/{id}/transitions 返回的单条可执行迁移视图 */
+export interface ItemTransitionView {
+  to: RegistrationStatus;
+  displayName?: string | null;
+  requiresApproval: boolean;
+  approvedCount: number;
+  /** 通过人数（ANY_ONE 时为 1；AT_LEAST 时为 quorumCount） */
+  quorum: number;
+  canExecute: boolean;
+  canApprove: boolean;
+  approvedByMe: boolean;
+}
 
 /**
  * 指称/定义上下文自引用哨兵（与后端 ItemAdministrationService.SELF_CONTEXT_REFERENCE 一致）：
@@ -153,6 +247,10 @@ export interface ItemMetaResponse {
   administrativeStatus?: string;
   administrativeNote?: string;
   unresolvedIssue?: string;
+  /** Stewardship_Record 回显字段 */
+  stewardshipRecordId?: string;
+  stewardshipContactId?: string;
+  stewardshipOrganizationId?: string;
 }
 
 export interface TextLineContextResponse {
@@ -184,6 +282,11 @@ export interface ItemRegistrationRequest {
   untilDate?: string | null;
   administrativeNote?: string | null;
   unresolvedIssue?: string | null;
+  /** 主管信息；缺省/null = 不变更 */
+  stewardship?: {
+    contactId?: string | null;
+    organizationId?: string | null;
+  } | null;
 }
 
 // ── Active Registrar（active-registrar-ownership）───────────────────────
@@ -226,8 +329,7 @@ export interface NamespaceResponse {
   strategySeqPad?: number;
 }
 
-export interface NamespaceDetailResponse extends NamespaceResponse {
-}
+export type NamespaceDetailResponse = NamespaceResponse;
 
 export interface NamespaceRequest {
   namingAuthorityId?: string;
@@ -277,6 +379,15 @@ export interface NamingConventionRequest {
   };
 }
 
+// ── Organization / Role DTOs ───────────────────────────────────────────
+
+export interface OrganizationResponse {
+  id: string;
+  name?: string;
+  englishName?: string;
+  identifier?: string;
+}
+
 export interface AppUserDto {
   id: string;
   username: string;
@@ -289,11 +400,45 @@ export interface AppUserDto {
   forceChangePassword?: boolean;
   emergencyLogin?: boolean;
   tempPasswordUsed?: boolean;
+  /** 是否已完善个人/联系人信息 */
+  hasContact?: boolean;
+  /** 是否已持有 Registrar 身份 */
+  hasRegistrar?: boolean;
+  /** 是否提示首登用户完善联系人信息 */
+  profilePrompt?: boolean;
   // Keep legacy properties as optional to prevent compilation issues
   displayName?: string;
   email?: string;
   role?: 'ADMIN' | 'REGISTRAR' | 'VIEWER';
   roleAssignments?: UserRoleAssignmentDto[];
+}
+
+/** GET /api/v1/roles 返回的角色 */
+export interface RoleResponse {
+  id: string;
+  roleName?: string;
+  description?: string;
+}
+
+/** GET /api/v1/my/contacts 返回的联系人身份 */
+export interface MyContactResponse {
+  id: string;
+  organizationId: string;
+  organizationName?: string;
+  individualId?: string;
+  individualName?: string;
+  roleId?: string;
+  roleName?: string;
+  isRegistrar: boolean;
+  registrationAuthorityId?: string;
+  registrationAuthorityName?: string;
+  isDefault: boolean;
+}
+
+/** 注册请求中携带的提交组织/联系人信息 */
+export interface SubmissionInfo {
+  contactId?: string | null;
+  organizationId?: string | null;
 }
 
 // ─── smart-item-picker ────────────────────────────────────────────────
@@ -363,4 +508,56 @@ export interface ItemAssociationsResponse {
 export interface SmartItemPickerTypesFilter {
   /** 实体类型枚举列表；空表示全部 */
   types: string[];
+}
+
+/** 映射度（14 标准值） */
+export type MappingDegree =
+  | 'related to'
+  | 'same as'
+  | 'semantically equivalent'
+  | 'semantically similar'
+  | 'derived from'
+  | 'has derivation'
+  | 'broader than'
+  | 'narrower than'
+  | 'child of'
+  | 'parent of'
+  | 'contains'
+  | 'contained in'
+  | 'instance of'
+  | 'has instance';
+
+/** 项目映射端点绑定（subject/object） */
+export interface ItemMappingEndpoint {
+  itemId: string;
+  variableName: string | null;
+}
+
+/** 项目映射响应（subject/object 多对多） */
+export interface ItemMappingResponse {
+  id: string;
+  degree: MappingDegree;
+  description: string | null;
+  transformationRule: string | null;
+  transformationRuleNotation: string | null;
+  subjects: ItemMappingEndpoint[];
+  objects: ItemMappingEndpoint[];
+  registrationStatus: string | null;
+}
+
+/** 项目映射创建/更新请求（subjects/objects 各至少 1 项；registration 仅创建时可携带） */
+export interface ItemMappingRequest {
+  subjects: ItemMappingEndpoint[];
+  objects: ItemMappingEndpoint[];
+  degree: MappingDegree;
+  description?: string | null;
+  transformationRule?: string | null;
+  transformationRuleNotation?: string | null;
+  registration?: unknown | null;
+}
+
+/** 项目映射层级响应 */
+export interface ItemMappingHierarchyResponse {
+  supersetMappingId: string | null;
+  subsetMappingIds: string[];
 }

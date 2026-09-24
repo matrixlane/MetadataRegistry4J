@@ -4,6 +4,7 @@
     <DataTablePage
       ref="tableRef"
       :fetch-fn="dataTypeSchemeApi.list"
+      :delete-fn="dataTypeSchemeApi.delete"
       @create="dialog?.open()"
       @edit="(r) => dialog?.open(r)"
       @delete="handleDelete"

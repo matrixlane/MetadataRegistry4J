@@ -1,10 +1,14 @@
 package io.github.matrixlane.metadataregistry.itemmapping.entity;
 
+import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.Item;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -14,14 +18,13 @@ import java.util.Objects;
 import java.util.UUID;
 
 /**
- * Represents the subject (source) side of an {@link ItemMapping}.
+ * Subject_Mapping 关联类。
  *
- * <p>Each subject record points to either an internal {@code AdministeredItem}
- * (via {@code itemId}) or an external resource (via {@code externalUri}),
- * but never both. This mutual exclusivity is enforced at the application
- * layer and by a CHECK constraint at the database level.
- *
- * <p>Per ISO/IEC 11179-3:2023 Clause 11 — Item Mapping.
+ * <p>记录 Item_Mapping 与一个作为映射主体的注册条目之间的绑定；
+ * 每个绑定各自携带 mapping_variable_name——转换规则（transformation_rule）
+ * 中引用该条目的变量名（如 isodate 示例中 day/month/year 三主体
+ * 各带变量名）。Item 与 Item_Mapping 为多对多关系：一条映射可有 1..*
+ * 个主体，每个主体一行本关联类实例。
  */
 @Entity
 @Table(name = "item_mapping_subject")
@@ -36,60 +39,29 @@ public class ItemMappingSubject {
     private UUID id;
 
     /**
-     * References {@code AdministeredItem.id}. Mutually exclusive with
-     * {@code externalUri} — exactly one must be non-null.
+     * 所属映射（多对多 owning 侧）。
      */
-    @Column(name = "item_id")
-    private UUID itemId;
+    @ManyToOne(optional = false, fetch = FetchType.LAZY)
+    @JoinColumn(name = "item_mapping_id", nullable = false)
+    private ItemMapping itemMapping;
 
     /**
-     * URI of an external resource. Mutually exclusive with {@code itemId} —
-     * exactly one must be non-null.
+     * 作为映射主体的注册条目（Item，JOINED 根，必须 LAZY 加载）。
      */
-    @Column(name = "external_uri", length = 2048)
-    private String externalUri;
+    @ManyToOne(optional = false, fetch = FetchType.LAZY)
+    @JoinColumn(name = "item_id", nullable = false)
+    private Item item;
 
     /**
-     * Validates that exactly one of {@code itemId} and {@code externalUri}
-     * is non-null. This is the application-level enforcement of the
-     * mutual exclusivity constraint.
-     *
-     * @return {@code true} if exactly one reference is provided
+     * 转换规则中的映射变量名（mapping_variable_name，0..1）。
      */
-    public boolean isReferenceMutuallyExclusive() {
-        return (itemId == null) != (externalUri == null);
-    }
+    @Column(name = "mapping_variable_name", length = 255)
+    private String mappingVariableName;
 
-    /**
-     * Creates a subject referencing an internal administered item.
-     *
-     * @param itemId the UUID of the AdministeredItem
-     * @return a new ItemMappingSubject
-     * @throws IllegalArgumentException if itemId is null
-     */
-    public static ItemMappingSubject forItem(UUID itemId) {
-        if (itemId == null) {
-            throw new IllegalArgumentException("itemId must not be null");
-        }
-        ItemMappingSubject subject = new ItemMappingSubject();
-        subject.itemId = itemId;
-        return subject;
-    }
-
-    /**
-     * Creates a subject referencing an external resource.
-     *
-     * @param externalUri the URI of the external resource
-     * @return a new ItemMappingSubject
-     * @throws IllegalArgumentException if externalUri is null or blank
-     */
-    public static ItemMappingSubject forExternalUri(String externalUri) {
-        if (externalUri == null || externalUri.isBlank()) {
-            throw new IllegalArgumentException("externalUri must not be null or blank");
-        }
-        ItemMappingSubject subject = new ItemMappingSubject();
-        subject.externalUri = externalUri;
-        return subject;
+    public ItemMappingSubject(ItemMapping itemMapping, Item item, String mappingVariableName) {
+        this.itemMapping = Objects.requireNonNull(itemMapping, "itemMapping must not be null");
+        this.item = Objects.requireNonNull(item, "item must not be null");
+        this.mappingVariableName = mappingVariableName;
     }
 
     @Override
@@ -104,14 +76,4 @@ public class ItemMappingSubject {
     public int hashCode() {
         return id == null ? 0 : id.hashCode();
     }
-
-    @Override
-    public String toString() {
-        return "ItemMappingSubject{" +
-                "id=" + id +
-                ", itemId=" + itemId +
-                ", externalUri='" + externalUri + '\'' +
-                '}';
-    }
 }
-

@@ -11,7 +11,7 @@ MetadataRegistry4j/
 ├── metadata-registry-common-facilities/      # ISO 11179-3 领域模型（Common Facilities）
 ├── metadata-registry-data-specification/     # ISO 11179-3 领域模型（Data Specification）
 ├── metadata-registry-data-set-registration/  # 数据集注册（占位）
-├── metadata-registry-item-mapping/           # 项目映射
+├── metadata-registry-item-mapping/           # 条目映射（ISO/IEC 11179-3 第 11 章 Item_Mapping）
 ├── metadata-registry-schema-extraction/      # 模式提取
 ├── metadata-registry-draft-generation/       # 草案生成
 ├── metadata-registry-ext/                    # 扩展
@@ -83,6 +83,7 @@ mvn -pl metadata-registry-web -am spring-boot:run
 首次启动时：
 - Hibernate 自动创建 60+ 张表。
 - `DataInitializer` 自动写入种子数据（演示账号、语言、注册机构、命名空间、数据类型、对象类、特性、数据元素等）。
+- 初始化向导完成（setup 并 commit）后自动创建 **Registry Context**（注册系统默认上下文，归属向导创建的注册机构，命名空间为注册机构自有命名空间，标识/版本由命名空间生成策略产出；指称 `Registry Context`/`注册系统上下文` 及其定义的语境自指），并回填注册规范的默认上下文；已初始化系统升级后首次启动自动补建。
 
 ### 4. 启动前端
 
@@ -114,13 +115,20 @@ npm run dev
 
 ## 前端页面
 
+侧边栏导航按 ISO/IEC 11179-3 元模型模块分组（详见 `openspec/specs/standardize-menu-layout/spec.md`）：
+
 - **概览** (Dashboard) — 统计卡片 + 近期活动
-- **注册管理** — 注册机构 / 注册员 / 命名空间 / 注册项生命周期
-- **主体** — 组织 / 个人 / 联系人 / 参考文献
-- **概念** — 对象类 / 特性 / 数据元素概念
-- **域** — 概念域 / 值域 / 数据类型 / 数据类型方案 / 计量单位 / 计量类
-- **数据元素** — 核心主线入口
-- **系统** — 用户管理（仅 ADMIN）
+- **数据字典** — 元数据浏览器
+- **概念模块** — 对象类 / 特性 / 数据元概念 / 概念域 / 值含义 / 维度 / 计量类 / 计量单位
+- **表示模块** — 数据元 / 值域 / 数据类型方案 / 数据类型
+- **基础与核心模块** — 个人 / 组织 / 角色 / 联系人 / 文档类型 / 语言 / 参考文档 / 上下文
+- **标识与命名模块** — 命名空间 / 命名规范
+- **注册模块** — 注册机构 / 注册规范 / 注册人员 / 注册流程（标准流程只读展示）
+- **工作空间** — 草稿 / 待审核 / 已拒绝三视图与行级操作（WorkspaceView）
+- **分类模块** — 分类方案 / 分类项（规划中）
+- **项目映射模块** — 条目映射（ISO/IEC 11179-3 第 11 章 Item_Mapping）
+- **系统** — 用户管理 / 系统设置（仅 ADMIN）
+- **我的** — 固定于侧边栏底部：个人资料 + 联系人身份管理（多身份/默认身份；Registrar 身份只读可见）
 
 ---
 

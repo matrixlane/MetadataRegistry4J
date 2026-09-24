@@ -4,6 +4,7 @@
     <DataTablePage
       ref="tableRef"
       :fetch-fn="dataTypeApi.list"
+      :delete-fn="dataTypeApi.delete"
       @create="dialog?.open()"
       @edit="(r) => dialog?.open(r)"
       @delete="handleDelete"
@@ -32,14 +33,20 @@
     >
       <template #fields="{ form }">
         <el-form-item label="数据类型方案">
-          <el-input v-model="form.dataTypeSchemeId" placeholder="UUID" />
+          <SmartItemPicker
+            v-model="form.dataTypeSchemeId"
+            :item-types="['DataTypeScheme']"
+            :show-advanced-filter="false"
+            :browse-on-open="true"
+            placeholder="搜索数据类型方案（输入名称或标识符）"
+          />
         </el-form-item>
         <el-form-item label="注记">
           <el-input
             v-model="form.annotation"
             type="textarea"
             :rows="2"
-            placeholder="可选（ISO/IEC 11179-31 表 8 annotation，进一步说明该数据类型）"
+            placeholder="可选，用于进一步定义该数据类型的信息"
           />
         </el-form-item>
       </template>
@@ -52,6 +59,7 @@ import { ref } from 'vue';
 import { dataTypeApi } from '@/api/resources';
 import DataTablePage from '@/components/DataTablePage.vue';
 import ItemFormDialog from '@/components/ItemFormDialog.vue';
+import SmartItemPicker from '@/components/SmartItemPicker.vue';
 
 const tableRef = ref<InstanceType<typeof DataTablePage>>();
 const dialog = ref<InstanceType<typeof ItemFormDialog>>();

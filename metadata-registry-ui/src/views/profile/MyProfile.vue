@@ -202,36 +202,186 @@
             </div>
           </el-form>
         </el-card>
+
+        <!-- 联系人身份管理 -->
+        <el-card class="form-card form-card-premium contact-identity-card" shadow="hover" style="margin-top: 24px;">
+          <template #header>
+            <div class="card-title-icon">
+              <el-icon class="icon-gradient"><OfficeBuilding /></el-icon>
+              <span>{{ $t('contactIdentity.title') }}</span>
+            </div>
+          </template>
+
+          <div v-loading="contactsLoading" class="contact-identity-body">
+            <div v-if="contacts.length === 0" class="contact-empty">
+              {{ $t('contactIdentity.empty') }}
+            </div>
+
+            <div v-else class="contact-list">
+              <div
+                v-for="contact in contacts"
+                :key="contact.id"
+                class="contact-item"
+                :class="{ 'is-default': contact.isDefault }"
+                data-testid="contact-identity-item"
+              >
+                <div class="contact-main">
+                  <div class="contact-name">
+                    <el-icon><User /></el-icon>
+                    <span>{{ contact.individualName || contact.organizationName || '-' }}</span>
+                    <el-tag v-if="contact.isDefault" size="small" type="success" effect="dark" data-testid="contact-default-badge">
+                      {{ $t('contactIdentity.default') }}
+                    </el-tag>
+                    <el-tag v-if="contact.isRegistrar" size="small" type="warning" effect="plain" data-testid="contact-registrar-badge">
+                      <el-icon><Medal /></el-icon> {{ $t('contactIdentity.registrar') }}
+                    </el-tag>
+                  </div>
+                  <div class="contact-meta">
+                    <span v-if="contact.organizationName">
+                      <el-icon><OfficeBuilding /></el-icon> {{ contact.organizationName }}
+                    </span>
+                    <span v-if="contact.roleName">
+                      <el-icon><Briefcase /></el-icon> {{ contact.roleName }}
+                    </span>
+                    <span v-if="contact.registrationAuthorityName">
+                      <el-icon><Medal /></el-icon> {{ contact.registrationAuthorityName }}
+                    </span>
+                  </div>
+                </div>
+                <div class="contact-actions">
+                  <el-button
+                    link
+                    type="primary"
+                    size="small"
+                    data-testid="contact-edit-btn"
+                    @click="openContactDialog(contact)"
+                  >
+                    {{ $t('common.edit') }}
+                  </el-button>
+                  <el-button
+                    v-if="!contact.isRegistrar"
+                    link
+                    type="danger"
+                    size="small"
+                    data-testid="contact-delete-btn"
+                    @click="deleteContact(contact)"
+                  >
+                    {{ $t('common.delete') }}
+                  </el-button>
+                  <el-button
+                    v-if="!contact.isDefault"
+                    link
+                    type="success"
+                    size="small"
+                    data-testid="contact-set-default-btn"
+                    @click="setDefaultContact(contact.id)"
+                  >
+                    {{ $t('contactIdentity.setDefault') }}
+                  </el-button>
+                </div>
+              </div>
+            </div>
+
+            <div class="contact-add">
+              <el-button type="primary" plain size="small" data-testid="contact-add-btn" @click="openContactDialog()">
+                <el-icon><Plus /></el-icon> {{ $t('contactIdentity.add') }}
+              </el-button>
+            </div>
+          </div>
+        </el-card>
       </el-col>
     </el-row>
+
+    <!-- 联系人身份新建/编辑弹窗 -->
+    <el-dialog
+      v-model="contactDialogVisible"
+      :title="editingContact ? $t('contactIdentity.edit') : $t('contactIdentity.add')"
+      width="520px"
+      :close-on-click-modal="false"
+      data-testid="contact-dialog"
+    >
+      <el-form
+        ref="contactFormRef"
+        :model="contactForm"
+        :rules="contactRules"
+        label-position="top"
+      >
+        <el-form-item :label="$t('contactIdentity.organization')" prop="organizationId">
+          <el-select
+            v-model="contactForm.organizationId"
+            :placeholder="$t('contactIdentity.organizationPlaceholder')"
+            :disabled="editingContact?.isRegistrar === true"
+            filterable
+            clearable
+            style="width: 100%;"
+            data-testid="contact-organization-select"
+          >
+            <el-option
+              v-for="org in organizationOptions"
+              :key="org.id"
+              :label="org.label"
+              :value="org.id"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item :label="$t('contactIdentity.role')">
+          <el-select
+            v-model="contactForm.roleId"
+            :placeholder="$t('contactIdentity.rolePlaceholder')"
+            filterable
+            clearable
+            style="width: 100%;"
+            data-testid="contact-role-select"
+          >
+            <el-option
+              v-for="role in roleOptions"
+              :key="role.id"
+              :label="role.roleName"
+              :value="role.id"
+            />
+          </el-select>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="contactDialogVisible = false">{{ $t('common.cancel') }}</el-button>
+        <el-button type="primary" :loading="contactSaving" data-testid="contact-save-btn" @click="saveContact">
+          {{ $t('common.save') }}
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, reactive, computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useAuthStore } from '@/stores/auth';
 import request from '@/utils/request';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import type { FormInstance, FormRules } from 'element-plus';
-import { 
-  User, 
-  Briefcase, 
-  Location, 
-  Phone, 
-  Message, 
-  Plus, 
-  Delete, 
-  InfoFilled, 
+import {
+  User,
+  Briefcase,
+  Location,
+  Phone,
+  Message,
+  Plus,
+  InfoFilled,
   EditPen,
   Compass,
   Key,
   Calendar,
   Clock,
   Check,
-  Camera
+  Camera,
+  OfficeBuilding,
+  Medal,
 } from '@element-plus/icons-vue';
+import { myContactApi, organizationApi, roleApi } from '@/api/resources';
+import type { MyContactResponse } from '@/types/common';
 
 const auth = useAuthStore();
+const { t } = useI18n();
 const formRef = ref<FormInstance>();
 const loading = ref(false);
 const saving = ref(false);
@@ -240,11 +390,127 @@ const avatarDataUrl = ref<string>('');
 const avatarUploading = ref(false);
 const fileInputRef = ref<HTMLInputElement>();
 
+// ── Contact Identity Management ─────────────────────────────────────
+const contacts = ref<MyContactResponse[]>([]);
+const contactsLoading = ref(false);
+const contactDialogVisible = ref(false);
+const contactSaving = ref(false);
+const editingContact = ref<MyContactResponse | null>(null);
+const contactFormRef = ref<FormInstance>();
+const contactForm = reactive({
+  organizationId: '',
+  roleId: undefined as string | undefined,
+});
+const organizationOptions = ref<{ id: string; label: string }[]>([]);
+const roleOptions = ref<{ id: string; roleName: string }[]>([]);
+
+const contactRules = reactive<FormRules>({
+  organizationId: [{ required: true, message: t('contactIdentity.organizationRequired'), trigger: 'change' }],
+});
+
+async function loadContacts() {
+  contactsLoading.value = true;
+  try {
+    contacts.value = await myContactApi.list();
+  } catch {
+    // 全局响应拦截器已提示错误
+    contacts.value = [];
+  } finally {
+    contactsLoading.value = false;
+  }
+}
+
+async function loadOrganizations() {
+  try {
+    const res = await organizationApi.list({ size: 200 });
+    organizationOptions.value = (res.content || []).map((o: { id: string; name?: string; englishName?: string; identifier?: string }) => ({
+      id: o.id,
+      label: `${o.name || o.englishName || o.identifier || '—'}${o.identifier ? ` (${o.identifier})` : ''}`,
+    }));
+  } catch {
+    organizationOptions.value = [];
+  }
+}
+
+async function loadRoles() {
+  try {
+    roleOptions.value = await roleApi.options();
+  } catch {
+    roleOptions.value = [];
+  }
+}
+
+function openContactDialog(contact?: MyContactResponse) {
+  editingContact.value = contact || null;
+  contactForm.organizationId = contact?.organizationId || '';
+  contactForm.roleId = contact?.roleId || undefined;
+  contactDialogVisible.value = true;
+}
+
+async function saveContact() {
+  if (!contactFormRef.value) return;
+  await contactFormRef.value.validate(async (valid) => {
+    if (!valid) return;
+    contactSaving.value = true;
+    try {
+      const payload = {
+        organizationId: contactForm.organizationId,
+        roleId: contactForm.roleId || undefined,
+      };
+      if (editingContact.value) {
+        await myContactApi.update(editingContact.value.id, payload);
+      } else {
+        await myContactApi.create(payload);
+      }
+      ElMessage.success(t('contactIdentity.saveSuccess'));
+      contactDialogVisible.value = false;
+      await loadContacts();
+      await auth.fetchMe();
+    } catch {
+      // 全局响应拦截器已提示错误
+    } finally {
+      contactSaving.value = false;
+    }
+  });
+}
+
+async function deleteContact(contact: MyContactResponse) {
+  try {
+    await ElMessageBox.confirm(
+      t('contactIdentity.deleteConfirmMessage', {
+        name: contact.organizationName || contact.individualName || t('common.unknownEntry'),
+      }),
+      t('contactIdentity.deleteConfirmTitle'),
+      { type: 'warning' }
+    );
+    await myContactApi.delete(contact.id);
+    ElMessage.success(t('contactIdentity.deleteSuccess'));
+    await loadContacts();
+    await auth.fetchMe();
+  } catch (e: unknown) {
+    if (e !== 'cancel') {
+      // 全局响应拦截器已提示错误
+    }
+  }
+}
+
+async function setDefaultContact(id: string) {
+  try {
+    await myContactApi.setDefault(id);
+    ElMessage.success(t('contactIdentity.setDefaultSuccess'));
+    await loadContacts();
+  } catch {
+    // 全局响应拦截器已提示错误
+  }
+}
+
+// ── Profile form (existing) ─────────────────────────────────────────
+
 const AVATAR_MAX_BYTES = 2 * 1024 * 1024;
 
 async function loadAvatar() {
   try {
-    const res = await request.get<any>('/auth/me/individual/avatar');
+    const res = await request.get<{ dataUrl?: string }>('/auth/me/individual/avatar');
     avatarDataUrl.value = res?.dataUrl || '';
   } catch {
     avatarDataUrl.value = '';
@@ -327,7 +593,13 @@ const progressColors = [
 async function loadProfile() {
   loading.value = true;
   try {
-    const res = await request.get<any>('/auth/me/individual');
+    const res = await request.get<{
+      name?: string;
+      title?: string;
+      mailAddress?: string;
+      emailAddress?: string[];
+      phoneNumber?: string[];
+    }>('/auth/me/individual');
     if (res) {
       form.name = res.name || '';
       form.title = res.title || '';
@@ -335,7 +607,7 @@ async function loadProfile() {
       form.emailAddress = res.emailAddress || [];
       form.phoneNumber = res.phoneNumber || [];
     }
-  } catch (err) {
+  } catch {
     ElMessage.error('加载个人信息失败');
   } finally {
     loading.value = false;
@@ -373,7 +645,7 @@ async function handleSave() {
         ElMessage.success('保存成功');
         await loadProfile();
         await auth.fetchMe();
-      } catch (err) {
+      } catch {
         ElMessage.error('保存失败');
       } finally {
         saving.value = false;
@@ -391,6 +663,9 @@ function formatDate(val: string | null | undefined) {
 onMounted(() => {
   loadProfile();
   loadAvatar();
+  loadContacts();
+  loadOrganizations();
+  loadRoles();
 });
 </script>
 
@@ -780,13 +1055,12 @@ onMounted(() => {
             color: #ef4444;
             background: #fef2f2;
             border: 1px solid #fee2e2;
-            border-top-left-radius: 0;
-            border-bottom-left-radius: 0;
-            border-top-right-radius: 8px;
-            border-bottom-right-radius: 8px;
             height: 38px;
             width: 44px;
-            margin-left: -1px;
+            flex: none;
+            margin: 0 0 0 8px;
+            border-top-left-radius: 8px;
+            border-bottom-left-radius: 8px;
             transition: all 0.2s ease;
 
             &:hover {
@@ -851,5 +1125,87 @@ onMounted(() => {
 .list-leave-to {
   opacity: 0;
   transform: translateY(10px);
+}
+
+.contact-identity-card {
+  .contact-identity-body {
+    .contact-empty {
+      font-size: 14px;
+      color: var(--el-text-color-secondary);
+      text-align: center;
+      padding: 24px 0;
+    }
+
+    .contact-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-bottom: 16px;
+
+      .contact-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 14px 16px;
+        border-radius: 12px;
+        border: 1px solid #e2e8f0;
+        background: #ffffff;
+        transition: all 0.2s ease;
+
+        &.is-default {
+          border-color: var(--el-color-success);
+          background: #f0fdf4;
+        }
+
+        .contact-main {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+
+          .contact-name {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 600;
+            font-size: 15px;
+            color: #0f172a;
+
+            .el-icon {
+              color: var(--el-color-primary);
+            }
+          }
+
+          .contact-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            font-size: 13px;
+            color: #64748b;
+
+            span {
+              display: inline-flex;
+              align-items: center;
+              gap: 4px;
+            }
+
+            .el-icon {
+              font-size: 14px;
+            }
+          }
+        }
+
+        .contact-actions {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+        }
+      }
+    }
+
+    .contact-add {
+      display: flex;
+      justify-content: flex-start;
+    }
+  }
 }
 </style>

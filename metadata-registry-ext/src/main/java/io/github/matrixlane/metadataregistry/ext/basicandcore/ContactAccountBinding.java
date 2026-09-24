@@ -40,8 +40,18 @@ public class ContactAccountBinding {
     @Column(name = "account_id", nullable = false)
     private UUID accountId;
 
+    /** 是否该账号的默认联系人身份(应用层保证每账号至多一条为 true)。 */
+    @Column(name = "is_default", nullable = false)
+    private boolean isDefault = false;
+
     public ContactAccountBinding(UUID contactId, UUID accountId) {
         this.contactId = contactId;
         this.accountId = accountId;
+    }
+
+    public ContactAccountBinding(UUID contactId, UUID accountId, boolean isDefault) {
+        this.contactId = contactId;
+        this.accountId = accountId;
+        this.isDefault = isDefault;
     }
 }

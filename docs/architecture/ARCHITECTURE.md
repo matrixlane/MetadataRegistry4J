@@ -15,7 +15,7 @@ flowchart TD
     UI[metadata-registry-ui<br/>Vue 3 前端] --> WEB[metadata-registry-web<br/>Spring Boot + REST API]
     WEB --> CF[metadata-registry-common-facilities<br/>ISO 11179-3 注册元模型]
     WEB --> DS[metadata-registry-data-specification<br/>数据规范层实体]
-    WEB --> IM[metadata-registry-item-mapping<br/>条目映射与互操作]
+    WEB --> IM[metadata-registry-item-mapping<br/>项目映射与互操作]
     WEB --> EXT[metadata-registry-ext<br/>扩展能力层]
     WEB --> DSR[metadata-registry-data-set-registration<br/>数据集模板导入]
     EXT --> CF
@@ -30,10 +30,10 @@ flowchart TD
 - **[metadata-registry-common-facilities](modules/metadata-registry-common-facilities.md)** — 领域模型底座。落地 ISO/IEC 11179-3:2023 注册元模型（AdministeredItem、ScopedIdentifier、Namespace 等约 35 个实体），同时为持久化、JSON 序列化、Lombok 样板代码提供统一基础设施。边界清晰：本模块只管"注册元模型是什么"，业务编排在上层 Service。
 - **[metadata-registry-data-specification](modules/metadata-registry-data-specification.md)** — 数据规范层，实现 ISO/IEC 11179-31 的业务词汇：数据元（Data Element）、数据元概念（Data Element Concept）、值域（Value Domain）、概念域（Conceptual Domain）、允许值（Permissible Value）等。本模块**不含方法逻辑**，所有类均为 Lombok 驱动的纯实体；校验、关联与生命周期规则由 Web 层的 Service 承担。
 - **[metadata-registry-ext](modules/metadata-registry-ext.md)** — 扩展能力承载层。超出 ISO 11179 标准的治理能力（卫星实体的扩展属性、标识符生成策略、简化分类模型）全部收敛于此，遵循 **MDR / EXT schema 拆分** 原则，避免污染标准模型。
-- **[metadata-registry-item-mapping](modules/metadata-registry-item-mapping.md)** — 实现 ISO/IEC 11179-3:2023 第 11 章的条目映射（Item Mapping），管理本地受管项与外部标准之间的映射关系，并在此基础上扩展 FHIR 映射与互操作匹配能力。
+- **[metadata-registry-item-mapping](modules/metadata-registry-item-mapping.md)** — 实现 ISO/IEC 11179-3:2023 第 11 章 Item_Mapping 包（映射条目为 Item 子类，1..* 主体/客体关联类绑定携带 mapping_variable_name，14 值映射度，mapping_hierarchy），并扩展 FHIR 映射与互操作匹配能力。
 - **[metadata-registry-data-set-registration](modules/metadata-registry-data-set-registration.md)** — 互联互通数据集模板的导入与注册。支持 Excel / CSV 解析、中英文表头别名映射、行级错误定位与增量更新，为概念对齐引擎预留映射字段。
-- **[metadata-registry-web](modules/metadata-registry-web.md)** — 可执行的 Spring Boot 应用组装层：主类 `MetadataRegistryApplication`、REST Controller、应用 Service、JWT 安全、统一响应契约（`ApiResponse` / `GlobalExceptionHandler`）、Flyway 迁移与静态前端资源托管。
-- **[metadata-registry-ui](modules/metadata-registry-ui.md)** — Vue 3 + TypeScript + Element Plus 前端，覆盖注册实体 CRUD、多语言指称编辑、分类方案树、标识符策略配置、联邦节点合并评审与映射方案版本管理。
+- **[metadata-registry-web](modules/metadata-registry-web.md)** — 可执行的 Spring Boot 应用组装层：主类 `MetadataRegistryApplication`、REST Controller、应用 Service、JWT 安全、统一响应契约（`ApiResponse` / `GlobalExceptionHandler`）、Flyway 迁移与静态前端资源托管。工作空间（Workspace）相关端点与状态机也位于本模块。
+- **[metadata-registry-ui](modules/metadata-registry-ui.md)** — Vue 3 + TypeScript + Element Plus 前端，覆盖注册实体 CRUD、多语言指称编辑、分类方案树、标识符策略配置、联邦节点合并评审、项目映射管理以及工作空间三视图。
 
 此外，仓库还包含两个非代码模块：docs 承载领域建模、ISO 11179 符合性审计与 UAT 等知识库文档；openspec 实现"提案 → 规格 → 任务"的规范驱动开发体系，代码改动之前先落地书面规格。
 
@@ -58,6 +58,18 @@ flowchart TD
 4. `IdentifierInputPolicyService` 解析标识符输入策略，委托 `NamespaceIdentifierPolicyResolver` 按命名空间级配置（由 `NamespaceIdentifierSettingsService` 从 `NamespaceIdentifierSettingsRepository` 读取）决定标识符的生成或校验方式。
 
 新开发一个注册实体时，复用这两条管线（命名统一走 `ItemNamingHelper`，注册统一走 `ensureAdministeredItem`）是保持一致性的关键。
+
+### 工作空间流程：管理状态与注册状态解耦
+
+工作空间（`WorkspaceController` / `WorkspaceService`）治理管理状态（administrative status）与注册状态（registration status）的分离：
+
+1. 新建/编辑保存后 `ItemAdministrationService.ensureAdministeredItem()` 将管理项标记为 `DRAFT`，注册状态保持 `INCOMPLETE`；
+2. `WorkspaceService.submit()` 将 `DRAFT` 提交为 `INITIAL` 并生成 `SubmissionRecord`；
+3. 具备主管记录（`StewardshipRecord`）的 `INCOMPLETE` 项可经 `requestCandidate()` 推进为 `CANDIDATE`；
+4. 经注册流程到达 `RECORDED` 后，再次编辑会进入 `DRAFT`，此时可调用 `WorkspaceRollbackService.rollback()` 回退到最近 `BASELINE` 快照并清空管理状态；
+5. 主管可申请合格（`PROVISIONALLY_QUALIFIED`），Registrar 批准/拒绝后最终进入 `QUALIFIED` 或 `REJECTED`。
+
+详细端点与行级权限标志见 [metadata-registry-web](modules/metadata-registry-web.md)。
 
 ## 快速开始
 

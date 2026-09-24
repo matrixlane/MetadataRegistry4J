@@ -8,6 +8,7 @@
     <DataTablePage
       ref="tableRef"
       :fetch-fn="valueDomainApi.list"
+      :delete-fn="valueDomainApi.delete"
       @create="handleCreate"
       @edit="handleEdit"
       @delete="handleDelete"
@@ -140,7 +141,7 @@
             <el-form-item label="取值" required style="margin-bottom: 8px;">
               <el-input
                 v-model="pv.permittedValue"
-                placeholder="允许值的实际取值（ISO/IEC 11179-31 表 6 permitted_value，必备）"
+                placeholder="允许值的实际取值（必填）"
                 size="small"
               />
             </el-form-item>
@@ -201,7 +202,7 @@
             @update:model-value="(v: string | string[] | null) => { form[cdField(form)] = v; }"
           />
           <div class="assoc-hint">
-            ISO/IEC 11179-31:2023 §7.4.5.2.1：值域与概念域子类型须一致（描述 ↔ 描述 / 本地枚举 ↔ 本地枚举 / 引用枚举 ↔ 引用枚举）
+            值域与概念域子类型须一致（描述 ↔ 描述 / 本地枚举 ↔ 本地枚举 / 引用枚举 ↔ 引用枚举）
           </div>
         </el-form-item>
         <ItemAssociationsPanel

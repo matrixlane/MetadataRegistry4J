@@ -32,5 +32,11 @@ public record ItemMetaResponse(
         /** Registration_State 回显：管理备注。 */
         String administrativeNote,
         /** Registration_State 回显：未决问题。 */
-        String unresolvedIssue) {
+        String unresolvedIssue,
+        /** Stewardship_Record 回显：主管记录 ID。 */
+        UUID stewardshipRecordId,
+        /** Stewardship_Record 回显：主管联系人 ID。 */
+        UUID stewardshipContactId,
+        /** Stewardship_Record 回显：主管组织 ID。 */
+        UUID stewardshipOrganizationId) {
 }

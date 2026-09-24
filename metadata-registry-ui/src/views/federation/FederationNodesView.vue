@@ -4,6 +4,7 @@
     <DataTablePage
       ref="tableRef"
       :fetch-fn="fetchNodes"
+      :delete-fn="federationApi.deleteNode"
       @create="dialogVisible = true"
       @delete="handleDelete"
     >

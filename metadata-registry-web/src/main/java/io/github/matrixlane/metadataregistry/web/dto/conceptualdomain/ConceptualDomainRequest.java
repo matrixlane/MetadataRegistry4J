@@ -6,6 +6,7 @@ import jakarta.validation.Valid;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 
 public record ConceptualDomainRequest(
         ConceptualDomainType type,
@@ -19,5 +20,7 @@ public record ConceptualDomainRequest(
         LocalDateTime validPeriodStart,
         LocalDateTime validPeriodEnd,
         @Valid
-        ItemRegistrationRequest registration) {
+        ItemRegistrationRequest registration,
+        /** dimensionality(0..1);null 表示清除。 */
+        UUID dimensionalityId) {
 }

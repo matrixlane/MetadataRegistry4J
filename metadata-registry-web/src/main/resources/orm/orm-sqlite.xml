@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  SQLite profile 专属:SQLite 无 schema 概念,与标准表同名的 EXT 实体
+  以 ext_ 物理名前缀模拟 schema(与 db/migration/sqlite 建表脚本一致;
+  见 openspec/changes/add-language-identification-extension/design.md D1)。
+  team profile 不加载本文件(同名表由 orm-team.xml 的 schema="ext" 区分)。
+-->
+<entity-mappings xmlns="https://jakarta.ee/xml/ns/persistence/orm" version="3.1">
+
+    <entity class="io.github.matrixlane.metadataregistry.ext.basicandcore.LanguageIdentificationExtension">
+        <table name="ext_language_identification"/>
+    </entity>
+
+</entity-mappings>

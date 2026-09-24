@@ -10,12 +10,18 @@ import io.github.matrixlane.metadataregistry.web.service.SequenceRegistryService
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
 
+/**
+ * 标识策略装载。必须早于消费策略的启动 Runner（如 RegistryContextBackfillRunner，
+ * @Order 101）执行：策略注册表为空时自动生成标识会回退为 UUID。
+ */
 @Slf4j
 @Component
+@Order(90)
 @RequiredArgsConstructor
 public class IdentifierStrategyLoader implements CommandLineRunner {
 

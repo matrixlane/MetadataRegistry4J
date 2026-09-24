@@ -10,6 +10,7 @@
     <DataTablePage
       ref="tableRef"
       :fetch-fn="conceptualDomainApi.list"
+      :delete-fn="conceptualDomainApi.delete"
       @create="handleCreate"
       @edit="handleEdit"
       @delete="handleDelete"
@@ -97,6 +98,17 @@
           </div>
         </el-form-item>
 
+        <!-- 维度 dimensionality(0..1,表达式不含单位);
+             指定后基于本概念域的值域计量单位须与该维度一致 -->
+        <el-form-item label="维度">
+          <SmartItemPicker
+            v-model="form.dimensionalityId"
+            :item-types="['Dimensionality']"
+            :show-advanced-filter="false"
+            placeholder="搜索维度（可选）"
+          />
+        </el-form-item>
+
         <!-- LOCAL_ENUMERATED 本地枚举型：值含义编辑卡片 -->
         <el-card
           v-if="form.kind === 'ENUMERATED' && form.enumKind === 'LOCAL'"
@@ -172,6 +184,7 @@ import { Plus, Delete } from '@element-plus/icons-vue';
 import { conceptualDomainApi } from '@/api/resources';
 import DataTablePage from '@/components/DataTablePage.vue';
 import ItemFormDialog from '@/components/ItemFormDialog.vue';
+import SmartItemPicker from '@/components/SmartItemPicker.vue';
 import DesignationDefinitionSection from '@/components/DesignationDefinitionSection.vue';
 import ItemAssociationsPanel, { type AssociationPanelSection } from '@/components/ItemAssociationsPanel.vue';
 

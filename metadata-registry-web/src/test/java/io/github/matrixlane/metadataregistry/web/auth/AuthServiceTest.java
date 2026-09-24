@@ -93,7 +93,7 @@ class AuthServiceTest {
 
         when(userRepository.findByUsername("admin")).thenReturn(Optional.of(admin));
         lenient().when(contactAccountBindingService.contactsOfAccount(org.mockito.ArgumentMatchers.any())).thenReturn(java.util.List.of());
-        when(jwtService.generateToken(eq(admin), eq(true), eq(false), eq(false), eq(false))).thenReturn("mock-token");
+        when(jwtService.generateToken(eq(admin), eq(true), eq(false), eq(false), eq(false), eq(false))).thenReturn("mock-token");
 
         LoginRequest request = new LoginRequest("admin", "");
         LoginResponse response = authService.login(request);
@@ -115,7 +115,7 @@ class AuthServiceTest {
 
         when(userRepository.findByUsername("admin")).thenReturn(Optional.of(admin));
         lenient().when(contactAccountBindingService.contactsOfAccount(org.mockito.ArgumentMatchers.any())).thenReturn(java.util.List.of());
-        when(jwtService.generateToken(eq(admin), eq(true), eq(true), eq(false), eq(false))).thenReturn("mock-token");
+        when(jwtService.generateToken(eq(admin), eq(true), eq(true), eq(false), eq(false), eq(false))).thenReturn("mock-token");
 
         LoginRequest request = new LoginRequest("admin", "emergency123");
         LoginResponse response = authService.login(request);
@@ -141,7 +141,7 @@ class AuthServiceTest {
         when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("temp123", "$2a$10$hashedTempPassword")).thenReturn(true);
         lenient().when(contactAccountBindingService.contactsOfAccount(org.mockito.ArgumentMatchers.any())).thenReturn(java.util.List.of());
-        when(jwtService.generateToken(eq(user), eq(true), eq(false), eq(true), eq(false))).thenReturn("mock-token");
+        when(jwtService.generateToken(eq(user), eq(true), eq(false), eq(true), eq(false), eq(false))).thenReturn("mock-token");
 
         LoginRequest request = new LoginRequest("testuser", "temp123");
         LoginResponse response = authService.login(request);
@@ -249,7 +249,7 @@ class AuthServiceTest {
 
         when(userRepository.findById(userId)).thenReturn(Optional.of(user));
         when(individualRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
-        when(contactAccountBindingService.contactsOfAccount(any())).thenReturn(java.util.List.of());
+        when(contactAccountBindingService.registrarsOfAccount(org.mockito.ArgumentMatchers.any())).thenReturn(java.util.List.of());
         when(contactAccountBindingService.registrarsOfAccount(userId)).thenReturn(java.util.List.of(registrar));
 
         IndividualRequest request = new IndividualRequest("张三", null, null, null, null, null);
@@ -274,7 +274,7 @@ class AuthServiceTest {
 
         when(userRepository.findById(userId)).thenReturn(Optional.of(user));
         when(individualRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
-        when(contactAccountBindingService.contactsOfAccount(any())).thenReturn(java.util.List.of());
+        when(contactAccountBindingService.registrarsOfAccount(org.mockito.ArgumentMatchers.any())).thenReturn(java.util.List.of());
         when(contactAccountBindingService.registrarsOfAccount(userId)).thenReturn(java.util.List.of(registrar));
 
         IndividualRequest request = new IndividualRequest("张三", null, null, null, null, null);
@@ -282,5 +282,72 @@ class AuthServiceTest {
 
         assertThat(registrar.getIndividual()).isSameAs(existing);
         verify(registrarRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("登录：已登记联系人的普通账号下发 submitter=true，profile 中 hasContact=true、profilePrompt=false")
+    void login_submitterAccount_flagged() {
+        Account user = new Account();
+        user.setId(UUID.randomUUID());
+        user.setUsername("submitter1");
+        user.setPasswordHash("$2a$10$hashedPassword");
+        user.setEnabled(true);
+
+        when(userRepository.findByUsername("submitter1")).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("pass123", "$2a$10$hashedPassword")).thenReturn(true);
+        when(contactAccountBindingService.registrarsOfAccount(org.mockito.ArgumentMatchers.any())).thenReturn(java.util.List.of());
+        when(contactAccountBindingService.hasAnyContact(user.getId())).thenReturn(true);
+        when(jwtService.generateToken(eq(user), eq(false), eq(false), eq(false), eq(false), eq(true)))
+                .thenReturn("mock-token");
+
+        LoginResponse response = authService.login(new LoginRequest("submitter1", "pass123"));
+
+        assertThat(response.token()).isEqualTo("mock-token");
+        assertThat(response.user().hasContact()).isTrue();
+        assertThat(response.user().profilePrompt()).isFalse();
+        assertThat(response.user().isRegistrar()).isFalse();
+    }
+
+    @Test
+    @DisplayName("登录：既非 Registrar 也非 Contact 的普通账号 profilePrompt=true")
+    void login_plainAccount_profilePrompted() {
+        Account user = new Account();
+        user.setId(UUID.randomUUID());
+        user.setUsername("plain1");
+        user.setPasswordHash("$2a$10$hashedPassword");
+        user.setEnabled(true);
+
+        when(userRepository.findByUsername("plain1")).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("pass123", "$2a$10$hashedPassword")).thenReturn(true);
+        when(contactAccountBindingService.registrarsOfAccount(org.mockito.ArgumentMatchers.any())).thenReturn(java.util.List.of());
+        when(contactAccountBindingService.hasAnyContact(user.getId())).thenReturn(false);
+        when(jwtService.generateToken(eq(user), eq(false), eq(false), eq(false), eq(false), eq(false)))
+                .thenReturn("mock-token");
+
+        LoginResponse response = authService.login(new LoginRequest("plain1", "pass123"));
+
+        assertThat(response.user().hasContact()).isFalse();
+        assertThat(response.user().profilePrompt()).isTrue();
+    }
+
+    @Test
+    @DisplayName("登录：SUPER_ADMIN 恒为 Registrar，profilePrompt=false")
+    void login_superAdmin_noProfilePrompt() {
+        Account admin = new Account();
+        admin.setId(UUID.randomUUID());
+        admin.setUsername("admin");
+        admin.setPasswordHash("$2a$10$hashedAdminPassword");
+        admin.setEnabled(true);
+        admin.setSysRole(SystemRole.SUPER_ADMIN);
+
+        when(userRepository.findByUsername("admin")).thenReturn(Optional.of(admin));
+        when(passwordEncoder.matches("admin123", "$2a$10$hashedAdminPassword")).thenReturn(true);
+        when(jwtService.generateToken(eq(admin), eq(false), eq(false), eq(false), eq(true), eq(false)))
+                .thenReturn("mock-token");
+
+        LoginResponse response = authService.login(new LoginRequest("admin", "admin123"));
+
+        assertThat(response.user().isRegistrar()).isTrue();
+        assertThat(response.user().profilePrompt()).isFalse();
     }
 }

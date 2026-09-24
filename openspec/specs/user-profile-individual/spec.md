@@ -2,7 +2,9 @@
 
 ## Purpose
 This capability allows users in the metadata registry system to link and manage their personal profile details (using the `Individual` entity), including multi-value email addresses and phone numbers. It ensures appropriate menu visibility based on user roles and filters out disabled users' profiles from the public individual directories.
+
 ## Requirements
+
 ### Requirement: MUST 系统菜单项可见性控制
 MUST 系统菜单底部必须显示“我的”选项，且该选项面向所有登录用户开放；同时，系统必须隐藏“系统”菜单，仅对系统角色为超级管理员（SUPER_ADMIN）的账户可见。
 
@@ -47,3 +49,16 @@ MUST 系统必须允许在“个人”界面中新增和删除没有用户账户
 - **WHEN** REGISTRAR 或 ADMIN 角色的用户在“个人”界面请求新增或删除独立个人
 - **THEN** 操作成功执行，且“个人”界面的列表数据得到正确更新
 
+### Requirement: "我的"界面联系人身份管理区
+
+"我的"界面 SHALL 在既有个人资料（Individual）维护功能之外，提供"联系人身份"管理区：展示当前账号的全部联系人身份与 Registrar 身份，支持新建、编辑、删除自建联系人身份以及设置默认联系人。该管理区 SHALL 面向所有登录用户开放，与账号角色无关。Registrar 身份 SHALL 仅可查看，其变更 MUST 走既有 Registrar 管理流程。
+
+#### Scenario: 普通用户管理联系人身份
+
+- **WHEN** 普通用户打开"我的"界面
+- **THEN** 可见联系人身份管理区，可新建联系人并设为默认
+
+#### Scenario: Registrar 行可编辑角色但不可删除
+
+- **WHEN** 持有 Registrar 身份的用户在"我的"界面查看其 Registrar 身份
+- **THEN** 联系人身份列表中展示其 Registrar 身份及所属注册机构；提供编辑入口且编辑时仅允许修改 Role 关联；不提供删除入口

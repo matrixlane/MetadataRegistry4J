@@ -11,25 +11,37 @@ import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefi
 import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.DesignationContext;
 import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.NamingConvention;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifiedItem;
+import io.github.matrixlane.metadataregistry.ext.basicandcore.ContactAccountBinding;
 import io.github.matrixlane.metadataregistry.ext.identification.IdentifierCreationMode;
 import io.github.matrixlane.metadataregistry.ext.identification.ScopedIdentifierLifecycle;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.ScopedIdentifier;
 import io.github.matrixlane.metadataregistry.ext.identification.Versions;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.AdministeredItem;
+import io.github.matrixlane.metadataregistry.commonfacilities.registration.AdministrativeStatus;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationAuthority;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationState;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationStatus;
+import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegisteredItem;
+import io.github.matrixlane.metadataregistry.commonfacilities.registration.StewardshipRecord;
+import io.github.matrixlane.metadataregistry.commonfacilities.registration.SubmissionRecord;
+import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Contact;
+import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Organization;
 import io.github.matrixlane.metadataregistry.web.common.ApiCodes;
 import io.github.matrixlane.metadataregistry.web.common.BusinessException;
 import io.github.matrixlane.metadataregistry.web.common.ResourceNotFoundException;
 import io.github.matrixlane.metadataregistry.web.dto.common.ItemMetaResponse;
 import io.github.matrixlane.metadataregistry.web.dto.common.ItemRegistrationRequest;
+import io.github.matrixlane.metadataregistry.web.dto.common.SubmissionInfo;
 import io.github.matrixlane.metadataregistry.web.dto.common.TextLine;
 import io.github.matrixlane.metadataregistry.web.dto.common.TextLineContextResponse;
 import io.github.matrixlane.metadataregistry.web.dto.common.TextLineResponse;
 import io.github.matrixlane.metadataregistry.web.repository.AdministeredItemRepository;
+import io.github.matrixlane.metadataregistry.web.repository.ContactRepository;
+import io.github.matrixlane.metadataregistry.web.repository.OrganizationRepository;
 import io.github.matrixlane.metadataregistry.web.repository.ScopedIdentifierRepository;
+import io.github.matrixlane.metadataregistry.web.repository.StewardshipRecordRepository;
+import io.github.matrixlane.metadataregistry.web.repository.SubmissionRecordRepository;
 import io.github.matrixlane.metadataregistry.web.repository.ContextRepository;
 import io.github.matrixlane.metadataregistry.web.repository.LanguageIdentificationRepository;
 import io.github.matrixlane.metadataregistry.web.repository.NamespaceRepository;
@@ -65,6 +77,9 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class ItemAdministrationService {
 
+    /** 回退恢复期间的副作用规避标记：置位时跳过 markDraft、recordSubmission。 */
+    private static final ThreadLocal<Boolean> RESTORE_IN_PROGRESS = ThreadLocal.withInitial(() -> Boolean.FALSE);
+
     private final LanguageIdentificationRepository languageRepository;
     private final ReferenceDocumentRepository referenceDocumentRepository;
     private final NamespaceRepository namespaceRepository;
@@ -79,8 +94,37 @@ public class ItemAdministrationService {
     private final ActiveRegistrarService activeRegistrarService;
     private final RegistrySpecificationRepository registrySpecificationRepository;
     private final ScopedIdentifierLifecycleService lifecycleService;
-    private final RegistrationLifecycleService registrationLifecycleService;
     private final NamespaceIdentifierSettingsService namespaceIdentifierSettingsService;
+    private final SubmissionRecordRepository submissionRecordRepository;
+    private final StewardshipRecordRepository stewardshipRecordRepository;
+    private final ContactRepository contactRepository;
+    private final OrganizationRepository organizationRepository;
+    private final ContactService contactService;
+    private final ContactAccountBindingService contactAccountBindingService;
+    private final AdministrativeStatusService administrativeStatusService;
+
+    /**
+     * 创建时允许的显式初始注册状态白名单（initial-status-incomplete）。
+     * 仅 INCOMPLETE（幂等默认）与文档态入口 APPLICATION/HISTORICAL；
+     * 生命周期态（CANDIDATE/RECORDED/QUALIFIED/…）须自 INCOMPLETE 经推进流程获得，拒绝（1125）。
+     */
+    private static final Set<RegistrationStatus> ALLOWED_INITIAL_STATUSES = Set.of(
+            RegistrationStatus.INCOMPLETE,
+            RegistrationStatus.APPLICATION,
+            RegistrationStatus.HISTORICAL);
+
+    /** 当前是否处于回退恢复流程中。 */
+    public boolean isRestoreInProgress() {
+        return Boolean.TRUE.equals(RESTORE_IN_PROGRESS.get());
+    }
+
+    /**
+     * 进入/退出回退恢复流程。由 {@link WorkspaceRollbackService} 在恢复写回前设置，
+     * 写回后必须清理，避免污染同线程后续操作。
+     */
+    public void setRestoreInProgress(boolean value) {
+        RESTORE_IN_PROGRESS.set(value);
+    }
 
     public void applyDesignations(Item item, List<TextLine> designations) {
         applyDesignations(item, designations, null);
@@ -109,6 +153,11 @@ public class ItemAdministrationService {
         }
 
         Set<UUID> keptIds = new java.util.HashSet<>();
+        // 本次循环新建的行：命名空间约束校验（oneItemPerName 冲突检测等）会触发
+        // auto-flush，可能让未提交的新行提前获得 id；删除 reconcile 必须按行身份
+        // 排除它们，否则新建行会被误判为「payload 未携带的既有行」而遭移除
+        //（表现为：带命名空间保存时指称静默丢失）。
+        Set<Designation> created = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
         for (int i = 0; i < designations.size(); i++) {
             TextLine line = designations.get(i);
             Designation d = line.id() != null ? existingById.get(line.id()) : null;
@@ -116,6 +165,7 @@ public class ItemAdministrationService {
                 d = new Designation();
                 d.setItem(item);
                 item.getDesignations().add(d);
+                created.add(d);
             } else {
                 keptIds.add(d.getId());
             }
@@ -142,6 +192,9 @@ public class ItemAdministrationService {
 
         List<Designation> toRemove = new ArrayList<>();
         for (Designation d : item.getDesignations()) {
+            if (created.contains(d)) {
+                continue;
+            }
             if (d.getId() == null || keptIds.contains(d.getId())) {
                 continue;
             }
@@ -235,6 +288,9 @@ public class ItemAdministrationService {
         }
 
         Set<UUID> keptIds = new java.util.HashSet<>();
+        // 与 applyDesignations 同理：中途查询触发的 auto-flush 可能让新建行提前获得
+        // id，删除 reconcile 按行身份排除本次新建行。
+        Set<Definition> created = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
         for (int i = 0; i < definitions.size(); i++) {
             TextLine line = definitions.get(i);
             Definition d = line.id() != null ? existingById.get(line.id()) : null;
@@ -242,6 +298,7 @@ public class ItemAdministrationService {
                 d = new Definition();
                 d.setItem(item);
                 item.getDefinitions().add(d);
+                created.add(d);
             } else {
                 keptIds.add(d.getId());
             }
@@ -263,6 +320,9 @@ public class ItemAdministrationService {
 
         List<Definition> toRemove = new ArrayList<>();
         for (Definition d : item.getDefinitions()) {
+            if (created.contains(d)) {
+                continue;
+            }
             if (d.getId() == null || keptIds.contains(d.getId())) {
                 continue;
             }
@@ -401,29 +461,38 @@ public class ItemAdministrationService {
         boolean stateCreatedNow = ai.getRegistrationState() == null;
         if (stateCreatedNow) {
             RegistrationState state = new RegistrationState();
-            state.setRegistrationStatus(RegistrationStatus.RECORDED);
+            // Incomplete 为注册生命周期入口态；
+            // Recorded 需全部强制属性完成并经确认（4.3.3.1.4），只能经推进流程获得。
+            state.setRegistrationStatus(RegistrationStatus.INCOMPLETE);
             state.setEffectiveDate(LocalDateTime.now());
             ai.setRegistrationState(state);
         }
         // Registration_State 其余属性（ISO/IEC 11179-3:2023 表 22）：NULL = 不变更；
-        // 文本属性空串 = 清空。创建路径先落默认（RECORDED/当前时间），显式值随后覆盖。
-        // 注册状态变更走生命周期管控（RegistrationLifecycleService.transition）：
-        // 校验转换合法性与角色权限并保留历史链（旧状态置截止日期、新状态入链）；
-        // 与当前状态相同或未指定时不触发（from==to 不在转换表中，必须跳过）。
-        // 新建/既有条目尚无状态（本次刚落默认初始状态）时视为初始赋值，不产生历史链。
+        // 文本属性空串 = 清空。既有条目尚无状态时先落默认（INCOMPLETE/当前时间）。
+        // 注册状态（registration_status）不再经编辑表单变更
+        // （registration-process-designer D6）：既有条目携带与当前不同的状态一律拒绝，
+        // 状态只能经推进流程（POST /administered-items/{id}/transitions/execute|approve）完成。
+        // 显式初始状态标定仅限真正新建（existing == null）且仅允许 INCOMPLETE（幂等默认）与
+        // 文档态入口 APPLICATION/HISTORICAL（initial-status-incomplete）：生命周期态
+        // （CANDIDATE/RECORDED/QUALIFIED/…）一律拒绝（1125），须自 INCOMPLETE 经推进流程
+        // 获得。既有但无 RegistrationState 的遗留条目不是新建，携带不同状态同样拒绝（M2 表单后门）。
         RegistrationState state = ai.getRegistrationState();
         if (req.registrationStatus() != null) {
-            if (stateCreatedNow) {
+            if (existing == null) {
+                if (!ALLOWED_INITIAL_STATUSES.contains(req.registrationStatus())) {
+                    throw new BusinessException(ApiCodes.INVALID_INITIAL_STATUS,
+                            ("非法的初始注册状态 %s：新建条目自 INCOMPLETE（不完整）开始，"
+                                    + "APPLICATION/HISTORICAL 之外的初始状态须经推进流程获得")
+                                    .formatted(req.registrationStatus()));
+                }
                 state.setRegistrationStatus(req.registrationStatus());
             } else if (req.registrationStatus() != state.getRegistrationStatus()) {
-                registrationLifecycleService.transition(ai.getId(), req.registrationStatus(),
-                        req.administrativeNote());
-                state = ai.getRegistrationState();
+                throw new BusinessException(ApiCodes.STATUS_CHANGE_VIA_FORM_FORBIDDEN,
+                        "注册状态不可经编辑表单变更（%s → %s），请在注册项列表的推进流程中执行状态迁移"
+                                .formatted(state.getRegistrationStatus(), req.registrationStatus()));
             }
         }
-        if (req.administrativeStatus() != null) {
-            state.setAdministrativeStatus(req.administrativeStatus());
-        }
+        // 管理状态由工作空间流程系统治理，请求体字段保留但不再生效
         if (req.effectiveDate() != null) {
             state.setEffectiveDate(req.effectiveDate());
         }
@@ -440,13 +509,171 @@ public class ItemAdministrationService {
         if (req.explanatoryComment() != null) {
             ai.setExplanatoryComment(req.explanatoryComment());
         }
+        applyStewardshipRecord(ai, req);
         if (ai.getCreationDateTime() == null) {
             ai.setCreationDateTime(LocalDateTime.now());
         }
         ai.setLastChangeDateTime(LocalDateTime.now());
 
+        // 新建与编辑保存后统一置为 Draft（不改动注册状态，不新建状态行）。
+        // 回退恢复流程中跳过，避免恢复旧内容后又重新进入草稿。
+        if (!isRestoreInProgress()) {
+            administrativeStatusService.markDraft(ai);
+        }
+
         item.setIdentifiedItem(ai);
         return ai;
+    }
+
+    /**
+     * 提交记录（Submission_Record，add-submitter-contact-identity / submission-record）：
+     * 条目（RegisteredItem）保存后生成一条新的 SubmissionRecord 并关联其
+     * AdministeredItem。联系人与所属组织取请求 {@code submission} 块；未显式提供时
+     * 按提交者默认联系人及其所属组织预填。显式给出的联系人 MUST 属于当前账号
+     * 绑定的 Contact。请求未携带 registration 块、条目尚无 AdministeredItem、
+     * 或无认证（种子/系统路径）时跳过。
+     */
+    public void recordSubmission(Item item, ItemRegistrationRequest req) {
+        if (req == null || item == null || item.getId() == null || isRestoreInProgress()) {
+            return;
+        }
+        UUID accountId = activeRegistrarService.currentAccountIdOrNull();
+        if (accountId == null) {
+            // 系统/种子路径无提交者，不生成提交记录
+            return;
+        }
+        AdministeredItem administeredItem = administeredItemRepository.findByItem_Id(item.getId())
+                .orElse(null);
+        if (administeredItem == null) {
+            return;
+        }
+        Contact contact = null;
+        Organization organization = null;
+
+        SubmissionInfo submission = req.submission();
+        if (submission != null && submission.contactId() != null) {
+            contact = contactRepository.findById(submission.contactId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Contact", submission.contactId()));
+            java.util.Optional<UUID> boundAccount = contactAccountBindingService.accountIdOfContact(contact.getId());
+            if (boundAccount.isEmpty() || !accountId.equals(boundAccount.get())) {
+                throw new BusinessException(ApiCodes.VALIDATION_FAILED,
+                        "提交信息中的联系人必须是当前账号绑定的联系人身份");
+            }
+            if (submission.organizationId() != null) {
+                organization = organizationRepository.findById(submission.organizationId())
+                        .orElseThrow(() -> new ResourceNotFoundException("Organization", submission.organizationId()));
+            } else {
+                organization = contact.getOrganization();
+            }
+        } else {
+            java.util.Optional<ContactService.SubmissionContext> context =
+                    contactService.resolveDefaultSubmissionContext(accountId);
+            if (context.isPresent()) {
+                contact = context.get().contact();
+                organization = context.get().organization();
+            }
+        }
+
+        if (contact == null || organization == null) {
+            throw new BusinessException(ApiCodes.VALIDATION_FAILED,
+                    "无法确定提交联系人与所属组织：请先在「我的」中登记联系人身份，或在提交信息中显式选择");
+        }
+
+        SubmissionRecord record = new SubmissionRecord();
+        record.setContact(contact);
+        record.setOrganization(organization);
+        record.setRegisteredItems(new java.util.ArrayList<>(java.util.List.of(administeredItem)));
+        submissionRecordRepository.save(record);
+        administeredItem.getSubmissionRecords().add(record);
+    }
+
+    /**
+     * 主管记录（Stewardship_Record）：
+     * 请求显式携带主管联系人与所属组织时，复用或新建 StewardshipRecord 并关联到
+     * AdministeredItem。NULL = 不变更（不清除）。显式给出的联系人 MUST 属于当前账号
+     * 绑定的 Contact；organizationId 缺省时取联系人所属组织。
+     */
+    private void applyStewardshipRecord(AdministeredItem ai, ItemRegistrationRequest req) {
+        if (req == null || req.stewardship() == null || req.stewardship().contactId() == null) {
+            return;
+        }
+        UUID accountId = activeRegistrarService.currentAccountIdOrNull();
+        if (accountId == null) {
+            // 系统/种子路径无当前账号，不修改主管记录
+            return;
+        }
+        Contact contact = contactRepository.findById(req.stewardship().contactId())
+                .orElseThrow(() -> new ResourceNotFoundException("Contact", req.stewardship().contactId()));
+        java.util.Optional<UUID> boundAccount = contactAccountBindingService.accountIdOfContact(contact.getId());
+        if (boundAccount.isEmpty() || !accountId.equals(boundAccount.get())) {
+            throw new BusinessException(ApiCodes.VALIDATION_FAILED,
+                    "主管信息中的联系人必须是当前账号绑定的联系人身份");
+        }
+        Organization organization;
+        if (req.stewardship().organizationId() != null) {
+            organization = organizationRepository.findById(req.stewardship().organizationId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Organization", req.stewardship().organizationId()));
+        } else {
+            organization = contact.getOrganization();
+        }
+        if (organization == null) {
+            throw new BusinessException(ApiCodes.VALIDATION_FAILED,
+                    "无法确定主管记录所属组织：请为联系人选择或登记所属组织");
+        }
+        StewardshipRecord record = stewardshipRecordRepository
+                .findFirstByContact_IdAndOrganization_Id(contact.getId(), organization.getId())
+                .orElseGet(() -> {
+                    StewardshipRecord sr = new StewardshipRecord();
+                    sr.setContact(contact);
+                    sr.setOrganization(organization);
+                    return stewardshipRecordRepository.save(sr);
+                });
+        ai.setStewardshipRecord(record);
+    }
+
+    /**
+     * 判定当前账号是否归属该管理项。
+     *
+     * <p>归属规则：当前账号绑定联系人 ∈ {item 主管记录联系人（stewardshipRecord.contact），
+     * item 最近提交记录联系人}。供 Submitter 白名单迁移（INCOMPLETE→CANDIDATE）
+     * 与 T5 request-candidate 端点复用。</p>
+     */
+    public boolean isItemOwnedByAccount(AdministeredItem item, UUID accountId) {
+        if (item == null || accountId == null) {
+            return false;
+        }
+        Set<UUID> accountContactIds = contactAccountBindingService.bindingsOfAccount(accountId).stream()
+                .map(ContactAccountBinding::getContactId)
+                .collect(java.util.stream.Collectors.toSet());
+        if (accountContactIds.isEmpty()) {
+            return false;
+        }
+        if (item.getStewardshipRecord() != null && item.getStewardshipRecord().getContact() != null
+                && accountContactIds.contains(item.getStewardshipRecord().getContact().getId())) {
+            return true;
+        }
+        return submissionRecordRepository.findLatestByRegisteredItemId(item.getId())
+                .map(SubmissionRecord::getContact)
+                .filter(contact -> accountContactIds.contains(contact.getId()))
+                .isPresent();
+    }
+
+    /**
+     * 判定当前账号是否为该管理项的主管（stewardshipRecord.contact）。
+     *
+     * <p>供申请合格（request-qualification）端点校验。</p>
+     */
+    public boolean isItemStewardedByAccount(AdministeredItem item, UUID accountId) {
+        if (item == null || accountId == null || item.getStewardshipRecord() == null) {
+            return false;
+        }
+        Contact steward = item.getStewardshipRecord().getContact();
+        if (steward == null || steward.getId() == null) {
+            return false;
+        }
+        return contactAccountBindingService.bindingsOfAccount(accountId).stream()
+                .map(ContactAccountBinding::getContactId)
+                .anyMatch(steward.getId()::equals);
     }
 
     /**
@@ -474,25 +701,41 @@ public class ItemAdministrationService {
     }
 
     /**
-     * 新建条目的归属推导：当前账号必须持有活动 Registrar 身份（非 Registrar
-     * 没有权限注册 Administered_Item）；注册机构自有命名空间所属机构必须与
-     * 活动身份所在机构一致（防止跨机构写入）。无认证（种子/系统路径）时返回
-     * null，维持既有行为。
+     * 新建条目的归属推导：当前账号持有活动 Registrar 身份时归属该身份所在机构
+     * （注册机构自有命名空间所属机构必须与活动身份所在机构一致，防止跨机构写入）；
+     * 无活动 Registrar 但已登记为 Contact 的 Submitter 归属系统唯一注册机构
+     * （add-submitter-contact-identity，单注册表隐式推导）；两者皆无则拒绝。
+     * 无认证（种子/系统路径）时返回 null，维持既有行为。
      */
     private RegistrationAuthority resolveOwnershipForCreate(Namespace ns) {
         if (activeRegistrarService.currentAccountIdOrNull() == null) {
             return null;
         }
-        var active = activeRegistrarService.resolveForCurrentUser()
-                .orElseThrow(() -> new BusinessException(ApiCodes.VALIDATION_FAILED,
-                        "当前账号没有 Registrar 身份，无法注册 Administered_Item；请先被指派为 Registrar"));
-        RegistrationAuthority activeRa = active.getRegistrationAuthority();
-        if (ns != null && ns.getRegistrationAuthority() != null
-                && !ns.getRegistrationAuthority().getId().equals(activeRa.getId())) {
-            throw new BusinessException(ApiCodes.VALIDATION_FAILED,
-                    "目标命名空间属于其他注册机构，请先将活动 registrar身份切换为该机构的身份");
+        var active = activeRegistrarService.resolveForCurrentUser();
+        if (active.isPresent()) {
+            RegistrationAuthority activeRa = active.get().getRegistrationAuthority();
+            if (ns != null && ns.getRegistrationAuthority() != null
+                    && !ns.getRegistrationAuthority().getId().equals(activeRa.getId())) {
+                throw new BusinessException(ApiCodes.VALIDATION_FAILED,
+                        "目标命名空间属于其他注册机构，请先将活动 registrar身份切换为该机构的身份");
+            }
+            return activeRa;
         }
-        return activeRa;
+        // Submitter 通道：归属系统唯一注册机构
+        UUID accountId = activeRegistrarService.currentAccountIdOrNull();
+        if (activeRegistrarService.isSubmitter(accountId)) {
+            RegistrationAuthority unique = activeRegistrarService.systemUniqueRegistrationAuthority()
+                    .orElseThrow(() -> new BusinessException(ApiCodes.VALIDATION_FAILED,
+                            "当前系统不存在唯一的注册机构，Submitter 无法确定条目归属"));
+            if (ns != null && ns.getRegistrationAuthority() != null
+                    && !ns.getRegistrationAuthority().getId().equals(unique.getId())) {
+                throw new BusinessException(ApiCodes.VALIDATION_FAILED,
+                        "目标命名空间属于其他注册机构，无法在此命名空间下创建条目");
+            }
+            return unique;
+        }
+        throw new BusinessException(ApiCodes.VALIDATION_FAILED,
+                "当前账号没有 Registrar 身份，无法注册 Administered_Item；请先被指派为 Registrar");
     }
 
     /**
@@ -572,9 +815,26 @@ public class ItemAdministrationService {
         RegistrationState regState = administeredItem == null ? null : administeredItem.getRegistrationState();
         LocalDateTime stateEffectiveDate = regState == null ? null : regState.getEffectiveDate();
         LocalDateTime stateUntilDate = regState == null ? null : regState.getUntilDate();
-        String administrativeStatus = regState == null ? null : regState.getAdministrativeStatus();
+        String administrativeStatus = regState == null || regState.getAdministrativeStatus() == null
+                ? null
+                : regState.getAdministrativeStatus().standardValue();
         String administrativeNote = regState == null ? null : regState.getAdministrativeNote();
         String unresolvedIssue = regState == null ? null : regState.getUnresolvedIssue();
+
+        // Stewardship_Record 回显：从已加载的 AdministeredItem 取 FK id，不触发关联实体整图加载
+        UUID stewardshipRecordId = null;
+        UUID stewardshipContactId = null;
+        UUID stewardshipOrganizationId = null;
+        if (administeredItem != null && administeredItem.getStewardshipRecord() != null) {
+            StewardshipRecord sr = administeredItem.getStewardshipRecord();
+            stewardshipRecordId = sr.getId();
+            if (sr.getContact() != null) {
+                stewardshipContactId = sr.getContact().getId();
+            }
+            if (sr.getOrganization() != null) {
+                stewardshipOrganizationId = sr.getOrganization().getId();
+            }
+        }
 
         // Try to query ScopedIdentifier by itemId
         List<ScopedIdentifier> siList = scopedIdentifierRepository.findByItemId(item.getId());
@@ -619,7 +879,10 @@ public class ItemAdministrationService {
                 stateUntilDate,
                 administrativeStatus,
                 administrativeNote,
-                unresolvedIssue);
+                unresolvedIssue,
+                stewardshipRecordId,
+                stewardshipContactId,
+                stewardshipOrganizationId);
     }
 
     /**

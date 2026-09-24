@@ -13,6 +13,8 @@ public record AccountProfileResponse(
         LocalDateTime lastLoginAt,
         UUID individualId,
         boolean isRegistrar,
+        boolean hasContact,
+        boolean profilePrompt,
         boolean forceChangePassword,
         boolean emergencyLogin,
         boolean tempPasswordUsed) {

@@ -11,6 +11,21 @@ import type {
   ContextUsageResponse,
   ActiveRegistrarResponse,
   ItemAssociationsResponse,
+  RegistrationProcessDefinition,
+  RegistrationProcessLayout,
+  ItemTransitionView,
+  ItemMappingRequest,
+  ItemMappingResponse,
+  ItemMappingHierarchyResponse,
+  MyContactResponse,
+  RoleResponse,
+  OrganizationResponse,
+  WorkspaceSummaryResponse,
+  WorkspaceItemResponse,
+  WorkspaceItemView,
+  WorkspaceSubmitRequest,
+  WorkspaceSubmitResult,
+  SubmissionInfo,
 } from '@/types/common';
 
 function crud<T>(base: string) {
@@ -73,13 +88,59 @@ export const namingConventionApi = {
     request.put<NamingConventionResponse>(`/naming-conventions/${id}`, data),
   delete: (id: string) => request.delete(`/naming-conventions/${id}`),
 };
-export const administeredItemApi = crud('/administered-items');
-export const organizationApi = crud('/organizations');
+export const administeredItemApi = {
+  ...crud('/administered-items'),
+  requestQualification: (id: string) =>
+    request.post(`/administered-items/${id}/request-qualification`),
+  reject: (id: string, note?: string) =>
+    request.post(`/administered-items/${id}/transitions/reject`, { note }),
+};
+
+/** 注册流程（registration-process-designer）：流程定义 + 条目级迁移动作 */
+export const registrationProcessApi = {
+  /** 当前注册机构的完整流程定义（登录即可读） */
+  get: () => request.get<RegistrationProcessDefinition>('/registration-process'),
+  /** 某注册项当前可用迁移（含审批进度与当前用户权限） */
+  availableTransitions: (itemId: string) =>
+    request.get<ItemTransitionView[]>(`/administered-items/${itemId}/transitions`),
+  /** 直接执行无需审核的迁移 */
+  execute: (itemId: string, to: string, note?: string) =>
+    request.post(`/administered-items/${itemId}/transitions/execute`, { to, note }),
+  /** 批准需审核的迁移；达到通过人数时后端同事务生效 */
+  approve: (itemId: string, to: string) =>
+    request.post(`/administered-items/${itemId}/transitions/approve`, { to }),
+};
+
+/**
+ * 注册流程画布布局：GET 登录可读（渲染恢复，文件由后端启动播种预置、可手工编辑）；
+ * PUT 仅 SUPER_ADMIN（SecurityConfig 显式限定）。
+ */
+export const registrationProcessLayoutApi = {
+  get: () => request.get<RegistrationProcessLayout>('/registration-process/layout'),
+  save: (layout: RegistrationProcessLayout) =>
+    request.put<void>('/registration-process/layout', layout),
+};
+export const organizationApi = crud<OrganizationResponse>('/organizations');
 export const individualApi = crud('/individuals');
+export const roleApi = {
+  ...crud<RoleResponse>('/roles'),
+  options: () => request.get<{ id: string; roleName: string }[]>('/roles/options'),
+};
 export const contactApi = {
   ...crud<any>('/contacts'),
   batchConfigure: (data: { appUserIds: string[]; organizationId: string; roleName: string }) =>
     request.post<void>('/contacts/batch', data),
+};
+
+/** 当前登录用户的联系人身份（user-profile-individual / contact-identity-management） */
+export const myContactApi = {
+  list: () => request.get<MyContactResponse[]>('/my/contacts'),
+  create: (data: { organizationId: string; roleId?: string }) =>
+    request.post<MyContactResponse>('/my/contacts', data),
+  update: (id: string, data: { organizationId: string; roleId?: string }) =>
+    request.put<MyContactResponse>(`/my/contacts/${id}`, data),
+  delete: (id: string) => request.delete(`/my/contacts/${id}`),
+  setDefault: (id: string) => request.post<MyContactResponse>(`/my/contacts/${id}/set-default`),
 };
 export const referenceDocumentApi = crud('/reference-documents');
 export const objectClassApi = crud('/object-classes');
@@ -91,6 +152,7 @@ export const dataTypeApi = crud('/data-types');
 export const dataTypeSchemeApi = crud('/data-type-schemes');
 export const unitOfMeasureApi = crud('/units-of-measure');
 export const measureClassApi = crud('/measure-classes');
+export const dimensionalityApi = crud('/dimensionalities');
 export const valueMeaningApi = crud('/value-meanings');
 export const dataElementApi = crud('/data-elements');
 export const appUserApi = {
@@ -198,28 +260,23 @@ export const itemAssociationApi = {
     }),
 };
 
-/** Mapping scheme CRUD + version lifecycle (WI-011-2-3-1) */
-export const mappingSchemeApi = {
-  list: (params?: PageQuery) =>
-    request.get<PageResponse<any>>('/mapping-schemes', { params }),
-  get: (id: string) => request.get<any>(`/mapping-schemes/${id}`),
-  create: (data: Record<string, unknown>) =>
-    request.post<any>('/mapping-schemes', data),
-  update: (id: string, data: Record<string, unknown>) =>
-    request.put<any>(`/mapping-schemes/${id}`, data),
-  delete: (id: string) => request.delete(`/mapping-schemes/${id}`),
-  /** Transition status: DRAFT->PUBLISHED, PUBLISHED->ARCHIVED */
-  transition: (id: string, to: string) =>
-    request.post<any>(`/mapping-schemes/${id}/transition`, { to }),
-  /** Create new DRAFT version from PUBLISHED scheme */
-  createNewVersion: (id: string) =>
-    request.post<any>(`/mapping-schemes/${id}/new-version`),
-  /** Get all versions in the scheme lineage */
-  versions: (id: string) =>
-    request.get<any[]>(`/mapping-schemes/${id}/versions`),
-  /** Diff two scheme versions (WI-011-2-3-2) */
-  diff: (id: string, baseId: string, compareId: string, mappingType?: string) =>
-    request.get<any>(`/mapping-schemes/${id}/diff`, { params: { baseId, compareId, ...(mappingType ? { mappingType } : {}) } }),
+/**
+ * 项目映射 CRUD + 映射层级。
+ * degree 14 标准值见后端 MappingDegree；subject/object 均为已存在条目（Item.id）。
+ */
+export const itemMappingApi = {
+  list: (params?: PageQuery & { subjectItemId?: string; objectItemId?: string; degree?: string }) =>
+    request.get<PageResponse<ItemMappingResponse>>('/item-mappings', { params }),
+  get: (id: string) => request.get<ItemMappingResponse>(`/item-mappings/${id}`),
+  create: (data: ItemMappingRequest) =>
+    request.post<ItemMappingResponse>('/item-mappings', data),
+  update: (id: string, data: ItemMappingRequest) =>
+    request.put<ItemMappingResponse>(`/item-mappings/${id}`, data),
+  delete: (id: string) => request.delete(`/item-mappings/${id}`),
+  getHierarchy: (id: string) =>
+    request.get<ItemMappingHierarchyResponse>(`/item-mappings/${id}/hierarchy`),
+  putHierarchy: (id: string, supersetMappingId: string | null) =>
+    request.put<ItemMappingHierarchyResponse>(`/item-mappings/${id}/hierarchy`, { supersetMappingId }),
 };
 
 /** Mapping network graph (WI-011-2-1) */
@@ -294,4 +351,18 @@ export const interopMappingApi = {
     request.get<any>('/interop-mappings/quality-score', { params: { datasetId } }),
   emptyCheck: (datasetId: string) =>
     request.get<any>('/interop-mappings/empty-check', { params: { datasetId } }),
+};
+
+/** 工作空间：三视图管理项列表与行级/批量操作 */
+export const workspaceApi = {
+  summary: () => request.get<WorkspaceSummaryResponse>('/workspace/summary'),
+  items: (view: WorkspaceItemView, page?: number, size?: number) =>
+    request.get<PageResponse<WorkspaceItemResponse>>('/workspace/items', {
+      params: { view, page, size },
+    }),
+  submit: (itemIds: string[], submission?: SubmissionInfo | null) =>
+    request.post<WorkspaceSubmitResult[]>('/workspace/submit', { itemIds, submission } as WorkspaceSubmitRequest),
+  requestCandidate: (itemId: string, submission?: SubmissionInfo | null) =>
+    request.post<void>(`/workspace/request-candidate/${itemId}`, submission || {}),
+  rollback: (itemId: string) => request.post<void>(`/workspace/rollback/${itemId}`),
 };

@@ -2,7 +2,9 @@
 
 ## Purpose
 This capability defines the core rules and settings that govern how the metadata registry operates (e.g., identifier generation, versioning policy, mandatory classification, and default language). It enforces data integrity, controls system initialization steps, and acts as an admission gate for data governance and metadata registration.
+
 ## Requirements
+
 ### Requirement: Default Registry Specification Configured During System Initialization
 在系统初始化阶段，系统 MUST 在 setup 阶段自动创建并启用一个默认注册规范（`Registry_Specification`）——注册规范是注册表的固有组成部分（ISO/IEC 11179-3:2023 §9.4.10），不可跳过；显式请求不创建（`createRegistrySpecification=false`）MUST 被拒绝。初始化向导 MUST 提供注册规范配置步骤，开放表 28 标量属性的编辑：name、comment、web_address、character_repertoire（必填）、standard、degree_of_conformance、conformance_level、conformance_label、included_features、excluded_features、default_time_zone（[-+]HHMM）、default_language、alternative_language（0..*）、reference_document_identifier_kind（0..*）、representation_class_scheme_id；各属性 MUST 以系统默认值预填（如字符集 UTF-8、标准 ISO/IEC 11179-3:2023、默认语言 zh-CN、时区 +0800），留空提交时由后端按版本规则兜底。上下文（context）与指称/定义的多语言编辑不在向导内提供（初始化后于设置页维护）。
 
@@ -34,26 +36,6 @@ This capability defines the core rules and settings that govern how the metadata
 #### Scenario: Registry administrator creates Registry Specification successfully
 - **WHEN** User with registry administrator role submits valid Registry Specification settings
 - **THEN** System SHALL save the Registry Specification and log an audit trail event
-
----
-
-### Requirement: Locking Critical Registry Specification Settings When Metadata Exists
-一旦创建了注册规范，并且系统中已存在与该注册规范对应的任何元数据（包括命名空间、注册项、值域等已被保存或发布的受管项），则为了防止数据一致性冲突，以下注册规范的关键配置字段 MUST NOT **被修改**：
-1. `identifierPrefix` (标识符前缀)
-2. `autoGenerateIdentifier` (是否自动生成标识符)
-3. `identifierPattern` (标识符正则表达式)
-4. `versioningPolicy` (版本策略)
-5. `mandatoryClassification` (是否强制分类)
-6. `defaultLanguage` (默认语言)
-
-#### Scenario: Modify non-critical settings when metadata exists
-- **WHEN** Admin edits a Registry Specification that has associated metadata, and only changes non-critical fields (e.g., `registryName`, description)
-- **THEN** System SHALL allow the update and save changes successfully
-
-#### Scenario: Attempt to modify critical settings when metadata exists
-- **WHEN** Admin attempts to edit a Registry Specification that has associated metadata, and changes any critical field (e.g., `identifierPrefix`, `autoGenerateIdentifier`, `versioningPolicy`)
-- **THEN** System SHALL reject the request with a business validation error (400 Bad Request) stating that critical fields cannot be modified because metadata already exists
-- **AND** Front-end UI SHALL disable (make read-only) these critical fields if associated metadata exists
 
 ---
 
@@ -165,3 +147,28 @@ The system SHALL provide a `Degree_of_Conformance` enumeration with values `conf
 - **WHEN** a registry specification references a standard
 - **THEN** the `degree_of_conformance` field accepts only `conforming` or `strictly_conforming`
 
+### Requirement: Registry Specification Configuration Step in Initialization Wizard
+初始化向导 MUST 包含注册规范配置步骤（位于命名空间之后、管理员密码之前），开放编辑 `Registry_Specification`（ISO/IEC 11179-3:2023 表 28）的标量属性：name（必填）、comment、web_address、character_repertoire（必填）、standard、degree_of_conformance（conforming / strictly_conforming）、conformance_level、conformance_label、included_features、excluded_features、default_time_zone（[-+]HHMM）、default_language、alternative_language（0..*）、reference_document_identifier_kind（0..*）、representation_class_scheme_id。各属性 MUST 预填系统默认值；上下文与指称/定义多语言编辑不在向导内提供（初始化后于设置页维护）。
+
+#### Scenario: 向导中配置注册规范并带入 setup
+- **WHEN** 超级管理员在注册规范步骤修改字符集、标准、合规程度、时区、替代语言等属性并完成后续初始化
+- **THEN** System SHALL 按所填值创建注册规范，初始化完成后设置页回显一致
+
+#### Scenario: 向导中保留默认值提交
+- **WHEN** 超级管理员不修改注册规范步骤的预填默认值直接提交
+- **THEN** System SHALL 以默认值创建注册规范（字符集 UTF-8、标准 ISO/IEC 11179-3:2023、默认语言 zh-CN、时区 +0800）
+
+### Requirement: Registry Specification Full Attribute Editing in Settings
+注册规范设置页的编辑界面 MUST 开放 `Registry_Specification`（ISO/IEC 11179-3:2023 表 28）全部属性的编辑：name、comment、web_address、default_language、alternative_language（0..*）、character_repertoire、reference_document_identifier_kind（0..*）、representation_class_scheme_id、context、standard、degree_of_conformance（conforming / strictly_conforming）、conformance_level、conformance_label、included_features、excluded_features、default_time_zone（[-+]HHMM），以及继承自 Item 的指称（0..*，任意语言与上下文）与定义（0..*，任意语言与上下文）。其中 name 与 character_repertoire 为必填。
+
+#### Scenario: 编辑注册规范并保存全部属性
+- **WHEN** 注册管理员在设置页打开注册规范编辑对话框，填写替代语言、参考文档标识种类、表示类方案标识、上下文等属性并保存
+- **THEN** 系统持久化全部属性，重新打开时回显一致
+
+#### Scenario: 指称与定义支持任意语言
+- **WHEN** 注册管理员在编辑对话框的指称/定义折叠面板中添加非中/英文语言的指称或定义行并保存
+- **THEN** 系统按语言保存各行（含上下文与可接受度），回显时完整还原
+
+#### Scenario: 非法时区格式被拒绝
+- **WHEN** 提交的 default_time_zone 不匹配 [-+]HHMM 格式（如 "800"、"+08:00"）
+- **THEN** 系统返回 400 业务校验错误；前端在失焦时即提示格式错误且不提交

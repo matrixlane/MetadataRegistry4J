@@ -10,9 +10,6 @@ import io.github.matrixlane.metadataregistry.datasetregistration.entity.InteropD
 import io.github.matrixlane.metadataregistry.itemmapping.enums.FhirMappingEquivalence;
 import io.github.matrixlane.metadataregistry.itemmapping.enums.FhirMappingType;
 import io.github.matrixlane.metadataregistry.itemmapping.enums.InteropMappingStatus;
-import io.github.matrixlane.metadataregistry.itemmapping.enums.MappingSchemeStatus;
-import io.github.matrixlane.metadataregistry.itemmapping.enums.MappingType;
-import io.github.matrixlane.metadataregistry.itemmapping.notification.SubscriptionType;
 import io.github.matrixlane.metadataregistry.web.entity.NamespacePermissionType;
 import io.github.matrixlane.metadataregistry.web.entity.RejectStrategy;
 import io.github.matrixlane.metadataregistry.web.federation.MergeItemChangeType;
@@ -57,9 +54,6 @@ public class CaseInsensitiveEnumConfig implements MetadataBuilderInitializer {
             FhirMappingEquivalence.class,
             FhirMappingType.class,
             InteropMappingStatus.class,
-            MappingSchemeStatus.class,
-            MappingType.class,
-            SubscriptionType.class,
             NamespacePermissionType.class,
             RejectStrategy.class,
             MergeItemChangeType.class,

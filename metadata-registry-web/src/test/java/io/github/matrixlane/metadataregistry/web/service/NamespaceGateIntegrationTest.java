@@ -6,18 +6,27 @@ import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.prede
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationAuthority;
 import io.github.matrixlane.metadataregistry.web.common.BusinessException;
+import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Account;
+import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.SystemRole;
+import io.github.matrixlane.metadataregistry.commonfacilities.registration.Registrar;
+import io.github.matrixlane.metadataregistry.web.auth.AccountRepository;
+import io.github.matrixlane.metadataregistry.web.auth.AuthenticatedUser;
 import io.github.matrixlane.metadataregistry.web.dto.common.ItemRegistrationRequest;
 import io.github.matrixlane.metadataregistry.web.dto.common.TextLine;
 import io.github.matrixlane.metadataregistry.web.dto.dataelement.DataElementRequest;
 import io.github.matrixlane.metadataregistry.web.dto.dataelement.DataElementResponse;
 import io.github.matrixlane.metadataregistry.web.repository.LanguageIdentificationRepository;
 import io.github.matrixlane.metadataregistry.web.repository.NamespaceRepository;
+import io.github.matrixlane.metadataregistry.web.repository.RegistrarRepository;
 import io.github.matrixlane.metadataregistry.web.repository.RegistrationAuthorityRepository;
 import io.github.matrixlane.metadataregistry.web.seed.SystemDefaultNamespaceInitializer;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -59,7 +68,16 @@ class NamespaceGateIntegrationTest {
     @Autowired
     private LanguageIdentificationRepository languageRepository;
 
+    @Autowired
+    private AccountRepository accountRepository;
+    @Autowired
+    private RegistrarRepository registrarRepository;
+    @Autowired
+    private ContactAccountBindingService contactAccountBindingService;
+
     private UUID languageId;
+    private RegistrationAuthority registrationAuthority;
+    private Account account;
 
     @BeforeEach
     void setUp() {
@@ -68,6 +86,35 @@ class NamespaceGateIntegrationTest {
         lang.setScriptIdentifier("Hans");
         lang.setGeopoliticalTerritoryIdentifier("CN");
         languageId = languageRepository.save(lang).getId();
+
+        RegistrationAuthority ra = new RegistrationAuthority();
+        ra.getName().add(Sign.of("测试注册机构"));
+        RegistrationAuthorityIdentifier rai = new RegistrationAuthorityIdentifier();
+        rai.setInternationalCodeDesignator("0000");
+        rai.setOrganizationIdentifier("RA-TEST");
+        ra.setRegistrationAuthorityIdentifier(rai);
+        registrationAuthority = registrationAuthorityRepository.save(ra);
+
+        account = new Account();
+        account.setUsername("namespace-gate-test");
+        account.setPasswordHash("x");
+        account.setSysRole(SystemRole.SUPER_ADMIN);
+        account = accountRepository.save(account);
+
+        Registrar registrar = new Registrar(registrationAuthority);
+        registrar.setIdentifier("registrar-test");
+        registrar = registrarRepository.save(registrar);
+        contactAccountBindingService.bind(registrar.getId(), account.getId());
+
+        AuthenticatedUser principal = new AuthenticatedUser(
+                account.getId(), account.getUsername(), SystemRole.SUPER_ADMIN);
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(principal, null, List.of()));
+    }
+
+    @AfterEach
+    void tearDown() {
+        SecurityContextHolder.clearContext();
     }
 
     @Test
@@ -120,16 +167,9 @@ class NamespaceGateIntegrationTest {
     }
 
     private Namespace createRaNamespace() {
-        RegistrationAuthority ra = new RegistrationAuthority();
-        ra.getName().add(Sign.of("测试注册机构"));
-        RegistrationAuthorityIdentifier rai = new RegistrationAuthorityIdentifier();
-        rai.setInternationalCodeDesignator("0000");
-        rai.setOrganizationIdentifier("RA-TEST");
-        ra.setRegistrationAuthorityIdentifier(rai);
-        ra = registrationAuthorityRepository.save(ra);
         Namespace ns = new Namespace();
-        ns.setRegistrationAuthority(ra);
-        ns.setNamingAuthority(ra);
+        ns.setRegistrationAuthority(registrationAuthority);
+        ns.setNamingAuthority(registrationAuthority);
         return namespaceRepository.save(ns);
     }
 

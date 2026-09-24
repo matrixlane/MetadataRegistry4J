@@ -1,6 +1,6 @@
 package io.github.matrixlane.metadataregistry.web.dto.mapping;
 
-import io.github.matrixlane.metadataregistry.itemmapping.enums.MappingType;
+import io.github.matrixlane.metadataregistry.itemmapping.enums.MappingDegree;
 
 import java.util.List;
 import java.util.Set;
@@ -10,7 +10,7 @@ import java.util.UUID;
  * Response DTO for the mapping network graph query.
  *
  * <p>Contains nodes, edges, and truncation info for the frontend
- * network graph visualization (WI-011-2-1).
+ * network graph visualization.
  *
  * @param nodes      the set of graph nodes (administered items)
  * @param edges      the list of graph edges (mapping relationships)
@@ -40,17 +40,17 @@ public record MappingNetworkResponse(
     /**
      * An edge in the network graph.
      *
-     * @param mappingId   the UUID of the mapping
-     * @param sourceId    the UUID of the source node (subject)
-     * @param targetId    the UUID of the target node (object)
-     * @param mappingType the type of mapping relationship
+     * @param mappingId the UUID of the mapping
+     * @param sourceId  the UUID of the source node (subject)
+     * @param targetId  the UUID of the target node (object)
+     * @param degree    the mapping degree
      * @param description optional description
      */
     public record NetworkEdge(
             UUID mappingId,
             UUID sourceId,
             UUID targetId,
-            MappingType mappingType,
+            MappingDegree degree,
             String description
     ) {}
 }

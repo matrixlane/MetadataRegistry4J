@@ -4,7 +4,7 @@
 
 ## 模块组概述
 
-`metadata-registry-ui` 是**元数据注册中心（Metadata Registry）**的前端应用，基于 Vue 3 + TypeScript + Vite 构建，实现 ISO/IEC 11179 元数据注册库（MDR）的完整前端能力，包括注册实体的 CRUD 与生命周期管理、多语言指称/定义编辑、分类方案树浏览、段模板标识符策略配置、联邦节点合并评审以及映射方案版本管理等。
+`metadata-registry-ui` 是**元数据注册中心（Metadata Registry）**的前端应用，基于 Vue 3 + TypeScript + Vite 构建，实现 ISO/IEC 11179 元数据注册库（MDR）的完整前端能力，包括注册实体的 CRUD 与生命周期管理、多语言指称/定义编辑、分类方案树浏览、段模板标识符策略配置、联邦节点合并评审、映射方案版本管理以及工作空间（Workspace）三视图与行级操作等。
 
 本模块组由三个子模块构成，覆盖「工程化配置 → 业务源码 → 端到端测试」的完整链路：
 

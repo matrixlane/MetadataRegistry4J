@@ -77,25 +77,6 @@ public class FhirMappingConflictDetector {
         return warnings;
     }
 
-    /**
-     * Detects conflicts scoped to a specific mapping scheme.
-     *
-     * @param mappingSchemeId the scheme UUID
-     * @return list of conflict warnings within the scheme
-     */
-    public List<FhirMappingConflictWarning> detectConflictsByScheme(UUID mappingSchemeId) {
-        List<FhirElementMapping> mappings = repository.findByMappingSchemeId(mappingSchemeId);
-
-        Map<UUID, List<FhirElementMapping>> grouped = mappings.stream()
-                .collect(Collectors.groupingBy(FhirElementMapping::getLocalItemId));
-
-        List<FhirMappingConflictWarning> warnings = new ArrayList<>();
-        for (Map.Entry<UUID, List<FhirElementMapping>> entry : grouped.entrySet()) {
-            warnings.addAll(analyzeMappings(entry.getKey(), entry.getValue()));
-        }
-        return warnings;
-    }
-
     // ── Internal analysis ─────────────────────────────────────────────────
 
     /**

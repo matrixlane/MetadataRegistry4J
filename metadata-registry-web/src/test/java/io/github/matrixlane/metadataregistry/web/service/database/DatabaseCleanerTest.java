@@ -201,6 +201,25 @@ class DatabaseCleanerTest {
     }
 
     @Test
+    @DisplayName("显式 schema 停/启 FK:同名标准表 language_identification 限定到 mdr 而非 ext(导入路径)")
+    void explicitSchemaFkTargetsStandardTableForSameNamedImport() throws Exception {
+        DatabaseCleaner cleaner = new DatabaseCleaner(
+                dataSource, env, List.of(new SqlServerFkConstraintStrategy(env)));
+
+        // 模拟迁移导入:导出文件中的裸表名均来自主 schema(含与 EXT 表同名的 language_identification)
+        cleaner.disableForeignKeys(conn, env.schema(), List.of("data_element", "language_identification"));
+        cleaner.enableForeignKeys(conn, env.schema(), List.of("data_element", "language_identification"));
+
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+        verify(statement, atLeastOnce()).execute(sql.capture());
+        assertThat(sql.getAllValues()).contains(
+                "ALTER TABLE \"mdr\".\"language_identification\" NOCHECK CONSTRAINT ALL",
+                "ALTER TABLE \"mdr\".\"language_identification\" WITH CHECK CHECK CONSTRAINT ALL");
+        assertThat(sql.getAllValues())
+                .noneMatch(s -> s.contains("\"ext\".\"language_identification\""));
+    }
+
+    @Test
     @DisplayName("多轮删除仍失败的表按 schema.表名 报错")
     void reportsUnqualifiedFailureWithSchema() throws Exception {
         discoverMdr("broken_table");

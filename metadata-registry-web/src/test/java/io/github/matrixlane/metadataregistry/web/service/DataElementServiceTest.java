@@ -118,4 +118,23 @@ class DataElementServiceTest {
         assertThat(response.dataElementConceptId()).isNull();
         assertThat(response.valueDomainId()).isNull();
     }
+
+    @Test
+    void create_and_update_recordSubmissionWithRegistration() {
+        io.github.matrixlane.metadataregistry.web.dto.common.ItemRegistrationRequest registration =
+                new io.github.matrixlane.metadataregistry.web.dto.common.ItemRegistrationRequest(
+                        null, "DE-1", "1.0.0", List.of(), List.of());
+        DataElementRequest request = new DataElementRequest(null, null, null, List.of(), null, registration);
+        when(repository.save(any(DataElement.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        service.create(request);
+        verify(itemAdministrationService).recordSubmission(any(DataElement.class), org.mockito.ArgumentMatchers.eq(registration));
+
+        UUID id = UUID.randomUUID();
+        DataElement existing = new DataElement();
+        when(repository.findById(id)).thenReturn(Optional.of(existing));
+        service.update(id, request);
+        verify(itemAdministrationService, org.mockito.Mockito.times(2))
+                .recordSubmission(any(DataElement.class), org.mockito.ArgumentMatchers.eq(registration));
+    }
 }

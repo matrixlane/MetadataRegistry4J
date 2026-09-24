@@ -52,7 +52,6 @@ public class FhirElementMappingService {
      * @param fhirResourceType the FHIR Resource type
      * @param fhirEquivalence  the FHIR equivalence code
      * @param description      optional description
-     * @param mappingSchemeId  optional owning scheme
      * @param createdBy        user creating the mapping
      * @return the persisted mapping
      * @throws IllegalArgumentException if a duplicate mapping exists
@@ -62,13 +61,12 @@ public class FhirElementMappingService {
                                                      String fhirResourceType,
                                                      FhirMappingEquivalence fhirEquivalence,
                                                      String description,
-                                                     UUID mappingSchemeId,
                                                      UUID createdBy) {
         validateDuplicate(localItemId, fhirPath);
 
         FhirElementMapping mapping = new FhirElementMapping(
                 localItemId, fhirPath, fhirResourceType, fhirEquivalence,
-                FhirMappingType.ONE_TO_ONE, null, description, mappingSchemeId
+                FhirMappingType.ONE_TO_ONE, null, description
         );
         mapping.setCreatedBy(createdBy);
 
@@ -87,7 +85,6 @@ public class FhirElementMappingService {
      * @param fhirEquivalence  the FHIR equivalence code
      * @param mappingVariable  the component variable name (required)
      * @param description      optional description
-     * @param mappingSchemeId  optional owning scheme
      * @param createdBy        user creating the mapping
      * @return the persisted mapping
      * @throws IllegalArgumentException if variable is blank or duplicate exists
@@ -98,7 +95,6 @@ public class FhirElementMappingService {
                                                       FhirMappingEquivalence fhirEquivalence,
                                                       String mappingVariable,
                                                       String description,
-                                                      UUID mappingSchemeId,
                                                       UUID createdBy) {
         if (mappingVariable == null || mappingVariable.isBlank()) {
             throw new IllegalArgumentException(
@@ -108,7 +104,7 @@ public class FhirElementMappingService {
 
         FhirElementMapping mapping = new FhirElementMapping(
                 localItemId, fhirPath, fhirResourceType, fhirEquivalence,
-                FhirMappingType.ONE_TO_MANY, mappingVariable, description, mappingSchemeId
+                FhirMappingType.ONE_TO_MANY, mappingVariable, description
         );
         mapping.setCreatedBy(createdBy);
 
@@ -143,14 +139,6 @@ public class FhirElementMappingService {
     @Transactional(readOnly = true)
     public List<FhirElementMapping> findByResourceType(String resourceType) {
         return repository.findByFhirResourceType(resourceType);
-    }
-
-    /**
-     * Finds all mappings within a scheme.
-     */
-    @Transactional(readOnly = true)
-    public List<FhirElementMapping> findBySchemeId(UUID schemeId) {
-        return repository.findByMappingSchemeId(schemeId);
     }
 
     /**
@@ -246,14 +234,6 @@ public class FhirElementMappingService {
     @Transactional(readOnly = true)
     public List<FhirMappingConflictWarning> detectAllConflicts() {
         return conflictDetector.detectAllConflicts();
-    }
-
-    /**
-     * Detects conflicts within a specific scheme.
-     */
-    @Transactional(readOnly = true)
-    public List<FhirMappingConflictWarning> detectConflictsByScheme(UUID schemeId) {
-        return conflictDetector.detectConflictsByScheme(schemeId);
     }
 
     // ── Validation ────────────────────────────────────────────────────────

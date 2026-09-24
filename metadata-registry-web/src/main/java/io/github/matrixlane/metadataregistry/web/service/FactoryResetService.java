@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import io.github.matrixlane.metadataregistry.web.seed.LanguageInitializer;
+import io.github.matrixlane.metadataregistry.web.seed.LanguagePresetSeeder;
 import io.github.matrixlane.metadataregistry.web.seed.SystemDefaultNamespaceInitializer;
 import org.springframework.beans.factory.ObjectProvider;
 
@@ -37,6 +38,7 @@ public class FactoryResetService {
     private final JdbcTemplate jdbcTemplate;
     private final SystemSettingService systemSettingService;
     private final LanguageInitializer languageInitializer;
+    private final LanguagePresetSeeder languagePresetSeeder;
     private final ObjectProvider<SystemDefaultNamespaceInitializer> systemDefaultNamespaceInitializerProvider;
     private final DatabaseCleaner databaseCleaner;
     private final DatabaseEnvironment databaseEnvironment;
@@ -73,6 +75,12 @@ public class FactoryResetService {
             log.info("恢复出厂设置：开始重置系统默认命名空间...");
             init.run(null);
         });
+
+        // 4.6 重新应用语言预置(出厂清空了 language_identification 标准表与同名扩展表,
+        // Flyway 不会重跑已应用迁移;重放 V20260919003 脚本恢复内置语言与名称,
+        // 脚本语句均带幂等守卫,与全新库/既有库共用同一份 SQL 数据源)
+        log.info("恢复出厂设置：重新应用语言预置（V20260919003）...");
+        languagePresetSeeder.reapplyPreset();
 
         // 5. 系统初始化状态自动重置
         // system_setting 表已被 clearAllTables() 清空，

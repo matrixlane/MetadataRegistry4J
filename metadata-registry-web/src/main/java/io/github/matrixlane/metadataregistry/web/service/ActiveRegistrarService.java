@@ -40,6 +40,7 @@ public class ActiveRegistrarService {
     private final ContactAccountBindingService contactAccountBindingService;
     private final AccountRepository accountRepository;
     private final AdministeredItemRepository administeredItemRepository;
+    private final io.github.matrixlane.metadataregistry.web.repository.RegistrationAuthorityRepository registrationAuthorityRepository;
 
     public record RegistrarIdentity(UUID registrarId, UUID registrationAuthorityId,
                                     String registrationAuthorityName) {
@@ -172,10 +173,34 @@ public class ActiveRegistrarService {
         boolean allowed = active.isPresent()
                 && active.get().getRegistrationAuthority() != null
                 && owner.getId().equals(active.get().getRegistrationAuthority().getId());
+        // Submitter 通道（add-submitter-contact-identity）：无活动 Registrar 但已登记
+        // 为 Contact 的账号，对归属系统唯一注册机构的条目放行写操作；多注册表
+        // 模式下该通道须重新评审。
+        if (!allowed && contactAccountBindingService.hasAnyContact(accountId)) {
+            List<RegistrationAuthority> all = registrationAuthorityRepository.findAll();
+            allowed = all.size() == 1 && all.get(0).getId().equals(owner.getId());
+        }
         if (!allowed) {
             throw new AccessDeniedException(
-                    "仅条目所属注册机构的活动 Registrar 可修改该条目；如持有该机构的 Registrar 身份，请先切换为活动身份");
+                    "仅条目所属注册机构的活动 Registrar 或已登记联系人可修改该条目；如持有该机构的 Registrar 身份，请先切换为活动身份");
         }
+    }
+
+    /**
+     * Submitter 通道：账号已登记为 Contact（任一绑定）即视为 Submitter。
+     */
+    @Transactional(readOnly = true)
+    public boolean isSubmitter(UUID accountId) {
+        return accountId != null && contactAccountBindingService.hasAnyContact(accountId);
+    }
+
+    /**
+     * 系统唯一的注册机构（单注册表模式）；不存在或不唯一时返回空。
+     */
+    @Transactional(readOnly = true)
+    public Optional<RegistrationAuthority> systemUniqueRegistrationAuthority() {
+        List<RegistrationAuthority> all = registrationAuthorityRepository.findAll();
+        return all.size() == 1 ? Optional.of(all.get(0)) : Optional.empty();
     }
 
     public static RegistrarIdentity toIdentity(Registrar registrar) {

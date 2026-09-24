@@ -48,8 +48,8 @@ class RegistrationStateTest {
     @Test
     void shouldSetAdministrativeStatus() {
         RegistrationState state = new RegistrationState();
-        state.setAdministrativeStatus("Active");
-        assertThat(state.getAdministrativeStatus()).isEqualTo("Active");
+        state.setAdministrativeStatus(AdministrativeStatus.DRAFT);
+        assertThat(state.getAdministrativeStatus()).isEqualTo(AdministrativeStatus.DRAFT);
     }
 
     @Test

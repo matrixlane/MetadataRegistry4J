@@ -1,7 +1,9 @@
 package io.github.matrixlane.metadataregistry.web.service;
 
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.Sign;
+import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Contact;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.LanguageIdentification;
+import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Organization;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.Item;
 import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.Acceptability;
 import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.Designation;
@@ -9,11 +11,14 @@ import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefi
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.ScopedIdentifier;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.AdministeredItem;
+import io.github.matrixlane.metadataregistry.commonfacilities.registration.AdministrativeStatus;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.Registrar;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationAuthority;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationState;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationStatus;
+import io.github.matrixlane.metadataregistry.commonfacilities.registration.StewardshipRecord;
 import io.github.matrixlane.metadataregistry.web.common.BusinessException;
+import io.github.matrixlane.metadataregistry.web.dto.common.ItemMetaResponse;
 import io.github.matrixlane.metadataregistry.web.dto.common.ItemRegistrationRequest;
 import io.github.matrixlane.metadataregistry.web.dto.common.TextLine;
 import io.github.matrixlane.metadataregistry.web.dto.common.TextLineContextEntry;
@@ -33,6 +38,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
@@ -62,7 +68,13 @@ class ItemAdministrationServiceTest {
     @Mock private RegistrySpecificationRepository registrySpecificationRepository;
     @Mock private ScopedIdentifierLifecycleService lifecycleService;
     @Mock private NamespaceIdentifierSettingsService namespaceIdentifierSettingsService;
-    @Mock private RegistrationLifecycleService registrationLifecycleService;
+    @Mock private io.github.matrixlane.metadataregistry.web.repository.SubmissionRecordRepository submissionRecordRepository;
+    @Mock private io.github.matrixlane.metadataregistry.web.repository.StewardshipRecordRepository stewardshipRecordRepository;
+    @Mock private io.github.matrixlane.metadataregistry.web.repository.ContactRepository contactRepository;
+    @Mock private io.github.matrixlane.metadataregistry.web.repository.OrganizationRepository organizationRepository;
+    @Mock private ContactService contactService;
+    @Mock private ContactAccountBindingService contactAccountBindingService;
+    @Spy private AdministrativeStatusService administrativeStatusService;
 
     @InjectMocks
     private ItemAdministrationService itemAdministrationService;
@@ -1040,78 +1052,122 @@ class ItemAdministrationServiceTest {
         lenient().when(namespaceIdentifierSettingsService.getOrDefault(ns.getId())).thenReturn(settings);
     }
 
-    // ===== Registration_State 生命周期路由：状态变更走 RegistrationLifecycleService =====
+    // ===== workspace-administrative-status：编辑后统一置 Draft =====
 
     @Test
-    void ensureAdministeredItem_update_statusChanged_delegatesToLifecycleTransition() {
-        // 编辑表单改了注册状态 → 委托生命周期服务（校验转换合法性+角色权限+历史链），
-        // 本服务不直接改写状态
-        Namespace ns = new Namespace();
-        ns.setId(UUID.randomUUID());
-        stubVersioningPolicy(ns, "SEQUENTIAL");
+    void ensureAdministeredItem_create_marksDraft() {
+        RegistrationAuthority ra = newRa();
+        Namespace ns = raNamespace(ra);
         when(namespaceRepository.findById(ns.getId())).thenReturn(Optional.of(ns));
-        AdministeredItem existing = attachExistingIdentifier(ns, "X-1", "1");
-        existing.setId(UUID.randomUUID());
-        RegistrationState current = new RegistrationState();
-        current.setRegistrationStatus(RegistrationStatus.RECORDED);
-        current.setEffectiveDate(java.time.LocalDateTime.now().minusDays(1));
-        existing.setRegistrationState(current);
+        when(namespaceRepository.existsByRegistrationAuthorityIsNotNull()).thenReturn(true);
 
         ItemRegistrationRequest req = new ItemRegistrationRequest(
-                ns.getId(), null, "1", List.of(), List.of(), null, null, null,
-                RegistrationStatus.QUALIFIED, null, null, null, "升级备注", null, null);
+                ns.getId(), "DRAFT-1", "1.0.0", List.of(), List.of());
 
-        itemAdministrationService.ensureAdministeredItem(item, req);
+        AdministeredItem ai = itemAdministrationService.ensureAdministeredItem(item, req);
 
-        verify(registrationLifecycleService).transition(
-                existing.getId(), RegistrationStatus.QUALIFIED, "升级备注");
-        // transition 被 mock（未真正换状态），本服务不得自行改写当前状态
-        assertThat(existing.getRegistrationState().getRegistrationStatus())
-                .isEqualTo(RegistrationStatus.RECORDED);
+        assertThat(ai.getRegistrationState()).isNotNull();
+        assertThat(ai.getRegistrationState().getRegistrationStatus())
+                .isEqualTo(RegistrationStatus.INCOMPLETE);
+        assertThat(ai.getRegistrationState().getAdministrativeStatus())
+                .isEqualTo(AdministrativeStatus.DRAFT);
+        verify(administrativeStatusService).markDraft(ai);
     }
 
     @Test
-    void ensureAdministeredItem_update_statusUnchanged_skipsTransition() {
-        // 状态与当前相同（表单回显未改）→ 不触发迁移（from==to 不在转换表中，会报错）
-        Namespace ns = new Namespace();
-        ns.setId(UUID.randomUUID());
-        stubVersioningPolicy(ns, "SEQUENTIAL");
+    void ensureAdministeredItem_update_recorded_marksDraftAndKeepsRegistrationStatus() {
+        RegistrationAuthority ra = newRa();
+        Namespace ns = raNamespace(ra);
         when(namespaceRepository.findById(ns.getId())).thenReturn(Optional.of(ns));
-        AdministeredItem existing = attachExistingIdentifier(ns, "X-1", "1");
-        existing.setId(UUID.randomUUID());
-        RegistrationState current = new RegistrationState();
-        current.setRegistrationStatus(RegistrationStatus.RECORDED);
-        current.setEffectiveDate(java.time.LocalDateTime.now().minusDays(1));
-        existing.setRegistrationState(current);
+        when(namespaceRepository.existsByRegistrationAuthorityIsNotNull()).thenReturn(true);
+        AdministeredItem existing = new AdministeredItem(item);
+        existing.setRegistrationAuthority(ra);
+        RegistrationState state = new RegistrationState();
+        state.setRegistrationStatus(RegistrationStatus.RECORDED);
+        state.setEffectiveDate(java.time.LocalDateTime.now());
+        existing.setRegistrationState(state);
+        item.setIdentifiedItem(existing);
 
         ItemRegistrationRequest req = new ItemRegistrationRequest(
-                ns.getId(), null, "1", List.of(), List.of(), null, null, null,
-                RegistrationStatus.RECORDED, null, null, null, null, null, null);
+                ns.getId(), null, "2.0.0", List.of(), List.of());
 
-        itemAdministrationService.ensureAdministeredItem(item, req);
+        AdministeredItem ai = itemAdministrationService.ensureAdministeredItem(item, req);
 
-        verifyNoInteractions(registrationLifecycleService);
-        assertThat(existing.getRegistrationState().getRegistrationStatus())
+        assertThat(ai.getRegistrationState().getRegistrationStatus())
                 .isEqualTo(RegistrationStatus.RECORDED);
+        assertThat(ai.getRegistrationState().getAdministrativeStatus())
+                .isEqualTo(AdministrativeStatus.DRAFT);
+        verify(administrativeStatusService).markDraft(ai);
+    }
+
+    @Test
+    void ensureAdministeredItem_update_rejectedRevision_marksNewDraft() {
+        RegistrationAuthority ra = newRa();
+        Namespace ns = raNamespace(ra);
+        when(namespaceRepository.findById(ns.getId())).thenReturn(Optional.of(ns));
+        when(namespaceRepository.existsByRegistrationAuthorityIsNotNull()).thenReturn(true);
+        AdministeredItem existing = new AdministeredItem(item);
+        existing.setRegistrationAuthority(ra);
+        RegistrationState state = new RegistrationState();
+        state.setRegistrationStatus(RegistrationStatus.RECORDED);
+        state.setAdministrativeStatus(AdministrativeStatus.REJECTED);
+        state.setEffectiveDate(java.time.LocalDateTime.now());
+        existing.setRegistrationState(state);
+        item.setIdentifiedItem(existing);
+
+        ItemRegistrationRequest req = new ItemRegistrationRequest(
+                ns.getId(), null, "2.0.0", List.of(), List.of());
+
+        AdministeredItem ai = itemAdministrationService.ensureAdministeredItem(item, req);
+
+        assertThat(ai.getRegistrationState().getAdministrativeStatus())
+                .isEqualTo(AdministrativeStatus.DRAFT);
+        verify(administrativeStatusService).markDraft(ai);
+    }
+
+    @Test
+    void ensureAdministeredItem_administrativeStatusInRequest_isIgnored() {
+        RegistrationAuthority ra = newRa();
+        Namespace ns = raNamespace(ra);
+        when(namespaceRepository.findById(ns.getId())).thenReturn(Optional.of(ns));
+        when(namespaceRepository.existsByRegistrationAuthorityIsNotNull()).thenReturn(true);
+        AdministeredItem existing = new AdministeredItem(item);
+        existing.setRegistrationAuthority(ra);
+        RegistrationState state = new RegistrationState();
+        state.setRegistrationStatus(RegistrationStatus.RECORDED);
+        state.setEffectiveDate(java.time.LocalDateTime.now());
+        existing.setRegistrationState(state);
+        item.setIdentifiedItem(existing);
+
+        // 请求体携带自由文本管理状态，应被忽略，最终由 markDraft 置为 DRAFT
+        ItemRegistrationRequest req = new ItemRegistrationRequest(
+                ns.getId(), null, "2.0.0", List.of(), List.of(), null, null, null,
+                null, "approved as recorded", null, null, null, null, null);
+
+        AdministeredItem ai = itemAdministrationService.ensureAdministeredItem(item, req);
+
+        assertThat(ai.getRegistrationState().getAdministrativeStatus())
+                .isEqualTo(AdministrativeStatus.DRAFT);
     }
 
     @Test
     void ensureAdministeredItem_create_explicitStatus_setsInitialStateDirectly() {
-        // 创建路径：显式状态作为初始状态直接落库（无历史链），不走 transition
+        // 创建路径：仅允许 INCOMPLETE / APPLICATION / HISTORICAL 作为显式初始状态
         Namespace ns = new Namespace();
         ns.setId(UUID.randomUUID());
         when(namespaceRepository.findById(ns.getId())).thenReturn(Optional.of(ns));
 
         ItemRegistrationRequest req = new ItemRegistrationRequest(
                 ns.getId(), "NEW-1", "1.0.0", List.of(), List.of(), null, null, null,
-                RegistrationStatus.QUALIFIED, null, null, null, null, null, null);
+                RegistrationStatus.APPLICATION, null, null, null, null, null, null);
 
         AdministeredItem ai = itemAdministrationService.ensureAdministeredItem(item, req);
 
-        verifyNoInteractions(registrationLifecycleService);
         assertThat(ai.getRegistrationState().getRegistrationStatus())
-                .isEqualTo(RegistrationStatus.QUALIFIED);
+                .isEqualTo(RegistrationStatus.APPLICATION);
         assertThat(ai.getRegistrationState().getPreviousState()).isNull();
+        assertThat(ai.getRegistrationState().getAdministrativeStatus())
+                .isEqualTo(AdministrativeStatus.DRAFT);
     }
 
     @Test
@@ -1163,5 +1219,201 @@ class ItemAdministrationServiceTest {
         AdministeredItem ai = itemAdministrationService.ensureAdministeredItem(item, req);
 
         assertThat(ai.getExplanatoryComment()).isEmpty();
+    }
+
+    // ===== stewardship-record：主管记录设置/复用/校验 =====
+
+    private Contact newContact(UUID id, Organization organization) {
+        Contact contact = new Contact();
+        contact.setId(id);
+        contact.setOrganization(organization);
+        return contact;
+    }
+
+    private Organization newOrganization(UUID id) {
+        Organization organization = new Organization();
+        organization.setId(id);
+        return organization;
+    }
+
+    private StewardshipRecord newStewardshipRecord(UUID id, Contact contact, Organization organization) {
+        StewardshipRecord record = new StewardshipRecord();
+        record.setId(id);
+        record.setContact(contact);
+        record.setOrganization(organization);
+        return record;
+    }
+
+    @Test
+    void ensureAdministeredItem_withStewardship_createsAndSetsStewardshipRecord() {
+        RegistrationAuthority ra = newRa();
+        Namespace ns = raNamespace(ra);
+        when(namespaceRepository.findById(ns.getId())).thenReturn(Optional.of(ns));
+        when(namespaceRepository.existsByRegistrationAuthorityIsNotNull()).thenReturn(true);
+
+        UUID accountId = UUID.randomUUID();
+        UUID contactId = UUID.randomUUID();
+        UUID organizationId = UUID.randomUUID();
+        Organization organization = newOrganization(organizationId);
+        Contact contact = newContact(contactId, organization);
+
+        when(activeRegistrarService.currentAccountIdOrNull()).thenReturn(accountId);
+        when(activeRegistrarService.resolveForCurrentUser()).thenReturn(Optional.of(new Registrar(ra)));
+        when(contactRepository.findById(contactId)).thenReturn(Optional.of(contact));
+        when(contactAccountBindingService.accountIdOfContact(contactId)).thenReturn(Optional.of(accountId));
+        when(organizationRepository.findById(organizationId)).thenReturn(Optional.of(organization));
+        when(stewardshipRecordRepository.findFirstByContact_IdAndOrganization_Id(contactId, organizationId))
+                .thenReturn(Optional.empty());
+        when(stewardshipRecordRepository.save(any(StewardshipRecord.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+
+        ItemRegistrationRequest req = new ItemRegistrationRequest(
+                ns.getId(), "STEW-1", "1.0.0", List.of(), List.of(), null, null, null,
+                null, null, null, null, null, null, null, null,
+                new io.github.matrixlane.metadataregistry.web.dto.common.StewardshipInfo(contactId, organizationId));
+
+        AdministeredItem ai = itemAdministrationService.ensureAdministeredItem(item, req);
+
+        assertThat(ai.getStewardshipRecord()).isNotNull();
+        assertThat(ai.getStewardshipRecord().getContact()).isSameAs(contact);
+        assertThat(ai.getStewardshipRecord().getOrganization()).isSameAs(organization);
+        verify(stewardshipRecordRepository).findFirstByContact_IdAndOrganization_Id(contactId, organizationId);
+        verify(stewardshipRecordRepository).save(any(StewardshipRecord.class));
+    }
+
+    @Test
+    void ensureAdministeredItem_withStewardship_reusesExistingRecord() {
+        RegistrationAuthority ra = newRa();
+        Namespace ns = raNamespace(ra);
+        when(namespaceRepository.findById(ns.getId())).thenReturn(Optional.of(ns));
+        when(namespaceRepository.existsByRegistrationAuthorityIsNotNull()).thenReturn(true);
+
+        UUID accountId = UUID.randomUUID();
+        UUID contactId = UUID.randomUUID();
+        UUID organizationId = UUID.randomUUID();
+        Organization organization = newOrganization(organizationId);
+        Contact contact = newContact(contactId, organization);
+        StewardshipRecord existing = newStewardshipRecord(UUID.randomUUID(), contact, organization);
+
+        when(activeRegistrarService.currentAccountIdOrNull()).thenReturn(accountId);
+        when(activeRegistrarService.resolveForCurrentUser()).thenReturn(Optional.of(new Registrar(ra)));
+        when(contactRepository.findById(contactId)).thenReturn(Optional.of(contact));
+        when(contactAccountBindingService.accountIdOfContact(contactId)).thenReturn(Optional.of(accountId));
+        when(organizationRepository.findById(organizationId)).thenReturn(Optional.of(organization));
+        when(stewardshipRecordRepository.findFirstByContact_IdAndOrganization_Id(contactId, organizationId))
+                .thenReturn(Optional.of(existing));
+
+        ItemRegistrationRequest req = new ItemRegistrationRequest(
+                ns.getId(), "STEW-2", "1.0.0", List.of(), List.of(), null, null, null,
+                null, null, null, null, null, null, null, null,
+                new io.github.matrixlane.metadataregistry.web.dto.common.StewardshipInfo(contactId, organizationId));
+
+        AdministeredItem ai = itemAdministrationService.ensureAdministeredItem(item, req);
+
+        assertThat(ai.getStewardshipRecord()).isSameAs(existing);
+        verify(stewardshipRecordRepository, never()).save(any(StewardshipRecord.class));
+    }
+
+    @Test
+    void ensureAdministeredItem_withStewardship_usesContactOrganizationWhenOmitted() {
+        RegistrationAuthority ra = newRa();
+        Namespace ns = raNamespace(ra);
+        when(namespaceRepository.findById(ns.getId())).thenReturn(Optional.of(ns));
+        when(namespaceRepository.existsByRegistrationAuthorityIsNotNull()).thenReturn(true);
+
+        UUID accountId = UUID.randomUUID();
+        UUID contactId = UUID.randomUUID();
+        UUID organizationId = UUID.randomUUID();
+        Organization organization = newOrganization(organizationId);
+        Contact contact = newContact(contactId, organization);
+
+        when(activeRegistrarService.currentAccountIdOrNull()).thenReturn(accountId);
+        when(activeRegistrarService.resolveForCurrentUser()).thenReturn(Optional.of(new Registrar(ra)));
+        when(contactRepository.findById(contactId)).thenReturn(Optional.of(contact));
+        when(contactAccountBindingService.accountIdOfContact(contactId)).thenReturn(Optional.of(accountId));
+        when(stewardshipRecordRepository.findFirstByContact_IdAndOrganization_Id(contactId, organizationId))
+                .thenReturn(Optional.empty());
+        when(stewardshipRecordRepository.save(any(StewardshipRecord.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+
+        ItemRegistrationRequest req = new ItemRegistrationRequest(
+                ns.getId(), "STEW-3", "1.0.0", List.of(), List.of(), null, null, null,
+                null, null, null, null, null, null, null, null,
+                new io.github.matrixlane.metadataregistry.web.dto.common.StewardshipInfo(contactId, null));
+
+        AdministeredItem ai = itemAdministrationService.ensureAdministeredItem(item, req);
+
+        assertThat(ai.getStewardshipRecord()).isNotNull();
+        assertThat(ai.getStewardshipRecord().getOrganization()).isSameAs(organization);
+    }
+
+    @Test
+    void ensureAdministeredItem_stewardshipContactNotBoundToAccount_rejects() {
+        RegistrationAuthority ra = newRa();
+        Namespace ns = raNamespace(ra);
+        when(namespaceRepository.findById(ns.getId())).thenReturn(Optional.of(ns));
+        when(namespaceRepository.existsByRegistrationAuthorityIsNotNull()).thenReturn(true);
+
+        UUID accountId = UUID.randomUUID();
+        UUID contactId = UUID.randomUUID();
+        Organization organization = newOrganization(UUID.randomUUID());
+        Contact contact = newContact(contactId, organization);
+
+        when(activeRegistrarService.currentAccountIdOrNull()).thenReturn(accountId);
+        when(activeRegistrarService.resolveForCurrentUser()).thenReturn(Optional.of(new Registrar(ra)));
+        when(contactRepository.findById(contactId)).thenReturn(Optional.of(contact));
+        when(contactAccountBindingService.accountIdOfContact(contactId)).thenReturn(Optional.empty());
+
+        ItemRegistrationRequest req = new ItemRegistrationRequest(
+                ns.getId(), "STEW-4", "1.0.0", List.of(), List.of(), null, null, null,
+                null, null, null, null, null, null, null, null,
+                new io.github.matrixlane.metadataregistry.web.dto.common.StewardshipInfo(contactId, organization.getId()));
+
+        assertThatThrownBy(() -> itemAdministrationService.ensureAdministeredItem(item, req))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("主管信息");
+    }
+
+    @Test
+    void ensureAdministeredItem_stewardshipNull_keepsExistingRecord() {
+        Namespace ns = new Namespace();
+        ns.setId(UUID.randomUUID());
+        when(namespaceRepository.findById(ns.getId())).thenReturn(Optional.of(ns));
+
+        StewardshipRecord existing = newStewardshipRecord(UUID.randomUUID(), newContact(UUID.randomUUID(), null), newOrganization(UUID.randomUUID()));
+        AdministeredItem administeredItem = new AdministeredItem(item);
+        administeredItem.setStewardshipRecord(existing);
+        item.setIdentifiedItem(administeredItem);
+
+        ItemRegistrationRequest req = new ItemRegistrationRequest(
+                ns.getId(), "STEW-5", "1.0.0", List.of(), List.of());
+
+        AdministeredItem ai = itemAdministrationService.ensureAdministeredItem(item, req);
+
+        assertThat(ai.getStewardshipRecord()).isSameAs(existing);
+        verifyNoInteractions(stewardshipRecordRepository);
+    }
+
+    @Test
+    void buildItemMeta_echoesStewardshipRecordIds() {
+        UUID aiId = UUID.randomUUID();
+        UUID recordId = UUID.randomUUID();
+        UUID contactId = UUID.randomUUID();
+        UUID organizationId = UUID.randomUUID();
+
+        AdministeredItem administeredItem = new AdministeredItem(item);
+        administeredItem.setId(aiId);
+        StewardshipRecord record = newStewardshipRecord(recordId, newContact(contactId, null), newOrganization(organizationId));
+        administeredItem.setStewardshipRecord(record);
+
+        when(administeredItemRepository.findMetaByItemId(item.getId())).thenReturn(List.<Object[]>of(new Object[]{aiId, RegistrationStatus.INCOMPLETE}));
+        when(administeredItemRepository.findByItem_Id(item.getId())).thenReturn(Optional.of(administeredItem));
+        when(scopedIdentifierRepository.findByItemId(item.getId())).thenReturn(List.of());
+
+        ItemMetaResponse meta = itemAdministrationService.buildItemMeta(item);
+
+        assertThat(meta.stewardshipRecordId()).isEqualTo(recordId);
+        assertThat(meta.stewardshipContactId()).isEqualTo(contactId);
+        assertThat(meta.stewardshipOrganizationId()).isEqualTo(organizationId);
     }
 }

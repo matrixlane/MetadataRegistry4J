@@ -40,13 +40,17 @@ public class DataTypeSchemeService {
     public DataTypeSchemeResponse create(DataTypeSchemeRequest request) {
         DataTypeScheme entity = new DataTypeScheme();
         applyRequest(entity, request);
-        return toResponse(repository.save(entity));
+        DataTypeScheme saved = repository.save(entity);
+        itemAdministrationService.recordSubmission(saved, request.registration());
+        return toResponse(saved);
     }
 
     public DataTypeSchemeResponse update(UUID id, DataTypeSchemeRequest request) {
         DataTypeScheme entity = loadOrThrow(id);
         applyRequest(entity, request);
-        return toResponse(repository.save(entity));
+        DataTypeScheme saved = repository.save(entity);
+        itemAdministrationService.recordSubmission(saved, request.registration());
+        return toResponse(saved);
     }
 
     public void delete(UUID id) {

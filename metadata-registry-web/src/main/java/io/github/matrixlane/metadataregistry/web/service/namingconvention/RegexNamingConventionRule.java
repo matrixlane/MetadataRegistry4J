@@ -15,8 +15,8 @@ import java.util.regex.PatternSyntaxException;
 public class RegexNamingConventionRule implements NamingConventionRule {
 
     public static final String DEFAULT_RULE_NAME = "regex";
-    public static final String DEFAULT_REGEX = "^[a-zA-Z_\\u4e00-\\u9fa5][a-zA-Z0-9_\\-\\u4e00-\\u9fa5]*$";
-    public static final String DEFAULT_PATTERN_DESCRIPTION = "以字母、下划线或中文开头，后续为字母、数字、下划线、连字符或中文";
+    public static final String DEFAULT_REGEX = "^[a-zA-Z_\\u4e00-\\u9fa5][a-zA-Z0-9_\\-\\s\\u4e00-\\u9fa5]*$";
+    public static final String DEFAULT_PATTERN_DESCRIPTION = "以字母、下划线或中文开头，后续为字母、数字、下划线、连字符、空格或中文";
 
     private final String ruleName;
     private final String patternDescription;

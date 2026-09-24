@@ -123,3 +123,23 @@ Likely cause: CreateProcess 只补 .exe；Hyper-V/WinNAT 开机动态保留端�
 How to detect: `where <cmd>` 看 shim 类型；`netsh interface ipv4 show excludedportrange protocol=tcp`；先用 -f 65001 试跑。
 
 Mitigation: WindowsCommandResolver（PATH+PATHEXT 解析、.cmd/.bat 走 cmd /c、跳过无扩展名 shell shim）；`net stop winnat`→绑端口→`net start winnat`；sqlcmd 加 `-f 65001`。
+
+### Failure Pattern: SQLite 64 表 join 上限——带 AdministeredItem 的条目 update/delete 必 500
+- id: failure-2026-09-21-sqlite-64-table-join-limit
+- type: environment_limitation
+- status: active
+- confidence: verified
+- last_updated: 2026-09-22
+- source: add-uom-measure-class-association 验证期发现；add-submitter-contact-identity 冒烟复现（`ActiveRegistrarService.assertCanModifyItem` → `AdministeredItemRepository.findByItem_Id` 全子类 join 超 64 表）
+- owner: matrixlane
+- review_after: 2026-12-21
+
+Trigger: SQLite 环境对任何已归属注册机构的条目执行 update/delete（`assertCanModifyItem`/`assertCanModify` 触发 `findByItem_Id`）。
+
+Symptom: 500 `[SQLITE_ERROR] at most 64 tables in a join`（Item 全子类 + 关联对象图单查询 join 超限）。SQL Server / 达梦无此限制。
+
+Likely cause: Hibernate 对 `AdministeredItem`（RegisteredItem 子类）按 id 加载时把所有 Item 子类表与直接关联对象图拼进单条 join。
+
+How to detect: 日志搜 `at most 64 tables in a join`。
+
+Mitigation: SQLite 冒烟跳过条目 update/delete 路径（用单元测试覆盖）；根治须拆分实体继承映射或改 `findByItem_Id` 查询形状（单独 backlog）。

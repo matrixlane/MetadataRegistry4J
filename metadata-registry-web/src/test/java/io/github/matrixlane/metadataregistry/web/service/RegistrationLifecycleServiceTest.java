@@ -1,8 +1,13 @@
 package io.github.matrixlane.metadataregistry.web.service;
 
+
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.AdministeredItem;
+import io.github.matrixlane.metadataregistry.commonfacilities.registration.AdministrativeStatus;
+import io.github.matrixlane.metadataregistry.commonfacilities.registration.Registrar;
+import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationAuthority;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationState;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationStatus;
+import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationTransitionRule;
 import io.github.matrixlane.metadataregistry.web.auth.AppUserRole;
 import io.github.matrixlane.metadataregistry.web.auth.AuthenticatedUser;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.SystemRole;
@@ -24,6 +29,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -70,6 +76,8 @@ class RegistrationLifecycleServiceTest {
     @Mock
     private ContactRepository contactRepository;
     @Mock private ContactAccountBindingService contactAccountBindingService;
+    @Mock private io.github.matrixlane.metadataregistry.web.repository.RegistrationTransitionRuleRepository transitionRuleRepository;
+    @Spy private AdministrativeStatusService administrativeStatusService;
 
     @InjectMocks
     private RegistrationLifecycleService registrationLifecycleService;
@@ -129,9 +137,17 @@ class RegistrationLifecycleServiceTest {
     }
 
     @Test
-    @DisplayName("完整正向流程: INCOMPLETE → SUBMITTED → RECORDED → QUALIFIED → STANDARD")
+    @DisplayName("完整正向流程: INCOMPLETE → SUBMITTED → RECORDED → QUALIFIED → STANDARD（规则表全放行）")
     void transition_fullForwardFlow_shouldSucceed() {
         authenticateAs(AppUserRole.ADMIN);
+
+        // 归属 RA + 规则表全部放行（无审核点）——M1 后无 RA 条目不可直推 QUALIFIED+
+        RegistrationAuthority ra = new RegistrationAuthority();
+        ra.setId(UUID.randomUUID());
+        item.setRegistrationAuthority(ra);
+        org.mockito.Mockito.lenient().when(transitionRuleRepository
+                        .findByRegistrationAuthorityIdAndFromStatusAndToStatus(any(), any(), any()))
+                .thenAnswer(inv -> Optional.of(rule(ra, inv.getArgument(1), inv.getArgument(2), false)));
 
         RegistrationStatus[] flow = {
                 RegistrationStatus.INCOMPLETE,
@@ -153,6 +169,7 @@ class RegistrationLifecycleServiceTest {
                     itemId, to, "步骤 " + (i + 1));
 
             assertThat(result.getRegistrationState().getRegistrationStatus()).isEqualTo(to);
+            assertThat(result.getRegistrationState().getAdministrativeStatus()).isNull();
 
             // 验证历史链
             RegistrationState current = result.getRegistrationState();
@@ -197,33 +214,18 @@ class RegistrationLifecycleServiceTest {
     }
 
     @Test
-    @DisplayName("APPLICATION → RECORDED: 合法转换，ADMIN 角色")
-    void transition_applicationToRecorded_asAdmin_shouldSucceed() {
+    @DisplayName("APPLICATION → CANDIDATE: 合法转换，ADMIN 角色")
+    void transition_applicationToCandidate_asAdmin_shouldSucceed() {
         authenticateAs(AppUserRole.ADMIN);
         item.setRegistrationState(createState(RegistrationStatus.APPLICATION));
         when(administeredItemRepository.findById(itemId)).thenReturn(Optional.of(item));
         when(administeredItemRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         AdministeredItem result = registrationLifecycleService.transition(
-                itemId, RegistrationStatus.RECORDED, "记录");
+                itemId, RegistrationStatus.CANDIDATE, "重新提交");
 
         assertThat(result.getRegistrationState().getRegistrationStatus())
-                .isEqualTo(RegistrationStatus.RECORDED);
-    }
-
-    @Test
-    @DisplayName("APPLICATION → RETIRED: 合法转换，ADMIN 角色")
-    void transition_applicationToRetired_asAdmin_shouldSucceed() {
-        authenticateAs(AppUserRole.ADMIN);
-        item.setRegistrationState(createState(RegistrationStatus.APPLICATION));
-        when(administeredItemRepository.findById(itemId)).thenReturn(Optional.of(item));
-        when(administeredItemRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
-
-        AdministeredItem result = registrationLifecycleService.transition(
-                itemId, RegistrationStatus.RETIRED, "退役");
-
-        assertThat(result.getRegistrationState().getRegistrationStatus())
-                .isEqualTo(RegistrationStatus.RETIRED);
+                .isEqualTo(RegistrationStatus.CANDIDATE);
     }
 
     @Test
@@ -270,7 +272,7 @@ class RegistrationLifecycleServiceTest {
                 new Object[]{RegistrationStatus.INCOMPLETE, RegistrationStatus.INCOMPLETE, ApiCodes.ALREADY_IN_TARGET_STATE},
                 new Object[]{RegistrationStatus.INCOMPLETE, RegistrationStatus.RECORDED, ApiCodes.INVALID_STATE_TRANSITION_FROM_INCOMPLETE},
                 new Object[]{RegistrationStatus.INCOMPLETE, RegistrationStatus.QUALIFIED, ApiCodes.INVALID_STATE_TRANSITION_FROM_INCOMPLETE},
-                // SUBMITTED (1111)
+                // CANDIDATE (1111)
                 new Object[]{RegistrationStatus.CANDIDATE, RegistrationStatus.INCOMPLETE, ApiCodes.INVALID_STATE_TRANSITION_FROM_CANDIDATE},
                 new Object[]{RegistrationStatus.CANDIDATE, RegistrationStatus.CANDIDATE, ApiCodes.ALREADY_IN_TARGET_STATE},
                 new Object[]{RegistrationStatus.CANDIDATE, RegistrationStatus.QUALIFIED, ApiCodes.INVALID_STATE_TRANSITION_FROM_CANDIDATE},
@@ -288,11 +290,13 @@ class RegistrationLifecycleServiceTest {
                 new Object[]{RegistrationStatus.PREFERRED_STANDARD, RegistrationStatus.QUALIFIED, ApiCodes.INVALID_STATE_TRANSITION_FROM_PREFERRED_STANDARD},
                 // SUPERSEDED (1116)
                 new Object[]{RegistrationStatus.SUPERSEDED, RegistrationStatus.STANDARD, ApiCodes.INVALID_STATE_TRANSITION_FROM_SUPERSEDED},
+                new Object[]{RegistrationStatus.SUPERSEDED, RegistrationStatus.HISTORICAL, ApiCodes.INVALID_STATE_TRANSITION_FROM_SUPERSEDED},
                 // RETIRED (1117)
                 new Object[]{RegistrationStatus.RETIRED, RegistrationStatus.STANDARD, ApiCodes.INVALID_STATE_TRANSITION_FROM_RETIRED},
+                new Object[]{RegistrationStatus.RETIRED, RegistrationStatus.HISTORICAL, ApiCodes.INVALID_STATE_TRANSITION_FROM_RETIRED},
                 // APPLICATION (1119)
                 new Object[]{RegistrationStatus.APPLICATION, RegistrationStatus.INCOMPLETE, ApiCodes.INVALID_STATE_TRANSITION_FROM_APPLICATION},
-                new Object[]{RegistrationStatus.APPLICATION, RegistrationStatus.CANDIDATE, ApiCodes.INVALID_STATE_TRANSITION_FROM_APPLICATION},
+                new Object[]{RegistrationStatus.APPLICATION, RegistrationStatus.RECORDED, ApiCodes.INVALID_STATE_TRANSITION_FROM_APPLICATION},
                 new Object[]{RegistrationStatus.APPLICATION, RegistrationStatus.QUALIFIED, ApiCodes.INVALID_STATE_TRANSITION_FROM_APPLICATION},
                 new Object[]{RegistrationStatus.APPLICATION, RegistrationStatus.STANDARD, ApiCodes.INVALID_STATE_TRANSITION_FROM_APPLICATION},
                 new Object[]{RegistrationStatus.APPLICATION, RegistrationStatus.PREFERRED_STANDARD, ApiCodes.INVALID_STATE_TRANSITION_FROM_APPLICATION},
@@ -309,8 +313,8 @@ class RegistrationLifecycleServiceTest {
     // =========================================================================
 
     @Test
-    @DisplayName("REGISTRAR 无权执行 STANDARD → SUPERSEDED")
-    void transition_standardToSuperseded_asRegistrar_shouldReject() {
+    @DisplayName("REGISTRAR 无法直推 STANDARD → SUPERSEDED（默认审核点，回退 1120）")
+    void transition_standardToSuperseded_asRegistrar_shouldRequireApproval() {
         authenticateAs(AppUserRole.REGISTRAR);
         item.setRegistrationState(createState(RegistrationStatus.STANDARD));
         when(administeredItemRepository.findById(itemId)).thenReturn(Optional.of(item));
@@ -320,15 +324,13 @@ class RegistrationLifecycleServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> {
                     BusinessException be = (BusinessException) ex;
-                    assertThat(be.getCode()).isEqualTo(ApiCodes.UNAUTHORIZED_STATE_TRANSITION);
-                    assertThat(be.getMessage()).contains("无权执行状态迁移");
-                    assertThat(be.getMessage()).contains("REGISTRAR");
+                    assertThat(be.getCode()).isEqualTo(ApiCodes.TRANSITION_REQUIRES_APPROVAL);
                 });
     }
 
     @Test
-    @DisplayName("REGISTRAR 无权执行 PREFERRED → SUPERSEDED")
-    void transition_preferredToSuperseded_asRegistrar_shouldReject() {
+    @DisplayName("REGISTRAR 无法直推 PREFERRED → SUPERSEDED（默认审核点，回退 1120）")
+    void transition_preferredToSuperseded_asRegistrar_shouldRequireApproval() {
         authenticateAs(AppUserRole.REGISTRAR);
         item.setRegistrationState(createState(RegistrationStatus.PREFERRED_STANDARD));
         when(administeredItemRepository.findById(itemId)).thenReturn(Optional.of(item));
@@ -338,13 +340,13 @@ class RegistrationLifecycleServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> {
                     BusinessException be = (BusinessException) ex;
-                    assertThat(be.getCode()).isEqualTo(ApiCodes.UNAUTHORIZED_STATE_TRANSITION);
+                    assertThat(be.getCode()).isEqualTo(ApiCodes.TRANSITION_REQUIRES_APPROVAL);
                 });
     }
 
     @Test
-    @DisplayName("REGISTRAR 无权执行 SUPERSEDED → HISTORICAL")
-    void transition_supersededToHistorical_asRegistrar_shouldReject() {
+    @DisplayName("SUPERSEDED → HISTORICAL 已被标准核验移除（Annex D.2.8）：白名单层拒绝（1116）")
+    void transition_supersededToHistorical_shouldReject() {
         authenticateAs(AppUserRole.REGISTRAR);
         item.setRegistrationState(createState(RegistrationStatus.SUPERSEDED));
         when(administeredItemRepository.findById(itemId)).thenReturn(Optional.of(item));
@@ -354,7 +356,7 @@ class RegistrationLifecycleServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> {
                     BusinessException be = (BusinessException) ex;
-                    assertThat(be.getCode()).isEqualTo(ApiCodes.UNAUTHORIZED_STATE_TRANSITION);
+                    assertThat(be.getCode()).isEqualTo(ApiCodes.INVALID_STATE_TRANSITION_FROM_SUPERSEDED);
                 });
     }
 
@@ -394,8 +396,16 @@ class RegistrationLifecycleServiceTest {
     @DisplayName("ADMIN 可以执行所有状态转换，包括 SUPERSEDED 相关")
     void transition_adminCanDoSuperseded_shouldSucceed() {
         authenticateAs(AppUserRole.ADMIN);
+        RegistrationAuthority ra = new RegistrationAuthority();
+        ra.setId(UUID.randomUUID());
+        item.setRegistrationAuthority(ra);
         item.setRegistrationState(createState(RegistrationStatus.STANDARD));
         when(administeredItemRepository.findById(itemId)).thenReturn(Optional.of(item));
+        when(transitionRuleRepository
+                .findByRegistrationAuthorityIdAndFromStatusAndToStatus(
+                        ra.getId(), RegistrationStatus.STANDARD, RegistrationStatus.SUPERSEDED))
+                .thenReturn(Optional.of(rule(ra, RegistrationStatus.STANDARD,
+                        RegistrationStatus.SUPERSEDED, false)));
         when(administeredItemRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         AdministeredItem result = registrationLifecycleService.transition(
@@ -489,7 +499,81 @@ class RegistrationLifecycleServiceTest {
     }
 
     // =========================================================================
-    // 5. 状态变更历史查询测试
+    // 5. 管理状态迁移清空
+    // =========================================================================
+
+    @Test
+    @DisplayName("QUALIFIED → STANDARD 迁移后管理状态清空且历史链不变")
+    void transition_qualifiedToStandard_clearsAdministrativeStatus() {
+        authenticateAs(AppUserRole.ADMIN);
+        RegistrationAuthority ra = new RegistrationAuthority();
+        ra.setId(UUID.randomUUID());
+        item.setRegistrationAuthority(ra);
+        RegistrationState current = createState(RegistrationStatus.QUALIFIED);
+        current.setAdministrativeStatus(AdministrativeStatus.DRAFT);
+        item.setRegistrationState(current);
+        when(administeredItemRepository.findById(itemId)).thenReturn(Optional.of(item));
+        when(transitionRuleRepository
+                .findByRegistrationAuthorityIdAndFromStatusAndToStatus(
+                        ra.getId(), RegistrationStatus.QUALIFIED, RegistrationStatus.STANDARD))
+                .thenReturn(Optional.of(rule(ra, RegistrationStatus.QUALIFIED, RegistrationStatus.STANDARD, false)));
+        when(administeredItemRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        AdministeredItem result = registrationLifecycleService.transition(
+                itemId, RegistrationStatus.STANDARD, "晋升标准");
+
+        assertThat(result.getRegistrationState().getRegistrationStatus())
+                .isEqualTo(RegistrationStatus.STANDARD);
+        assertThat(result.getRegistrationState().getAdministrativeStatus()).isNull();
+        assertThat(result.getRegistrationState().getPreviousState()).isSameAs(current);
+        assertThat(current.getUntilDate()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("INCOMPLETE → CANDIDATE 迁移后管理状态清空")
+    void transition_incompleteToCandidate_clearsAdministrativeStatus() {
+        authenticateAs(AppUserRole.ADMIN);
+        RegistrationState current = createState(RegistrationStatus.INCOMPLETE);
+        current.setAdministrativeStatus(AdministrativeStatus.DRAFT);
+        item.setRegistrationState(current);
+        when(administeredItemRepository.findById(itemId)).thenReturn(Optional.of(item));
+        when(administeredItemRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        AdministeredItem result = registrationLifecycleService.transition(
+                itemId, RegistrationStatus.CANDIDATE, "提交");
+
+        assertThat(result.getRegistrationState().getRegistrationStatus())
+                .isEqualTo(RegistrationStatus.CANDIDATE);
+        assertThat(result.getRegistrationState().getAdministrativeStatus()).isNull();
+    }
+
+    @Test
+    @DisplayName("applyTransition 审批生效后管理状态清空")
+    void applyTransition_approvalEffect_clearsAdministrativeStatus() {
+        SecurityContextHolder.clearContext();
+        RegistrationAuthority ra = new RegistrationAuthority();
+        ra.setId(UUID.randomUUID());
+        item.setRegistrationAuthority(ra);
+        RegistrationState current = createState(RegistrationStatus.RECORDED);
+        current.setAdministrativeStatus(AdministrativeStatus.PROVISIONALLY_QUALIFIED);
+        item.setRegistrationState(current);
+        when(administeredItemRepository.findById(itemId)).thenReturn(Optional.of(item));
+        when(transitionRuleRepository
+                .findByRegistrationAuthorityIdAndFromStatusAndToStatus(
+                        ra.getId(), RegistrationStatus.RECORDED, RegistrationStatus.QUALIFIED))
+                .thenReturn(Optional.of(rule(ra, RegistrationStatus.RECORDED, RegistrationStatus.QUALIFIED, true)));
+        when(administeredItemRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        AdministeredItem result = registrationLifecycleService.applyTransition(
+                itemId, RegistrationStatus.QUALIFIED, "批准生效：RECORDED → QUALIFIED");
+
+        assertThat(result.getRegistrationState().getRegistrationStatus())
+                .isEqualTo(RegistrationStatus.QUALIFIED);
+        assertThat(result.getRegistrationState().getAdministrativeStatus()).isNull();
+    }
+
+    // =========================================================================
+    // 6. 状态变更历史查询测试
     // =========================================================================
 
     @Test
@@ -675,18 +759,20 @@ class RegistrationLifecycleServiceTest {
             Account account = new Account();
             account.setId(userId);
             org.mockito.Mockito.lenient().when(accountRepository.findById(userId)).thenReturn(Optional.of(account));
-            Contact contact = new Contact();
-            Role contactRole = new Role();
-            contactRole.setRoleName("注册管理员");
-            contact.setRole(contactRole);
-            org.mockito.Mockito.lenient().when(contactAccountBindingService.contactsOfAccount(account)).thenReturn(List.of(contact));
+            Registrar registrar = new Registrar();
+            registrar.setId(UUID.randomUUID());
+            org.mockito.Mockito.lenient().when(contactAccountBindingService.registrarsOfAccount(userId))
+                    .thenReturn(List.of(registrar));
+            org.mockito.Mockito.lenient().when(contactAccountBindingService.contactsOfAccount(account)).thenReturn(List.of());
         } else if (role == AppUserRole.VIEWER) {
             Account account = new Account();
             account.setId(userId);
             org.mockito.Mockito.lenient().when(accountRepository.findById(userId)).thenReturn(Optional.of(account));
             org.mockito.Mockito.lenient().when(contactAccountBindingService.contactsOfAccount(account)).thenReturn(List.of());
+            org.mockito.Mockito.lenient().when(contactAccountBindingService.registrarsOfAccount(userId)).thenReturn(List.of());
         }
     }
+
 
     private RegistrationState createState(RegistrationStatus status) {
         RegistrationState state = new RegistrationState();
@@ -694,5 +780,17 @@ class RegistrationLifecycleServiceTest {
         state.setRegistrationStatus(status);
         state.setEffectiveDate(java.time.LocalDateTime.now());
         return state;
+    }
+
+    private RegistrationTransitionRule rule(
+            RegistrationAuthority ra,
+            RegistrationStatus from, RegistrationStatus to, boolean requiresApproval) {
+        RegistrationTransitionRule rule = new RegistrationTransitionRule();
+        rule.setRegistrationAuthority(ra);
+        rule.setFromStatus(from);
+        rule.setToStatus(to);
+        rule.setRequiresApproval(requiresApproval);
+        rule.setEnabled(true);
+        return rule;
     }
 }

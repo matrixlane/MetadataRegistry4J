@@ -1,4 +1,4 @@
-﻿import axios from 'axios';
+import axios from 'axios';
 import type { AxiosInstance, AxiosError } from 'axios';
 import { ElMessage } from 'element-plus';
 import { useAuthStore } from '@/stores/auth';
@@ -12,6 +12,18 @@ const request: AxiosInstance = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
+// 批量操作期间抑制逐条错误 toast：计数器支持并发/嵌套调用，仍正常 reject
+let silenceCount = 0;
+
+export async function withSilentErrors<T>(fn: () => Promise<T>): Promise<T> {
+  silenceCount++;
+  try {
+    return await fn();
+  } finally {
+    silenceCount--;
+  }
+}
+
 request.interceptors.request.use((config) => {
   const token = useAuthStore().token;
   if (token) {
@@ -24,7 +36,9 @@ request.interceptors.response.use(
   (response) => {
     const body = response.data;
     if (body.code !== 0 && body.code !== undefined) {
-      ElMessage.error(body.message || '请求失败');
+      if (silenceCount === 0) {
+        ElMessage.error(body.message || '请求失败');
+      }
       return Promise.reject(new Error(body.message));
     }
     return body.data;
@@ -53,7 +67,9 @@ request.interceptors.response.use(
         return Promise.reject(error);
       }
       const msg = (error.response?.data as any)?.message || '认证失败，请重新登录';
-      ElMessage.error(msg);
+      if (silenceCount === 0) {
+        ElMessage.error(msg);
+      }
       // 初始化向导处于无账号的前置阶段，其端点均匿名放行；
       // 此时跳登录页既无意义，又会触发向导的 beforeunload 原生弹窗
       if (window.location.pathname !== '/init-wizard') {
@@ -65,7 +81,9 @@ request.interceptors.response.use(
       const fallback = status && status >= 500
         ? '服务器内部错误，请稍后再试或联系管理员'
         : (error.message || '网络错误');
-      ElMessage.error(serverMsg || fallback);
+      if (silenceCount === 0) {
+        ElMessage.error(serverMsg || fallback);
+      }
     }
     return Promise.reject(error);
   }

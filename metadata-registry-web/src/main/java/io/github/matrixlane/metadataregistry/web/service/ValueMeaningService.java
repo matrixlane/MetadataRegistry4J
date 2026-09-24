@@ -39,14 +39,18 @@ public class ValueMeaningService {
         ValueMeaning entity = new ValueMeaning();
         conceptContentApplier.applyConcept(entity, request.sourceUri(),
                 request.designations(), request.definitions(), request.registration());
-        return toResponse(repository.save(entity));
+        ValueMeaning saved = repository.save(entity);
+        itemAdministrationService.recordSubmission(saved, request.registration());
+        return toResponse(saved);
     }
 
     public ConceptResponse update(UUID id, ConceptRequest request) {
         ValueMeaning entity = loadOrThrow(id);
         conceptContentApplier.applyConcept(entity, request.sourceUri(),
                 request.designations(), request.definitions(), request.registration());
-        return toResponse(repository.save(entity));
+        ValueMeaning saved = repository.save(entity);
+        itemAdministrationService.recordSubmission(saved, request.registration());
+        return toResponse(saved);
     }
 
     public void delete(UUID id) {

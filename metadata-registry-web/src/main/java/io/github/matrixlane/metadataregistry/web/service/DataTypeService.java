@@ -25,6 +25,7 @@ public class DataTypeService {
     private final DataTypeRepository repository;
     private final DataTypeSchemeRepository dataTypeSchemeRepository;
     private final ItemAdministrationService itemAdministrationService;
+    private final VersionHistoryService versionHistoryService;
 
     @Transactional(readOnly = true)
     public Page<DataTypeResponse> list(String keyword, Pageable pageable) {
@@ -40,19 +41,26 @@ public class DataTypeService {
     public DataTypeResponse create(DataTypeRequest request) {
         DataType entity = new DataType();
         applyRequest(entity, request);
-        return toResponse(repository.save(entity));
+        DataType saved = repository.save(entity);
+        itemAdministrationService.recordSubmission(saved, request.registration());
+        versionHistoryService.recordSnapshot(saved, "CREATE", toResponse(saved));
+        return toResponse(saved);
     }
 
     public DataTypeResponse update(UUID id, DataTypeRequest request) {
         DataType entity = loadOrThrow(id);
+        versionHistoryService.captureBaselineIfEnteringDraft(entity, toResponse(entity));
         applyRequest(entity, request);
-        return toResponse(repository.save(entity));
+        DataType saved = repository.save(entity);
+        itemAdministrationService.recordSubmission(saved, request.registration());
+        versionHistoryService.recordSnapshot(saved, "UPDATE", toResponse(saved));
+        return toResponse(saved);
     }
 
     public void delete(UUID id) {
-        if (!repository.existsById(id)) {
-            throw new ResourceNotFoundException("DataType", id);
-        }
+        DataType entity = repository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("DataType", id));
+        versionHistoryService.recordSnapshot(entity, "DELETE", toResponse(entity));
         repository.deleteById(id);
     }
 

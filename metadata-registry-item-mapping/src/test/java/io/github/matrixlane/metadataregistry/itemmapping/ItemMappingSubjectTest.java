@@ -1,5 +1,7 @@
 package io.github.matrixlane.metadataregistry.itemmapping;
 
+import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.Item;
+import io.github.matrixlane.metadataregistry.itemmapping.entity.ItemMapping;
 import io.github.matrixlane.metadataregistry.itemmapping.entity.ItemMappingSubject;
 import org.junit.jupiter.api.Test;
 
@@ -7,59 +9,70 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
 
 class ItemMappingSubjectTest {
 
     @Test
-    void forItem_shouldCreateSubjectWithItemId() {
-        UUID itemId = UUID.randomUUID();
-        ItemMappingSubject subject = ItemMappingSubject.forItem(itemId);
-        assertThat(subject.getItemId()).isEqualTo(itemId);
-        assertThat(subject.getExternalUri()).isNull();
-        assertThat(subject.isReferenceMutuallyExclusive()).isTrue();
+    void constructor_shouldCreateSubjectWithMappingItemAndVariableName() {
+        ItemMapping mapping = new ItemMapping();
+        Item item = mock(Item.class);
+
+        ItemMappingSubject subject = new ItemMappingSubject(mapping, item, "year");
+
+        assertThat(subject.getItemMapping()).isEqualTo(mapping);
+        assertThat(subject.getItem()).isEqualTo(item);
+        assertThat(subject.getMappingVariableName()).isEqualTo("year");
     }
 
     @Test
-    void forItem_shouldThrowWhenItemIdIsNull() {
-        assertThatThrownBy(() -> ItemMappingSubject.forItem(null))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("itemId must not be null");
+    void constructor_shouldAllowNullVariableName() {
+        ItemMappingSubject subject = new ItemMappingSubject(
+                new ItemMapping(), mock(Item.class), null);
+
+        assertThat(subject.getMappingVariableName()).isNull();
     }
 
     @Test
-    void forExternalUri_shouldCreateSubjectWithUri() {
-        String uri = "https://example.org/fhir/Patient/123";
-        ItemMappingSubject subject = ItemMappingSubject.forExternalUri(uri);
-        assertThat(subject.getExternalUri()).isEqualTo(uri);
-        assertThat(subject.getItemId()).isNull();
-        assertThat(subject.isReferenceMutuallyExclusive()).isTrue();
+    void constructor_shouldThrowWhenItemMappingIsNull() {
+        assertThatThrownBy(() -> new ItemMappingSubject(null, mock(Item.class), "v"))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessageContaining("itemMapping must not be null");
     }
 
     @Test
-    void forExternalUri_shouldThrowWhenUriIsNull() {
-        assertThatThrownBy(() -> ItemMappingSubject.forExternalUri(null))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("externalUri must not be null or blank");
+    void constructor_shouldThrowWhenItemIsNull() {
+        assertThatThrownBy(() -> new ItemMappingSubject(new ItemMapping(), null, "v"))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessageContaining("item must not be null");
     }
 
     @Test
-    void forExternalUri_shouldThrowWhenUriIsBlank() {
-        assertThatThrownBy(() -> ItemMappingSubject.forExternalUri("  "))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("externalUri must not be null or blank");
+    void setters_shouldUpdateItemAndVariableName() {
+        ItemMappingSubject subject = new ItemMappingSubject(
+                new ItemMapping(), mock(Item.class), "old");
+        Item newItem = mock(Item.class);
+
+        subject.setItem(newItem);
+        subject.setMappingVariableName("new");
+
+        assertThat(subject.getItem()).isEqualTo(newItem);
+        assertThat(subject.getMappingVariableName()).isEqualTo("new");
     }
 
     @Test
-    void isReferenceMutuallyExclusive_shouldBeFalseWhenBothNull() {
-        ItemMappingSubject subject = new ItemMappingSubject();
-        assertThat(subject.isReferenceMutuallyExclusive()).isFalse();
-    }
+    void equalsAndHashCode_shouldUseId() {
+        ItemMappingSubject s1 = new ItemMappingSubject(new ItemMapping(), mock(Item.class), null);
+        ItemMappingSubject s2 = new ItemMappingSubject(new ItemMapping(), mock(Item.class), null);
 
-    @Test
-    void isReferenceMutuallyExclusive_shouldBeFalseWhenBothSet() {
-        ItemMappingSubject subject = new ItemMappingSubject();
-        subject.setItemId(UUID.randomUUID());
-        subject.setExternalUri("http://example.org");
-        assertThat(subject.isReferenceMutuallyExclusive()).isFalse();
+        // Both without IDs should not be equal
+        assertThat(s1).isNotEqualTo(s2);
+
+        // Same ID should be equal
+        UUID id = UUID.randomUUID();
+        s1.setId(id);
+        s2.setId(id);
+        assertThat(s1).isEqualTo(s2);
+        assertThat(s1.hashCode()).isEqualTo(s2.hashCode());
     }
 }

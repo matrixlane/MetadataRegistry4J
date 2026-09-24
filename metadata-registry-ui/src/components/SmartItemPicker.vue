@@ -56,7 +56,7 @@
         <el-tag v-if="hit.itemType" size="small" :type="typeTagType(hit.itemType)">
           {{ typeShortLabel(hit.itemType) }}
         </el-tag>
-        <span class="smart-picker-identifier">{{ hit.identifier || hit.itemLabel || hit.id.slice(0, 8) }}</span>
+        <span class="smart-picker-identifier">{{ hit.identifier || hit.itemLabel || t('common.unresolvedEntry') }}</span>
         <span class="smart-picker-sep" v-if="hit.itemLabel && hit.identifier && hit.itemLabel !== hit.identifier">──</span>
         <span class="smart-picker-label" v-if="hit.itemLabel && hit.itemLabel !== hit.identifier">{{ hit.itemLabel }}</span>
         <el-tag
@@ -67,7 +67,6 @@
           class="smart-picker-partial"
         >近似</el-tag>
         <span class="smart-picker-namespace" v-if="hit.namespaceLabel">{{ hit.namespaceLabel }}</span>
-        <span class="smart-picker-meta" v-if="metaLine(hit)">{{ metaLine(hit) }}</span>
       </div>
     </el-option>
 
@@ -75,6 +74,9 @@
       <span v-if="isPendingValue(value)" class="smart-picker-pending">
         <el-icon class="is-loading"><Loading /></el-icon>
         <span>{{ t('smartPicker.loading') }}</span>
+      </span>
+      <span v-else-if="isUnresolvedValue(value)" class="smart-picker-unresolved">
+        {{ t('common.unresolvedEntry') }}
       </span>
       <span v-else>{{ label }}</span>
     </template>
@@ -94,12 +96,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue';
+import { ref, reactive, computed, watch, onMounted } from 'vue';
 import { Loading } from '@element-plus/icons-vue';
 import { useSmartPicker, type SmartPickerScope } from '@/composables/useSmartPicker';
 import type { AdministeredItemSearchHit } from '@/types/common';
 import { useI18n } from 'vue-i18n';
-import dayjs from 'dayjs';
 
 const { t } = useI18n();
 
@@ -125,6 +126,8 @@ const props = defineProps<{
   showAdvancedFilter?: boolean;
   /** 特例：选中态与选项只显示名称（不拼标识符/版本/时间），如值域的数据类型下拉 */
   labelOnly?: boolean;
+  /** 打开下拉且无已选值时，用空查询拉取一页默认选项（点击输入框即出下拉菜单） */
+  browseOnOpen?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -231,48 +234,17 @@ function typeTagType(t?: string | null): 'primary' | 'success' | 'warning' | 'in
 }
 
 /**
- * 创建时间与最后修改时间取最晚者显示：
- * 修改晚于创建 → 最后修改于：…；否则 → 创建于：…。
- */
-function latestTimeLabel(hit: AdministeredItemSearchHit): string {
-  const created = hit.creationDateTime ? dayjs(hit.creationDateTime) : null;
-  const changed = hit.lastChangeDateTime ? dayjs(hit.lastChangeDateTime) : null;
-  const cValid = created?.isValid() ?? false;
-  const mValid = changed?.isValid() ?? false;
-  if (mValid && (!cValid || changed!.isAfter(created!))) {
-    return `最后修改于：${changed!.format('YYYY-MM-DD HH:mm')}`;
-  }
-  if (cValid) {
-    return `创建于：${created!.format('YYYY-MM-DD HH:mm')}`;
-  }
-  return '';
-}
-
-/**
- * 关联对象的次要信息行：版本号 + 最近时间（创建/最后修改取最晚）。
- */
-function metaLine(hit: AdministeredItemSearchHit): string {
-  const parts: string[] = [];
-  if (hit.version) parts.push(`v${hit.version}`);
-  const time = latestTimeLabel(hit);
-  if (time) parts.push(time);
-  return parts.join(' | ');
-}
-
-/**
- * 选中态与选项标签：标识符 | 版本号 | 指称 | 最近时间（创建/最后修改取最晚）。
+ * 选中态与选项标签：「业务标识 | 指称」。
+ * 界面禁显内部 UUID，且不含版本号/时间戳等次要信息（全局统一格式）。
  */
 function formatLabel(hit: AdministeredItemSearchHit): string {
   if (props.labelOnly) {
-    return hit.itemLabel || hit.identifier || hit.id.slice(0, 8);
+    return hit.itemLabel || hit.identifier || t('common.unresolvedEntry');
   }
   const parts: string[] = [];
   if (hit.identifier) parts.push(hit.identifier);
-  if (hit.version) parts.push(`(v${hit.version})`);
   if (hit.itemLabel && hit.itemLabel !== hit.identifier) parts.push(hit.itemLabel);
-  const time = latestTimeLabel(hit);
-  if (time) parts.push(time);
-  return parts.length > 0 ? parts.join(' | ') : (hit.itemLabel || hit.id.slice(0, 8));
+  return parts.length > 0 ? parts.join(' | ') : t('common.unresolvedEntry');
 }
 
 function doSearch(q: string) {
@@ -302,6 +274,9 @@ function onRemoteSearch(q: string) {
 
 function onVisibleChange(open: boolean) {
   if (!open) return;
+  if (props.browseOnOpen && !currentValue.value && picker.hits.value.length === 0) {
+    doSearch('');
+  }
   if (currentValue.value && picker.hits.value.length === 0) {
     const ids = Array.isArray(currentValue.value) ? currentValue.value : [currentValue.value];
     for (const id of ids) {
@@ -326,9 +301,13 @@ function onChange(v: string | string[] | null) {
   const id = Array.isArray(v) ? v[0] : v;
 const hit = picker.hits.value.find((h) => h.itemId === id || h.id === id);
   if (hit) {
+    selectedLabels.set(hit.itemId, formatLabel(hit));
     emit('change', v, hit);
   } else if (typeof id === 'string') {
-    picker.fetchById(id).then((found) => emit('change', v, found));
+    picker.fetchById(id).then((found) => {
+      if (found) selectedLabels.set(found.itemId, formatLabel(found));
+      emit('change', v, found);
+    });
   } else {
     emit('change', v, null);
   }
@@ -337,28 +316,45 @@ const hit = picker.hits.value.find((h) => h.itemId === id || h.id === id);
 /** 回填完成前，未命中选项的选中值不渲染原始 id，改显示加载占位。 */
 const backfillDone = ref(false);
 
+/** 已选值的展示标签缓存：勾选/回填命中时记录；始终未命中的值不回显原始 id */
+const selectedLabels = reactive(new Map<string, string>());
+
 function isPendingValue(value: unknown): boolean {
   if (!value || typeof value !== 'string') return false;
   if (backfillDone.value) return false;
   return !picker.hits.value.some((h) => h.itemId === value || h.id === value);
 }
 
-onMounted(() => {
+function isUnresolvedValue(value: unknown): boolean {
+  if (!value || typeof value !== 'string') return false;
+  if (!backfillDone.value) return false;
+  if (picker.hits.value.some((h) => h.itemId === value || h.id === value)) return false;
+  return !selectedLabels.has(value);
+}
+
+onMounted(async () => {
   if (!currentValue.value) {
     backfillDone.value = true;
     return;
   }
-  const ids = Array.isArray(currentValue.value) ? currentValue.value : [currentValue.value];
-  Promise.all(ids.filter((x): x is string => !!x).map((id) => picker.fetchById(id)))
-    .then((hits) => {
-      const found = hits.filter((h): h is AdministeredItemSearchHit => !!h);
-      if (found.length > 0) {
-        picker.hits.value = found;
-      }
-    })
-    .finally(() => {
-      backfillDone.value = true;
-    });
+  const ids = (Array.isArray(currentValue.value) ? currentValue.value : [currentValue.value]).filter(
+    (x): x is string => !!x
+  );
+  // 串行反查：useSmartPicker 的 fetchById 会 abort 上一次未完成请求，
+  // 并发 Promise.all 会导致只有最后一个 id 反查成功（多选编辑出现"未解析项目"的根因）。
+  const found: AdministeredItemSearchHit[] = [];
+  for (const id of ids) {
+    const hit = await picker.fetchById(id);
+    if (hit) {
+      found.push(hit);
+      selectedLabels.set(hit.itemId, formatLabel(hit));
+    }
+  }
+  if (found.length > 0) {
+    // 反查命中写入 options（picker.hits），多选 tag 由 EP 从 options 解析标签
+    picker.hits.value = found;
+  }
+  backfillDone.value = true;
 });
 </script>
 
@@ -413,6 +409,11 @@ onMounted(() => {
   gap: 4px;
   color: var(--el-text-color-secondary);
   font-size: 13px;
+}
+.smart-picker-unresolved {
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
+  font-style: italic;
 }
 .smart-picker-empty {
   display: flex;

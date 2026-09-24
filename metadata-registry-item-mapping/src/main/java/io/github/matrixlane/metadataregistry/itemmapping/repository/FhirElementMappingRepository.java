@@ -36,11 +36,6 @@ public interface FhirElementMappingRepository extends JpaRepository<FhirElementM
     List<FhirElementMapping> findByFhirResourceType(String fhirResourceType);
 
     /**
-     * Finds all mappings belonging to a specific mapping scheme.
-     */
-    List<FhirElementMapping> findByMappingSchemeId(UUID mappingSchemeId);
-
-    /**
      * Finds all mappings for a local item within a specific resource type.
      */
     List<FhirElementMapping> findByLocalItemIdAndFhirResourceType(UUID localItemId,
@@ -63,11 +58,6 @@ public interface FhirElementMappingRepository extends JpaRepository<FhirElementM
     long countByLocalItemId(UUID localItemId);
 
     /**
-     * Counts mappings within a scheme.
-     */
-    long countByMappingSchemeId(UUID mappingSchemeId);
-
-    /**
      * Finds all mappings of a specific cardinality type.
      */
     List<FhirElementMapping> findByMappingType(FhirMappingType mappingType);
@@ -87,7 +77,7 @@ public interface FhirElementMappingRepository extends JpaRepository<FhirElementM
      * Returns items that map to more than one distinct FHIR path.
      */
     @Query("SELECT m.localItemId FROM FhirElementMapping m " +
-           "GROUP BY m.localItemId, m.mappingSchemeId HAVING COUNT(DISTINCT m.fhirPath) > 1")
+           "GROUP BY m.localItemId HAVING COUNT(DISTINCT m.fhirPath) > 1")
     List<UUID> findConflictingLocalItemIds();
 
     /**

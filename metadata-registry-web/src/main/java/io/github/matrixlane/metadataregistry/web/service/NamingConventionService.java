@@ -41,6 +41,7 @@ public class NamingConventionService {
         NamingConvention entity = new NamingConvention();
         applyRequest(entity, request);
         NamingConvention saved = repository.save(entity);
+        itemAdministrationService.recordSubmission(saved, request.registration());
         rulesService.applyRules(saved.getId(), request.rulesJson());
         return toResponse(saved);
     }
@@ -49,6 +50,7 @@ public class NamingConventionService {
         NamingConvention entity = loadOrThrow(id);
         applyRequest(entity, request);
         NamingConvention saved = repository.save(entity);
+        itemAdministrationService.recordSubmission(saved, request.registration());
         rulesService.applyRules(saved.getId(), request.rulesJson());
         return toResponse(saved);
     }

@@ -33,7 +33,6 @@ import java.util.UUID;
  * <p>MVP design decisions (per review conditions):
  * <ul>
  *   <li>Uses semantic reference ({@code fhirPath} String), not FhirElement FK</li>
- *   <li>Mapping scheme provides version control lineage</li>
  *   <li>One-to-many mappings use {@code mappingVariable} for component naming</li>
  * </ul>
  */
@@ -44,7 +43,6 @@ import java.util.UUID;
         @Index(name = "idx_fem_local_item", columnList = "local_item_id"),
         @Index(name = "idx_fem_fhir_path", columnList = "fhir_path"),
         @Index(name = "idx_fem_resource_type", columnList = "fhir_resource_type"),
-        @Index(name = "idx_fem_scheme", columnList = "mapping_scheme_id"),
         @Index(name = "idx_fem_local_fhir", columnList = "local_item_id, fhir_path")
     }
 )
@@ -108,13 +106,6 @@ public class FhirElementMapping {
     private String description;
 
     /**
-     * Reference to the {@link MappingScheme} that owns this mapping.
-     * Provides version control lineage.
-     */
-    @Column(name = "mapping_scheme_id")
-    private UUID mappingSchemeId;
-
-    /**
      * User ID of the person who created this mapping.
      */
     @Column(name = "created_by")
@@ -159,7 +150,7 @@ public class FhirElementMapping {
                                String fhirResourceType,
                                FhirMappingEquivalence fhirEquivalence) {
         this(localItemId, fhirPath, fhirResourceType, fhirEquivalence,
-             FhirMappingType.ONE_TO_ONE, null, null, null);
+             FhirMappingType.ONE_TO_ONE, null, null);
     }
 
     /**
@@ -172,15 +163,13 @@ public class FhirElementMapping {
      * @param mappingType       the cardinality type
      * @param mappingVariable   the variable name for one-to-many (nullable)
      * @param description       human-readable description (nullable)
-     * @param mappingSchemeId   the owning scheme UUID (nullable)
      */
     public FhirElementMapping(UUID localItemId, String fhirPath,
                                String fhirResourceType,
                                FhirMappingEquivalence fhirEquivalence,
                                FhirMappingType mappingType,
                                String mappingVariable,
-                               String description,
-                               UUID mappingSchemeId) {
+                               String description) {
         this.localItemId = Objects.requireNonNull(localItemId,
                 "localItemId must not be null");
         this.fhirPath = requireNonBlank(fhirPath, "fhirPath");
@@ -191,7 +180,6 @@ public class FhirElementMapping {
                 "mappingType must not be null");
         this.mappingVariable = mappingVariable;
         this.description = description;
-        this.mappingSchemeId = mappingSchemeId;
         this.createdAt = LocalDateTime.now();
         this.updatedAt = this.createdAt;
         this.version = 0L;

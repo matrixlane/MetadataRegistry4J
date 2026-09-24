@@ -25,6 +25,8 @@ public class NamespacePermissionEvaluator {
     private final AccountRepository accountRepository;
     private final ContactRepository contactRepository;
     private final ContactAccountBindingService contactAccountBindingService;
+    private final io.github.matrixlane.metadataregistry.web.repository.NamespaceRepository namespaceRepository;
+    private final io.github.matrixlane.metadataregistry.web.repository.RegistrationAuthorityRepository registrationAuthorityRepository;
 
     /**
      * Checks if a user has read access to a namespace.
@@ -106,7 +108,22 @@ public class NamespacePermissionEvaluator {
             return userPerm.get().getPermissionType() == NamespacePermissionType.READ_WRITE;
         }
 
-        // 3. Resolve standard Contact and Organizations
+        // 3. Submitter 通道（add-submitter-contact-identity）：单注册表模式下，
+        // 已登记联系人的用户可在注册机构自有命名空间提交元数据（条目归属系统唯一
+        // 注册机构，与 resolveOwnershipForCreate 的 Submitter 归属推导一致）。
+        if (account != null && contactAccountBindingService.hasAnyContact(accountId)) {
+            io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace ns =
+                    namespaceRepository.findById(namespaceId).orElse(null);
+            if (ns != null && ns.getRegistrationAuthority() != null) {
+                List<io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationAuthority> all =
+                        registrationAuthorityRepository.findAll();
+                if (all.size() == 1 && all.get(0).getId().equals(ns.getRegistrationAuthority().getId())) {
+                    return true;
+                }
+            }
+        }
+
+        // 4. Resolve standard Contact and Organizations
         if (account != null) {
             List<Contact> contacts = contactAccountBindingService.contactsOfAccount(account);
             if (!contacts.isEmpty()) {
@@ -125,32 +142,33 @@ public class NamespacePermissionEvaluator {
             }
         }
 
-        // 4. Default for non-contact users is read-only, so write permission is false
+        // 5. Default for non-contact users is read-only, so write permission is false
         return false;
     }
 
+    /**
+     * 账号是否持有指定注册机构（organization id）下的 Registrar 身份。
+     * Registrar 身份由 Contact 子类 Registrar 实例确定（类型即身份，与 Role 无关）。
+     */
     public boolean isRegistrar(UUID accountId, UUID registryId) {
         if (accountId == null || registryId == null) return false;
         Account account = accountRepository.findById(accountId).orElse(null);
         if (account == null) return false;
         if (account.getSysRole() == SystemRole.SUPER_ADMIN) return true;
-        
-        // Find if this account is associated with a registrar contact in the target registry
-        List<Contact> contacts = contactAccountBindingService.contactsOfAccount(account);
-        return contacts.stream()
-                .filter(c -> c.getRole() != null && "注册管理员".equals(c.getRole().getRoleName()))
-                .anyMatch(c -> c.getOrganization() != null && registryId.equals(c.getOrganization().getId()));
+
+        return contactAccountBindingService.registrarsOfAccount(accountId).stream()
+                .anyMatch(r -> r.getOrganization() != null && registryId.equals(r.getOrganization().getId()));
     }
 
+    /**
+     * 账号是否持有任一 Registrar 身份（Registrar 子类实例，类型即身份，与 Role 无关）。
+     */
     public boolean isAnyRegistrarOrAdmin(UUID accountId) {
         if (accountId == null) return false;
         Account account = accountRepository.findById(accountId).orElse(null);
         if (account == null) return false;
         if (account.getSysRole() == SystemRole.SUPER_ADMIN) return true;
-        
-        // Find if this account is associated with any registrar contact
-        List<Contact> contacts = contactAccountBindingService.contactsOfAccount(account);
-        return contacts.stream()
-                .anyMatch(c -> c.getRole() != null && "注册管理员".equals(c.getRole().getRoleName()));
+
+        return !contactAccountBindingService.registrarsOfAccount(accountId).isEmpty();
     }
 }

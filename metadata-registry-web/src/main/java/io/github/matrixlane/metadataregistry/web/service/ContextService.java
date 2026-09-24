@@ -70,7 +70,9 @@ public class ContextService {
         if (request.registration() != null) {
             itemAdministrationService.ensureAdministeredItem(entity, request.registration());
         }
-        return toResponse(repository.save(entity));
+        Context saved = repository.save(entity);
+        itemAdministrationService.recordSubmission(saved, request.registration());
+        return toResponse(saved);
     }
 
     public ContextResponse update(UUID id, ContextRequest request) {
@@ -82,7 +84,9 @@ public class ContextService {
         if (request.registration() != null) {
             itemAdministrationService.ensureAdministeredItem(entity, request.registration());
         }
-        return toResponse(repository.save(entity));
+        Context saved = repository.save(entity);
+        itemAdministrationService.recordSubmission(saved, request.registration());
+        return toResponse(saved);
     }
 
     public void delete(UUID id) {

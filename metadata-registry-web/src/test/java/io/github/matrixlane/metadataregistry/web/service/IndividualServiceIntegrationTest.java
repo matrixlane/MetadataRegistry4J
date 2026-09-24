@@ -24,8 +24,9 @@ import static org.assertj.core.api.Assertions.assertThat;
         // 取消用户主目录 application-local.yml 导入并显式锁定内存 SQLite,
         // 使本测试与宿主机数据源配置无关(导入的配置优先级高于非 profile 默认值)。
         "spring.config.import=",
-        // 置空 mapping-resources：用户主目录 application-local.yml 可能注入 orm-team.xml（SQL Server 专用），内存 SQLite 测试无需 EXT schema 覆盖。
-        "spring.jpa.mapping-resources=",
+        // 覆盖 mapping-resources：用户主目录 application-local.yml 可能注入 orm-team.xml（SQL Server 专用）；
+        // 内存 SQLite 测试须改用 orm-sqlite.xml（EXT 物理名 ext_ 前缀），否则与标准表同名冲突。
+        "spring.jpa.mapping-resources=orm/orm-sqlite.xml",
         "spring.datasource.url=jdbc:sqlite:file:individual-service-it?mode=memory&cache=shared",
         "spring.datasource.driver-class-name=org.sqlite.JDBC",
         "spring.datasource.username=",

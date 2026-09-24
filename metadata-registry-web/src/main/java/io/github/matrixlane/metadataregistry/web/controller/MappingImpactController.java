@@ -60,7 +60,7 @@ public class MappingImpactController {
                                 i.impactLevel(),
                                 i.impactDirection(),
                                 i.mappingId(),
-                                i.mappingType(),
+                                i.degree(),
                                 i.suggestedAction()
                         ))
                         .toList(),

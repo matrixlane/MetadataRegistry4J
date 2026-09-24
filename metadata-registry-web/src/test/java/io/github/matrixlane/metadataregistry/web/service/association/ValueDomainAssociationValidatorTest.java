@@ -2,10 +2,15 @@ package io.github.matrixlane.metadataregistry.web.service.association;
 
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Datetime_Period;
 import io.github.matrixlane.metadataregistry.dataspecification.DataType;
+import io.github.matrixlane.metadataregistry.dataspecification.DescribedConceptualDomain;
 import io.github.matrixlane.metadataregistry.dataspecification.DescribedValueDomain;
+import io.github.matrixlane.metadataregistry.dataspecification.Dimensionality;
+import io.github.matrixlane.metadataregistry.dataspecification.MeasureClass;
+import io.github.matrixlane.metadataregistry.dataspecification.UnitOfMeasure;
 import org.junit.jupiter.api.Test;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -73,5 +78,102 @@ class ValueDomainAssociationValidatorTest {
         assertThatThrownBy(() -> validator.validateCompleteness(vd))
                 .isInstanceOf(MetadataAssociationValidationException.class)
                 .hasMessageContaining("数据类型");
+    }
+
+    // ── 维度一致性 ──────────────────────────────────────────────────────────
+
+    private MeasureClass measureClass(java.util.UUID id) {
+        MeasureClass mc = new MeasureClass();
+        mc.setId(id);
+        return mc;
+    }
+
+    @Test
+    void validate_vdToCd_dimensionalityMismatch_throws() {
+        MeasureClass length = measureClass(java.util.UUID.randomUUID());
+        UnitOfMeasure uom = new UnitOfMeasure();
+        uom.setMeasureClasses(new java.util.ArrayList<>(List.of(measureClass(java.util.UUID.randomUUID()))));
+        DescribedValueDomain vd = new DescribedValueDomain();
+        vd.setUnitOfMeasure(uom);
+        DescribedConceptualDomain cd = new DescribedConceptualDomain();
+        Dimensionality dimensionality = new Dimensionality();
+        dimensionality.setMeasureClasses(new java.util.ArrayList<>(List.of(length)));
+        cd.setDimensionality(dimensionality);
+
+        assertThatThrownBy(() -> validator.validate(AssociationType.VALUE_DOMAIN_TO_CONCEPTUAL_DOMAIN, vd, cd))
+                .isInstanceOf(MetadataAssociationValidationException.class)
+                .hasMessageContaining("计量单位所属计量类与概念域维度不一致");
+    }
+
+    @Test
+    void validate_vdToCd_dimensionalityConsistent_passes() {
+        MeasureClass shared = measureClass(java.util.UUID.randomUUID());
+        UnitOfMeasure uom = new UnitOfMeasure();
+        uom.setMeasureClasses(new java.util.ArrayList<>(List.of(shared)));
+        DescribedValueDomain vd = new DescribedValueDomain();
+        vd.setUnitOfMeasure(uom);
+        DescribedConceptualDomain cd = new DescribedConceptualDomain();
+        Dimensionality dimensionality = new Dimensionality();
+        dimensionality.setMeasureClasses(new java.util.ArrayList<>(List.of(shared)));
+        cd.setDimensionality(dimensionality);
+
+        assertThatNoException().isThrownBy(
+                () -> validator.validate(AssociationType.VALUE_DOMAIN_TO_CONCEPTUAL_DOMAIN, vd, cd));
+    }
+
+    @Test
+    void validate_vdToCd_noDimensionalitySpecified_passes() {
+        // 约束以"指定时"为前提:CD 未指定维度时不校验
+        DescribedValueDomain vd = new DescribedValueDomain();
+        UnitOfMeasure uom = new UnitOfMeasure();
+        uom.setMeasureClasses(new java.util.ArrayList<>(List.of(measureClass(java.util.UUID.randomUUID()))));
+        vd.setUnitOfMeasure(uom);
+
+        assertThatNoException().isThrownBy(
+                () -> validator.validate(AssociationType.VALUE_DOMAIN_TO_CONCEPTUAL_DOMAIN, vd, new DescribedConceptualDomain()));
+    }
+
+    @Test
+    void validate_vdToUom_inconsistentWithCurrentCd_throws() {
+        MeasureClass shared = measureClass(java.util.UUID.randomUUID());
+        DescribedConceptualDomain cd = new DescribedConceptualDomain();
+        Dimensionality dimensionality = new Dimensionality();
+        dimensionality.setMeasureClasses(new java.util.ArrayList<>(List.of(shared)));
+        cd.setDimensionality(dimensionality);
+        DescribedValueDomain vd = new DescribedValueDomain();
+        vd.setConceptualDomain(cd);
+        UnitOfMeasure newUom = new UnitOfMeasure();
+        newUom.setMeasureClasses(new java.util.ArrayList<>(
+                List.of(measureClass(java.util.UUID.randomUUID()))));
+
+        assertThatThrownBy(() -> validator.validate(AssociationType.VALUE_DOMAIN_TO_UNIT_OF_MEASURE, vd, newUom))
+                .isInstanceOf(MetadataAssociationValidationException.class)
+                .hasMessageContaining("计量单位所属计量类与概念域维度不一致");
+    }
+
+    @Test
+    void validate_vdToUom_consistentWithCurrentCd_passes() {
+        MeasureClass shared = measureClass(java.util.UUID.randomUUID());
+        DescribedConceptualDomain cd = new DescribedConceptualDomain();
+        Dimensionality dimensionality = new Dimensionality();
+        dimensionality.setMeasureClasses(new java.util.ArrayList<>(List.of(shared)));
+        cd.setDimensionality(dimensionality);
+        DescribedValueDomain vd = new DescribedValueDomain();
+        vd.setConceptualDomain(cd);
+        UnitOfMeasure newUom = new UnitOfMeasure();
+        newUom.setMeasureClasses(new java.util.ArrayList<>(List.of(shared)));
+
+        assertThatNoException().isThrownBy(
+                () -> validator.validate(AssociationType.VALUE_DOMAIN_TO_UNIT_OF_MEASURE, vd, newUom));
+    }
+
+    @Test
+    void validate_vdToUom_noCdDimensionality_passes() {
+        DescribedValueDomain vd = new DescribedValueDomain();
+        UnitOfMeasure uom = new UnitOfMeasure();
+        uom.setMeasureClasses(new java.util.ArrayList<>());
+
+        assertThatNoException().isThrownBy(
+                () -> validator.validate(AssociationType.VALUE_DOMAIN_TO_UNIT_OF_MEASURE, vd, uom));
     }
 }
