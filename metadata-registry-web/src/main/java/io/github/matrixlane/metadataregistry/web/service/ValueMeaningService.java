@@ -40,7 +40,6 @@ public class ValueMeaningService {
         conceptContentApplier.applyConcept(entity, request.sourceUri(),
                 request.designations(), request.definitions(), request.registration());
         ValueMeaning saved = repository.save(entity);
-        itemAdministrationService.recordSubmission(saved, request.registration());
         return toResponse(saved);
     }
 
@@ -49,7 +48,6 @@ public class ValueMeaningService {
         conceptContentApplier.applyConcept(entity, request.sourceUri(),
                 request.designations(), request.definitions(), request.registration());
         ValueMeaning saved = repository.save(entity);
-        itemAdministrationService.recordSubmission(saved, request.registration());
         return toResponse(saved);
     }
 

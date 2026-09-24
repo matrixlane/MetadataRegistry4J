@@ -42,7 +42,6 @@ public class ObjectClassService {
         conceptContentApplier.applyConcept(entity, request.sourceUri(),
                 request.designations(), request.definitions(), request.registration());
         ObjectClass saved = repository.save(entity);
-        itemAdministrationService.recordSubmission(saved, request.registration());
         versionHistoryService.recordSnapshot(saved, "CREATE", toResponse(saved));
         return toResponse(saved);
     }
@@ -53,7 +52,6 @@ public class ObjectClassService {
         conceptContentApplier.applyConcept(entity, request.sourceUri(),
                 request.designations(), request.definitions(), request.registration());
         ObjectClass saved = repository.save(entity);
-        itemAdministrationService.recordSubmission(saved, request.registration());
         versionHistoryService.recordSnapshot(saved, "UPDATE", toResponse(saved));
         return toResponse(saved);
     }

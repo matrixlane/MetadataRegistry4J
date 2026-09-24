@@ -26,6 +26,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.never;
 import io.github.matrixlane.metadataregistry.dataspecification.DescribedValueDomain;
 
 /**
@@ -120,7 +121,9 @@ class DataElementServiceTest {
     }
 
     @Test
-    void create_and_update_recordSubmissionWithRegistration() {
+    void create_and_update_doesNotRecordSubmission() {
+        // align-submission-record-to-iso：编辑保存不再创建 SubmissionRecord；
+        // 由工作空间提交按"提交动作"批次粒度创建。
         io.github.matrixlane.metadataregistry.web.dto.common.ItemRegistrationRequest registration =
                 new io.github.matrixlane.metadataregistry.web.dto.common.ItemRegistrationRequest(
                         null, "DE-1", "1.0.0", List.of(), List.of());
@@ -128,13 +131,18 @@ class DataElementServiceTest {
         when(repository.save(any(DataElement.class))).thenAnswer(inv -> inv.getArgument(0));
 
         service.create(request);
-        verify(itemAdministrationService).recordSubmission(any(DataElement.class), org.mockito.ArgumentMatchers.eq(registration));
+        verify(itemAdministrationService, never())
+                .recordSubmission(any(io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.Item.class),
+                        any(io.github.matrixlane.metadataregistry.web.dto.common.ItemRegistrationRequest.class),
+                        any(io.github.matrixlane.metadataregistry.commonfacilities.registration.SubmissionRecordSource.class));
 
         UUID id = UUID.randomUUID();
         DataElement existing = new DataElement();
         when(repository.findById(id)).thenReturn(Optional.of(existing));
         service.update(id, request);
-        verify(itemAdministrationService, org.mockito.Mockito.times(2))
-                .recordSubmission(any(DataElement.class), org.mockito.ArgumentMatchers.eq(registration));
+        verify(itemAdministrationService, never())
+                .recordSubmission(any(io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.Item.class),
+                        any(io.github.matrixlane.metadataregistry.web.dto.common.ItemRegistrationRequest.class),
+                        any(io.github.matrixlane.metadataregistry.commonfacilities.registration.SubmissionRecordSource.class));
     }
 }

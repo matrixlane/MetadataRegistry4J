@@ -25,6 +25,8 @@ import io.github.matrixlane.metadataregistry.commonfacilities.registration.Regis
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegisteredItem;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.StewardshipRecord;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.SubmissionRecord;
+import io.github.matrixlane.metadataregistry.commonfacilities.registration.SubmissionRecordSource;
+import io.github.matrixlane.metadataregistry.web.dto.common.SubmissionRecordSummary;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Contact;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Organization;
 import io.github.matrixlane.metadataregistry.web.common.ApiCodes;
@@ -526,20 +528,26 @@ public class ItemAdministrationService {
     }
 
     /**
-     * 提交记录（Submission_Record，add-submitter-contact-identity / submission-record）：
-     * 条目（RegisteredItem）保存后生成一条新的 SubmissionRecord 并关联其
-     * AdministeredItem。联系人与所属组织取请求 {@code submission} 块；未显式提供时
-     * 按提交者默认联系人及其所属组织预填。显式给出的联系人 MUST 属于当前账号
-     * 绑定的 Contact。请求未携带 registration 块、条目尚无 AdministeredItem、
-     * 或无认证（种子/系统路径）时跳过。
+     * 提交记录（Submission_Record，add-submitter-contact-identity / align-submission-record-to-iso）：
+     * 工作空间提交（单条 / request-candidate）调用本方法创建一条 SubmissionRecord 并关联单个
+     * AdministeredItem。{@code source} 必传：工作空间提交固定为 {@link SubmissionRecordSource#USER_SUBMISSION}。
+     *
+     * <p>编辑保存路径不再调用本方法（参见 add-submitter-contact-identity 旧版历史与
+     * align-submission-record-to-iso 重构）。批量提交应使用 {@link #recordSubmissionForBatch}。</p>
+     *
+     * <p>联系人与所属组织取 {@code submission} 块；未显式提供时按提交者默认联系人及其所属组织预填。
+     * 显式给出的联系人 MUST 属于当前账号绑定的 Contact。无 AdministeredItem 或无认证（系统路径）时跳过。</p>
      */
-    public void recordSubmission(Item item, ItemRegistrationRequest req) {
+    public void recordSubmission(Item item, ItemRegistrationRequest req, SubmissionRecordSource source) {
+        if (source == null) {
+            throw new BusinessException(ApiCodes.VALIDATION_FAILED,
+                    "recordSubmission 必须显式指定 SubmissionRecordSource");
+        }
         if (req == null || item == null || item.getId() == null || isRestoreInProgress()) {
             return;
         }
         UUID accountId = activeRegistrarService.currentAccountIdOrNull();
         if (accountId == null) {
-            // 系统/种子路径无提交者，不生成提交记录
             return;
         }
         AdministeredItem administeredItem = administeredItemRepository.findByItem_Id(item.getId())
@@ -547,10 +555,58 @@ public class ItemAdministrationService {
         if (administeredItem == null) {
             return;
         }
+        ContactOrganizationPair pair = resolveContactAndOrganization(req.submission(), accountId);
+        if (pair == null) {
+            return;
+        }
+        persistSubmissionRecord(List.of(administeredItem), pair.contact(), pair.organization(), source);
+    }
+
+    /**
+     * 批量提交记录（align-submission-record-to-iso）：工作空间批量提交一次调用本方法，
+     * 创建一条 SubmissionRecord 关联所有传入 Item；按 ISO/IEC 11179-3:2023 表 27"一次提交动作"语义。
+     * 源固定 {@link SubmissionRecordSource#USER_SUBMISSION}。
+     *
+     * @param items 至少一条 Item；空集合抛错
+     */
+    public void recordSubmissionForBatch(List<Item> items, SubmissionInfo submission, SubmissionRecordSource source) {
+        if (source == null) {
+            throw new BusinessException(ApiCodes.VALIDATION_FAILED,
+                    "recordSubmissionForBatch 必须显式指定 SubmissionRecordSource");
+        }
+        if (items == null || items.isEmpty()) {
+            throw new BusinessException(ApiCodes.VALIDATION_FAILED, "批量提交至少包含一条管理项");
+        }
+        if (isRestoreInProgress()) {
+            return;
+        }
+        UUID accountId = activeRegistrarService.currentAccountIdOrNull();
+        if (accountId == null) {
+            return;
+        }
+        List<AdministeredItem> administeredItems = new ArrayList<>(items.size());
+        for (Item item : items) {
+            if (item == null || item.getId() == null) {
+                continue;
+            }
+            administeredItemRepository.findByItem_Id(item.getId()).ifPresent(administeredItems::add);
+        }
+        if (administeredItems.isEmpty()) {
+            return;
+        }
+        ContactOrganizationPair pair = resolveContactAndOrganization(submission, accountId);
+        if (pair == null) {
+            return;
+        }
+        persistSubmissionRecord(administeredItems, pair.contact(), pair.organization(), source);
+    }
+
+    private record ContactOrganizationPair(Contact contact, Organization organization) {
+    }
+
+    private ContactOrganizationPair resolveContactAndOrganization(SubmissionInfo submission, UUID accountId) {
         Contact contact = null;
         Organization organization = null;
-
-        SubmissionInfo submission = req.submission();
         if (submission != null && submission.contactId() != null) {
             contact = contactRepository.findById(submission.contactId())
                     .orElseThrow(() -> new ResourceNotFoundException("Contact", submission.contactId()));
@@ -573,18 +629,34 @@ public class ItemAdministrationService {
                 organization = context.get().organization();
             }
         }
-
         if (contact == null || organization == null) {
             throw new BusinessException(ApiCodes.VALIDATION_FAILED,
                     "无法确定提交联系人与所属组织：请先在「我的」中登记联系人身份，或在提交信息中显式选择");
         }
+        return new ContactOrganizationPair(contact, organization);
+    }
 
+    private void persistSubmissionRecord(List<AdministeredItem> administeredItems,
+                                        Contact contact, Organization organization,
+                                        SubmissionRecordSource source) {
         SubmissionRecord record = new SubmissionRecord();
         record.setContact(contact);
         record.setOrganization(organization);
-        record.setRegisteredItems(new java.util.ArrayList<>(java.util.List.of(administeredItem)));
+        record.setSource(source);
+        // SubmissionRecord.registeredItems 是 @ManyToMany 关联到 RegisteredItem；
+        // AdministeredItem 继承 RegisteredItem，可直接放入。
+        List<RegisteredItem> itemsAsRegistered = new ArrayList<>(administeredItems.size());
+        for (AdministeredItem ai : administeredItems) {
+            itemsAsRegistered.add(ai);
+        }
+        record.setRegisteredItems(itemsAsRegistered);
         submissionRecordRepository.save(record);
-        administeredItem.getSubmissionRecords().add(record);
+        for (AdministeredItem ai : administeredItems) {
+            if (ai.getSubmissionRecords() == null) {
+                ai.setSubmissionRecords(new ArrayList<>());
+            }
+            ai.getSubmissionRecords().add(record);
+        }
     }
 
     /**
@@ -836,6 +908,17 @@ public class ItemAdministrationService {
             }
         }
 
+        // 关联 SubmissionRecord 列表（align-submission-record-to-iso）：编辑表单"提交记录"只读面板数据源。
+        // 用 entityId 而非 Item.id 过滤，因为 SubmissionRecord.registeredItems 是 RegisteredItem。
+        List<SubmissionRecordSummary> submissionRecordSummaries = List.of();
+        if (administeredItem != null) {
+            List<SubmissionRecord> srs = submissionRecordRepository
+                    .findAllByRegisteredItemIdOrderByIdDesc(administeredItem.getId());
+            submissionRecordSummaries = srs.stream()
+                    .map(SubmissionRecordMapper::toSummary)
+                    .toList();
+        }
+
         // Try to query ScopedIdentifier by itemId
         List<ScopedIdentifier> siList = scopedIdentifierRepository.findByItemId(item.getId());
         if (siList != null && !siList.isEmpty()) {
@@ -882,7 +965,8 @@ public class ItemAdministrationService {
                 unresolvedIssue,
                 stewardshipRecordId,
                 stewardshipContactId,
-                stewardshipOrganizationId);
+                stewardshipOrganizationId,
+                submissionRecordSummaries);
     }
 
     /**

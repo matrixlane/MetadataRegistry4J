@@ -155,42 +155,6 @@
             </span>
           </template>
           <el-collapse v-if="contacts.length > 0" v-model="registrationRecordsCollapse" style="margin-top: 16px;">
-            <el-collapse-item :title="$t('itemForm.submissionInfo.title')" name="submission">
-              <el-form-item :label="$t('itemForm.submissionInfo.contact')">
-                <el-select
-                  v-model="form.registration.submission.contactId"
-                  :placeholder="$t('itemForm.submissionInfo.contactPlaceholder')"
-                  clearable
-                  style="width: 100%;"
-                  data-testid="submission-contact-select"
-                  @change="onContactChange"
-                >
-                  <el-option
-                    v-for="c in contacts"
-                    :key="c.id"
-                    :label="contactLabel(c)"
-                    :value="c.id"
-                  />
-                </el-select>
-              </el-form-item>
-              <el-form-item :label="$t('itemForm.submissionInfo.organization')">
-                <el-select
-                  v-model="form.registration.submission.organizationId"
-                  :placeholder="$t('itemForm.submissionInfo.organizationPlaceholder')"
-                  clearable
-                  filterable
-                  style="width: 100%;"
-                  data-testid="submission-organization-select"
-                >
-                  <el-option
-                    v-for="org in organizationOptions"
-                    :key="org.id"
-                    :label="org.label"
-                    :value="org.id"
-                  />
-                </el-select>
-              </el-form-item>
-            </el-collapse-item>
             <el-collapse-item :title="$t('itemForm.stewardshipInfo.title')" name="stewardship">
               <el-form-item :label="$t('itemForm.submissionInfo.contact')">
                 <el-select
@@ -226,6 +190,43 @@
                   />
                 </el-select>
               </el-form-item>
+            </el-collapse-item>
+            <el-collapse-item :title="$t('itemForm.submissionRecords.title')" name="submissionRecords">
+              <el-empty
+                v-if="!form.registration.submissionRecordSummaries || form.registration.submissionRecordSummaries.length === 0"
+                :description="$t('itemForm.submissionRecords.empty')"
+                :image-size="60"
+                data-testid="submission-records-empty"
+              />
+              <div v-else class="submission-records-list" data-testid="submission-records-list">
+                <div
+                  v-for="sr in form.registration.submissionRecordSummaries"
+                  :key="sr.id"
+                  class="submission-record-row"
+                  data-testid="submission-record-row"
+                >
+                  <div class="submission-record-source">
+                    <el-tag
+                      :type="sr.source === 'USER_SUBMISSION' ? 'success' : 'info'"
+                      size="small"
+                      data-testid="submission-record-source-tag"
+                    >
+                      {{ $t('itemForm.submissionRecords.source.' + sr.source) }}
+                    </el-tag>
+                  </div>
+                  <el-descriptions :column="1" size="small" border>
+                    <el-descriptions-item :label="$t('itemForm.submissionRecords.contact')">
+                      {{ sr.contactLabel || '—' }}
+                    </el-descriptions-item>
+                    <el-descriptions-item :label="$t('itemForm.submissionRecords.organization')">
+                      {{ sr.organizationLabel || '—' }}
+                    </el-descriptions-item>
+                    <el-descriptions-item :label="$t('itemForm.submissionRecords.itemCount')">
+                      {{ sr.registeredItemCount }}
+                    </el-descriptions-item>
+                  </el-descriptions>
+                </div>
+              </div>
             </el-collapse-item>
           </el-collapse>
           <el-alert
@@ -361,7 +362,7 @@ import { namingConventionApi, namespaceApi, pairingApi, myContactApi, organizati
 import { languageApi } from '@/api/resources';
 import { useRegistryDefaultLanguage } from '@/composables/useRegistryDefaultLanguage';
 import { useAuthStore } from '@/stores/auth';
-import type { TextLineForm, PairingForm, NamespaceDetailResponse, MyContactResponse, SubmissionInfo } from '@/types/common';
+import type { TextLineForm, PairingForm, NamespaceDetailResponse, MyContactResponse, SubmissionRecordSummary } from '@/types/common';
 import { SELF_CONTEXT_REFERENCE } from '@/types/common';
 
 const auth = useAuthStore();
@@ -379,10 +380,11 @@ interface RegistrationForm {
   unresolvedIssue?: string;
   /** 条目解释性注释（explanatory comment）；null/undefined = 不变更，空串 = 清空 */
   explanatoryComment?: string;
-  /** 提交信息（联系人 + 所属组织） */
-  submission: SubmissionInfo;
-  /** 主管信息（联系人 + 所属组织） */
+  /** 主管信息（联系人 + 所属组织），编辑表单可维护。 */
   stewardship: { contactId: string | null; organizationId: string | null };
+  /** 关联 SubmissionRecord 列表（align-submission-record-to-iso 只读展示用）。
+   *  编辑表单展示历史提交记录；后端 ItemMetaResponse.submissionRecordSummaries 填充。 */
+  submissionRecordSummaries?: SubmissionRecordSummary[];
 }
 
 interface ItemForm {
@@ -535,7 +537,10 @@ const form = reactive<ItemForm>({
   designations: [],
   definitions: [],
   pairings: [],
-  registration: { submission: { contactId: null, organizationId: null }, stewardship: { contactId: null, organizationId: null } },
+  registration: {
+    stewardship: { contactId: null, organizationId: null },
+    submissionRecordSummaries: [],
+  },
 });
 
 /** 编辑既有条目时其后端归属注册机构名 */
@@ -693,7 +698,7 @@ const contacts = ref<MyContactResponse[]>([]);
 const contactsLoaded = ref(false);
 const organizationOptions = ref<{ id: string; label: string }[]>([]);
 const submissionCollapse = ref<string[]>(['submission']);
-const registrationRecordsCollapse = ref<string[]>(['submission', 'stewardship']);
+const registrationRecordsCollapse = ref<string[]>(['stewardship']);
 
 function contactLabel(contact: MyContactResponse): string {
   const parts = [
@@ -726,19 +731,6 @@ async function loadOrganizations() {
   } catch {
     organizationOptions.value = [];
   }
-}
-
-function prefillSubmissionInfo() {
-  const defaultContact = contacts.value.find((c) => c.isDefault);
-  if (defaultContact && !form.registration.submission.contactId) {
-    form.registration.submission.contactId = defaultContact.id;
-    form.registration.submission.organizationId = defaultContact.organizationId;
-  }
-}
-
-function onContactChange(contactId: string) {
-  const contact = contacts.value.find((c) => c.id === contactId);
-  form.registration.submission.organizationId = contact?.organizationId || null;
 }
 
 function onStewardshipContactChange(contactId: string) {
@@ -817,9 +809,7 @@ async function open(initial?: Record<string, unknown>) {
       }
     }
   }
-  if (contacts.value.length > 0) {
-    prefillSubmissionInfo();
-  }
+  // align-submission-record-to-iso：编辑保存不再预填 submission；仅 work space 提交才需要。
   activeTab.value = props.showRegistration ? 'registration' : 'designationDefinition';
   activeSubTab.value = 'designations';
   visible.value = true;
@@ -834,7 +824,10 @@ function reset() {
   form.designations = [];
   form.definitions = [];
   form.pairings = [];
-  form.registration = { submission: { contactId: null, organizationId: null }, stewardship: { contactId: null, organizationId: null } };
+  form.registration = {
+    stewardship: { contactId: null, organizationId: null },
+    submissionRecordSummaries: [],
+  };
   initialExplanatoryComment.value = undefined;
   invalidFields.value.clear();
   pendingPairingDeletions.value = [];
@@ -845,7 +838,7 @@ function reset() {
   contacts.value = [];
   contactsLoaded.value = false;
   submissionCollapse.value = ['submission'];
-  registrationRecordsCollapse.value = ['submission', 'stewardship'];
+  registrationRecordsCollapse.value = ['stewardship'];
   registrationSectionRef.value?.reset();
   formRef.value?.resetFields();
   // 对话框关闭/重开：行级候选缓存、进行中/失败态与会话内悬停态一并失效
@@ -1090,26 +1083,28 @@ function normalizeRegistration(
   meta: Record<string, unknown> | undefined
 ): RegistrationForm {
   const reg = (raw || {}) as Partial<RegistrationForm>;
-  const submission = (reg.submission || meta?.submission || undefined) as SubmissionInfo | undefined;
   const stewardship = reg.stewardship || {
     contactId: (meta?.stewardshipContactId as string) || null,
     organizationId: (meta?.stewardshipOrganizationId as string) || null,
   };
+  // align-submission-record-to-iso：从 meta.submissionRecordSummaries 回填历史提交记录
+  // （后端 ItemMetaResponse.submissionRecordSummaries），只读展示。
+  const submissionRecordSummaries = (Array.isArray(meta?.submissionRecordSummaries)
+      ? (meta?.submissionRecordSummaries as SubmissionRecordSummary[])
+      : []) as SubmissionRecordSummary[];
   return {
     namespaceId: reg.namespaceId || (meta?.namespaceId as string) || undefined,
     identifier: reg.identifier || (meta?.identifier as string) || undefined,
     version: reg.version || (meta?.version as string) || undefined,
-    // Registration_State 回显（11179-3:2023 表 22）：编辑态从 meta 回填，创建态留空走默认
     registrationStatus: reg.registrationStatus || (meta?.registrationStatus as string) || undefined,
     administrativeStatus: reg.administrativeStatus || (meta?.administrativeStatus as string) || undefined,
     effectiveDate: reg.effectiveDate || (meta?.stateEffectiveDate as string) || undefined,
     untilDate: reg.untilDate || (meta?.stateUntilDate as string) || undefined,
     administrativeNote: reg.administrativeNote || (meta?.administrativeNote as string) || undefined,
     unresolvedIssue: reg.unresolvedIssue || (meta?.unresolvedIssue as string) || undefined,
-    // 解释性注释：后端响应 meta 暂未回显该字段，随 initial 携带时回填；未携带则留空（不变更）
     explanatoryComment: reg.explanatoryComment || (meta?.explanatoryComment as string) || undefined,
-    submission: submission || { contactId: null, organizationId: null },
     stewardship,
+    submissionRecordSummaries,
   };
 }
 
@@ -1241,19 +1236,8 @@ async function handleSubmitInternal() {
             explanatoryComment: comment,
           };
         }
-        // 提交信息：存在联系人或原值有时按表单值携带，否则忽略该字段
-        if (
-          form.registration.submission &&
-          (contacts.value.length > 0 || form.registration.submission.contactId)
-        ) {
-          payload.registration = {
-            ...(payload.registration as Record<string, unknown>),
-            submission: {
-              contactId: form.registration.submission.contactId || null,
-              organizationId: form.registration.submission.organizationId || null,
-            },
-          };
-        }
+        // 提交信息：align-submission-record-to-iso，编辑保存不再携带 submission 字段；
+        // SubmissionRecord 仅在工作空间提交时创建。
         // 主管信息：仅当显式选择联系人时携带（organizationId 可空传 null）
         if (form.registration.stewardship?.contactId) {
           payload.registration = {
@@ -1364,6 +1348,22 @@ async function syncPairings(itemId: string, result?: unknown) {
 // form 一并暴露：视图在 open() 后需要回写类型/默认值（值域、概念域的 kind 预置与有效期预填）
 defineExpose({ open, form });
 </script>
+
+<style scoped>
+.submission-records-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.submission-record-row {
+  padding: 8px 0;
+}
+
+.submission-record-source {
+  margin-bottom: 6px;
+}
+</style>
 
 <style scoped>
 /* "指称与定义"内嵌二级 Tab：弱化边框，避免与外层 border-card 叠加过重 */

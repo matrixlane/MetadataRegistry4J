@@ -48,7 +48,6 @@ public class DataElementService {
         DataElement entity = new DataElement();
         applyRequest(entity, request);
         DataElement saved = repository.save(entity);
-        itemAdministrationService.recordSubmission(saved, request.registration());
         versionHistoryService.recordSnapshot(saved, "CREATE", toResponse(saved));
         return toResponse(saved);
     }
@@ -58,7 +57,6 @@ public class DataElementService {
         versionHistoryService.captureBaselineIfEnteringDraft(entity, toResponse(entity));
         applyRequest(entity, request);
         DataElement saved = repository.save(entity);
-        itemAdministrationService.recordSubmission(saved, request.registration());
         versionHistoryService.recordSnapshot(saved, "UPDATE", toResponse(saved));
         return toResponse(saved);
     }

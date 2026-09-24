@@ -85,7 +85,6 @@ public class ValueDomainService {
         applyCommon(entity, request);
         applyTypeSpecific(entity, request);
         ValueDomain saved = repository.save(entity);
-        itemAdministrationService.recordSubmission(saved, request.registration());
         if (saved instanceof LocalEnumeratedValueDomain levd) {
             applyPermissibleValues(levd, request.permissibleValues());
         }
@@ -105,7 +104,6 @@ public class ValueDomainService {
         applyCommon(mutable, request);
         applyTypeSpecific(mutable, request);
         ValueDomain saved = repository.save(mutable);
-        itemAdministrationService.recordSubmission(saved, request.registration());
         if (saved instanceof LocalEnumeratedValueDomain levd) {
             applyPermissibleValues(levd, request.permissibleValues());
         }

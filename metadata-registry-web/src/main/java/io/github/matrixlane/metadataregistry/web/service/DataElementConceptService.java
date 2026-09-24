@@ -58,7 +58,6 @@ public class DataElementConceptService {
         DataElementConcept entity = new DataElementConcept();
         applyRequest(entity, request);
         DataElementConcept saved = repository.save(entity);
-        itemAdministrationService.recordSubmission(saved, request.registration());
         applyConceptualDomainLinks(saved, request.conceptualDomainIds());
         versionHistoryService.recordSnapshot(saved, "CREATE", toResponse(saved));
         return toResponse(saved);
@@ -70,7 +69,6 @@ public class DataElementConceptService {
         applyRequest(entity, request);
         applyConceptualDomainLinks(entity, request.conceptualDomainIds());
         DataElementConcept saved = repository.save(entity);
-        itemAdministrationService.recordSubmission(saved, request.registration());
         versionHistoryService.recordSnapshot(saved, "UPDATE", toResponse(saved));
         return toResponse(saved);
     }

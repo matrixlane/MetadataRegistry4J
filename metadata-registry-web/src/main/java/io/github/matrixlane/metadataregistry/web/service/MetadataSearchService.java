@@ -432,7 +432,8 @@ public class MetadataSearchService {
                 ldt(rs, "creation_date_time"),
                 ldt(rs, "last_change_date_time"),
                 rs.getString("change_description"),
-                rs.getString("match_type")
+                rs.getString("match_type"),
+                null
         );
     }
 

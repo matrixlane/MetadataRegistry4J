@@ -143,7 +143,6 @@ public class ItemMappingCrudService {
         if (request.registration() != null) {
             itemAdministrationService.ensureAdministeredItem(saved, request.registration());
         }
-        itemAdministrationService.recordSubmission(saved, request.registration());
         return get(saved.getId());
     }
 

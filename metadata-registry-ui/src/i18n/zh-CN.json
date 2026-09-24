@@ -635,6 +635,17 @@
       "organizationPlaceholder": "请选择所属组织",
       "noContact": "当前没有可用的联系人身份，提交信息将在完善联系人后可用。"
     },
+    "submissionRecords": {
+      "title": "提交记录",
+      "empty": "暂无提交记录。条目需通过工作空间提交才会生成提交记录。",
+      "contact": "联系人",
+      "organization": "所属组织",
+      "itemCount": "关联条目数",
+      "source": {
+        "USER_SUBMISSION": "用户提交",
+        "SYSTEM_DRAFT": "草稿自动生成"
+      }
+    },
     "stewardshipInfo": {
       "title": "主管记录",
       "noContact": "请先在「我的」中登记联系人身份，再指定主管记录。"
@@ -697,7 +708,7 @@
   "systemSettings": {
     "nav": {
       "general": "通用",
-      "datasource": "数据源",
+      "datasource": "数据库设置",
       "aiAssist": "AI 辅助",
       "danger": "危险区域"
     }

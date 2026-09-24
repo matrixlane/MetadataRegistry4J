@@ -1,62 +1,86 @@
 # submission-record Specification
 
 ## Purpose
-本能力规定 SubmissionRecord 随 Administered_Item 保存而生成的行为：新建条目与每次提交新版条目内容各生成一条 SubmissionRecord，其联系人与组织默认预填提交者的默认联系人及其所属组织，提交者可修改，且提交身份必须是提交者本人绑定的 Contact。
+
+按 ISO/IEC 11179-3:2023 表 27 重设计 SubmissionRecord 生命周期：Submission_Record 表示**一次提交动作**
+（可关联多个 Administered_Item），仅在工作空间提交（含单条 / 批量 / request-candidate）时创建；
+编辑保存不再生成 SubmissionRecord，仅维护 StewardshipRecord；编辑界面提供 SubmissionRecord 只读列表
+展示历史提交；历史脏数据按 SYSTEM_DRAFT 标注保留。
 
 ## Requirements
 
-### Requirement: 随条目保存生成提交记录
+### Requirement: 工作空间提交按批次创建提交记录
 
-系统在保存 Administered_Item（新建，以及每次提交一版新的内容修订）时，SHALL 在同一事务内生成一条新的 SubmissionRecord 并关联该条目。系统 MUST NOT 复用或改写历史 SubmissionRecord。
+工作空间提交（单条 / 批量 / request-candidate）SHALL 创建 SubmissionRecord 并按"提交动作"批次粒度
+关联 AdministeredItem：单条提交创建 1 条 SR 关联 1 个 item；批量提交（N 个 item）整批创建 1 条 SR
+仅关联成功的 K 个 item，失败的 item 不挂 SR；request-candidate 创建 1 条 SR 关联 1 个 item。
+所有工作空间提交产生的 SR 标注 `source=USER_SUBMISSION`。编辑保存 MUST NOT 创建 SubmissionRecord；
+编辑保存仅维护 StewardshipRecord（见 Requirement `主管记录在编辑表单可维护`）。
 
-#### Scenario: 新建条目生成提交记录
+#### Scenario: 单条工作空间提交创建 1 条 SR
 
-- **WHEN** 用户成功创建一条 Administered_Item
-- **THEN** 系统同时生成一条关联该条目的 SubmissionRecord
+- **WHEN** 用户在工作空间点击单条提交并确认提交信息
+- **THEN** 系统创建 1 条 SubmissionRecord（source=USER_SUBMISSION），`registeredItems` 关联该 item
 
-#### Scenario: 内容修订生成新提交记录
+#### Scenario: 批量工作空间提交创建 1 条 SR 关联全部成功 item
 
-- **WHEN** 用户提交一版新的条目内容（更新）
-- **THEN** 系统生成一条新的 SubmissionRecord，历史 SubmissionRecord 保持不变
+- **WHEN** 用户在工作空间批量选择 N 个 item 并提交，其中 K 个成功（N-K 失败）
+- **THEN** 系统创建 1 条 SubmissionRecord（source=USER_SUBMISSION），`registeredItems` 仅关联 K 个成功 item
 
-### Requirement: 提交信息默认预填且可修改
+#### Scenario: request-candidate 创建 1 条 SR
 
-条目创建/编辑界面 SHALL 提供提交信息（联系人、所属组织），其默认值 SHALL 为提交者的默认联系人及其所属组织；提交者可修改。请求未显式提供提交信息时，服务端 SHALL 按同一规则预填。界面与预填值 MUST NOT 泄露或允许选择他人绑定的 Contact。
+- **WHEN** 用户在工作空间点击"请求成为候选"并确认提交信息
+- **THEN** 系统创建 1 条 SubmissionRecord（source=USER_SUBMISSION），`registeredItems` 关联该 item
 
-#### Scenario: 默认预填
+#### Scenario: 编辑保存不创建 SR
 
-- **WHEN** 拥有默认联系人的用户打开条目创建表单
-- **THEN** 提交信息的联系人与组织分别预填为默认联系人及其所属组织，用户可修改
+- **WHEN** 用户在 Item 编辑界面保存（create / update），不通过工作空间提交
+- **THEN** 系统 MUST NOT 新增 SubmissionRecord；StewardshipRecord 按请求体 stewardship 块维护
 
-#### Scenario: 服务端兜底预填
+### Requirement: 主管记录在编辑表单可维护
 
-- **WHEN** 创建/更新请求未携带提交信息
-- **THEN** 服务端以提交者默认联系人及其所属组织预填 SubmissionRecord；无默认联系人时回退到其绑定列表中的第一条身份
+编辑 Item 时 SHALL 允许用户维护 StewardshipRecord（联系人 + 所属组织），保存时通过
+`applyStewardshipRecord` 落库。NULL = 不变更既有主管记录；显式给出的联系人 MUST 属于当前账号
+绑定的 Contact；organizationId 缺省时取该联系人所属组织。
 
-### Requirement: 提交身份归属校验
+#### Scenario: 编辑保存维护主管记录
 
-SubmissionRecord 中的联系人 MUST 是提交者本人账号绑定的 Contact；请求中显式给出的联系人不属于提交者本人时，系统 MUST 拒绝该请求。所属组织缺省时 SHALL 取该联系人所属组织。
+- **WHEN** 编辑表单 stewardship.contactId / organizationId 非空
+- **THEN** 保存后该 item 的 stewardshipRecord 指向新联系人 + 组织
 
-#### Scenario: 代填他人联系人被拒绝
+#### Scenario: 编辑保存不传 stewardship 不变更
 
-- **WHEN** 请求中提交的 contactId 不是当前账号绑定的任何 Contact
-- **THEN** 系统拒绝该请求并返回校验错误
+- **WHEN** 编辑表单 stewardship 缺省（NULL）
+- **THEN** 既有 stewardshipRecord 保持不变
 
-#### Scenario: 组织缺省推导
+### Requirement: 编辑界面提交记录只读
 
-- **WHEN** 请求仅提供 contactId 而未提供 organizationId
-- **THEN** 系统将该联系人所属组织写入 SubmissionRecord
+Item 编辑表单 SHALL 提供 SubmissionRecord 只读列表（折叠面板），每行展示：来源（USER_SUBMISSION /
+草稿自动生成）、联系人姓名、所属组织名、关联条目数。数据源为后端 `ItemMetaResponse.submissionRecordSummaries`
+（按 id 降序）。列表为空时显示空态文案。
 
-### Requirement: 工作空间提交须显式设置提交记录
+#### Scenario: 列表展示历史 SR
 
-工作空间中的提交操作（单个或批量，含"请求成为候选"）SHALL 弹出提交信息选择器，要求用户显式确认或修改 Submission_Record 后再执行：联系人与组织默认预填当前用户默认联系人及其所属组织，用户可修改为本账号绑定的其他联系人及其组织。提交成功后，每条管理项 SHALL 生成一条新的 SubmissionRecord（沿用"随条目保存生成提交记录"的语义，不得复用或改写历史记录）。
+- **WHEN** 用户打开已多次提交的 Item 的编辑表单
+- **THEN** 提交记录面板展示该 item 关联的全部 SubmissionRecord，按 id 降序排列
 
-#### Scenario: 提交弹窗默认预填可修改
+#### Scenario: 列表为空
 
-- **WHEN** 用户在工作空间点击提交（单个或批量）
-- **THEN** 弹出提交信息选择器，联系人与组织预填为默认联系人及其组织，用户可修改
+- **WHEN** 用户打开新创建尚未提交过的 Item
+- **THEN** 提交记录面板显示空态文案
 
-#### Scenario: 提交生成新提交记录
+### Requirement: 提交记录来源标注
 
-- **WHEN** 用户确认提交信息并提交
-- **THEN** 每个管理项生成一条以其所选联系人与组织的新 SubmissionRecord
+SubmissionRecord 实体 SHALL 提供 `source` 字段（`SubmissionRecordSource` 枚举：`USER_SUBMISSION` /
+`SYSTEM_DRAFT`）。新代码路径创建 SR 时一律写 `USER_SUBMISSION`；SYSTEM_DRAFT 实例不再产生，仅用于
+历史脏数据标注保留。
+
+#### Scenario: 历史 SR 迁移一次性回填
+
+- **WHEN** 执行迁移 `V20260924002__Submission_record_source` 后
+- **THEN** 旧 SubmissionRecord 行均有非空 `source=SYSTEM_DRAFT`；新 INSERT 一律 USER_SUBMISSION
+
+#### Scenario: UI 区分来源
+
+- **WHEN** 编辑表单展示历史 SR
+- **THEN** USER_SUBMISSION 显示"用户提交"tag（success 色），SYSTEM_DRAFT 显示"草稿自动生成"tag（info 色）

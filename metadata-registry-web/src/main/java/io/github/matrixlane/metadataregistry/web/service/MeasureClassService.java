@@ -57,7 +57,6 @@ public class MeasureClassService {
         conceptContentApplier.applyConcept(entity, request.sourceUri(),
                 request.designations(), request.definitions(), request.registration());
         entity = repository.save(entity);
-        itemAdministrationService.recordSubmission(entity, request.registration());
         if (request.dimensionalityIds() != null && !request.dimensionalityIds().isEmpty()) {
             applyDimensionalities(entity, request.dimensionalityIds());
         }
@@ -72,7 +71,6 @@ public class MeasureClassService {
                 request.designations(), request.definitions(), request.registration());
         applyDimensionalities(entity, request.dimensionalityIds());
         MeasureClass saved = repository.save(entity);
-        itemAdministrationService.recordSubmission(saved, request.registration());
         versionHistoryService.recordSnapshot(saved, "UPDATE", toResponse(saved));
         return toResponse(saved);
     }

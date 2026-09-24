@@ -38,7 +38,6 @@ public class ConstraintSetService {
         ConstraintSet entity = new ConstraintSet();
         applyRequest(entity, request);
         ConstraintSet saved = repository.save(entity);
-        itemAdministrationService.recordSubmission(saved, request.registration());
         return toResponse(saved);
     }
 
@@ -46,7 +45,6 @@ public class ConstraintSetService {
         ConstraintSet entity = loadOrThrow(id);
         applyRequest(entity, request);
         ConstraintSet saved = repository.save(entity);
-        itemAdministrationService.recordSubmission(saved, request.registration());
         return toResponse(saved);
     }
 

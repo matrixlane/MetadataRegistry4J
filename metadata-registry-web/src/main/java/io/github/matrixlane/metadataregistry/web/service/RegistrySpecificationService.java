@@ -53,7 +53,6 @@ public class RegistrySpecificationService {
        RegistrySpecification entity = new RegistrySpecification();
        applyRequest(entity, request);
        RegistrySpecification saved = repository.save(entity);
-       itemAdministrationService.recordSubmission(saved, request.registration());
        return toResponse(saved);
    }
 
@@ -61,7 +60,6 @@ public class RegistrySpecificationService {
         RegistrySpecification entity = loadOrThrow(id);
         applyRequest(entity, request);
         RegistrySpecification saved = repository.save(entity);
-        itemAdministrationService.recordSubmission(saved, request.registration());
         return toResponse(saved);
     }
 

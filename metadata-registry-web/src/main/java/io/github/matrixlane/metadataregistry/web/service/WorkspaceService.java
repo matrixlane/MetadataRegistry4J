@@ -6,6 +6,7 @@ import io.github.matrixlane.metadataregistry.commonfacilities.registration.Admin
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.AdministrativeStatus;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.Registrar;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationStatus;
+import io.github.matrixlane.metadataregistry.commonfacilities.registration.SubmissionRecordSource;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationTransitionApproval;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationTransitionRule;
 import io.github.matrixlane.metadataregistry.ext.basicandcore.ContactAccountBinding;
@@ -152,6 +153,23 @@ public class WorkspaceService {
         for (UUID itemId : request.itemIds()) {
             results.add(submitOne(itemId, request.submission(), accountId));
         }
+
+        // align-submission-record-to-iso：批量提交整批创建 1 条 SubmissionRecord（USER_SUBMISSION），
+        // 仅挂在本次成功提交的 AdministeredItem 上；失败的 item 不挂 SR。
+        List<Item> succeededItems = new ArrayList<>();
+        for (int i = 0; i < request.itemIds().size(); i++) {
+            if (results.get(i).success()) {
+                AdministeredItem ai = administeredItemRepository.findByItem_Id(request.itemIds().get(i))
+                        .orElse(null);
+                if (ai != null && ai.getItem() != null) {
+                    succeededItems.add(ai.getItem());
+                }
+            }
+        }
+        if (!succeededItems.isEmpty()) {
+            itemAdministrationService.recordSubmissionForBatch(
+                    succeededItems, request.submission(), SubmissionRecordSource.USER_SUBMISSION);
+        }
         return results;
     }
 
@@ -167,8 +185,7 @@ public class WorkspaceService {
                     "该管理项不属于当前用户");
         }
         try {
-            Item item = ai.getItem();
-            itemAdministrationService.recordSubmission(item, syntheticRequest(submission));
+            // align-submission-record-to-iso：单条工作空间提交不立即创建 SR，统一由 submit() 末尾按批次创建。
             administrativeStatusService.applyLanding(ai);
             administeredItemRepository.save(ai);
             return new WorkspaceSubmitResult(itemId, true, null, null);
@@ -201,7 +218,8 @@ public class WorkspaceService {
                     "该管理项不属于当前用户");
         }
         validateSubmissionInfo(submission, accountId);
-        itemAdministrationService.recordSubmission(ai.getItem(), syntheticRequest(submission));
+        itemAdministrationService.recordSubmission(ai.getItem(), syntheticRequest(submission),
+                SubmissionRecordSource.USER_SUBMISSION);
         registrationProcessService.execute(ai.getId(), RegistrationStatus.CANDIDATE, "提交人请求成为候选", accountId);
     }
 

@@ -16,6 +16,7 @@ import io.github.matrixlane.metadataregistry.web.dto.registration.AvailableTrans
 import io.github.matrixlane.metadataregistry.web.repository.AdministeredItemRepository;
 import io.github.matrixlane.metadataregistry.web.repository.ConstraintSetRepository;
 import io.github.matrixlane.metadataregistry.web.repository.ReferenceDocumentRepository;
+import io.github.matrixlane.metadataregistry.web.repository.SubmissionRecordRepository;
 import io.github.matrixlane.metadataregistry.web.util.ItemNamingHelper;
 import lombok.RequiredArgsConstructor;
 import org.hibernate.Hibernate;
@@ -38,6 +39,7 @@ public class AdministeredItemService {
     private final RegistrationProcessService registrationProcessService;
     private final ReferenceDocumentRepository referenceDocumentRepository;
     private final ConstraintSetRepository constraintSetRepository;
+    private final SubmissionRecordRepository submissionRecordRepository;
 
     @Transactional(readOnly = true)
     public Page<AdministeredItemResponse> list(RegistrationStatus status, Pageable pageable) {
@@ -137,6 +139,14 @@ public class AdministeredItemService {
         String itemType = realItem == null ? null : realItem.getClass().getSimpleName();
         String itemLabel = realItem == null ? null : ItemNamingHelper.preferredDesignation(realItem);
 
+        // align-submission-record-to-iso：编辑表单"提交记录"只读面板数据源
+        List<io.github.matrixlane.metadataregistry.web.dto.common.SubmissionRecordSummary> submissionRecordSummaries =
+                submissionRecordRepository
+                        .findAllByRegisteredItemIdOrderByIdDesc(ai.getId())
+                        .stream()
+                        .map(SubmissionRecordMapper::toSummary)
+                        .toList();
+
         String identifier = null;
         String version = null;
         UUID nsId = null;
@@ -196,6 +206,7 @@ public class AdministeredItemService {
                 ai.getCreationDateTime(),
                 ai.getLastChangeDateTime(),
                 ai.getChangeDescription(),
-                null);
+                null,
+                submissionRecordSummaries);
     }
 }

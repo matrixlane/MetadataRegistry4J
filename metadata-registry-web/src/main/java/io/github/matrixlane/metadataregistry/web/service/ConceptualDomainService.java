@@ -75,7 +75,6 @@ public class ConceptualDomainService {
         applyValidPeriod(entity, request);
         applyDimensionality(entity, request);
         ConceptualDomain saved = repository.save(entity);
-        itemAdministrationService.recordSubmission(saved, request.registration());
         if (saved instanceof LocalEnumeratedConceptualDomain lecd) {
             applyValueMeanings(lecd, request.valueMeanings());
         }
@@ -97,7 +96,6 @@ public class ConceptualDomainService {
         applyValidPeriod(mutable, request);
         applyDimensionality(mutable, request);
         ConceptualDomain saved = repository.save(mutable);
-        itemAdministrationService.recordSubmission(saved, request.registration());
         if (saved instanceof LocalEnumeratedConceptualDomain lecd) {
             applyValueMeanings(lecd, request.valueMeanings());
         } else if (saved instanceof ReferenceEnumeratedConceptualDomain) {

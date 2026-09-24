@@ -41,7 +41,6 @@ public class DataTypeSchemeService {
         DataTypeScheme entity = new DataTypeScheme();
         applyRequest(entity, request);
         DataTypeScheme saved = repository.save(entity);
-        itemAdministrationService.recordSubmission(saved, request.registration());
         return toResponse(saved);
     }
 
@@ -49,7 +48,6 @@ public class DataTypeSchemeService {
         DataTypeScheme entity = loadOrThrow(id);
         applyRequest(entity, request);
         DataTypeScheme saved = repository.save(entity);
-        itemAdministrationService.recordSubmission(saved, request.registration());
         return toResponse(saved);
     }
 

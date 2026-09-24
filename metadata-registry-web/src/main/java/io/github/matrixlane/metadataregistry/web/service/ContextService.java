@@ -71,7 +71,6 @@ public class ContextService {
             itemAdministrationService.ensureAdministeredItem(entity, request.registration());
         }
         Context saved = repository.save(entity);
-        itemAdministrationService.recordSubmission(saved, request.registration());
         return toResponse(saved);
     }
 
@@ -85,7 +84,6 @@ public class ContextService {
             itemAdministrationService.ensureAdministeredItem(entity, request.registration());
         }
         Context saved = repository.save(entity);
-        itemAdministrationService.recordSubmission(saved, request.registration());
         return toResponse(saved);
     }
 

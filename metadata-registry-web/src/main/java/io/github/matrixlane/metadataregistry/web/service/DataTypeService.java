@@ -42,7 +42,6 @@ public class DataTypeService {
         DataType entity = new DataType();
         applyRequest(entity, request);
         DataType saved = repository.save(entity);
-        itemAdministrationService.recordSubmission(saved, request.registration());
         versionHistoryService.recordSnapshot(saved, "CREATE", toResponse(saved));
         return toResponse(saved);
     }
@@ -52,7 +51,6 @@ public class DataTypeService {
         versionHistoryService.captureBaselineIfEnteringDraft(entity, toResponse(entity));
         applyRequest(entity, request);
         DataType saved = repository.save(entity);
-        itemAdministrationService.recordSubmission(saved, request.registration());
         versionHistoryService.recordSnapshot(saved, "UPDATE", toResponse(saved));
         return toResponse(saved);
     }

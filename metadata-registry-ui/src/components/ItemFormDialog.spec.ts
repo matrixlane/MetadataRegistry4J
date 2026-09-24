@@ -3,11 +3,11 @@ import { mount, flushPromises } from '@vue/test-utils';
 import ElementPlus from 'element-plus';
 import ItemFormDialog from './ItemFormDialog.vue';
 import { myContactApi } from '@/api/resources';
-import type { MyContactResponse, SubmissionInfo } from '@/types/common';
+import type { MyContactResponse } from '@/types/common';
 
 type DialogVm = InstanceType<typeof ItemFormDialog> & {
   contacts: MyContactResponse[];
-  form: { registration: { submission: SubmissionInfo; stewardship: { contactId: string | null; organizationId: string | null } } };
+  form: { registration: { stewardship: { contactId: string | null; organizationId: string | null }; submissionRecordSummaries?: Array<{ id: string; source: string; contactLabel?: string | null; organizationLabel?: string | null; registeredItemCount: number; registeredItemIds: string[] }> } };
   onContactChange: (id: string) => void;
   onStewardshipContactChange: (id: string) => void;
   handleSubmit: () => Promise<void>;
@@ -608,34 +608,60 @@ describe('ItemFormDialog 提交信息预填', () => {
     return wrapper;
   }
 
-  it('有联系人时默认选中 isDefault 项并联动所属组织', async () => {
+  // align-submission-record-to-iso：编辑保存不再预填 submission；改用只读 submissionRecords 列表。
+  // 删除/替换下列历史断言（默认联系人预填、submission 切换联动、保存携带 submission 字段）。
+
+  it('编辑表单包含 submissionRecords 只读面板与 stewardship 编辑面板', async () => {
     const wrapper = await mountWithContacts();
-    const vm = wrapper.vm as unknown as DialogVm;
-    expect(vm.contacts.length).toBe(2);
-    expect(vm.form.registration.submission.contactId).toBe('contact-1');
-    expect(vm.form.registration.submission.organizationId).toBe('org-1');
+    const collapseItems = wrapper.findAllComponents({ name: 'ElCollapseItem' });
+    expect(collapseItems.some((c) => c.props('name') === 'submissionRecords')).toBe(true);
+    expect(collapseItems.some((c) => c.props('name') === 'stewardship')).toBe(true);
+    expect(wrapper.find('[data-testid="submission-records-empty"]').exists()).toBe(true);
     wrapper.unmount();
   });
 
-  it('切换联系人时所属组织联动更新', async () => {
-    const wrapper = await mountWithContacts();
-    const vm = wrapper.vm as unknown as DialogVm;
-    vm.form.registration.submission.contactId = 'contact-2';
+  it('当 ItemMetaResponse 含 submissionRecordSummaries 时渲染只读列表', async () => {
+    const wrapper = mount(ItemFormDialog, {
+      props: { itemType: 'dataElement', submitFn: vi.fn(), showRegistration: true },
+      global: {
+        plugins: [ElementPlus],
+        mocks: {
+          $t: (key: string) => key,
+        },
+      },
+    });
+    await (wrapper.vm as unknown as DialogVm).open({
+      designations: [{ id: 'dg-1', languageId: '', value: '测试', contexts: [{ contextId: 'ctx-1', acceptability: 'ADMITTED' }] }],
+      registration: { namespaceId: 'ns-awo' },
+      meta: {
+        submissionRecordSummaries: [
+          {
+            id: 'sr-1',
+            source: 'USER_SUBMISSION',
+            contactLabel: '张三',
+            organizationLabel: '示例组织',
+            registeredItemCount: 1,
+            registeredItemIds: ['item-1'],
+          },
+        ],
+      },
+    });
     await wrapper.vm.$nextTick();
-    vm.onContactChange('contact-2');
-    await wrapper.vm.$nextTick();
-    expect(vm.form.registration.submission.organizationId).toBe('org-2');
+    expect(wrapper.find('[data-testid="submission-records-list"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="submission-records-empty"]').exists()).toBe(false);
+    const rows = wrapper.findAll('[data-testid="submission-record-row"]');
+    expect(rows.length).toBe(1);
     wrapper.unmount();
   });
 
-  it('保存时 registration payload 包含 submission 字段', async () => {
+  it('保存时 registration payload 不再携带 submission 字段（已迁移到工作空间）', async () => {
     const submitFn = vi.fn().mockResolvedValue({});
     const wrapper = mount(ItemFormDialog, {
       props: { itemType: 'dataElement', submitFn, showRegistration: true },
       global: {
         plugins: [ElementPlus],
         mocks: {
-          $t: (key: string, params?: unknown) => (params ? `${key} ${JSON.stringify(params)}` : key),
+          $t: (key: string) => key,
         },
       },
     });
@@ -645,17 +671,18 @@ describe('ItemFormDialog 提交信息预填', () => {
     });
     await wrapper.vm.$nextTick();
     const vm = wrapper.vm as unknown as DialogVm;
-    vm.form.registration.submission.contactId = 'contact-2';
-    vm.form.registration.submission.organizationId = 'org-2';
+    vm.form.registration.stewardship.contactId = 'contact-1';
+    vm.form.registration.stewardship.organizationId = 'org-1';
     await wrapper.vm.$nextTick();
 
     await vm.handleSubmit();
     await flushPromises();
 
     const payload = submitFn.mock.calls[0][0];
-    expect(payload.registration.submission).toEqual({
-      contactId: 'contact-2',
-      organizationId: 'org-2',
+    expect(payload.registration.submission).toBeUndefined();
+    expect(payload.registration.stewardship).toEqual({
+      contactId: 'contact-1',
+      organizationId: 'org-1',
     });
     wrapper.unmount();
   });
@@ -664,19 +691,7 @@ describe('ItemFormDialog 提交信息预填', () => {
     vi.mocked(myContactApi).list.mockResolvedValueOnce([]);
     const wrapper = await mountWithContacts();
     expect(wrapper.find('[data-testid="stewardship-no-contact-alert"]').exists()).toBe(true);
-    expect(wrapper.find('[data-testid="submission-contact-select"]').exists()).toBe(false);
     expect(wrapper.find('[data-testid="stewardship-contact-select"]').exists()).toBe(false);
-    wrapper.unmount();
-  });
-
-  it('registrationRecords 标签页存在且包含 submission/stewardship 两个 collapse', async () => {
-    const wrapper = await mountWithContacts();
-    const pane = wrapper.findComponent({ name: 'ElTabPane' });
-    expect(pane.exists()).toBe(true);
-    const collapseItems = wrapper.findAllComponents({ name: 'ElCollapseItem' });
-    expect(collapseItems.length).toBeGreaterThanOrEqual(2);
-    expect(collapseItems.some((c) => c.props('name') === 'submission')).toBe(true);
-    expect(collapseItems.some((c) => c.props('name') === 'stewardship')).toBe(true);
     wrapper.unmount();
   });
 

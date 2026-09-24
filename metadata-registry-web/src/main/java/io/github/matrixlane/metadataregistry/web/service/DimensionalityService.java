@@ -60,7 +60,6 @@ public class DimensionalityService {
         entity.setCoordinateIndicator(request.coordinateIndicator());
         applyMeasureClasses(entity, request.measureClassIds());
         Dimensionality saved = repository.save(entity);
-        itemAdministrationService.recordSubmission(saved, request.registration());
         return toResponse(saved);
     }
 
@@ -71,7 +70,6 @@ public class DimensionalityService {
         entity.setCoordinateIndicator(request.coordinateIndicator());
         applyMeasureClasses(entity, request.measureClassIds());
         Dimensionality saved = repository.save(entity);
-        itemAdministrationService.recordSubmission(saved, request.registration());
         return toResponse(saved);
     }
 
@@ -84,10 +82,16 @@ public class DimensionalityService {
             throw new BusinessException(ApiCodes.CONFLICT,
                     "维度正被 %d 个概念域引用，无法删除".formatted(references));
         }
-        // 删除 submission_record_registered_item 关联行（方言感知表名：SQL Server 加 mdr. schema 前缀，SQLite 无 schema）
+        // submission_record_registered_item.registered_item_id 外键指向 registered_item.id，
+        // 而 registered_item.id 与 item.id（即 dimensionality.id）是 JOINED 继承下的不同 id：
+        // 需先用 item_id 找到对应的 identified_item.id(=registered_item.id) 再清理。
+        // 否则 JPA 级联删除会在 administered_item 处被外键 FKcs... 拦下报 409。
+        //（参见 ContextTestDataInitializer.deleteAllContextsViaJdbc 同构写法）
         jdbcTemplate.update(
                 "DELETE FROM " + databaseEnvironment.qualify("submission_record_registered_item")
-                        + " WHERE registered_item_id = ?",
+                        + " WHERE registered_item_id IN ("
+                        + "SELECT id FROM " + databaseEnvironment.qualify("identified_item")
+                        + " WHERE item_id = ?)",
                 id);
         repository.deleteById(id);
     }

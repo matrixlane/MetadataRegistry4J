@@ -201,7 +201,8 @@ class InferencePromptBuilderTest {
                 null,
                 null,
                 null,
-                null);
+                null,
+                java.util.List.of());
     }
 
     private TextLineResponse designationLine() {
