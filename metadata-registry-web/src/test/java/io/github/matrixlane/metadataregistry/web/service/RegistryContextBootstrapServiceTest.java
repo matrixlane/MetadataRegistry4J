@@ -300,7 +300,8 @@ class RegistryContextBootstrapServiceTest {
                 versionInputMode,
                 versionPolicy,
                 true,
-                null, null, null, null
+                null, null, null, null,
+                null, null, null  // adminIndividualName, adminRoleName, adminOrganizationId
         );
         initWizardService.setup(request, appUserId);
 

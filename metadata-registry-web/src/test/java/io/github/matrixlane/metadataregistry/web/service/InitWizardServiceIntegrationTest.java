@@ -136,7 +136,8 @@ class InitWizardServiceIntegrationTest {
                 true,        // createRegistrySpecification
                 null, null, null
         ,
-            null
+            null,
+            null, null, null  // adminIndividualName, adminRoleName, adminOrganizationId
         );
 
         initWizardService.setup(request, appUserId);
@@ -263,7 +264,8 @@ class InitWizardServiceIntegrationTest {
                 null, null, null, null, null, null,
                 true,
                 null, null, null,
-                specAttrs
+                specAttrs,
+                null, null, null  // adminIndividualName, adminRoleName, adminOrganizationId
         );
 
         initWizardService.setup(request, appUserId);
@@ -304,7 +306,8 @@ class InitWizardServiceIntegrationTest {
                 true,  // createNamespace（命名空间为必选，不能再跳过）
                 null, null, null, null, null, null, null, null, null, null
         ,
-            null
+            null,
+            null, null, null  // adminIndividualName, adminRoleName, adminOrganizationId
         );
 
         initWizardService.setup(request, appUserId);
@@ -325,7 +328,8 @@ class InitWizardServiceIntegrationTest {
                 null, null, null, null, null, null, null,
                 null, null, null, null, null, null, null, null, null
         ,
-            null
+            null,
+            null, null, null  // adminIndividualName, adminRoleName, adminOrganizationId
         );
 
         initWizardService.setup(request, appUserId);
@@ -362,7 +366,8 @@ class InitWizardServiceIntegrationTest {
                 false, // createNamespace
                 null, null, null, null, null, null, null, null, null, null
         ,
-            null
+            null,
+            null, null, null  // adminIndividualName, adminRoleName, adminOrganizationId
         );
         assertThatThrownBy(() -> initWizardService.setup(personalRequest, appUserId))
                 .hasMessageContaining("命名空间");
@@ -376,7 +381,8 @@ class InitWizardServiceIntegrationTest {
                 false, // createNamespace
                 null, null, null, null, null, null, null, null, null, null
         ,
-            null
+            null,
+            null, null, null  // adminIndividualName, adminRoleName, adminOrganizationId
         );
         assertThatThrownBy(() -> initWizardService.setup(teamRequest, appUserId))
                 .hasMessageContaining("命名空间");
@@ -394,7 +400,8 @@ class InitWizardServiceIntegrationTest {
                 false, // createRegistrySpecification
                 null, null, null
         ,
-            null
+            null,
+            null, null, null  // adminIndividualName, adminRoleName, adminOrganizationId
         );
         assertThatThrownBy(() -> initWizardService.setup(personalRequest, appUserId))
                 .hasMessageContaining("注册规范");
@@ -408,7 +415,8 @@ class InitWizardServiceIntegrationTest {
                 false, // createRegistrySpecification
                 null, null, null
         ,
-            null
+            null,
+            null, null, null  // adminIndividualName, adminRoleName, adminOrganizationId
         );
         assertThatThrownBy(() -> initWizardService.setup(teamRequest, appUserId))
                 .hasMessageContaining("注册规范");
@@ -425,7 +433,8 @@ class InitWizardServiceIntegrationTest {
                 null,
                 null, null, null
         ,
-            null
+            null,
+            null, null, null  // adminIndividualName, adminRoleName, adminOrganizationId
         );
 
         assertThatThrownBy(() -> initWizardService.setup(request, appUserId))
@@ -446,7 +455,8 @@ class InitWizardServiceIntegrationTest {
                 null,
                 null, null, null
         ,
-            null
+            null,
+            null, null, null  // adminIndividualName, adminRoleName, adminOrganizationId
         );
         assertThatThrownBy(() -> initWizardService.setup(request, appUserId))
                 .hasMessageContaining("段模板");
@@ -474,7 +484,8 @@ class InitWizardServiceIntegrationTest {
                 null,
                 null, null, null
         ,
-            null
+            null,
+            null, null, null  // adminIndividualName, adminRoleName, adminOrganizationId
         );
 
         initWizardService.setup(request, appUserId);
