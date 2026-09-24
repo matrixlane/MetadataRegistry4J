@@ -196,6 +196,66 @@
             </el-form-item>
           </el-form>
 
+          <h4 class="step-sub-title" style="margin: 8px 0 12px;">注册管理员三要素</h4>
+          <p class="step-desc" style="margin-top: 0;">
+            <span v-if="form.edition === 'PERSONAL'">个人版已自动预填，可按需调整。</span>
+            <span v-else>团队版必须显式填写。</span>
+          </p>
+          <el-form
+            label-position="top"
+            class="wizard-form"
+            style="margin-top: 12px;"
+          >
+            <el-form-item label="注册管理员姓名" prop="adminIndividualName">
+              <el-input
+                v-model="form.adminIndividualName"
+                :placeholder="form.edition === 'PERSONAL' ? '默认：注册管理员' : '请输入注册管理员姓名'"
+                size="large"
+                clearable
+              >
+                <template #prefix>
+                  <el-icon><User /></el-icon>
+                </template>
+              </el-input>
+            </el-form-item>
+
+            <el-form-item label="注册管理员角色" prop="adminRoleName">
+              <el-input
+                v-model="form.adminRoleName"
+                :placeholder="form.edition === 'PERSONAL' ? '默认：注册管理员' : '请输入角色名称（必填）'"
+                size="large"
+              >
+                <template #prefix>
+                  <el-icon><Medal /></el-icon>
+                </template>
+              </el-input>
+            </el-form-item>
+
+            <el-form-item v-if="form.edition === 'TEAM'" label="所属组织" required>
+              <el-select
+                v-model="form.adminOrganizationId"
+                placeholder="选择组织"
+                style="width: 100%;"
+                filterable
+              >
+                <el-option
+                  v-for="opt in organizationOptions"
+                  :key="opt.id"
+                  :label="opt.name || '—'"
+                  :value="opt.id"
+                />
+              </el-select>
+            </el-form-item>
+            <el-alert
+              v-else
+              type="info"
+              :closable="false"
+              show-icon
+              style="margin-bottom: 12px;"
+              title="个人版下所属组织默认锁定为当前创建的注册机构"
+            />
+          </el-form>
+
           <div class="wizard-settings-box">
             <!-- 个人版：Admin 自动成为 Registrar，无需选择（后端同样强制 selfAsRegistrar=true）；
                  仅团队版提供该开关 -->
@@ -474,9 +534,10 @@ import { ref, reactive, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter, onBeforeRouteLeave } from 'vue-router';
 import type { FormInstance, FormRules } from 'element-plus';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Setting, OfficeBuilding, Check, Message } from '@element-plus/icons-vue';
+import { Setting, OfficeBuilding, Check, Message, User, Medal } from '@element-plus/icons-vue';
 import request from '@/utils/request';
 import { useAuthStore } from '@/stores/auth';
+import { organizationApi } from '@/api/resources';
 import SegmentTemplateDesigner from '@/components/identifier/SegmentTemplateDesigner.vue';
 import { timeZoneValidator } from '@/views/registry-spec/registrySpecForm';
 
@@ -622,7 +683,14 @@ const form = reactive({
   registryAlternativeLanguages: [] as string[],
   registryRepresentationClassSchemeId: '',
   registryReferenceDocumentIdentifierKinds: [] as string[],
+  // ── 注册管理员三要素（add-registrar-three-elements）──
+  adminIndividualName: '',
+  adminRoleName: '',
+  adminOrganizationId: '' as string,
 });
+
+interface OrganizationOption { id: string; name: string | null }
+const organizationOptions = ref<OrganizationOption[]>([]);
 
 const pwdForm = reactive({
   newPassword: '',
@@ -744,12 +812,27 @@ watch(() => form.registrationAuthorityName, (newVal) => {
 // 个人版下 Admin 自动成为 Registrar（后端强制 selfAsRegistrar=true），前端同步锁定为 true。
 // 注册机构(Registration_Authority)是组织机构层级，默认名"默认注册机构"；
 // Registrar 是 admin 兼任的注册管理员（与组织机构区分），名称由绑定流程赋予。
+// 注册管理员三要素（Individual/Role/Organization）也在 PERSONAL 版下预填；TEAM 版显式填写。
 watch(() => form.edition, (val) => {
   if (val === 'PERSONAL') {
     if (!form.registrationAuthorityName.trim()) {
       form.registrationAuthorityName = '默认注册机构';
     }
+    if (!form.adminIndividualName.trim()) {
+      form.adminIndividualName = '注册管理员';
+    }
+    if (!form.adminRoleName.trim()) {
+      form.adminRoleName = '注册管理员';
+    }
     form.selfAsRegistrar = true;
+  } else {
+    // TEAM 版切到时清空 PERSONAL 留的默认（让用户显式填），保留他们输入过的真实值
+    if (form.adminIndividualName.trim() === '注册管理员') {
+      form.adminIndividualName = '';
+    }
+    if (form.adminRoleName.trim() === '注册管理员') {
+      form.adminRoleName = '';
+    }
   }
 }, { immediate: true });
 
@@ -774,6 +857,10 @@ async function callSetup(): Promise<void> {
     } = form;
     const payload = {
       ...base,
+      // add-registrar-three-elements: 注册管理员三要素
+      adminIndividualName: (form.adminIndividualName || '').trim() || null,
+      adminRoleName: (form.adminRoleName || '').trim() || null,
+      adminOrganizationId: form.adminOrganizationId || null,
       registrySpecificationAttributes: {
         webAddress: registryWebAddress || null,
         characterRepertoire: registryCharacterRepertoire || null,
@@ -863,7 +950,19 @@ async function nextStep() {
     } catch {
       isValid = false;
     }
-    if (isValid) currentStep.value = 3;
+    if (!isValid) return;
+    // add-registrar-three-elements: TEAM 版下角色与所属组织必须显式填写（与 spec system-initialization 对齐）。
+    if (form.edition === 'TEAM') {
+      if (!form.adminRoleName.trim()) {
+        ElMessage.error('请填写注册管理员角色');
+        return;
+      }
+      if (!form.adminOrganizationId) {
+        ElMessage.error('请选择所属组织');
+        return;
+      }
+    }
+    currentStep.value = 3;
     return;
   }
 
@@ -1042,9 +1141,16 @@ function onBeforeUnload(e: BeforeUnloadEvent) {
   e.returnValue = '';
 }
 
-onMounted(() => {
+onMounted(async () => {
   window.addEventListener('beforeunload', onBeforeUnload);
   loadCurrentDb();
+  // 加载组织选项（TEAM 版注册管理员所属组织下拉用）
+  try {
+    const opts = await organizationApi.options?.();
+    organizationOptions.value = (opts ?? []) as OrganizationOption[];
+  } catch {
+    organizationOptions.value = [];
+  }
 });
 
 onBeforeUnmount(() => {

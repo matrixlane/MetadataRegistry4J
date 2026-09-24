@@ -11,5 +11,7 @@ public record RegistrarResponse(
         UUID organizationId,
         String organizationName,
         UUID individualId,
-        String individualName) {
+        String individualName,
+        UUID roleId,
+        String roleName) {
 }

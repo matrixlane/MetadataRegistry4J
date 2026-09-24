@@ -147,6 +147,10 @@ public class InitWizardService {
                     "初始化必须创建注册机构的自有命名空间，不能跳过命名空间步骤");
         }
         boolean createNamespace = true;
+        // 注册管理员三要素（individualName/roleName/organizationId）的版本差异化默认值
+        String adminIndividualName = request.adminIndividualName();
+        String adminRoleName = request.adminRoleName();
+        java.util.UUID adminOrganizationId = request.adminOrganizationId();
         if (edition == DeploymentEdition.PERSONAL) {
             if (raName == null || raName.isBlank()) {
                 // 注册机构(Registration_Authority)是组织机构层级；个人版下默认名为
@@ -160,8 +164,27 @@ public class InitWizardService {
                 // 跟着 RA 名称拼接成不可控的长串。
                 registryName = "默认注册规范";
             }
+            // PERSONAL 版三要素默认值：姓名"注册管理员"+角色"注册管理员"+组织 = 新建 RA。
+            // 即使用户在前端清空输入，setup 后端 MUST 兜底为"注册管理员"——admin-registrar
+            // 行的列表显示由该兜底值决定（spec registrar-identity-elements）。
+            if (adminIndividualName == null || adminIndividualName.isBlank()) {
+                adminIndividualName = "注册管理员";
+            }
+            if (adminRoleName == null || adminRoleName.isBlank()) {
+                adminRoleName = "注册管理员";
+            }
+            // adminOrganizationId 在 RA 创建之后回填
         } else if (raName == null || raName.isBlank()) {
             throw new BusinessException(ApiCodes.VALIDATION_FAILED, "注册机构名称不能为空");
+        }
+        // TEAM 版三要素必填校验（角色+组织必填，姓名允许为空）
+        if (edition == DeploymentEdition.TEAM) {
+            if (adminRoleName == null || adminRoleName.isBlank()) {
+                throw new BusinessException(ApiCodes.VALIDATION_FAILED, "注册管理员角色不能为空");
+            }
+            if (adminOrganizationId == null) {
+                throw new BusinessException(ApiCodes.VALIDATION_FAILED, "注册管理员所属组织不能为空");
+            }
         }
         // 注册规范为数据治理先决条件，两个版本均必选：向导不再设独立配置步骤，
         // 由系统在 setup 时自动创建；显式 false 视为契约违规，仍被拒绝。
@@ -190,11 +213,14 @@ public class InitWizardService {
 
         // 2. Assign self as registrar if checked
         if (selfAsRegistrar) {
+            // PERSONAL 版下 adminOrganizationId 缺省回退到新建 RA（其 id 已写入 ra）
+            java.util.UUID resolvedAdminOrgId = adminOrganizationId != null ? adminOrganizationId : ra.getId();
             registrarService.createRegistrarForUser(
                     account.getId(),
                     account.getUsername(),
-                    null,
-                    null,
+                    adminIndividualName,
+                    adminRoleName,
+                    resolvedAdminOrgId,
                     ra
             );
         }

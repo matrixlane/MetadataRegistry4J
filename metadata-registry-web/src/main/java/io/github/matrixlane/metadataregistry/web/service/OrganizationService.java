@@ -5,6 +5,7 @@ import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.prede
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.PostalAddress;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.Sign;
 import io.github.matrixlane.metadataregistry.web.common.ResourceNotFoundException;
+import io.github.matrixlane.metadataregistry.web.dto.organization.OrganizationOption;
 import io.github.matrixlane.metadataregistry.web.dto.organization.OrganizationRequest;
 import io.github.matrixlane.metadataregistry.web.dto.organization.OrganizationResponse;
 import io.github.matrixlane.metadataregistry.web.repository.OrganizationRepository;
@@ -16,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 
@@ -45,6 +47,22 @@ public class OrganizationService {
     @Transactional(readOnly = true)
     public OrganizationResponse get(UUID id) {
         return toResponse(loadOrThrow(id));
+    }
+
+    /**
+     * 用于下拉选项的组织列表（add-registrar-three-elements）：按 name 排序，
+     * 仅返回 (id, name)。前端"注册人员"编辑表单组织选择器消费。
+     */
+    @Transactional(readOnly = true)
+    public List<OrganizationOption> options() {
+        return repository.findAll().stream()
+                .map(o -> new OrganizationOption(
+                        o.getId(),
+                        o.getName().isEmpty() ? null : o.getName().get(0).getValue()))
+                .sorted(Comparator.comparing(
+                        OrganizationOption::name,
+                        Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER)))
+                .toList();
     }
 
     public OrganizationResponse create(OrganizationRequest request) {

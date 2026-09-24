@@ -4,6 +4,7 @@ import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basic
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Organization;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Account;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Role;
+import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.Sign;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.Registrar;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationAuthority;
 import io.github.matrixlane.metadataregistry.web.common.ResourceNotFoundException;
@@ -34,6 +35,7 @@ public class RegistrarService {
     private final AccountRepository accountRepository;
     private final OrganizationRepository organizationRepository;
     private final IndividualRepository individualRepository;
+    private final RoleRepository roleRepository;
     private final ContactAccountBindingService contactAccountBindingService;
 
     @Transactional(readOnly = true)
@@ -91,13 +93,10 @@ public class RegistrarService {
         }
 
 
-        if (request.organizationId() != null) {
-            Organization org = organizationRepository.findById(request.organizationId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Organization", request.organizationId()));
-            entity.setOrganization(org);
-        } else {
-            entity.setOrganization(null);
-        }
+        // 组织：必填（RegistrarRequest 校验），按 id 解析
+        Organization org = organizationRepository.findById(request.organizationId())
+                .orElseThrow(() -> new ResourceNotFoundException("Organization", request.organizationId()));
+        entity.setOrganization(org);
 
         if (request.individualId() != null) {
             Individual ind = individualRepository.findById(request.individualId())
@@ -105,6 +104,15 @@ public class RegistrarService {
             entity.setIndividual(ind);
         } else {
             entity.setIndividual(null);
+        }
+
+        // 角色：可空（角色可清空）；按 id 解析或 setRole(null)
+        if (request.roleId() != null) {
+            Role role = roleRepository.findById(request.roleId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Role", request.roleId()));
+            entity.setRole(role);
+        } else {
+            entity.setRole(null);
         }
     }
 
@@ -136,23 +144,54 @@ public class RegistrarService {
                         ? entity.getOrganization().getName().stream().findFirst().map(n -> n.getValue()).orElse(null)
                         : null,
                 entity.getIndividual() != null ? entity.getIndividual().getId() : null,
-                entity.getIndividual() != null ? entity.getIndividual().getName().getValue() : null);
+                entity.getIndividual() != null ? entity.getIndividual().getName().getValue() : null,
+                entity.getRole() != null ? entity.getRole().getId() : null,
+                entity.getRole() != null ? entity.getRole().getRoleName() : null);
     }
 
-    public Registrar createRegistrarForUser(UUID accountId, String username, String displayName, String email, RegistrationAuthority ra) {
+    public Registrar createRegistrarForUser(UUID accountId, String username, String individualName, String roleName, UUID organizationId, RegistrationAuthority ra) {
         // 1. Get current Account
         Account account = accountRepository.findById(accountId)
                 .orElseThrow(() -> new ResourceNotFoundException("Account", accountId));
 
-        // 2. Create Registrar (no Individual generated yet!)
-        // 有意不盖任何 Role：Registrar 身份由 Contact 子类（Registrar 实例）确定，
-        // Role 仅为描述性元数据，由用户后续自行创建并关联（见 add-submitter-contact-identity）。
+        // 2. Optional Individual — created only when an explicit name is provided
+        //    (init wizard passes the user-provided name; empty = no Individual).
+        Individual individual = null;
+        if (individualName != null && !individualName.isBlank()) {
+            individual = new Individual();
+            individual.setName(Sign.of(individualName.trim()));
+            individual.setIdentifier(account.getUsername());
+            individual = individualRepository.save(individual);
+        }
+
+        // 3. Role — required, by roleName uniqueness. If a Role with the same
+        //    roleName already exists (case-insensitive), reuse it; otherwise create.
+        if (roleName == null || roleName.isBlank()) {
+            throw new io.github.matrixlane.metadataregistry.web.common.BusinessException(
+                    io.github.matrixlane.metadataregistry.web.common.ApiCodes.VALIDATION_FAILED,
+                    "注册管理员角色不能为空");
+        }
+        Role role = roleRepository.findByRoleNameIgnoreCase(roleName.trim())
+                .orElseGet(() -> {
+                    Role r = new Role();
+                    r.setRoleName(roleName.trim());
+                    return roleRepository.save(r);
+                });
+
+        // 4. Organization — explicit id wins; otherwise fall back to the
+        //    registration authority (which extends Organization).
+        Organization organization = organizationId != null
+                ? organizationRepository.findById(organizationId)
+                        .orElseThrow(() -> new ResourceNotFoundException("Organization", organizationId))
+                : ra;
+
+        // 5. Build the Registrar with all three elements wired up.
         Registrar registrar = new Registrar();
         registrar.setIdentifier(username + "-registrar");
-        registrar.setIndividual(null); // Keep individual empty initially!
-        registrar.setRole(null);
+        registrar.setIndividual(individual);
+        registrar.setRole(role);
         registrar.setRegistrationAuthority(ra);
-        registrar.setOrganization(ra); // RegistrationAuthority extends Organization
+        registrar.setOrganization(organization);
         Registrar saved = registrarRepository.save(registrar);
         // 账号绑定写入卫星实体(扩展关联已剥离出标准实体 Contact)
         contactAccountBindingService.bind(saved.getId(), account.getId());

@@ -120,7 +120,12 @@ export const registrationProcessLayoutApi = {
   save: (layout: RegistrationProcessLayout) =>
     request.put<void>('/registration-process/layout', layout),
 };
-export const organizationApi = crud<OrganizationResponse>('/organizations');
+export const organizationApi = {
+  ...crud<OrganizationResponse>('/organizations'),
+  // add-registrar-three-elements: 供「注册人员」编辑表单"组织"下拉消费
+  options: () =>
+    request.get<{ id: string; name: string | null }[]>('/organizations/options'),
+};
 export const individualApi = crud('/individuals');
 export const roleApi = {
   ...crud<RoleResponse>('/roles'),
@@ -132,13 +137,15 @@ export const contactApi = {
     request.post<void>('/contacts/batch', data),
 };
 
-/** 当前登录用户的联系人身份（user-profile-individual / contact-identity-management） */
+/** 当前登录用户的联系人身份（user-profile-individual / contact-identity-management / add-registrar-three-elements） */
 export const myContactApi = {
   list: () => request.get<MyContactResponse[]>('/my/contacts'),
-  create: (data: { organizationId: string; roleId?: string }) =>
+  create: (data: { organizationId: string; roleId?: string; individualId?: string }) =>
     request.post<MyContactResponse>('/my/contacts', data),
-  update: (id: string, data: { organizationId: string; roleId?: string }) =>
-    request.put<MyContactResponse>(`/my/contacts/${id}`, data),
+  update: (
+    id: string,
+    data: { organizationId: string; roleId?: string | null; individualId?: string | null },
+  ) => request.put<MyContactResponse>(`/my/contacts/${id}`, data),
   delete: (id: string) => request.delete(`/my/contacts/${id}`),
   setDefault: (id: string) => request.post<MyContactResponse>(`/my/contacts/${id}/set-default`),
 };

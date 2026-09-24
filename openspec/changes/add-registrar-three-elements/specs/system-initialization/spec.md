@@ -14,13 +14,13 @@
 
 #### Scenario: PERSONAL 版三字段默认填充
 
-- **WHEN** 管理员选择 PERSONAL 版且未显式修改注册管理员姓名与角色
-- **THEN** 提交时 setup 后端以 `"注册管理员"` 作为姓名与角色默认字符串；创建 `Individual(name="注册管理员")` 与 `Role(roleName="注册管理员")` 并 set 关联到 Registrar；注册人员列表该行"姓名"列显示"注册管理员"
+- **WHEN** 管理员选择 PERSONAL 版
+- **THEN** setup 后端对 `adminIndividualName` 与 `adminRoleName` 兜底默认值 `"注册管理员"`，无论前端是否传入或用户是否在前端显式修改（前端向导在前端预填占位字符串以提示用户）；后端创建 `Individual(name="注册管理员")` 与 `Role(roleName="注册管理员")` 并 set 关联到 Registrar；注册人员列表该行"姓名/角色"列均显示"注册管理员"
 
 #### Scenario: PERSONAL 版姓名留空
 
 - **WHEN** 管理员选择 PERSONAL 版且将注册管理员姓名清空
-- **THEN** setup 后端不创建 Individual；该 Registrar 行的"姓名"列在列表中显示空值；列表不再以任何其他字段填充姓名
+- **THEN** setup 后端兜底默认 `"注册管理员"` 仍生效（PERSONAL 版 MUST 始终有可显示的注册管理员姓名），列表"姓名"列显示"注册管理员"；用户若希望使用其他姓名 SHALL 显式输入非空字符串
 
 #### Scenario: PERSONAL 版角色名已存在时复用
 

@@ -9,13 +9,13 @@ public record InitWizardSetupRequest(
     String runningMode,
 
     String registrationAuthorityName,
-    
+
     String registrationAuthorityEnglishName,
-    
+
     String registrationAuthorityEmail,
-    
+
     Boolean selfAsRegistrar,
-    
+
     Boolean createNamespace,
 
     String namespaceName,
@@ -34,5 +34,12 @@ public record InitWizardSetupRequest(
     String registryName,
     String defaultLanguage,
     String registryDescription,
-    InitWizardSpecAttributes registrySpecificationAttributes
+    InitWizardSpecAttributes registrySpecificationAttributes,
+
+    /** 注册管理员姓名（Individual.name）；PERSONAL 默认"注册管理员"；TEAM 显式输入，可空。 */
+    String adminIndividualName,
+    /** 注册管理员角色（Role.roleName）；任一版本必填，PERSONAL 默认"注册管理员"。 */
+    String adminRoleName,
+    /** 注册管理员所属组织（Organization.id）；任一版本必填，PERSONAL 默认 = 新建 RA 的 id。 */
+    java.util.UUID adminOrganizationId
 ) {}

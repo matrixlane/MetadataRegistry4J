@@ -104,6 +104,12 @@ public class ContactService {
 
     private void applyRequest(Contact entity, MyContactRequest request) {
         applyOrganizationAndRole(entity, request.organizationId(), request.roleId());
+        if (request.individualId() != null) {
+            Individual ind = individualRepository.findById(request.individualId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Individual", request.individualId()));
+            entity.setIndividual(ind);
+        }
+        // individualId 缺省保留现有 contact.individual 不变；自建路径由 createMyContact 回填账号自身 Individual
         // Role 仅为描述性元数据：Registrar 身份由 Contact 子类 Registrar 实例确定
         // （类型即身份，ISO/IEC 11179-3），自选角色不产生任何权限效应。
     }
@@ -202,13 +208,16 @@ public class ContactService {
     }
 
     /**
-     * 更新自建联系人身份（组织/角色）；Registrar 行仅允许修改 Role 关联——身份由
-     * Contact 子类（Registrar 实例）确定，组织与注册机构等其余字段不可在此变更。
+     * 更新自建联系人身份。
+     *
+     * <p>普通（非 Registrar）行：organizationId 必填，individualId 允许为空，roleId 允许为空。
+     * <p>Registrar 行：同时允许改 Role / Individual / Organization 三要素的关联；其中
+     * Organization 在 Registrar 上下文中 MUST NOT 被清空（add-registrar-three-elements）。
      */
     public MyContactResponse updateMyContact(UUID accountId, UUID contactId, MyContactRequest request) {
         Contact entity = loadOwnContact(accountId, contactId);
         if (entity instanceof Registrar registrar) {
-            applyRoleOnly(registrar, request.roleId());
+            applyRegistrarThreeElements(registrar, request);
             return toMyResponse(contactRepository.save(registrar),
                     contactAccountBindingService.defaultBindingOf(accountId)
                             .map(b -> contactId.equals(b.getContactId()))
@@ -221,14 +230,38 @@ public class ContactService {
                         .orElse(false));
     }
 
-    /** 仅更新 Role 关联（null = 清除）；不影响组织等其他字段。 */
-    private void applyRoleOnly(Contact entity, UUID roleId) {
-        if (roleId != null) {
-            Role role = roleRepository.findById(roleId)
-                    .orElseThrow(() -> new ResourceNotFoundException("Role", roleId));
-            entity.setRole(role);
+    /**
+     * Registrar 行的三要素编辑（add-registrar-three-elements）：
+     * <ul>
+     *   <li>roleId 允许 null（角色可清空）</li>
+     *   <li>individualId 允许 null（解绑）或非空（重新绑定）</li>
+     *   <li>organizationId 必填 — Registrar 必须挂在某 Organization 下</li>
+     * </ul>
+     */
+    private void applyRegistrarThreeElements(Registrar registrar, MyContactRequest request) {
+        if (request.organizationId() == null) {
+            throw new io.github.matrixlane.metadataregistry.web.common.BusinessException(
+                    io.github.matrixlane.metadataregistry.web.common.ApiCodes.VALIDATION_FAILED,
+                    "Registrar 行的所属组织不能为空");
+        }
+        Organization org = organizationRepository.findById(request.organizationId())
+                .orElseThrow(() -> new ResourceNotFoundException("Organization", request.organizationId()));
+        registrar.setOrganization(org);
+
+        if (request.individualId() != null) {
+            Individual ind = individualRepository.findById(request.individualId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Individual", request.individualId()));
+            registrar.setIndividual(ind);
         } else {
-            entity.setRole(null);
+            registrar.setIndividual(null);
+        }
+
+        if (request.roleId() != null) {
+            Role role = roleRepository.findById(request.roleId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Role", request.roleId()));
+            registrar.setRole(role);
+        } else {
+            registrar.setRole(null);
         }
     }
 

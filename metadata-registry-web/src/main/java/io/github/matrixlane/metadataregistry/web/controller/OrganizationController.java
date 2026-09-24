@@ -2,6 +2,7 @@ package io.github.matrixlane.metadataregistry.web.controller;
 
 import io.github.matrixlane.metadataregistry.web.common.ApiResponse;
 import io.github.matrixlane.metadataregistry.web.common.PageResponse;
+import io.github.matrixlane.metadataregistry.web.dto.organization.OrganizationOption;
 import io.github.matrixlane.metadataregistry.web.dto.organization.OrganizationRequest;
 import io.github.matrixlane.metadataregistry.web.dto.organization.OrganizationResponse;
 import io.github.matrixlane.metadataregistry.web.service.OrganizationService;
@@ -20,6 +21,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -41,6 +43,12 @@ public class OrganizationController {
     @Operation(summary = "查询组织详情")
     public ApiResponse<OrganizationResponse> get(@PathVariable UUID id) {
         return ApiResponse.ok(service.get(id));
+    }
+
+    @GetMapping("/options")
+    @Operation(summary = "组织选项（下拉用）— add-registrar-three-elements")
+    public ApiResponse<List<OrganizationOption>> options() {
+        return ApiResponse.ok(service.options());
     }
 
     @PostMapping

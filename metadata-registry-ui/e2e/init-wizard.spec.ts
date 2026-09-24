@@ -48,10 +48,35 @@ function mockWizardApis(page: Page, opts: { currentVendor: string; expectEdition
     }
   });
 
+  page.route('**/api/v1/organizations/options', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        code: 0,
+        data: [
+          { id: 'org-e2e-1', name: 'E2E Org One' },
+          { id: 'org-e2e-2', name: 'E2E Org Two' },
+        ],
+      }),
+    });
+  });
+
   page.route('**/api/v1/init-wizard/setup', async (route) => {
     const postData = route.request().postDataJSON(); expect(postData.edition).toBe(opts.expectEdition);
     if (opts.raName) {
       expect(postData.registrationAuthorityName).toBe(opts.raName);
+    }
+    // add-registrar-three-elements: 注册管理员三要素随 setup 提交
+    if (opts.expectEdition === 'PERSONAL') {
+      expect(postData.adminIndividualName).toBe('注册管理员');
+      expect(postData.adminRoleName).toBe('注册管理员');
+      expect(postData.adminOrganizationId).toBeNull();
+    }
+    if (opts.expectEdition === 'TEAM') {
+      expect(postData.adminIndividualName).toBe('李雷');
+      expect(postData.adminRoleName).toBe('数据治理主管');
+      expect(postData.adminOrganizationId).toBe('org-e2e-1');
     }
     // 标识与版本生成策略归属于命名空间步骤，默认值随请求提交
     expect(postData.identifierStrategy).toBe('SEGMENT_TEMPLATE');
@@ -169,6 +194,12 @@ test('团队版完整初始化流程（版本 → 数据库 → 治理配置 →
   // 注册机构
   await expect(stepTitle).toContainText('配置默认注册机构');
   await page.fill('input[placeholder*="信息化管理部"]', 'E2E Team RA');
+  // add-registrar-three-elements: 显式填写三要素
+  await page.fill('input[placeholder*="默认：注册管理员"][placeholder*="姓名"]', '李雷');
+  await page.fill('input[placeholder*="请输入角色名称"]', '数据治理主管');
+  // 组织下拉
+  await page.locator('.el-select').filter({ hasText: '选择组织' }).click();
+  await page.locator('.el-select-dropdown__item', { hasText: 'E2E Org One' }).first().click();
   await page.click('button:has-text("下一步")');
 
   // 命名空间
