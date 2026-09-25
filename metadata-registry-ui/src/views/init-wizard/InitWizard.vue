@@ -535,7 +535,7 @@ import { useRouter, onBeforeRouteLeave } from 'vue-router';
 import type { FormInstance, FormRules } from 'element-plus';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Setting, OfficeBuilding, Check, Message, User, Medal } from '@element-plus/icons-vue';
-import request from '@/utils/request';
+import request, { withSilentErrors } from '@/utils/request';
 import { useAuthStore } from '@/stores/auth';
 import { organizationApi } from '@/api/resources';
 import SegmentTemplateDesigner from '@/components/identifier/SegmentTemplateDesigner.vue';
@@ -1145,8 +1145,9 @@ onMounted(async () => {
   window.addEventListener('beforeunload', onBeforeUnload);
   loadCurrentDb();
   // 加载组织选项（TEAM 版注册管理员所属组织下拉用）
+  // 静默加载：后端 /organizations/options 未部署时不阻塞向导（PERSONAL 版兜底使用 RA，TEAM 版用户自行输入）。
   try {
-    const opts = await organizationApi.options?.();
+    const opts = await withSilentErrors(async () => (await organizationApi.options?.()) ?? []);
     organizationOptions.value = (opts ?? []) as OrganizationOption[];
   } catch {
     organizationOptions.value = [];

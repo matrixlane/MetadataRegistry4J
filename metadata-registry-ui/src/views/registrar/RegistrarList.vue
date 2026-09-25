@@ -58,6 +58,7 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue';
 import { registrarApi, roleApi, organizationApi } from '@/api/resources';
+import { withSilentErrors } from '@/utils/request';
 import DataTablePage from '@/components/DataTablePage.vue';
 import ResourceFormDialog from '@/components/ResourceFormDialog.vue';
 
@@ -71,13 +72,15 @@ const roleOptions = ref<RoleOption[]>([]);
 const organizationOptions = ref<OrganizationOption[]>([]);
 
 async function loadOptions() {
+  // add-registrar-three-elements: 静默加载选项；后端 /organizations/options 端点缺失时
+  // 不应阻塞列表渲染与编辑保存（fallback：编辑时 el-select 没 option 但 v-model 用 row 原值即可）。
   try {
-    roleOptions.value = (await roleApi.options?.()) ?? [];
+    roleOptions.value = await withSilentErrors(async () => (await roleApi.options?.()) ?? []);
   } catch {
     roleOptions.value = [];
   }
   try {
-    organizationOptions.value = (await organizationApi.options?.()) ?? [];
+    organizationOptions.value = await withSilentErrors(async () => (await organizationApi.options?.()) ?? []);
   } catch {
     organizationOptions.value = [];
   }
