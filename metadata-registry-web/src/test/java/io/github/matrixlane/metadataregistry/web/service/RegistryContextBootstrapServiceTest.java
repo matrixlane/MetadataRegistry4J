@@ -271,6 +271,45 @@ class RegistryContextBootstrapServiceTest {
     }
 
     @Test
+    void backfillIfInitialized_legacyZhDesignation_isRenamed() {
+        RegistrationAuthority ra = runWizardAndGetRa("AUTO_WITH_OVERRIDE", "AUTO_WITH_OVERRIDE", "SEMVER");
+        Context ctx = registryContextBootstrapService.ensureRegistryContext(ra);
+        // 模拟早期版本存量数据：中文指称为旧文案「注册系统上下文」
+        var zhDesignation = ctx.getDesignations().stream()
+                .filter(d -> d.getSign() != null && "注册表上下文".equals(d.getSign().toString()))
+                .findFirst()
+                .orElseThrow();
+        zhDesignation.setSign(
+                io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.Sign.of(
+                        "注册系统上下文"));
+        systemSettingService.setInitialized(true);
+
+        registryContextBootstrapService.backfillIfInitialized();
+
+        Context reloaded = contextRepository.findById(ctx.getId()).orElseThrow();
+        assertThat(reloaded.getDesignations().stream().map(d -> d.getSign().toString()))
+                .contains("注册表上下文")
+                .doesNotContain("注册系统上下文");
+    }
+
+    @Test
+    void backfillIfInitialized_specContextNull_isBackfilled() {
+        RegistrationAuthority ra = runWizardAndGetRa("AUTO_WITH_OVERRIDE", "AUTO_WITH_OVERRIDE", "SEMVER");
+        Context ctx = registryContextBootstrapService.ensureRegistryContext(ra);
+        // 模拟存量异常：注册规范未关联默认上下文
+        RegistrySpecification spec = registrySpecificationRepository.findAll().stream().findFirst().orElseThrow();
+        spec.setContext(null);
+        registrySpecificationRepository.save(spec);
+        systemSettingService.setInitialized(true);
+
+        registryContextBootstrapService.backfillIfInitialized();
+
+        RegistrySpecification reloaded = registrySpecificationRepository.findAll().stream().findFirst().orElseThrow();
+        assertThat(reloaded.getContext()).isNotNull();
+        assertThat(reloaded.getContext().getId()).isEqualTo(ctx.getId());
+    }
+
+    @Test
     void ensureRegistryContext_noSubmissionRecordIsCreated() {
         RegistrationAuthority ra = runWizardAndGetRa("AUTO_WITH_OVERRIDE", "AUTO_WITH_OVERRIDE", "SEMVER");
         Context ctx = registryContextBootstrapService.ensureRegistryContext(ra);
@@ -286,11 +325,12 @@ class RegistryContextBootstrapServiceTest {
                                                     String versionInputMode,
                                                     String versionPolicy) {
         InitWizardSetupRequest request = new InitWizardSetupRequest(
-                "TEAM",
+                "PERSONAL",
                 null,
                 "Registry Context Test RA",
                 null,
                 null,
+                null, null, null,
                 false,
                 true,
                 null,
@@ -300,8 +340,9 @@ class RegistryContextBootstrapServiceTest {
                 versionInputMode,
                 versionPolicy,
                 true,
-                null, null, null, null,
-                null, null, null  // adminIndividualName, adminRoleName, adminOrganizationId
+                null, null, null,
+                null,
+                null, null, null  // adminIndividualName, adminRoleName, adminOrganizationId（PERSONAL 均有兜底）
         );
         initWizardService.setup(request, appUserId);
 

@@ -1,7 +1,7 @@
 # registry-context-bootstrap Specification
 
 ## Purpose
-定义注册系统默认上下文（Registry Context，ISO/IEC 11179-3:2023 附录 C 的 Context1："代表注册系统自身的默认上下文"）的引导创建行为：创建时机、命名空间与归属、标识/版本生成、自指指称与定义、幂等语义、注册规范默认上下文回填以及既有部署的启动补建。
+定义注册表上下文（Registry Context，ISO/IEC 11179-3:2023 附录 C 的 Context1："代表注册系统自身的默认上下文"）的引导创建行为：创建时机、命名空间与归属、标识/版本生成、自指指称与定义、幂等语义、注册规范默认上下文回填以及既有部署的启动补建。
 
 ## Requirements
 
@@ -54,7 +54,7 @@ Registry Context 的标识符与版本 MUST 与其所在命名空间的标识/�
 
 ### Requirement: 自指指称与定义
 
-Registry Context 创建时系统 SHALL 自动填写指称与定义：英文指称 `Registry Context`、中文指称 `注册系统上下文`（均为首选），英文与中文定义各一条（忠实对应 ISO/IEC 11179-3:2023 8.2.2.2 对 context 的描述并体现"注册系统默认上下文"定位）。全部指称与定义的语境 MUST 为 Registry Context 自身（自指），以落实标准 8.5.1.1/8.5.2.1 注"条目是上下文时依然适用"且不造成无限回归。
+Registry Context 创建时系统 SHALL 自动填写指称与定义：英文指称 `Registry Context`、中文指称 `注册表上下文`（均为首选），英文与中文定义各一条（忠实对应 ISO/IEC 11179-3:2023 8.2.2.2 对 context 的描述并体现"注册表上下文"定位）。全部指称与定义的语境 MUST 为 Registry Context 自身（自指），以落实标准 8.5.1.1/8.5.2.1 注"条目是上下文时依然适用"且不造成无限回归。
 
 #### Scenario: 内容与自指断言
 

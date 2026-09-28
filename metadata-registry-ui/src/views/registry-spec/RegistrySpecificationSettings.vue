@@ -166,6 +166,7 @@ import DataTablePage from '@/components/DataTablePage.vue';
 import ItemRegistrationSection from '@/components/ItemRegistrationSection.vue';
 import DesignationDefinitionSection from '@/components/DesignationDefinitionSection.vue';
 import { useRegistryDefaultLanguage } from '@/composables/useRegistryDefaultLanguage';
+import { useDefaultContext } from '@/composables/useDefaultContext';
 import {
   createEmptyRegistrySpecForm,
   resetRegistrySpecForm,
@@ -188,6 +189,7 @@ const languageOptions = ref<{ id: string; languageIdentifier: string }[]>([]);
 const contextOptions = ref<{ id: string; label: string }[]>([]);
 const languagesLoaded = ref(false);
 const { defaultLanguageId, load: loadDefaultLanguage } = useRegistryDefaultLanguage();
+const { defaultContextId, load: loadDefaultContext } = useDefaultContext();
 
 const form = reactive(createEmptyRegistrySpecForm()) as RegistrySpecFormModel;
 
@@ -206,6 +208,7 @@ const rules: FormRules = {
 
 onMounted(async () => {
   loadDefaultLanguage();
+  loadDefaultContext();
   try {
     const res = await languageApi.list({ size: 100 });
     languageOptions.value = (res.content || []).map((lang: any) => ({
@@ -229,7 +232,7 @@ function resetForm() {
   formRef.value?.resetFields();
 }
 
-function openDialog(row?: Record<string, any>) {
+async function openDialog(row?: Record<string, any>) {
   resetForm();
   isEdit.value = !!row?.id;
   editingRaName.value = row?.meta?.registrationAuthorityName || null;
@@ -240,6 +243,12 @@ function openDialog(row?: Record<string, any>) {
       identifier: row.meta?.identifier || undefined,
       version: row.meta?.version || undefined,
     };
+  } else {
+    // 新建时以系统默认上下文（Registry Context）预填，用户可变更
+    await loadDefaultContext();
+    if (!form.contextId && defaultContextId.value) {
+      form.contextId = defaultContextId.value;
+    }
   }
   visible.value = true;
 }

@@ -2,6 +2,7 @@ package io.github.matrixlane.metadataregistry.web.service;
 
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.Context;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.Item;
+import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrySpecification;
 import io.github.matrixlane.metadataregistry.web.common.ResourceNotFoundException;
 import io.github.matrixlane.metadataregistry.web.dto.context.ContextUsageAssociation;
 import io.github.matrixlane.metadataregistry.web.dto.context.ContextUsageGroup;
@@ -13,6 +14,7 @@ import io.github.matrixlane.metadataregistry.web.repository.ContextRepository;
 import io.github.matrixlane.metadataregistry.web.repository.DefinitionContextRepository;
 import io.github.matrixlane.metadataregistry.web.repository.DesignationContextRepository;
 import io.github.matrixlane.metadataregistry.web.repository.DesignationDefinitionPairingRepository;
+import io.github.matrixlane.metadataregistry.web.repository.RegistrySpecificationRepository;
 import io.github.matrixlane.metadataregistry.web.util.ItemNamingHelper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
@@ -35,6 +37,7 @@ import java.util.UUID;
 public class ContextService {
 
     private final ContextRepository repository;
+    private final RegistrySpecificationRepository registrySpecificationRepository;
     private final ItemAdministrationService itemAdministrationService;
     private final DesignationContextRepository designationContextRepository;
     private final DefinitionContextRepository definitionContextRepository;
@@ -59,6 +62,24 @@ public class ContextService {
     @Transactional(readOnly = true)
     public ContextResponse get(UUID id) {
         return toResponse(loadOrThrow(id));
+    }
+
+    /**
+     * 系统默认上下文：注册表自身的上下文（{@code RegistrySpecification.context}）。
+     * ISO/IEC 11179-3 注册规范元模型语义；初始化引导会把创建的 Registry Context 回填到
+     * 该字段。注册规范缺失或未关联上下文时抛 {@link ResourceNotFoundException}，
+     * 由前端降级为不预填。
+     */
+    @Transactional(readOnly = true)
+    public ContextResponse getDefault() {
+        Context context = registrySpecificationRepository.findAll().stream()
+                .findFirst()
+                .map(RegistrySpecification::getContext)
+                .orElse(null);
+        if (context == null) {
+            throw new ResourceNotFoundException("Context", "default");
+        }
+        return toResponse(context);
     }
 
     public ContextResponse create(ContextRequest request) {

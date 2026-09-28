@@ -133,6 +133,7 @@
 import { ref, onMounted } from 'vue';
 import { Plus, Delete, ArrowRight, ArrowDown } from '@element-plus/icons-vue';
 import { languageApi } from '@/api/resources';
+import { useDefaultContext } from '@/composables/useDefaultContext';
 import type { TextLineForm, NamingConventionResponse } from '@/types/common';
 import ContextSelector from './ContextSelector.vue';
 import AcceptabilitySelect from './AcceptabilitySelect.vue';
@@ -152,6 +153,7 @@ const emit = defineEmits<{
 const languages = ref<{ id: string; languageIdentifier: string }[]>([]);
 const expanded = ref<Record<number, boolean>>({});
 const languagesLoaded = ref(false);
+const { defaultContextId, load: loadDefaultContext } = useDefaultContext();
 
 /** 语言列表加载完成前，未命中的选中值显示占位而非原始 id */
 function isPendingLanguage(value: unknown): boolean {
@@ -161,6 +163,7 @@ function isPendingLanguage(value: unknown): boolean {
 }
 
 onMounted(async () => {
+  loadDefaultContext();
   try {
     const langRes = await languageApi.list({ size: 100, enabled: true });
     languages.value = (langRes.content || []).map((l: any) => ({
@@ -180,7 +183,15 @@ function toggleExpand(index: number) {
 
 function addRow() {
   const tempId = typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : `temp-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-  const next: TextLineForm[] = [...props.modelValue, { id: tempId, languageId: props.defaultLanguageId || '', value: '', contexts: [] }];
+  const next: TextLineForm[] = [...props.modelValue, {
+    id: tempId,
+    languageId: props.defaultLanguageId || '',
+    value: '',
+    // 系统默认上下文（Registry Context）作为预填值，用户可变更
+    contexts: defaultContextId.value
+      ? [{ contextId: defaultContextId.value, acceptability: 'ADMITTED' as const }]
+      : [],
+  }];
   emit('update:modelValue', next);
 }
 
@@ -194,7 +205,7 @@ function addContext(rowIndex: number) {
     if (i !== rowIndex) return row;
     return {
       ...row,
-      contexts: [...(row.contexts || []), { contextId: '', acceptability: 'ADMITTED' as const }],
+      contexts: [...(row.contexts || []), { contextId: defaultContextId.value || '', acceptability: 'ADMITTED' as const }],
     };
   });
   emit('update:modelValue', next);

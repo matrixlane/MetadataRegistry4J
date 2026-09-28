@@ -137,9 +137,9 @@
 - **WHEN** 管理员在初始化向导选择 `TEAM` 并进入注册机构步骤
 - **THEN** 向导展示"将当前超级管理员设为该机构的注册管理员"开关，管理员勾选则提交后成为 Registrar，不勾选则不创建
 
-### Requirement: setup 业务数据范围含注册系统默认上下文
+### Requirement: setup 业务数据范围含注册表上下文
 
-初始化向导的业务数据创建范围 SHALL 在注册规范创建完成之后扩展一步：创建注册系统默认上下文（Registry Context）并回填注册规范的默认上下文。该步骤 MUST 晚于注册机构自有命名空间标识/版本生成策略的配置生效，Registry Context 的命名空间 MUST 为注册机构的自有命名空间，其标识符与版本 MUST 由该命名空间已配置的生成规则产出；该步骤 MUST 在系统初始化提交（commit）时以独立事务执行，其失败 MUST NOT 阻断 setup 的其余业务数据创建与 commit 本身。
+初始化向导的业务数据创建范围 SHALL 在注册规范创建完成之后扩展一步：创建注册表上下文（Registry Context）并回填注册规范的默认上下文。该步骤 MUST 晚于注册机构自有命名空间标识/版本生成策略的配置生效，Registry Context 的命名空间 MUST 为注册机构的自有命名空间，其标识符与版本 MUST 由该命名空间已配置的生成规则产出；该步骤 MUST 在系统初始化提交（commit）时以独立事务执行，其失败 MUST NOT 阻断 setup 的其余业务数据创建与 commit 本身。
 
 #### Scenario: 初始化完成后默认上下文就绪
 

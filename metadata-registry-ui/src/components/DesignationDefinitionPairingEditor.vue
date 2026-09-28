@@ -136,6 +136,7 @@
 <script setup lang="ts">
 import { Plus, Delete, Link } from '@element-plus/icons-vue';
 import { contextApi } from '@/api/resources';
+import { useDefaultContext } from '@/composables/useDefaultContext';
 import type { PairingForm, TextLineContextForm } from '@/types/common';
 import { ref, onMounted, computed } from 'vue';
 import { useI18n } from 'vue-i18n';
@@ -180,6 +181,7 @@ const emit = defineEmits<{
 
 const contextOptions = ref<{ id: string; label: string }[]>([]);
 const searchingContexts = ref(false);
+const { defaultContextId, load: loadDefaultContext } = useDefaultContext();
 /** 首次远程加载完成前，未命中的选中值显示占位而非原始 id */
 const contextsLoaded = ref(false);
 
@@ -326,6 +328,7 @@ function validate(): boolean {
 }
 
 onMounted(async () => {
+  loadDefaultContext();
   await searchContexts('');
 });
 
@@ -346,7 +349,8 @@ function addRow() {
   const newRow: PairingForm = {
     designationId: '',
     definitionId: '',
-    contextId: '',
+    // 系统默认上下文（Registry Context）作为预填值，用户可变更
+    contextId: defaultContextId.value || '',
     acceptability: 'ADMITTED',
   };
   const next: PairingForm[] = [...props.modelValue, newRow];

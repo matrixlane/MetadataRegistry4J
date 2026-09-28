@@ -181,6 +181,8 @@ export const contextApi = {
   update: (id: string, data: Record<string, unknown>) => request.put<any>(`/contexts/${id}`, data),
   delete: (id: string) => request.delete(`/contexts/${id}`),
   options: (params?: { q?: string }) => request.get<{ id: string; label: string }[]>('/contexts/options', { params }),
+  /** 系统默认上下文（初始化创建的 Registry Context）；未初始化时后端返回 404 */
+  default: () => request.get<{ id: string; label: string }>('/contexts/default'),
   usages: (id: string) => request.get<ContextUsageResponse>(`/contexts/${id}/usages`),
 };
 

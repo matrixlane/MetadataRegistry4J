@@ -2,6 +2,7 @@ package io.github.matrixlane.metadataregistry.web.controller;
 
 import io.github.matrixlane.metadataregistry.web.auth.JwtService;
 import io.github.matrixlane.metadataregistry.web.config.AppProperties;
+import io.github.matrixlane.metadataregistry.web.dto.context.ContextResponse;
 import io.github.matrixlane.metadataregistry.web.dto.context.ContextUsageAssociation;
 import io.github.matrixlane.metadataregistry.web.dto.context.ContextUsageGroup;
 import io.github.matrixlane.metadataregistry.web.dto.context.ContextUsageItem;
@@ -59,5 +60,19 @@ class ContextControllerTest {
                 .andExpect(jsonPath("$.data.groups[0].items[0].itemLabel").value("患者标识"))
                 .andExpect(jsonPath("$.data.groups[0].items[0].associations[0].associationType").value("DESIGNATION"))
                 .andExpect(jsonPath("$.data.truncated").value(false));
+    }
+
+    @Test
+    void getDefault_shouldReturnRegistryContext() throws Exception {
+        UUID registryContextId = UUID.fromString("00000000-0000-0000-0000-000000000002");
+        ContextResponse response = new ContextResponse(
+                registryContextId, "Registry Context", List.of(), List.of(), null);
+
+        when(contextService.getDefault()).thenReturn(response);
+
+        mockMvc.perform(get("/api/v1/contexts/default"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id").value(registryContextId.toString()))
+                .andExpect(jsonPath("$.data.label").value("Registry Context"));
     }
 }

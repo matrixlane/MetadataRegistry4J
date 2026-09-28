@@ -2,6 +2,7 @@ package io.github.matrixlane.metadataregistry.web.service;
 
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.LanguageIdentification;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.Context;
+import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.Sign;
 import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.Acceptability;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.AdministeredItem;
@@ -12,6 +13,7 @@ import io.github.matrixlane.metadataregistry.web.dto.common.TextLine;
 import io.github.matrixlane.metadataregistry.web.dto.common.TextLineContextEntry;
 import io.github.matrixlane.metadataregistry.web.repository.AdministeredItemRepository;
 import io.github.matrixlane.metadataregistry.web.repository.ContextRepository;
+import io.github.matrixlane.metadataregistry.web.repository.DesignationRepository;
 import io.github.matrixlane.metadataregistry.web.repository.LanguageIdentificationRepository;
 import io.github.matrixlane.metadataregistry.web.repository.RegistrySpecificationRepository;
 import io.github.matrixlane.metadataregistry.web.repository.RegistrationAuthorityRepository;
@@ -32,7 +34,7 @@ import java.util.UUID;
  *
  * <p>ISO/IEC 11179-3:2023 要求所有指称与定义必须至少关联一个上下文；当该条目本身是
  * 上下文时，标准允许通过自指（8.5.1.1 注、8.5.2.1 注）或设立一个 registry context 来避免
- * 无限回归。本服务按标准附录 C 的 {@code Context1} 示例创建注册系统默认上下文
+ * 无限回归。本服务按标准附录 C 的 {@code Context1} 示例创建注册表上下文
  * （Registry Context），其指称/定义的语境自指，并回填 RegistrySpecification.context。
  *
  * <p>创建时机：必须晚于初始化向导中标识/版本策略的配置，因此仅在向导 setup 末尾或
@@ -48,6 +50,9 @@ public class RegistryContextBootstrapService {
 
     private static final String REGISTRY_CONTEXT_IDENTIFIER = "registry-context";
     private static final String REGISTRY_CONTEXT_VERSION = "1.0";
+    /** 当前中文指称；早期版本为「注册系统上下文」，启动归一时自动更名 */
+    private static final String REGISTRY_CONTEXT_ZH_DESIGNATION = "注册表上下文";
+    private static final String LEGACY_ZH_DESIGNATION = "注册系统上下文";
 
     private final ContextRepository contextRepository;
     private final LanguageIdentificationRepository languageRepository;
@@ -55,6 +60,7 @@ public class RegistryContextBootstrapService {
     private final RegistrySpecificationRepository registrySpecificationRepository;
     private final SystemSettingService systemSettingService;
     private final RegistrationAuthorityRepository registrationAuthorityRepository;
+    private final DesignationRepository designationRepository;
     private final NamespaceIdentifierPolicyResolver policyResolver;
     private final JdbcTemplate jdbcTemplate;
     private final DatabaseEnvironment databaseEnvironment;
@@ -98,7 +104,7 @@ public class RegistryContextBootstrapService {
         List<TextLine> designations = List.of(
                 new TextLine(null, en.getId(), "Registry Context", null,
                         selfContext(), null, null, Acceptability.PREFERRED),
-                new TextLine(null, zh.getId(), "注册系统上下文", null,
+                new TextLine(null, zh.getId(), REGISTRY_CONTEXT_ZH_DESIGNATION, null,
                         selfContext(), null, null, Acceptability.PREFERRED)
         );
         List<TextLine> definitions = List.of(
@@ -106,7 +112,7 @@ public class RegistryContextBootstrapService {
                         "The default context for this registry: the setting in which designations are used to designate and definitions are used to define registry items.",
                         null, selfContext(), null, null, Acceptability.PREFERRED),
                 new TextLine(null, zh.getId(),
-                        "本注册系统的默认上下文：指称用于指称注册项、定义用于定义注册项的语境。",
+                        "本注册表的上下文：指称用于指称注册项、定义用于定义注册项的语境。",
                         null, selfContext(), null, null, Acceptability.PREFERRED)
         );
 
@@ -153,7 +159,8 @@ public class RegistryContextBootstrapService {
             return;
         }
         if (contextRepository.existsById(REGISTRY_CONTEXT_ID)) {
-            normalizeSystemPresetStatus();
+            // 经代理调用使 @Transactional 生效（本方法会触碰 LAZY 集合）
+            selfProvider.getObject().normalizeSystemPresetStatus();
             return;
         }
 
@@ -180,9 +187,12 @@ public class RegistryContextBootstrapService {
     /**
      * 存量归一：早期版本创建的 Registry Context 可能带 DRAFT 管理状态、INCOMPLETE
      * 注册状态并生成 SubmissionRecord（会出现在用户工作空间草稿中）；系统预置数据
-     * 的注册状态必须为 Recorded、管理状态必须为空。重启时自动修正。
+     * 的注册状态必须为 Recorded、管理状态必须为空。中文指称由「注册系统上下文」
+     * 更名为「注册表上下文」（与 RegistrySpecification.context 的语义一致）。
+     * 重启时自动修正。须经代理调用以启用事务。
      */
-    private void normalizeSystemPresetStatus() {
+    @Transactional
+    public void normalizeSystemPresetStatus() {
         try {
             administeredItemRepository.findByItem_Id(REGISTRY_CONTEXT_ID).ifPresent(ai -> {
                 var state = ai.getRegistrationState();
@@ -204,6 +214,29 @@ public class RegistryContextBootstrapService {
                 if (changed) {
                     administeredItemRepository.save(ai);
                     log.info("Registry Context 状态已归一（注册状态 Recorded、管理状态空，系统预置数据不进入提交流程）");
+                }
+            });
+
+            contextRepository.findById(REGISTRY_CONTEXT_ID).ifPresent(ctx -> {
+                for (var designation : ctx.getDesignations()) {
+                    String sign = designation.getSign() == null ? null : designation.getSign().toString();
+                    if (LEGACY_ZH_DESIGNATION.equals(sign)) {
+                        designation.setSign(Sign.of(REGISTRY_CONTEXT_ZH_DESIGNATION));
+                        designationRepository.save(designation);
+                        log.info("Registry Context 中文指称已由「{}」更名为「{}」",
+                                LEGACY_ZH_DESIGNATION, REGISTRY_CONTEXT_ZH_DESIGNATION);
+                    }
+                }
+            });
+
+            // getDefault() 以 RegistrySpecification.context 为默认上下文来源：老库若缺失则回填
+            registrySpecificationRepository.findAll().stream().findFirst().ifPresent(spec -> {
+                if (spec.getContext() == null) {
+                    contextRepository.findById(REGISTRY_CONTEXT_ID).ifPresent(ctx -> {
+                        spec.setContext(ctx);
+                        registrySpecificationRepository.save(spec);
+                        log.info("Registry Specification 默认上下文已回填为 Registry Context");
+                    });
                 }
             });
         } catch (Exception e) {

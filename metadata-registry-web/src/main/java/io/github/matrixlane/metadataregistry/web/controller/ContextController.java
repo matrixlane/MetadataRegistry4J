@@ -51,6 +51,12 @@ public class ContextController {
         return ApiResponse.ok(options);
     }
 
+    @GetMapping("/default")
+    @Operation(summary = "获取系统默认上下文（RegistrySpecification.context，注册表自身的上下文）")
+    public ApiResponse<ContextResponse> getDefault() {
+        return ApiResponse.ok(service.getDefault());
+    }
+
     @GetMapping("/{id}")
     @Operation(summary = "获取单个上下文")
     public ApiResponse<ContextResponse> get(@PathVariable UUID id) {

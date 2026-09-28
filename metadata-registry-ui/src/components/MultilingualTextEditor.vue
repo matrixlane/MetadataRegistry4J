@@ -233,6 +233,7 @@ import { useI18n } from 'vue-i18n';
 const { t } = useI18n();
 import { Plus, Delete, ArrowRight, ArrowDown, Warning, MagicStick } from '@element-plus/icons-vue';
 import { languageApi, contextApi, referenceDocumentApi } from '@/api/resources';
+import { useDefaultContext } from '@/composables/useDefaultContext';
 import type { TextLineForm, PairingForm, NamingConventionResponse } from '@/types/common';
 
 interface Props {
@@ -262,6 +263,7 @@ const emit = defineEmits<{
 const languages = ref<{ id: string; languageIdentifier: string }[]>([]);
 const contextOptions = ref<{ id: string; label: string }[]>([]);
 const referenceDocuments = ref<{ id: string; title?: string; identifier?: string }[]>([]);
+const { defaultContextId, load: loadDefaultContext } = useDefaultContext();
 const languagesLoaded = ref(false);
 const refDocsLoaded = ref(false);
 const searchingContexts = ref(false);
@@ -327,6 +329,7 @@ function toggleException(index: number) {
 }
 
 onMounted(async () => {
+  loadDefaultContext();
   try {
     const langRes = await languageApi.list({ size: 100 });
     languages.value = (langRes.content || []).map((l: any) => ({
@@ -383,6 +386,10 @@ function addRow() {
     languageId: props.defaultLanguageId || '',
     value: '',
     isolatedException: false,
+    // 系统默认上下文（Registry Context）作为预填值，用户可变更
+    contexts: defaultContextId.value
+      ? [{ contextId: defaultContextId.value, acceptability: 'ADMITTED' as const }]
+      : [],
   }];
   emit('update:modelValue', next);
   updateConflicts();
@@ -399,7 +406,7 @@ function addContext(rowIndex: number) {
   if (!next[rowIndex].contexts) {
     next[rowIndex].contexts = [];
   }
-  next[rowIndex].contexts!.push({ contextId: '', acceptability: 'ADMITTED' });
+  next[rowIndex].contexts!.push({ contextId: defaultContextId.value || '', acceptability: 'ADMITTED' });
   emit('update:modelValue', next);
   updateConflicts();
   expanded.value[rowIndex] = true;
