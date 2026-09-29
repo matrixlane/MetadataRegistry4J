@@ -56,6 +56,18 @@ class RegistrarServiceTest {
     @InjectMocks
     private RegistrarService service;
 
+    @org.junit.jupiter.api.BeforeEach
+    void stubSave() {
+        // create/update 链路依赖 save 返回带 id 实体（随后 applyAccountBinding 读取 saved.getId()）
+        org.mockito.Mockito.lenient().when(registrarRepository.save(any(Registrar.class))).thenAnswer(inv -> {
+            Registrar r = inv.getArgument(0);
+            if (r.getId() == null) {
+                r.setId(UUID.randomUUID());
+            }
+            return r;
+        });
+    }
+
     private RegistrationAuthority ra() {
         RegistrationAuthority r = new RegistrationAuthority();
         r.setId(UUID.randomUUID());
@@ -292,6 +304,7 @@ class RegistrarServiceTest {
         Account account = new Account();
         account.setUsername("admin");
         when(accountRepository.findById(any(UUID.class))).thenReturn(Optional.of(account));
+        when(accountRepository.save(any(Account.class))).thenAnswer(inv -> inv.getArgument(0));
         when(roleRepository.findByRoleNameIgnoreCase("注册管理员")).thenReturn(Optional.empty());
         when(roleRepository.save(any(Role.class))).thenAnswer(inv -> {
             Role r = inv.getArgument(0);
@@ -315,6 +328,8 @@ class RegistrarServiceTest {
         assertThat(saved.getIndividual()).isNotNull();
         assertThat(saved.getIndividual().getName().getValue()).isEqualTo("李雷");
         assertThat(saved.getIndividual().getIdentifier()).isEqualTo("admin");
+        // 同一 Individual 必须同时挂到 Account：代表账户本人，避免"我的"保存时再产生第二个
+        assertThat(account.getIndividual()).isSameAs(saved.getIndividual());
         assertThat(saved.getRole()).isNotNull();
         assertThat(saved.getRole().getRoleName()).isEqualTo("注册管理员");
         assertThat(saved.getOrganization()).isSameAs(authority);
@@ -337,6 +352,8 @@ class RegistrarServiceTest {
 
         assertThat(saved.getIndividual()).isNull();
         verify(individualRepository, never()).save(any(Individual.class));
+        // 未创建 Individual 时不得触碰 Account 关联
+        verify(accountRepository, never()).save(any(Account.class));
     }
 
     @Test

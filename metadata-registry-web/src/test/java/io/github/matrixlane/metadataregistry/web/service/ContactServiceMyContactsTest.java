@@ -42,6 +42,8 @@ class ContactServiceMyContactsTest {
     @Mock private AccountRepository accountRepository;
     @Mock private ContactAccountBindingService bindingService;
     @Mock private io.github.matrixlane.metadataregistry.web.repository.SubmissionRecordRepository submissionRecordRepository;
+    @Mock private io.github.matrixlane.metadataregistry.web.repository.StewardshipRecordRepository stewardshipRecordRepository;
+    @Mock private io.github.matrixlane.metadataregistry.web.repository.RegistrationTransitionApprovalRepository registrationTransitionApprovalRepository;
 
     @InjectMocks
     private ContactService contactService;
@@ -235,15 +237,51 @@ class ContactServiceMyContactsTest {
     }
 
     @Test
-    void deleteMyContact_rejectsRegistrar() {
+    void deleteMyContact_registrarAllowedWhenNoReferences() {
         Registrar registrar = new Registrar(new RegistrationAuthority());
         registrar.setId(UUID.randomUUID());
         when(contactRepository.findById(registrar.getId())).thenReturn(Optional.of(registrar));
         when(bindingService.accountIdOfContact(registrar.getId())).thenReturn(Optional.of(accountId));
+        when(bindingService.defaultBindingOf(accountId)).thenReturn(Optional.of(binding(registrar.getId(), true)));
+        // 无提交/管理/审批引用 → 允许删除（相当于初始化时未作为 Registrar 创建）
+        Account admin = new Account();
+        admin.setId(accountId);
+        admin.setActiveRegistrarId(registrar.getId());
+        when(accountRepository.findByActiveRegistrarId(registrar.getId())).thenReturn(List.of(admin));
+        when(accountRepository.save(any(Account.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        contactService.deleteMyContact(accountId, registrar.getId());
+
+        assertThat(admin.getActiveRegistrarId()).isNull();
+        verify(bindingService).unbind(registrar.getId());
+        verify(contactRepository).delete(registrar);
+    }
+
+    @Test
+    void deleteMyContact_registrarRejectedWhenStewardshipReferenced() {
+        Registrar registrar = new Registrar(new RegistrationAuthority());
+        registrar.setId(UUID.randomUUID());
+        when(contactRepository.findById(registrar.getId())).thenReturn(Optional.of(registrar));
+        when(bindingService.accountIdOfContact(registrar.getId())).thenReturn(Optional.of(accountId));
+        when(stewardshipRecordRepository.existsByContact_Id(registrar.getId())).thenReturn(true);
 
         assertThatThrownBy(() -> contactService.deleteMyContact(accountId, registrar.getId()))
                 .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("Registrar");
+                .hasMessageContaining("Stewardship");
+        verify(contactRepository, never()).delete(any(Contact.class));
+    }
+
+    @Test
+    void deleteMyContact_registrarRejectedWhenApprovalReferenced() {
+        Registrar registrar = new Registrar(new RegistrationAuthority());
+        registrar.setId(UUID.randomUUID());
+        when(contactRepository.findById(registrar.getId())).thenReturn(Optional.of(registrar));
+        when(bindingService.accountIdOfContact(registrar.getId())).thenReturn(Optional.of(accountId));
+        when(registrationTransitionApprovalRepository.existsByRegistrarId(registrar.getId())).thenReturn(true);
+
+        assertThatThrownBy(() -> contactService.deleteMyContact(accountId, registrar.getId()))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("审批记录");
         verify(contactRepository, never()).delete(any(Contact.class));
     }
 
@@ -289,7 +327,6 @@ class ContactServiceMyContactsTest {
         contact.setId(contactId);
         when(contactRepository.findById(contactId)).thenReturn(Optional.of(contact));
         when(bindingService.accountIdOfContact(contactId)).thenReturn(Optional.of(accountId));
-        when(bindingService.defaultBindingOf(accountId)).thenReturn(Optional.empty());
         when(submissionRecordRepository.existsByContactId(contactId)).thenReturn(true);
 
         assertThatThrownBy(() -> contactService.deleteMyContact(accountId, contactId))

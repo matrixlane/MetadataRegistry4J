@@ -46,6 +46,8 @@ public class ContactService {
     private final AccountRepository accountRepository;
     private final ContactAccountBindingService contactAccountBindingService;
     private final io.github.matrixlane.metadataregistry.web.repository.SubmissionRecordRepository submissionRecordRepository;
+    private final io.github.matrixlane.metadataregistry.web.repository.StewardshipRecordRepository stewardshipRecordRepository;
+    private final io.github.matrixlane.metadataregistry.web.repository.RegistrationTransitionApprovalRepository registrationTransitionApprovalRepository;
 
     @Transactional(readOnly = true)
     public Page<ContactResponse> list(String keyword, Pageable pageable) {
@@ -266,26 +268,48 @@ public class ContactService {
     }
 
     /**
-     * 删除自建联系人身份；Registrar 行拒绝（409）。删除默认身份后自动把剩余最早
-     * 绑定的一条设为默认；删空后账号失去 Submitter 能力。
+     * 删除联系人身份（含 Registrar 行，含仅剩的一个）。删除 Registrar 行相当于
+     * 该账号在系统初始化时未作为 Registrar 创建：解绑账号绑定、清除各账号的
+     * activeRegistrarId 指向后删除实体。
+     *
+     * <p>引用保护：已被提交记录（SubmissionRecord）引用的身份不可删除；
+     * Registrar 行另受 Stewardship 管理记录与审批记录（外键非空）保护。
+     * 删除默认身份后自动把剩余最早绑定的一条设为默认；删空后账号失去
+     * Submitter 能力。
      */
     public void deleteMyContact(UUID accountId, UUID contactId) {
         Contact entity = loadOwnContact(accountId, contactId);
-        if (entity instanceof Registrar) {
-            throw new io.github.matrixlane.metadataregistry.web.common.BusinessException(
-                    io.github.matrixlane.metadataregistry.web.common.ApiCodes.CONFLICT,
-                    "Registrar 身份不可在此删除，请通过 Registrar 管理流程撤销");
-        }
-        boolean wasDefault = contactAccountBindingService.defaultBindingOf(accountId)
-                .map(b -> contactId.equals(b.getContactId()))
-                .orElse(false);
+        boolean isRegistrar = entity instanceof Registrar;
         // 已被 SubmissionRecord 引用时拒绝删除（外键非空，删除必失败；409 提示更友好）
         if (submissionRecordRepository.existsByContactId(contactId)) {
             throw new io.github.matrixlane.metadataregistry.web.common.BusinessException(
                     io.github.matrixlane.metadataregistry.web.common.ApiCodes.CONFLICT,
                     "该联系人身份已作为提交联系人被提交记录引用，不可删除");
         }
+        if (isRegistrar) {
+            if (stewardshipRecordRepository.existsByContact_Id(contactId)) {
+                throw new io.github.matrixlane.metadataregistry.web.common.BusinessException(
+                        io.github.matrixlane.metadataregistry.web.common.ApiCodes.CONFLICT,
+                        "该注册人员身份已被管理记录（Stewardship）引用，不可删除");
+            }
+            if (registrationTransitionApprovalRepository.existsByRegistrarId(contactId)) {
+                throw new io.github.matrixlane.metadataregistry.web.common.BusinessException(
+                        io.github.matrixlane.metadataregistry.web.common.ApiCodes.CONFLICT,
+                        "该注册人员身份已有注册审批记录，不可删除");
+            }
+        }
+        boolean wasDefault = contactAccountBindingService.defaultBindingOf(accountId)
+                .map(b -> contactId.equals(b.getContactId()))
+                .orElse(false);
         contactAccountBindingService.unbind(contactId);
+        if (isRegistrar) {
+            // 解除各账号对该注册人员身份的激活指向，避免 activeRegistrarId 悬挂
+            accountRepository.findByActiveRegistrarId(contactId)
+                    .forEach(a -> {
+                        a.setActiveRegistrarId(null);
+                        accountRepository.save(a);
+                    });
+        }
         contactRepository.delete(entity);
         if (wasDefault) {
             contactAccountBindingService.firstBindingOf(accountId)

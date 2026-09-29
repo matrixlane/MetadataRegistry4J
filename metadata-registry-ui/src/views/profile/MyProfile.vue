@@ -228,12 +228,9 @@
                 <div class="contact-main">
                   <div class="contact-name">
                     <el-icon><User /></el-icon>
-                    <span>{{ contact.individualName || contact.organizationName || '-' }}</span>
+                    <span>{{ contact.isRegistrar ? $t('contactIdentity.registrar') : $t('contactIdentity.contact') }}</span>
                     <el-tag v-if="contact.isDefault" size="small" type="success" effect="dark" data-testid="contact-default-badge">
                       {{ $t('contactIdentity.default') }}
-                    </el-tag>
-                    <el-tag v-if="contact.isRegistrar" size="small" type="warning" effect="plain" data-testid="contact-registrar-badge">
-                      <el-icon><Medal /></el-icon> {{ $t('contactIdentity.registrar') }}
                     </el-tag>
                   </div>
                   <div class="contact-meta">
@@ -241,9 +238,9 @@
                       <el-icon><OfficeBuilding /></el-icon> {{ contact.organizationName }}
                     </span>
                     <span v-if="contact.roleName">
-                      <el-icon><Briefcase /></el-icon> {{ contact.roleName }}
+                      <el-icon><Postcard /></el-icon> {{ contact.roleName }}
                     </span>
-                    <span v-if="contact.registrationAuthorityName">
+                    <span v-if="contact.registrationAuthorityName && contact.registrationAuthorityName !== contact.organizationName">
                       <el-icon><Medal /></el-icon> {{ contact.registrationAuthorityName }}
                     </span>
                   </div>
@@ -259,7 +256,6 @@
                     {{ $t('common.edit') }}
                   </el-button>
                   <el-button
-                    v-if="!contact.isRegistrar"
                     link
                     type="danger"
                     size="small"
@@ -362,6 +358,7 @@ import type { FormInstance, FormRules } from 'element-plus';
 import {
   User,
   Briefcase,
+  Postcard,
   Location,
   Phone,
   Message,
@@ -478,7 +475,8 @@ async function deleteContact(contact: MyContactResponse) {
   try {
     await ElMessageBox.confirm(
       t('contactIdentity.deleteConfirmMessage', {
-        name: contact.organizationName || contact.individualName || t('common.unknownEntry'),
+        org: contact.organizationName || t('common.unknownEntry'),
+        kind: contact.isRegistrar ? t('contactIdentity.registrar') : t('contactIdentity.contact'),
       }),
       t('contactIdentity.deleteConfirmTitle'),
       { type: 'warning' }

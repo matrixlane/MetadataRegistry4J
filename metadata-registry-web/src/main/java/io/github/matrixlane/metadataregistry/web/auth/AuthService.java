@@ -353,9 +353,21 @@ public class AuthService {
         Individual entity = user.getIndividual();
         boolean isFirstTime = (entity == null);
         if (entity == null) {
-            entity = new Individual();
-            entity.setIdentifier(user.getUsername() + "-individual");
-            entity = individualRepository.save(entity);
+            // 优先复用该账号已绑定 Contact/Registrar 上已有的 Individual（如初始化向导
+            // 按管理员姓名创建并关联到 Registrar 的那个）——同一人全程只应有一个
+            // Individual，同时代表账户本人与注册人员；无任何可复用对象时才新建。
+            entity = contactAccountBindingService.contactsOfAccount(user).stream()
+                    .map(Contact::getIndividual)
+                    .filter(java.util.Objects::nonNull)
+                    .findFirst()
+                    .orElse(null);
+            if (entity == null) {
+                entity = new Individual();
+                entity.setIdentifier(user.getUsername() + "-individual");
+                entity = individualRepository.save(entity);
+            } else if (entity.getIdentifier() == null || entity.getIdentifier().isBlank()) {
+                entity.setIdentifier(user.getUsername() + "-individual");
+            }
             user.setIndividual(entity);
             userRepository.save(user);
         }

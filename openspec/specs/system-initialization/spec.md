@@ -225,6 +225,8 @@
 ### Requirement: 静态预置数据的统一定义与时机
 系统 SHALL 将全部静态预置数据收敛到单一幂等入口 `StaticDataPresetService.presetAll()`，数据值仅以 SQL 预置脚本为数据源（2026-09-19 用户裁定：应用代码 MUST NOT 包含名称预置数据、不做运行时 Locale 解析）。静态预置集合 MUST 包含：G20 语言代码（22 条，固定 UUID）、语言中文名称与地区名称（22 条）、系统组织与 `sys:` 系统默认命名空间（含中英双指称）、`identifier_strategy_config` 全局默认行（`UUID`/`INTERNAL`/`is_global_default=1`）、占位超级管理员（`admin` / `NO_PASSWORD`）、每注册机构的标准注册流转规则（调和语义，不覆盖用户定制规则）。`presetAll()` MUST 幂等：连续执行两次结果集不变。
 
+系统组织不再是预置数据：`sys:` 系统默认命名空间的 NamingAuthority MUST 为初始化向导创建的注册机构（如"默认注册机构"）；初始化完成前无注册机构时 NamingAuthority 留空，setup MUST 在创建注册机构后完成挂接。历史系统组织（固定 UUID `00000000-0000-0000-0000-000000000001`）不再创建；存量库由启动调和改挂注册机构，并在无任何引用（命名空间 NamingAuthority、联系人所属组织）时移除该行。用户可见的组织列表与组织下拉选项 MUST NOT 包含系统组织；系统组织 MUST NOT 被删除（删除会破坏 `sys:` 命名空间所属关系）。
+
 #### Scenario: 数据库设置完成后静态数据全部就绪
 - **WHEN** 管理员在向导数据库步骤保存数据源配置并重启
 - **THEN** Flyway 完成建表与迁移后，`presetAll()` MUST 在应用就绪前执行完毕，静态预置集合中的全部数据可用

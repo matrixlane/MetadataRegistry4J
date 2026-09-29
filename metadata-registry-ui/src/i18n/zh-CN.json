@@ -591,6 +591,7 @@
     "rolePlaceholder": "请选择角色（可选）",
     "default": "默认",
     "registrar": "注册人员",
+    "contact": "联系人",
     "setDefault": "设为默认",
     "empty": "暂无联系人身份，点击「新建联系人身份」开始创建",
     "saveSuccess": "保存成功",
@@ -598,7 +599,7 @@
     "setDefaultSuccess": "已设为默认身份",
     "organizationRequired": "请选择组织",
     "deleteConfirmTitle": "提示",
-    "deleteConfirmMessage": "确认删除「{name}」身份？"
+    "deleteConfirmMessage": "确认删除{org}的{kind}身份？"
   },
   "itemForm": {
     "conflictTitle": "存在 {count} 项冲突/警告",

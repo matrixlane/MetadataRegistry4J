@@ -17,10 +17,15 @@ MUST 系统菜单底部必须显示“我的”选项，且该选项面向所有
 - **THEN** 菜单底部显示“我的”选项，且“系统”菜单也可见
 
 ### Requirement: MUST 个人信息设置与 Individual 自动关联
-MUST 系统必须支持当前登录账户通过“我的”界面设置和更新个人资料。若当前账户尚未关联任何 Individual 实例，在首次保存时系统必须自动创建并关联一个新的 Individual 实例；若已关联，则直接更新已有的 Individual 实例。对于超级管理员成为注册管理员后产生的无 Individual 的 Contact 记录，首次在“我的”页面创建个人资料时，系统必须将新创建 of Individual 与该 Contact 进行关联。
+MUST 系统必须支持当前登录账户通过“我的”界面设置和更新个人资料。若当前账户尚未关联任何 Individual 实例，在首次保存时系统必须优先复用该账户已绑定 Contact/Registrar 上已有的 Individual 实例（就地更新并与账户关联），确保同一人全程只有一个 Individual 同时代表账户本人与其联系/注册身份；无任何可复用实例时才创建并关联一个新的 Individual 实例。若已关联，则直接更新已有的 Individual 实例。对于超级管理员成为注册管理员后产生的无 Individual 的 Contact 记录，首次在“我的”页面创建个人资料时，系统必须将新创建 of Individual 与该 Contact 进行关联。
 
-#### Scenario: 首次保存个人信息创建 Individual 实例
-- **WHEN** 登录账户且未关联 Individual 实例时，在“我的”页面中提交更新个人信息
+#### Scenario: 首次保存且存在可复用 Individual 时复用并就地更新
+
+- **WHEN** 登录账户未关联 Individual 实例，但其绑定的 Contact/Registrar 已关联 Individual 实例（如初始化向导按管理员姓名创建的 Individual），在“我的”页面提交个人信息
+- **THEN** 系统将该既有 Individual 实例关联到该账户，并就地更新其属性，不创建新的 Individual 实例；该 Individual 同时保持与 Registrar 的关联
+
+#### Scenario: 首次保存个人信息且无 Individual 可复用时创建 Individual 实例
+- **WHEN** 登录账户且未关联 Individual 实例、其绑定的 Contact/Registrar 也均无 Individual 实例时，在“我的”页面中提交更新个人信息
 - **THEN** 系统为该账户创建一个全新的 Individual 实例，并与该账户进行一对一关联，且在“个人”界面中能看到此实例
 
 #### Scenario: 再次更新个人信息修改已有 Individual 实例

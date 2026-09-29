@@ -480,6 +480,7 @@
     "rolePlaceholder": "Select a role (optional)",
     "default": "Default",
     "registrar": "Registrar",
+    "contact": "Contact",
     "setDefault": "Set as Default",
     "empty": "No contact identities yet. Click \"Add Contact Identity\" to create one.",
     "saveSuccess": "Saved successfully",
@@ -487,7 +488,7 @@
     "setDefaultSuccess": "Set as default identity",
     "organizationRequired": "Please select an organization",
     "deleteConfirmTitle": "Confirm",
-    "deleteConfirmMessage": "Delete identity \"{name}\"?"
+    "deleteConfirmMessage": "Delete the {kind} identity of {org}?"
   },
   "itemForm": {
     "conflictTitle": "{count} conflict(s) / warning(s)",

@@ -237,7 +237,36 @@ class AuthServiceTest {
     }
 
     @Test
-    @DisplayName("保存我的姓名：首次保存时将 Individual 回填到账号绑定的 Registrar")
+    @DisplayName("保存我的姓名：账号绑定 Registrar 已有 Individual 时复用该 Individual（就地更新），不新建")
+    void updateMyIndividual_firstTime_reusesRegistrarIndividual() {
+        UUID userId = UUID.randomUUID();
+        Account user = new Account();
+        user.setId(userId);
+        user.setUsername("admin");
+
+        Individual existing = new Individual();
+        existing.setIdentifier("admin");
+        Registrar registrar = new Registrar();
+        registrar.setIndividual(existing);
+
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        when(individualRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(contactAccountBindingService.contactsOfAccount(user)).thenReturn(java.util.List.of(registrar));
+        when(contactAccountBindingService.registrarsOfAccount(org.mockito.ArgumentMatchers.any())).thenReturn(java.util.List.of());
+        when(contactAccountBindingService.registrarsOfAccount(userId)).thenReturn(java.util.List.of(registrar));
+
+        IndividualRequest request = new IndividualRequest("汪汇", null, null, null, null, null);
+        authService.updateMyIndividual(userId, request);
+
+        // 复用同一行：Account 与 Registrar 指向同一 Individual，姓名就地更新
+        assertThat(user.getIndividual()).isSameAs(existing);
+        assertThat(existing.getName().getValue()).isEqualTo("汪汇");
+        verify(userRepository).save(user);
+        verify(registrarRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("保存我的姓名：首次保存且无 Individual 可复用时新建，并回填到账号绑定的 Registrar")
     void updateMyIndividual_firstTime_backfillsBoundRegistrar() {
         UUID userId = UUID.randomUUID();
         Account user = new Account();
@@ -249,39 +278,17 @@ class AuthServiceTest {
 
         when(userRepository.findById(userId)).thenReturn(Optional.of(user));
         when(individualRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(contactAccountBindingService.contactsOfAccount(user)).thenReturn(java.util.List.of(registrar));
         when(contactAccountBindingService.registrarsOfAccount(org.mockito.ArgumentMatchers.any())).thenReturn(java.util.List.of());
         when(contactAccountBindingService.registrarsOfAccount(userId)).thenReturn(java.util.List.of(registrar));
 
         IndividualRequest request = new IndividualRequest("张三", null, null, null, null, null);
         authService.updateMyIndividual(userId, request);
 
+        assertThat(user.getIndividual()).isNotNull();
         assertThat(registrar.getIndividual()).isNotNull();
         assertThat(registrar.getIndividual().getName().getValue()).isEqualTo("张三");
-        verify(registrarRepository).save(registrar);
-    }
-
-    @Test
-    @DisplayName("保存我的姓名：Registrar 已关联其他 Individual 时不覆盖")
-    void updateMyIndividual_registrarAlreadyLinked_keepsExistingIndividual() {
-        UUID userId = UUID.randomUUID();
-        Account user = new Account();
-        user.setId(userId);
-        user.setUsername("zhangsan");
-
-        Individual existing = new Individual();
-        Registrar registrar = new Registrar();
-        registrar.setIndividual(existing);
-
-        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
-        when(individualRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
-        when(contactAccountBindingService.registrarsOfAccount(org.mockito.ArgumentMatchers.any())).thenReturn(java.util.List.of());
-        when(contactAccountBindingService.registrarsOfAccount(userId)).thenReturn(java.util.List.of(registrar));
-
-        IndividualRequest request = new IndividualRequest("张三", null, null, null, null, null);
-        authService.updateMyIndividual(userId, request);
-
-        assertThat(registrar.getIndividual()).isSameAs(existing);
-        verify(registrarRepository, never()).save(any());
+        verify(contactRepository).save(registrar);
     }
 
     @Test

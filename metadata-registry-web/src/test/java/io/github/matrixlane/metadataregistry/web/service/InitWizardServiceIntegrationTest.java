@@ -371,6 +371,11 @@ class InitWizardServiceIntegrationTest {
         // 默认命名空间已创建
         assertThat(namespaceRepository.count()).isGreaterThanOrEqualTo(1);
 
+        // sys: 系统默认命名空间 NamingAuthority 挂接到新建注册机构（不再使用系统组织）
+        Namespace sysNs = namespaceRepository.findByShorthandPrefix("sys:").orElseThrow();
+        assertThat(sysNs.getNamingAuthority()).isNotNull();
+        assertThat(sysNs.getNamingAuthority().getId()).isEqualTo(ra.getId());
+
         // 版本草稿已写入，系统仍未初始化（等 commit）
         assertThat(systemSettingService.getEdition().name()).isEqualTo("PERSONAL");
         assertThat(systemSettingService.isInitialized()).isFalse();

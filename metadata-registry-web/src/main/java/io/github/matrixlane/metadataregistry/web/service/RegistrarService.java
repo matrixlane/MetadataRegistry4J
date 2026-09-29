@@ -173,6 +173,10 @@ public class RegistrarService {
             individual.setName(Sign.of(individualName.trim()));
             individual.setIdentifier(account.getUsername());
             individual = individualRepository.save(individual);
+            // 该 Individual 即 admin 本人的个人信息：同时挂到 Account，"我的"首次
+            // 打开即显示并可就地更新，避免后续保存时再产生第二个 Individual。
+            account.setIndividual(individual);
+            accountRepository.save(account);
         }
 
         // 3. Role — required, by roleName uniqueness. If a Role with the same

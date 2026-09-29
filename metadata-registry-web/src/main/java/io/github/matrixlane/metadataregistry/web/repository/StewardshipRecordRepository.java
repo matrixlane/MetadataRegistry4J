@@ -9,4 +9,7 @@ import java.util.UUID;
 public interface StewardshipRecordRepository extends JpaRepository<StewardshipRecord, UUID> {
 
     Optional<StewardshipRecord> findFirstByContact_IdAndOrganization_Id(UUID contactId, UUID organizationId);
+
+    /** 联系人/注册人员身份删除前的引用检查（外键非空，删除必失败）。 */
+    boolean existsByContact_Id(UUID contactId);
 }

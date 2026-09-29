@@ -19,6 +19,9 @@ public interface RegistrationTransitionApprovalRepository
             UUID administeredItemId, RegistrationStatus fromStatus, RegistrationStatus toStatus,
             UUID registrarId);
 
+    /** 注册人员身份删除前的审批记录引用检查（外键非空，删除必失败）。 */
+    boolean existsByRegistrarId(UUID registrarId);
+
     long countByAdministeredItemIdAndFromStatusAndToStatus(
             UUID administeredItemId, RegistrationStatus fromStatus, RegistrationStatus toStatus);
 

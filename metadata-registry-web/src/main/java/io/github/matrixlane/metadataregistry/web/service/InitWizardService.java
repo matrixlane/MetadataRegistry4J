@@ -65,6 +65,7 @@ public class InitWizardService {
     private final DatabaseCleaner databaseCleaner;
     private final NamespaceIdentifierSettingsService namespaceIdentifierSettingsService;
     private final RegistryContextBootstrapService registryContextBootstrapService;
+    private final io.github.matrixlane.metadataregistry.web.seed.SystemDefaultNamespaceInitializer systemDefaultNamespaceInitializer;
 
     @Transactional(readOnly = true)
     public InitWizardStatusResponse getStatus() {
@@ -332,6 +333,10 @@ public class InitWizardService {
                 specAttrs != null ? specAttrs.referenceDocumentIdentifierKinds() : null,
                 specAttrs != null ? specAttrs.representationClassSchemeId() : null);
 
+        // 3.6 sys: 系统默认命名空间 NamingAuthority 挂接到本次创建的注册机构
+        // （未初始化期间留空；initializeSystemDefaultNamespace 内调和逻辑幂等）。
+        systemDefaultNamespaceInitializer.initializeSystemDefaultNamespace();
+
         // NOTE: system.initialized stays FALSE; admin password is NOT reset
         // here. Those happen in commit().
     }
@@ -513,6 +518,9 @@ public class InitWizardService {
                     admin.setForcePasswordReset(false);
                     admin.setTempPasswordUsed(false);
                     admin.setLastLoginAt(null);
+                    // clearBusinessDataOnly 已清空 individual 等业务表，解除可能悬空的
+                    // Individual 关联，避免重试 setup / abort 后出现外键悬挂。
+                    admin.setIndividual(null);
                     accountRepository.save(admin);
                 });
     }
