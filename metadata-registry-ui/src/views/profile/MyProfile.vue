@@ -28,8 +28,8 @@
             {{ form.title || '暂无职位信息' }}
           </p>
           <div class="meta-tags">
-            <span class="email-meta" v-if="auth.user?.email">
-              <el-icon><Message /></el-icon> {{ auth.user.email }}
+            <span class="email-meta" v-if="accountEmail">
+              <el-icon><Message /></el-icon> {{ accountEmail }}
             </span>
           </div>
         </div>
@@ -87,7 +87,7 @@
                   <el-icon><Message /></el-icon>
                   <span class="lbl">账户邮箱</span>
                 </div>
-                <span class="val">{{ auth.user?.email || '未绑定' }}</span>
+                <span class="val">{{ accountEmail || '未绑定' }}</span>
               </div>
               <div class="detail-item">
                 <div class="detail-label-icon">
@@ -555,6 +555,12 @@ const form = reactive({
   mailAddress: '',
   emailAddress: [] as string[],
   phoneNumber: [] as string[],
+});
+
+// 账户邮箱与个人资料中的电子邮箱保持同步：取资料中第一个已填写的邮箱
+const accountEmail = computed(() => {
+  const first = form.emailAddress.find(e => e && e.trim() !== '');
+  return (first && first.trim()) || auth.user?.email || '';
 });
 
 const rules = reactive<FormRules>({

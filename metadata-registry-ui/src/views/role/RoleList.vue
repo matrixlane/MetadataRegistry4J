@@ -18,13 +18,6 @@
           <template #default="{ row }">{{ (row.phoneNumber || []).join('、') }}</template>
         </el-table-column>
         <el-table-column prop="mailAddress" label="邮政地址" min-width="180" show-overflow-tooltip />
-        <el-table-column prop="contactCount" label="引用联系人数" width="120" align="center">
-          <template #default="{ row }">
-            <el-tag :type="row.contactCount > 0 ? 'primary' : 'info'" effect="plain">
-              {{ row.contactCount }}
-            </el-tag>
-          </template>
-        </el-table-column>
       </template>
     </DataTablePage>
 
