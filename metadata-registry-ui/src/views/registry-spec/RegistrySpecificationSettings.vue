@@ -12,7 +12,11 @@
       <template #columns>
         <el-table-column prop="name" label="名称" sortable />
         <el-table-column prop="standard" label="标准" />
-        <el-table-column prop="degreeOfConformance" label="合规程度" width="140" />
+        <el-table-column label="合规程度" width="140">
+          <template #default="{ row }">
+            {{ degreeOfConformanceLabel(row.degreeOfConformance) }}
+          </template>
+        </el-table-column>
         <el-table-column prop="characterRepertoire" label="字符集" />
       </template>
     </DataTablePage>
@@ -192,6 +196,13 @@ const { defaultLanguageId, load: loadDefaultLanguage } = useRegistryDefaultLangu
 const { defaultContextId, load: loadDefaultContext } = useDefaultContext();
 
 const form = reactive(createEmptyRegistrySpecForm()) as RegistrySpecFormModel;
+
+/** 合规程度枚举值 → 中文标签 */
+function degreeOfConformanceLabel(value?: string | null): string {
+  if (value === 'CONFORMING') return '合规';
+  if (value === 'STRICTLY_CONFORMING') return '严格合规';
+  return value || '—';
+}
 
 /** 语言列表加载完成前，未命中的选中值显示占位而非原始 id */
 function isPendingLanguage(value: unknown): boolean {
