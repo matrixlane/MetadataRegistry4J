@@ -162,7 +162,7 @@
                 <el-option
                   v-for="org in organizationOptions"
                   :key="org.id"
-                  :label="`${org.name} (${org.identifier || ''})`"
+                  :label="org.name"
                   :value="org.id"
                 />
               </el-select>
@@ -468,7 +468,7 @@ const patternTestSample = ref('');
 const patternTestResult = ref('');
 const patternTestOk = ref(false);
 
-const organizationOptions = ref<{ id: string; name: string; identifier?: string }[]>([]);
+const organizationOptions = ref<{ id: string; name: string }[]>([]);
 const namingConventionOptions = ref<{ id: string; label?: string; scopeRule?: string }[]>([]);
 const orgsLoaded = ref(false);
 const namingConventionsLoaded = ref(false);
@@ -485,8 +485,7 @@ onMounted(async () => {
     const orgRes = await organizationApi.list({ size: 200 });
     organizationOptions.value = (orgRes.content || []).map((o: any) => ({
       id: o.id,
-      name: o.name || o.englishName || o.identifier || '—',
-      identifier: o.identifier,
+      name: o.name || o.englishName || '—',
     }));
   } catch {
     organizationOptions.value = [];

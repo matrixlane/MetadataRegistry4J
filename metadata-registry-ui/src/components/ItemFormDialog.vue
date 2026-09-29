@@ -726,9 +726,9 @@ async function loadContacts() {
 async function loadOrganizations() {
   try {
     const res = await organizationApi.list({ size: 200 });
-    organizationOptions.value = (res.content || []).map((o: { id: string; name?: string; englishName?: string; identifier?: string }) => ({
+    organizationOptions.value = (res.content || []).map((o: { id: string; name?: string; englishName?: string }) => ({
       id: o.id,
-      label: `${o.name || o.englishName || o.identifier || '—'}${o.identifier ? ` (${o.identifier})` : ''}`,
+      label: o.name || o.englishName || '—',
     }));
   } catch {
     organizationOptions.value = [];

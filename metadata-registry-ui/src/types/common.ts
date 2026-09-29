@@ -385,7 +385,11 @@ export interface OrganizationResponse {
   id: string;
   name?: string;
   englishName?: string;
-  identifier?: string;
+  additionalNames?: string[];
+  mailAddress?: string;
+  emailAddress?: string[];
+  phoneNumber?: string[];
+  webAddress?: string;
 }
 
 export interface AppUserDto {

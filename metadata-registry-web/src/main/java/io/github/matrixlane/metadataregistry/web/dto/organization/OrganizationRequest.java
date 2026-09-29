@@ -8,7 +8,6 @@ public record OrganizationRequest(
         @NotBlank(message = "name 不能为空")
         String name,
         String englishName,
-        String identifier,
         String mailAddress,
         List<String> emailAddress,
         List<String> phoneNumber,

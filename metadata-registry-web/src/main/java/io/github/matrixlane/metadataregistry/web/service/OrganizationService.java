@@ -133,16 +133,8 @@ public class OrganizationService {
         String englishName = names.size() > 1 ? names.get(1) : null;
         List<String> additional = names.size() <= 2 ? List.of() : new ArrayList<>(names.subList(2, names.size()));
 
-        String identifier = null;
-        if (entity instanceof io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationAuthority ra) {
-            if (ra.getRegistrationAuthorityIdentifier() != null) {
-                identifier = ra.getRegistrationAuthorityIdentifier().getOrganizationIdentifier();
-            }
-        }
-
         return new OrganizationResponse(
                 entity.getId(),
-                identifier,
                 name,
                 englishName,
                 additional,
