@@ -2,6 +2,7 @@ import axios from 'axios';
 import type { AxiosInstance, AxiosError } from 'axios';
 import { ElMessage } from 'element-plus';
 import { useAuthStore } from '@/stores/auth';
+import { useWorkspaceBadge } from '@/composables/useWorkspaceBadge';
 
 // 生产构建没有 .env.development，VITE_API_BASE 为空时默认 /api/v1（同源部署）
 const baseURL = import.meta.env.VITE_API_BASE ?? '/api/v1';
@@ -40,6 +41,12 @@ request.interceptors.response.use(
         ElMessage.error(body.message || '请求失败');
       }
       return Promise.reject(new Error(body.message));
+    }
+    // 成功的写操作（新建/更新/删除草稿等）可能改变工作空间待提交计数，
+    // 通知徽标去抖刷新；GET 等读操作不改变状态，不触发。
+    const method = response.config.method?.toLowerCase();
+    if (method === 'post' || method === 'put' || method === 'patch' || method === 'delete') {
+      useWorkspaceBadge().notifyMutation();
     }
     return body.data;
   },
