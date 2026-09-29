@@ -342,7 +342,7 @@ class RegistryContextBootstrapServiceTest {
                 true,
                 null, null, null,
                 null,
-                null, null, null  // adminIndividualName, adminRoleName, adminOrganizationId（PERSONAL 均有兜底）
+                null, null  // adminIndividualName, adminRoleName（PERSONAL 有兜底）
         );
         initWizardService.setup(request, appUserId);
 

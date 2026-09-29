@@ -27,12 +27,14 @@ import java.util.UUID;
 
 /**
  * 启动时初始化上下文（Context）测试数据。仅当 Context 表为空时执行。
+ * 演示数据，由独立开关控制：默认关闭（app.seed.demo-data.enabled=false），
+ * 不与初始化向导 / 恢复出厂的静态预置混淆。
  */
 @Slf4j
 @Component
 @RequiredArgsConstructor
 @Order(100)
-@ConditionalOnProperty(prefix = "app.seed", name = "enabled", havingValue = "true", matchIfMissing = true)
+@ConditionalOnProperty(prefix = "app.seed.demo-data", name = "enabled", havingValue = "true")
 public class ContextTestDataInitializer implements CommandLineRunner {
 
     private final ContextRepository contextRepository;

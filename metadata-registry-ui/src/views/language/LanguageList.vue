@@ -44,10 +44,10 @@
           <el-input v-model="form.geopoliticalTerritoryIdentifier" />
         </el-form-item>
         <el-form-item label="语言名称">
-          <el-input v-model="form.languageName" placeholder="留空则按当前界面语言自动回填" />
+          <el-input v-model="form.languageName" placeholder="留空则显示语言标识符" />
         </el-form-item>
         <el-form-item label="地区名称">
-          <el-input v-model="form.territoryName" placeholder="留空则按当前界面语言自动回填" />
+          <el-input v-model="form.territoryName" placeholder="留空则显示地区标识符" />
         </el-form-item>
       </template>
     </ResourceFormDialog>

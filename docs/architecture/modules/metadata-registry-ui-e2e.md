@@ -12,7 +12,7 @@ flowchart TD
     A -->|拦截| C[page.route<br/>**/api/v1/**]
     C -->|统一响应格式| D[{ code: 0, data, message }]
     A -->|启动| E[Playwright webServer<br/>前端 dev server]
-    F[Python 调试脚本<br/>check_*.py] -->|直连真实后端| G[localhost:8081]
+    F[Python 调试脚本<br/>check_*.py] -->|直连真实后端| G[localhost:8181]
     A -.->|调试类用例直连| G
 ```
 
@@ -127,4 +127,4 @@ npx playwright test e2e/login-flow.spec.ts   # 运行单个文件
 npx playwright test -g "团队版完整初始化"     # 按用例名过滤
 ```
 
-注意：调试类用例（`debug_*`、`test_emergency`）与 Python 脚本依赖真实后端（`localhost:8081`）及特定数据文件（`../emergency-code.txt`），在无后端环境下会失败，不应纳入 CI 常规套件。
+注意：调试类用例（`debug_*`、`test_emergency`）与 Python 脚本依赖真实后端（`localhost:8181`）及特定数据文件（`../emergency-code.txt`），在无后端环境下会失败，不应纳入 CI 常规套件。

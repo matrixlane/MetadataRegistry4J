@@ -134,7 +134,7 @@ interface Props {
   /** 启用多选列；与 deleteFn 一起决定批量条显隐 */
   selectable?: boolean;
   /** 批量删除函数：对每个选中的 id 异步调用；reject 时计入失败 */
-  deleteFn?: (id: string) => Promise<void>;
+  deleteFn?: (id: string) => Promise<unknown>;
 }
 
 const props = withDefaults(defineProps<Props>(), {

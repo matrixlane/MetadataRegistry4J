@@ -11,6 +11,7 @@ import io.github.matrixlane.metadataregistry.web.common.ApiCodes;
 import io.github.matrixlane.metadataregistry.web.common.BusinessException;
 import io.github.matrixlane.metadataregistry.web.common.ResourceNotFoundException;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.RegistrationAuthorityIdentifier;
+import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.LanguageIdentification;
 import io.github.matrixlane.metadataregistry.web.config.IdentifierStrategyLoader;
 import io.github.matrixlane.metadataregistry.web.dto.initwizard.InitWizardCommitRequest;
 import io.github.matrixlane.metadataregistry.web.dto.initwizard.InitWizardSetupRequest;
@@ -18,10 +19,10 @@ import io.github.matrixlane.metadataregistry.web.dto.initwizard.InitWizardSpecAt
 import io.github.matrixlane.metadataregistry.web.dto.initwizard.InitWizardStatusResponse;
 import io.github.matrixlane.metadataregistry.web.edition.DeploymentEdition;
 import io.github.matrixlane.metadataregistry.web.repository.IdentifierStrategyConfigRepository;
+import io.github.matrixlane.metadataregistry.web.repository.LanguageIdentificationRepository;
 import io.github.matrixlane.metadataregistry.web.repository.NamespaceRepository;
 import io.github.matrixlane.metadataregistry.web.repository.RegistrationAuthorityRepository;
-import io.github.matrixlane.metadataregistry.web.seed.LanguageInitializer;
-import io.github.matrixlane.metadataregistry.web.seed.SystemDefaultNamespaceInitializer;
+import io.github.matrixlane.metadataregistry.web.seed.StaticDataPresetService;
 import io.github.matrixlane.metadataregistry.web.service.database.DatabaseCleaner;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -30,7 +31,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -59,8 +59,8 @@ public class InitWizardService {
     private final IdentifierStrategyConfigRepository identifierStrategyConfigRepository;
     private final IdentifierStrategyLoader identifierStrategyLoader;
     private final RegistrySpecificationService registrySpecificationService;
-    private final LanguageInitializer languageInitializer;
-    private final Optional<SystemDefaultNamespaceInitializer> systemDefaultNamespaceInitializer;
+    private final LanguageIdentificationRepository languageRepository;
+    private final StaticDataPresetService staticDataPresetService;
     private final PasswordEncoder passwordEncoder;
     private final DatabaseCleaner databaseCleaner;
     private final NamespaceIdentifierSettingsService namespaceIdentifierSettingsService;
@@ -122,6 +122,12 @@ public class InitWizardService {
         // Clear any leftover dirty data from a previous aborted attempt.
         clearBusinessDataOnly();
 
+        // 静态预置统一入口（幂等兜底）：语言代码与中文名称、系统组织与 sys: 命名空间、
+        // 全局默认标识策略、占位管理员、标准注册流转规则。静态预置数据正常已由
+        // 启动期（数据库设置完成并重启后）就绪，此处兜底保证 setup 重复提交、
+        // 恢复出厂后重新初始化等路径下静态数据完整可用。
+        staticDataPresetService.presetAll();
+
         // Guarantee commit() preconditions no matter how the system arrived at
         // the uninitialized state. E.g. a factory reset re-creates the admin
         // with a real password hash, which would otherwise make commit()
@@ -139,6 +145,9 @@ public class InitWizardService {
         // 必须创建注册机构的自有命名空间），显式 false 返回业务校验错误；
         // 注册规范同为必选。TEAM 使用表单值并校验必填。
         String raName = request.registrationAuthorityName();
+        // selfAsRegistrar 缺省（null）视为关闭：API 入参保持简洁，省略即"不担任"。
+        // 界面 MUST 显式提交该开关，其缺省呈现为开启（见 InitWizard.vue 的 form.selfAsRegistrar）。
+        // PERSONAL 版另在下方无条件置 true（该版本不提供此开关）。
         boolean selfAsRegistrar = Boolean.TRUE.equals(request.selfAsRegistrar());
         String registryName = request.registryName();
         // createNamespace 语义改为强制 true：缺省与显式 true 正常执行，显式 false 拒绝
@@ -147,10 +156,11 @@ public class InitWizardService {
                     "初始化必须创建注册机构的自有命名空间，不能跳过命名空间步骤");
         }
         boolean createNamespace = true;
-        // 注册管理员三要素（individualName/roleName/organizationId）的版本差异化默认值
+        // 注册管理员三要素（individualName/roleName/organizationId）的版本差异化默认值。
+        // 所属组织不来自请求：RegistrationAuthority extends Organization 且 JOINED 共表，
+        // RA 本身即组织，初始化阶段系统内不存在任何其他组织。
         String adminIndividualName = request.adminIndividualName();
         String adminRoleName = request.adminRoleName();
-        java.util.UUID adminOrganizationId = request.adminOrganizationId();
         if (edition == DeploymentEdition.PERSONAL) {
             if (raName == null || raName.isBlank()) {
                 // 注册机构(Registration_Authority)是组织机构层级；个人版下默认名为
@@ -164,27 +174,56 @@ public class InitWizardService {
                 // 跟着 RA 名称拼接成不可控的长串。
                 registryName = "默认注册规范";
             }
-            // PERSONAL 版三要素默认值：姓名"注册管理员"+角色"注册管理员"+组织 = 新建 RA。
-            // 即使用户在前端清空输入，setup 后端 MUST 兜底为"注册管理员"——admin-registrar
-            // 行的列表显示由该兜底值决定（spec registrar-identity-elements）。
-            if (adminIndividualName == null || adminIndividualName.isBlank()) {
-                adminIndividualName = "注册管理员";
-            }
+            // PERSONAL 版三要素默认值：姓名留空（不创建 Individual，由用户后续在
+            // "我的"中填写并由绑定流程回填 Registrar）+ 角色"注册管理员"+ 组织 = 新建 RA。
+            // 姓名 MUST NOT 兜底——admin 未填写有效个人信息时系统中不应存在以其名义
+            // 创建的 Individual（spec registrar-identity-elements：清空 → 不创建 Individual）。
             if (adminRoleName == null || adminRoleName.isBlank()) {
                 adminRoleName = "注册管理员";
             }
-            // adminOrganizationId 在 RA 创建之后回填
         } else if (raName == null || raName.isBlank()) {
             throw new BusinessException(ApiCodes.VALIDATION_FAILED, "注册机构名称不能为空");
         }
-        // TEAM 版三要素必填校验（角色+组织必填，姓名允许为空）
+        // 标识符：表 8 international_code_designator 与 organization_identifier 标准 1 必备；
+        // PERSONAL 缺省时兜底 "0000" / "RA"，TEAM 必须显式提交。
+        String raIcd = request.registrationAuthorityIcd() != null && !request.registrationAuthorityIcd().isBlank()
+                ? request.registrationAuthorityIcd().trim() : null;
+        String raOrgId = request.registrationAuthorityOrganizationIdentifier() != null && !request.registrationAuthorityOrganizationIdentifier().isBlank()
+                ? request.registrationAuthorityOrganizationIdentifier().trim() : null;
+        if (edition == DeploymentEdition.PERSONAL) {
+            if (raIcd == null) raIcd = "0000";
+            if (raOrgId == null) raOrgId = "RA";
+        }
+        // 文档语言：表 24 documentation_language_identifier 标准 1..*；
+        // 缺省时落到系统默认 zh-CN。
+        java.util.List<String> requestedDocLangs = request.registrationAuthorityDocumentLanguages() != null
+                ? request.registrationAuthorityDocumentLanguages().stream()
+                        .filter(s -> s != null && !s.isBlank())
+                        .map(String::trim)
+                        .distinct()
+                        .toList()
+                : java.util.List.of();
+        if (requestedDocLangs.isEmpty()) {
+            requestedDocLangs = java.util.List.of("zh-CN");
+        }
+        // TEAM 版注册机构标识与文档语言必填（与是否创建 Registrar 无关）
         if (edition == DeploymentEdition.TEAM) {
-            if (adminRoleName == null || adminRoleName.isBlank()) {
-                throw new BusinessException(ApiCodes.VALIDATION_FAILED, "注册管理员角色不能为空");
+            if (raIcd == null) {
+                throw new BusinessException(ApiCodes.VALIDATION_FAILED, "注册机构国际代码标识符不能为空");
             }
-            if (adminOrganizationId == null) {
-                throw new BusinessException(ApiCodes.VALIDATION_FAILED, "注册管理员所属组织不能为空");
+            if (raOrgId == null) {
+                throw new BusinessException(ApiCodes.VALIDATION_FAILED, "注册机构组织标识符不能为空");
             }
+            if (requestedDocLangs.isEmpty()) {
+                throw new BusinessException(ApiCodes.VALIDATION_FAILED, "注册机构文档语言不能为空");
+            }
+        }
+        // 注册管理员角色仅在确实要创建 Registrar 时才必填：selfAsRegistrar 关闭即不创建
+        // Registrar（PERSONAL 版已在上方强制为 true），此时不应要求其要素。
+        // 所属组织不设校验也不接受请求参数——RegistrationAuthority extends Organization
+        // 且 JOINED 共表，注册机构本身即组织，初始化阶段不存在其他组织可选。
+        if (selfAsRegistrar && (adminRoleName == null || adminRoleName.isBlank())) {
+            throw new BusinessException(ApiCodes.VALIDATION_FAILED, "注册管理员角色不能为空");
         }
         // 注册规范为数据治理先决条件，两个版本均必选：向导不再设独立配置步骤，
         // 由系统在 setup 时自动创建；显式 false 视为契约违规，仍被拒绝。
@@ -203,31 +242,39 @@ public class InitWizardService {
         }
 
         RegistrationAuthorityIdentifier rai = new RegistrationAuthorityIdentifier();
-        // 表 8:international_code_designator 必备。占位值 "0000"(ISO/IEC 6523 未分配段),
-        // 部署方应在注册机构设置中改为本机构真实 ICD。
-        rai.setInternationalCodeDesignator("0000");
-        rai.setOrganizationIdentifier("RA");
+        // 表 8:international_code_designator 与 organization_identifier 由向导提交值决定；
+        // PERSONAL 缺省时上方已兜底 "0000" / "RA"（ISO/IEC 6523 未分配段，部署方应在 RA 设置页改为真实值）。
+        rai.setInternationalCodeDesignator(raIcd);
+        rai.setOrganizationIdentifier(raOrgId);
         ra.setRegistrationAuthorityIdentifier(rai);
 
         ra = registrationAuthorityRepository.save(ra);
 
         // 2. Assign self as registrar if checked
         if (selfAsRegistrar) {
-            // PERSONAL 版下 adminOrganizationId 缺省回退到新建 RA（其 id 已写入 ra）
-            java.util.UUID resolvedAdminOrgId = adminOrganizationId != null ? adminOrganizationId : ra.getId();
+            // Registrar 的组织恒为本次创建的 RA：RegistrationAuthority extends Organization
+            // 且 JOINED 共表，注册机构本身即组织；初始化阶段无其他组织可选。
             registrarService.createRegistrarForUser(
                     account.getId(),
                     account.getUsername(),
                     adminIndividualName,
                     adminRoleName,
-                    resolvedAdminOrgId,
+                    ra.getId(),
                     ra
             );
         }
 
-        // 3.5 Initialize languages before creating registry specification,
-        // because the default specification needs a valid languageId.
-        languageInitializer.initializeLanguages();
+        // 表 24:documentation_language_identifier (1..*)。静态预置已保证内置 G20 语言
+        // 存在，按 BCP 47 标识符命中复用既有 LanguageIdentification；仅当用户提交了
+        // 非内置语言时才新建实体并 save。
+        for (String langTag : requestedDocLangs) {
+            LanguageIdentification lang = languageRepository.findByLanguageIdentifier(langTag)
+                    .orElseGet(() -> languageRepository.save(buildLanguageIdentification(langTag)));
+            if (!ra.getDocumentationLanguageIdentifier().contains(lang)) {
+                ra.getDocumentationLanguageIdentifier().add(lang);
+            }
+        }
+        registrationAuthorityRepository.save(ra);
 
         // 3. Create default namespace if checked
         if (createNamespace) {
@@ -284,9 +331,6 @@ public class InitWizardService {
                 specAttrs != null ? specAttrs.alternativeLanguages() : null,
                 specAttrs != null ? specAttrs.referenceDocumentIdentifierKinds() : null,
                 specAttrs != null ? specAttrs.representationClassSchemeId() : null);
-
-        // 3.6 Initialize system default namespace
-        systemDefaultNamespaceInitializer.ifPresent(SystemDefaultNamespaceInitializer::initializeSystemDefaultNamespace);
 
         // NOTE: system.initialized stays FALSE; admin password is NOT reset
         // here. Those happen in commit().
@@ -414,7 +458,7 @@ public class InitWizardService {
     }
 
     /**
-     * 初始化向导完成后创建/回填 Registry Context（注册系统默认上下文，语境自指）。
+     * 初始化向导完成后创建/回填 Registry Context（注册表上下文，语境自指）。
      *
      * <p>必须在 {@link #commit} 事务提交之后、无外层事务时调用（Controller 组合调用）：
      * Registry Context 的创建需要独立事务——SQLite 连接池为单连接，嵌套事务必然
@@ -446,6 +490,10 @@ public class InitWizardService {
             return;
         }
         clearBusinessDataOnly();
+        // 清理会连带删除系统组织 / sys: 命名空间 / 全局默认标识策略等静态预置行
+        // （language 两表在保留集内），此处按统一入口幂等恢复，保证 abort 后
+        // 静态预置数据完整可用。
+        staticDataPresetService.presetAll();
         // 清除版本草稿，回到完全未初始化状态。
         systemSettingService.clearEdition();
         // Reset admin back to NO_PASSWORD.
@@ -478,6 +526,23 @@ public class InitWizardService {
     private void clearBusinessDataOnly() {
         // Dialect-portable cleanup: table discovery via JDBC metadata and
         // FK handling via the active vendor's strategy (see DatabaseCleaner).
-        databaseCleaner.clearTables(Set.of("account", "system_setting", "flyway_schema_history"));
+        // 纯静态预置表（语言代码与名称）不在清理范围内，避免抹掉数据库设置完成后
+        // 已就绪的静态预置；其余业务表清空后由 presetAll() 幂等兜底恢复静态行。
+        databaseCleaner.clearTables(Set.of("account", "system_setting", "flyway_schema_history",
+                "language_identification", "ext_language_identification"));
+    }
+
+    /**
+     * 把 BCP 47 语言标签解析为最小可用 {@link LanguageIdentification} 实体并落库。
+     * 仅在用户提交的文档语言未在系统内置语言表中时调用——主流程已存在的内置语言
+     * （zh-CN / en-US / ja-JP 等 G20 国家）由 V20260919003 预置脚本写入，
+     * 此处只负责新建向导中用户首次引入、且非系统预置的语言。
+     */
+    private LanguageIdentification buildLanguageIdentification(String langTag) {
+        LanguageIdentification lang = new LanguageIdentification();
+        lang.setLanguageIdentifier(langTag);
+        // script 与 region 留空：未在 G20 预置范围内的语言仅记 languageIdentifier，
+        // 后续 LanguageGovernanceService 激活时再补齐。
+        return lang;
     }
 }

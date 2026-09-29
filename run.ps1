@@ -1,4 +1,4 @@
-﻿#Requires -Version 5.1
+#Requires -Version 5.1
 System.Management.Automation.Internal.Host.InternalHost.UI.RawUI.WindowTitle = "MetadataRegistry4j Launcher"
  = Split-Path -Parent System.Management.Automation.InvocationInfo.MyCommand.Path
 Set-Location 
@@ -19,7 +19,7 @@ if (-not (Test-Path )) {
     }
 }
 
-Write-Host "[1/2] Starting Backend (Spring Boot :8081)..." -ForegroundColor Green
+Write-Host "[1/2] Starting Backend (Spring Boot :8181)..." -ForegroundColor Green
  = Start-Process cmd -ArgumentList "/k cd /d "" ^&^& java -jar metadata-registry-web\target\metadata-registry-web-0.1.0-SNAPSHOT.jar" -PassThru
 
 Write-Host "[2/2] Starting Frontend (Vite + Vue :5173)..." -ForegroundColor Green
@@ -30,9 +30,9 @@ Write-Host "==========================================" -ForegroundColor Cyan
 Write-Host "   Services started!" -ForegroundColor Cyan
 Write-Host "==========================================" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "Backend:  http://localhost:8081"
+Write-Host "Backend:  http://localhost:8181"
 Write-Host "Frontend: http://localhost:5173"
-Write-Host "Swagger:  http://localhost:8081/swagger-ui.html"
+Write-Host "Swagger:  http://localhost:8181/swagger-ui.html"
 Write-Host ""
 Write-Host "Press Enter to stop all services..."
 [void][System.Console]::ReadLine()

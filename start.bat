@@ -46,7 +46,7 @@ if not exist "metadata-registry-web\target\metadata-registry-web-0.1.0-SNAPSHOT.
     )
 )
 
-echo [1/2] Starting backend on :8081...
+echo [1/2] Starting backend on :8181...
 rem No console window (javaw is GUI) + startup logs for failure diagnosis.
 rem Start-Process sets stdout/stderr file handles natively and does not wait,
 rem so no lingering "Backend" window (cmd /c would wait on the javapath shim
@@ -62,9 +62,9 @@ start /min "Frontend" cmd /c "npm run dev"
 cd /d "%~dp0"
 echo.
 echo === MetadataRegistry4j Started ===
-echo Backend:  http://localhost:8081
+echo Backend:  http://localhost:8181
 echo Frontend: http://localhost:5173
-echo Swagger:  http://localhost:8081/swagger-ui.html
+echo Swagger:  http://localhost:8181/swagger-ui.html
 echo.
 echo Close this window does NOT stop services.
 echo Run stop.bat to stop all services.

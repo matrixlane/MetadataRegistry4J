@@ -82,7 +82,7 @@
               :value="selfContextOption.id"
             />
             <el-option
-              v-for="c in contextOptions"
+              v-for="c in selectableContextOptions"
               :key="c.id"
               :label="c.label"
               :value="c.id"
@@ -185,11 +185,17 @@ const { defaultContextId, load: loadDefaultContext } = useDefaultContext();
 /** 首次远程加载完成前，未命中的选中值显示占位而非原始 id */
 const contextsLoaded = ref(false);
 
+/** 远程结果里剔除条目自身：由 selfContextOption 独占呈现，避免同名两条选项并存 */
+const selectableContextOptions = computed(() => {
+  const selfId = props.selfContextOption?.id;
+  return selfId ? contextOptions.value.filter((c) => c.id !== selfId) : contextOptions.value;
+});
+
 function isPendingContext(value: unknown): boolean {
   if (!value || typeof value !== 'string') return false;
   if (contextsLoaded.value) return false;
   if (props.selfContextOption && props.selfContextOption.id === value) return false;
-  return !contextOptions.value.some((c) => c.id === value);
+  return !selectableContextOptions.value.some((c) => c.id === value);
 }
 
 const touched = ref<Set<number>>(new Set());

@@ -45,11 +45,11 @@ request.interceptors.response.use(
   },
   (error: AxiosError<{ message?: string }>) => {
     if ((error.response?.data as any)?.code === 499) {
-      // 已在向导页时不再整页跳转（location.href 会触发向导的 beforeunload 原生弹窗）
+      // 未初始化时只有向导页以外的请求需要被拉回向导；向导页内的 499 是预期状态
+      // （向导本身就服务于未初始化的系统，且 location.href 会触发 beforeunload 原生弹窗），
+      // 此处静默 reject，由调用方决定如何降级。
       if (window.location.pathname !== '/init-wizard') {
         window.location.href = '/init-wizard';
-      } else {
-        ElMessage.error('系统尚未完成初始化，请按向导完成配置');
       }
     } else if ((error.response?.data as any)?.code === 498 || error.response?.status === 498) {
       // Session is in force-change-password state (e.g. wizard session token,

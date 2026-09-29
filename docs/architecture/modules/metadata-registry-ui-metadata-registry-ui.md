@@ -70,14 +70,14 @@ server: {
   port: 5173,
   proxy: {
     '/api': {
-      target: 'http://localhost:8081',  // 后端服务
+      target: 'http://localhost:8181',  // 后端服务
       changeOrigin: true,
     },
   },
 }
 ```
 
-前端代码中所有 `/api/*` 请求在开发模式下被代理到 `localhost:8081` 的后端服务，从而绕过跨域限制。这是前后端联调的关键机制。
+前端代码中所有 `/api/*` 请求在开发模式下被代理到 `localhost:8181` 的后端服务，从而绕过跨域限制。这是前后端联调的关键机制。
 
 **4. SCSS 预处理**
 
@@ -142,7 +142,7 @@ Vite 的应用入口模板：`lang="zh-CN"` 表明界面语言为中文，`<div 
 
 | 命令 | 作用 |
 |------|------|
-| `npm run dev` | 启动开发服务器（端口 5173，代理 `/api` 到 8081） |
+| `npm run dev` | 启动开发服务器（端口 5173，代理 `/api` 到 8181） |
 | `npm run build` | 先 `vue-tsc --noEmit` 做全量类型检查，通过后执行生产构建 |
 | `npm run preview` | 本地预览生产构建产物 |
 | `npm run lint` | 对 `src/` 下的 `.ts` / `.vue` 文件执行 ESLint |

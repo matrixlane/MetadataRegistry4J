@@ -423,12 +423,14 @@ const resolvedTitle = computed(() => t(`meta.itemType.${props.itemType}`, props.
  * （否则无法创建第一个根上下文）。新建时条目尚无 id，用哨兵 NIL UUID，
  * 后端按 ItemAdministrationService.SELF_CONTEXT_REFERENCE 解析为条目自身；
  * 配对在保存后同步，届时把哨兵替换为真实 id。
+ * 标签用条目自身名称 +「（当前）」，避免与远程搜索结果里的同一条上下文重复出现。
  */
 const selfContextOption = computed(() => {
   if (props.itemType !== 'context') return undefined;
+  const name = (form.designations || []).find((d) => d.value?.trim())?.value?.trim();
   return {
     id: form.id || SELF_CONTEXT_REFERENCE,
-    label: '当前上下文（自身）',
+    label: `${name || '当前上下文'}（当前）`,
   };
 });
 const { defaultLanguageId } = useRegistryDefaultLanguage();
@@ -549,7 +551,7 @@ const editingRaName = ref<string | null>(null);
 const editingIdentifierCreationMode = ref<'AUTO' | 'MANUAL' | null>(null);
 /** 编辑既有条目时持久化的版本创建方式（AUTO / MANUAL / null） */
 const editingVersionCreationMode = ref<'AUTO' | 'MANUAL' | null>(null);
-const languages = ref<{ id: string; languageIdentifier?: string; languageCode?: string }[]>([]);
+const languages = ref<{ id: string; languageIdentifier?: string; languageCode?: string; languageName?: string }[]>([]);
 const namespaceNamingConventions = ref<{ id: string; label?: string; scopeRule?: string }[]>([]);
 const namespaceMandatoryNC = ref(false);
 const designationConflicts = ref<{ type: 'PREFERRED' | 'ISOLATED'; message: string; index: number }[]>([]);
@@ -775,7 +777,7 @@ async function loadOptions() {
   if (loaded.value) return;
   try {
     const langRes = await languageApi.list({ size: 100 });
-    languages.value = (langRes.content || []) as { id: string; languageIdentifier?: string; languageCode?: string }[];
+    languages.value = (langRes.content || []) as { id: string; languageIdentifier?: string; languageCode?: string; languageName?: string }[];
     loaded.value = true;
   } catch {
     // ignore

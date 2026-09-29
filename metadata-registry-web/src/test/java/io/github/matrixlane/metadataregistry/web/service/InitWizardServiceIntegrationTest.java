@@ -70,6 +70,9 @@ class InitWizardServiceIntegrationTest {
 
     @Autowired
     private RegistrarRepository registrarRepository;
+
+    @Autowired
+    private io.github.matrixlane.metadataregistry.web.repository.IndividualRepository individualRepository;
     @Autowired
     private ContactAccountBindingService contactAccountBindingService;
 
@@ -125,6 +128,9 @@ class InitWizardServiceIntegrationTest {
                 "Integration Test RA",
                 "Integration Test RA English",
                 "ra@integration.com",
+                "0000",                       // registrationAuthorityIcd
+                "RA",                         // registrationAuthorityOrganizationIdentifier（断言 inMemory == "RA"）
+                List.of("zh-CN"),             // registrationAuthorityDocumentLanguages
                 true, // selfAsRegistrar
                 true,  // createNamespace
                 null,        // namespaceName（缺省 "默认命名空间"）
@@ -137,7 +143,7 @@ class InitWizardServiceIntegrationTest {
                 null, null, null
         ,
             null,
-            null, null, null  // adminIndividualName, adminRoleName, adminOrganizationId
+            null, "注册管理员"  // adminIndividualName, adminRoleName
         );
 
         initWizardService.setup(request, appUserId);
@@ -188,11 +194,12 @@ class InitWizardServiceIntegrationTest {
         assertThat(nsSettings.getVersionInputMode()).isEqualTo("AUTO_WITH_OVERRIDE");
 
         // 4. Verify Super Admin User is assigned Registrar contact（身份由 Registrar 子类实例
-        //    确定；Role 仅描述性元数据，创建时有意置空，由用户后续自建自关联）
+        //    确定；Role 按提交的 adminRoleName 创建并关联，所属组织恒为本次创建的 RA）
         List<Registrar> registrars = registrarRepository.findAll();
         boolean registrarAssigned = registrars.stream()
                 .anyMatch(r -> contactAccountBindingService.accountIdOfContact(r.getId()).map(appUserId::equals).orElse(false) &&
-                        r.getRole() == null &&
+                        r.getRole() != null && "注册管理员".equals(r.getRole().getRoleName()) &&
+                        r.getOrganization() != null && createdRa.getId().equals(r.getOrganization().getId()) &&
                         r.getRegistrationAuthority() != null && createdRa.getId().equals(r.getRegistrationAuthority().getId()));
         assertThat(registrarAssigned).isTrue();
 
@@ -260,12 +267,13 @@ class InitWizardServiceIntegrationTest {
                 null,
                 "Spec Attr RA",
                 null, null,
+                "0000", "RA", List.of("en-US"),  // icd, organizationIdentifier, documentLanguages
                 true, true,
                 null, null, null, null, null, null,
                 true,
                 null, null, null,
                 specAttrs,
-                null, null, null  // adminIndividualName, adminRoleName, adminOrganizationId
+                null, "注册管理员"  // adminIndividualName, adminRoleName
         );
 
         initWizardService.setup(request, appUserId);
@@ -302,12 +310,13 @@ class InitWizardServiceIntegrationTest {
                 "Integration Test RA",
                 null,
                 null,
+                null, null, null,         // icd, organizationIdentifier, documentLanguages（PERSONAL 取服务默认值）
                 false, // selfAsRegistrar
                 true,  // createNamespace（命名空间为必选，不能再跳过）
                 null, null, null, null, null, null, null, null, null, null
         ,
             null,
-            null, null, null  // adminIndividualName, adminRoleName, adminOrganizationId
+            null, null  // adminIndividualName, adminRoleName
         );
 
         initWizardService.setup(request, appUserId);
@@ -325,11 +334,13 @@ class InitWizardServiceIntegrationTest {
         // 命名空间与注册表规范，并把管理员设为注册员。
         InitWizardSetupRequest request = new InitWizardSetupRequest(
                 "PERSONAL",
-                null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null
+                null, null, null, null,
+                null, null, null,         // icd, organizationIdentifier, documentLanguages（全部取服务默认值）
+                null, null, null, null, null, null, null, null, null,
+                null, null, null          // registryName, defaultLanguage, registryDescription
         ,
             null,
-            null, null, null  // adminIndividualName, adminRoleName, adminOrganizationId
+            null, null  // adminIndividualName, adminRoleName
         );
 
         initWizardService.setup(request, appUserId);
@@ -347,6 +358,16 @@ class InitWizardServiceIntegrationTest {
                 .anyMatch(r -> contactAccountBindingService.accountIdOfContact(r.getId()).map(appUserId::equals).orElse(false));
         assertThat(hasRegistrar).isTrue();
 
+        // 姓名留空：不得创建任何 Individual（含"注册管理员"兜底个体），Registrar 无 Individual 关联
+        assertThat(individualRepository.count()).isZero();
+        Registrar adminRegistrar = registrars.stream()
+                .filter(r -> contactAccountBindingService.accountIdOfContact(r.getId()).map(appUserId::equals).orElse(false))
+                .findFirst().orElseThrow();
+        assertThat(adminRegistrar.getIndividual()).isNull();
+        // 角色兜底"注册管理员"仍生效
+        assertThat(adminRegistrar.getRole()).isNotNull();
+        assertThat(adminRegistrar.getRole().getRoleName()).isEqualTo("注册管理员");
+
         // 默认命名空间已创建
         assertThat(namespaceRepository.count()).isGreaterThanOrEqualTo(1);
 
@@ -362,12 +383,14 @@ class InitWizardServiceIntegrationTest {
         InitWizardSetupRequest personalRequest = new InitWizardSetupRequest(
                 "PERSONAL",
                 null, null, null, null,
-                null,
+                null, null, null,        // icd, organizationIdentifier, documentLanguages
+                null,                    // selfAsRegistrar
                 false, // createNamespace
-                null, null, null, null, null, null, null, null, null, null
+                null, null, null, null, null, null, null,
+                null, null, null         // registryName, defaultLanguage, registryDescription
         ,
             null,
-            null, null, null  // adminIndividualName, adminRoleName, adminOrganizationId
+            null, null  // adminIndividualName, adminRoleName
         );
         assertThatThrownBy(() -> initWizardService.setup(personalRequest, appUserId))
                 .hasMessageContaining("命名空间");
@@ -377,12 +400,15 @@ class InitWizardServiceIntegrationTest {
                 "TEAM",
                 null,
                 "Team RA",
-                null, null, null,
+                null, null,             // englishName, email
+                "0000", "RA", List.of("zh-CN"),  // icd, organizationIdentifier, documentLanguages
+                null,                   // selfAsRegistrar
                 false, // createNamespace
-                null, null, null, null, null, null, null, null, null, null
+                null, null, null, null, null, null, null,
+                null, null, null         // registryName, defaultLanguage, registryDescription
         ,
             null,
-            null, null, null  // adminIndividualName, adminRoleName, adminOrganizationId
+            null, null  // adminIndividualName, adminRoleName
         );
         assertThatThrownBy(() -> initWizardService.setup(teamRequest, appUserId))
                 .hasMessageContaining("命名空间");
@@ -396,12 +422,13 @@ class InitWizardServiceIntegrationTest {
         InitWizardSetupRequest personalRequest = new InitWizardSetupRequest(
                 "PERSONAL",
                 null, null, null, null,
+                null, null, null,        // icd, organizationIdentifier, documentLanguages
                 null, null, null, null, null, null, null, null,
                 false, // createRegistrySpecification
                 null, null, null
         ,
             null,
-            null, null, null  // adminIndividualName, adminRoleName, adminOrganizationId
+            null, null  // adminIndividualName, adminRoleName
         );
         assertThatThrownBy(() -> initWizardService.setup(personalRequest, appUserId))
                 .hasMessageContaining("注册规范");
@@ -410,13 +437,14 @@ class InitWizardServiceIntegrationTest {
         InitWizardSetupRequest teamRequest = new InitWizardSetupRequest(
                 "TEAM",
                 null, "Team RA", null, null,
+                "0000", "RA", List.of("zh-CN"),  // icd, organizationIdentifier, documentLanguages
                 true, true,
                 null, null, null, null, null, null,
                 false, // createRegistrySpecification
                 null, null, null
         ,
             null,
-            null, null, null  // adminIndividualName, adminRoleName, adminOrganizationId
+            null, "注册管理员"  // adminIndividualName, adminRoleName
         );
         assertThatThrownBy(() -> initWizardService.setup(teamRequest, appUserId))
                 .hasMessageContaining("注册规范");
@@ -428,13 +456,14 @@ class InitWizardServiceIntegrationTest {
         InitWizardSetupRequest request = new InitWizardSetupRequest(
                 "CLOUD",
                 null, "Some RA", null, null,
+                null, null, null,        // icd, organizationIdentifier, documentLanguages（与该用例否定版本无关）
                 true, true,
                 null, null, null, null, null, null,
                 null,
                 null, null, null
         ,
             null,
-            null, null, null  // adminIndividualName, adminRoleName, adminOrganizationId
+            null, null  // adminIndividualName, adminRoleName
         );
 
         assertThatThrownBy(() -> initWizardService.setup(request, appUserId))
@@ -447,6 +476,7 @@ class InitWizardServiceIntegrationTest {
         InitWizardSetupRequest request = new InitWizardSetupRequest(
                 "TEAM",
                 null, "Team RA", null, null,
+                "0000", "RA", List.of("zh-CN"),  // icd, organizationIdentifier, documentLanguages
                 true, true,
                 null,
                 "UUID", // identifierStrategy：旧策略值
@@ -456,7 +486,7 @@ class InitWizardServiceIntegrationTest {
                 null, null, null
         ,
             null,
-            null, null, null  // adminIndividualName, adminRoleName, adminOrganizationId
+            null, "注册管理员"  // adminIndividualName, adminRoleName
         );
         assertThatThrownBy(() -> initWizardService.setup(request, appUserId))
                 .hasMessageContaining("段模板");
@@ -476,6 +506,7 @@ class InitWizardServiceIntegrationTest {
         InitWizardSetupRequest request = new InitWizardSetupRequest(
                 "TEAM",
                 null, "Inline Template RA", null, null,
+                "0000", "RA", List.of("zh-CN"),  // icd, organizationIdentifier, documentLanguages
                 true, true,
                 null,
                 "SEGMENT_TEMPLATE",
@@ -485,7 +516,7 @@ class InitWizardServiceIntegrationTest {
                 null, null, null
         ,
             null,
-            null, null, null  // adminIndividualName, adminRoleName, adminOrganizationId
+            null, "注册管理员"  // adminIndividualName, adminRoleName
         );
 
         initWizardService.setup(request, appUserId);
@@ -501,5 +532,76 @@ class InitWizardServiceIntegrationTest {
         assertThat(config.getStrategyType()).isEqualTo("SEGMENT_TEMPLATE");
         assertThat(config.getStatus().name()).isEqualTo("PUBLISHED");
         assertThat(config.getConfigJson()).contains("WN").contains("OBJECT_ABBREVIATION");
+    }
+
+    /** TEAM 版注册管理员三要素：一个基础请求构造，仅供本组三要素用例复用。 */
+    private InitWizardSetupRequest teamSetupRequest(Boolean selfAsRegistrar,
+                                                    String adminIndividualName,
+                                                    String adminRoleName) {
+        return new InitWizardSetupRequest(
+                "TEAM",
+                null, "Three Elements RA", null, null,
+                "0000", "RA", List.of("zh-CN"),
+                selfAsRegistrar, true,
+                null,
+                "SEGMENT_TEMPLATE",
+                null, null, null, null,
+                null,
+                null, null, null,
+                null,
+                adminIndividualName, adminRoleName);
+    }
+
+    private RegistrationAuthority findCreatedRa() {
+        return registrationAuthorityRepository.findAll().stream()
+                .filter(ra -> ra.getName() != null && !ra.getName().isEmpty()
+                        && "Three Elements RA".equals(ra.getName().get(0).getValue()))
+                .findFirst()
+                .orElseThrow();
+    }
+
+    /** 初始化阶段不存在任何可选组织：请求不带所属组织也必须成功完成。 */
+    @Test
+    void setup_teamEdition_withoutOrganizationField_succeeds() {
+        initWizardService.setup(teamSetupRequest(true, null, "数据治理主管"), appUserId);
+        assertThat(systemSettingService.getRunningMode()).isEqualTo("SINGLE");
+        assertThat(findCreatedRa()).isNotNull();
+        assertThat(registrarRepository.findAll()).isNotEmpty();
+    }
+
+    /** Registrar 的组织恒等于本次创建的 Registration_Authority（RegistrationAuthority extends Organization）。 */
+    @Test
+    void setup_teamEdition_registrarOrganizationIsRegistrationAuthority() {
+        initWizardService.setup(teamSetupRequest(true, "李雷", "数据治理主管"), appUserId);
+
+        UUID raId = findCreatedRa().getId();
+        List<Registrar> registrars = registrarRepository.findAll();
+        assertThat(registrars).hasSize(1);
+        Registrar registrar = registrars.get(0);
+        assertThat(registrar.getOrganization()).isNotNull();
+        assertThat(registrar.getOrganization().getId()).isEqualTo(raId);
+        assertThat(registrar.getRole()).isNotNull();
+        assertThat(registrar.getIndividual()).isNotNull();
+    }
+
+    /** 关闭「设为注册人员」即不创建 Registrar，不应要求其要素，也不得因此失败。 */
+    @Test
+    void setup_teamEdition_selfAsRegistrarOff_skipsElementValidation() {
+        initWizardService.setup(teamSetupRequest(false, null, null), appUserId);
+
+        assertThat(findCreatedRa()).isNotNull();
+        assertThat(registrarRepository.findAll()).isEmpty();
+    }
+
+    /**
+     * API 侧省略该开关与显式 false 同义：均不创建 Registrar，且不校验其要素。
+     * 界面始终显式提交并缺省为开启，该默认值属前端呈现，不改变 API 契约。
+     */
+    @Test
+    void setup_teamEdition_selfAsRegistrarNull_treatedAsOff() {
+        initWizardService.setup(teamSetupRequest(null, null, null), appUserId);
+
+        assertThat(findCreatedRa()).isNotNull();
+        assertThat(registrarRepository.findAll()).isEmpty();
     }
 }

@@ -80,7 +80,8 @@ class MetadataSearchServiceTest {
                 LocalDateTime.now(),
                 LocalDateTime.now(),
                 null,
-                "EXACT");
+                "EXACT",
+                null);
     }
 
     @SuppressWarnings("unchecked")
@@ -482,7 +483,7 @@ class MetadataSearchServiceTest {
                 "id", "1", UUID.randomUUID(), "ns", UUID.randomUUID(), "ra",
                 RegistrationStatus.STANDARD, LocalDateTime.now(), null,
                 null, null, null, null, LocalDateTime.now(), LocalDateTime.now(),
-                null, "PARTIAL");
+                null, "PARTIAL", null);
         stubCountAndRows(1L, List.of(partial));
 
         Page<AdministeredItemResponse> result = searchDefault(

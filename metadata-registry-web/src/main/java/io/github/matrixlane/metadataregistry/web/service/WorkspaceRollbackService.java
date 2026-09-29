@@ -40,6 +40,8 @@ import java.util.UUID;
 public class WorkspaceRollbackService {
 
     private static final Set<RegistrationStatus> ROLLBACKABLE_REGISTRATION_STATUSES = Set.of(
+            // ISO/IEC 11179-6:2023 4.3.3.1.3：Candidate 起即受版本控制，故回退窗口按标准字面取 Candidate 起
+            RegistrationStatus.CANDIDATE,
             RegistrationStatus.RECORDED,
             RegistrationStatus.QUALIFIED,
             RegistrationStatus.STANDARD,

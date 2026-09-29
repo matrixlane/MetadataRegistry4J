@@ -19,7 +19,7 @@
           <el-option
             v-for="lang in languages"
             :key="lang.id"
-            :label="lang.languageIdentifier"
+            :label="lang.languageName ? `${lang.languageName}（${lang.languageIdentifier}）` : lang.languageIdentifier"
             :value="lang.id"
           />
         </el-select>
@@ -122,7 +122,7 @@ const emit = defineEmits<{
   'update:modelValue': [value: TextLineForm[]];
 }>();
 
-const languages = ref<{ id: string; languageIdentifier: string }[]>([]);
+const languages = ref<{ id: string; languageIdentifier: string; languageName?: string }[]>([]);
 const expanded = ref<Record<number, boolean>>({});
 const { defaultContextId, load: loadDefaultContext } = useDefaultContext();
 
@@ -142,6 +142,7 @@ onMounted(async () => {
     languages.value = (langRes.content || []).map((l: any) => ({
       id: l.id,
       languageIdentifier: l.languageIdentifier || l.identifier || '',
+      languageName: l.languageName ?? undefined,
     }));
   } catch {
     // fallback

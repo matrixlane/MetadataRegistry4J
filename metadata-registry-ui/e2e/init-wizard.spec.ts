@@ -7,7 +7,13 @@ import { test, expect, Page } from '@playwright/test';
  * commit 后跳转登录页。
  */
 
-function mockWizardApis(page: Page, opts: { currentVendor: string; expectEdition: string; raName?: string }) {
+function mockWizardApis(page: Page, opts: {
+  currentVendor: string;
+  expectEdition: string;
+  raName?: string;
+  /** TEAM 版关闭「设为注册人员」时：注册人员要素留空且不随请求提交 */
+  selfAsRegistrarOff?: boolean;
+}) {
   let initialized = false;
 
   page.route('**/api/v1/init-wizard/status', async (route) => {
@@ -48,18 +54,40 @@ function mockWizardApis(page: Page, opts: { currentVendor: string; expectEdition
     }
   });
 
-  page.route('**/api/v1/organizations/options', async (route) => {
+  // 启动等待屏轮询的就绪探针。缺此 mock 时会打到真实后端，后端不在即整页卡在等待屏。
+  page.route('**/api/v1/startup/status', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ code: 0, message: 'OK', data: { ready: true } }),
+    });
+  });
+
+  // 文档语言下拉的候选项来自 /languages（分页响应）。缺此 mock 时真实请求 401，
+  // 下拉为空，TEAM 版「至少选择 1 个语言」步骤无法选中任何项。
+  page.route('**/api/v1/languages**', async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
         code: 0,
-        data: [
-          { id: 'org-e2e-1', name: 'E2E Org One' },
-          { id: 'org-e2e-2', name: 'E2E Org Two' },
-        ],
+        message: 'OK',
+        data: {
+          content: [
+            { id: 'lang-zh-cn', languageIdentifier: 'zh-CN', languageName: '中文', enabled: true },
+            { id: 'lang-en-us', languageIdentifier: 'en-US', languageName: '英语', enabled: true },
+          ],
+          totalElements: 2,
+          size: 200,
+        },
       }),
     });
+  });
+
+  // 初始化向导 MUST NOT 请求组织列表（初始化阶段不存在任何可选组织）。
+  // 保留一条 fail-fast 路由：一旦向导发起该请求即判定回归失败。
+  page.route('**/api/v1/organizations/options', async (route) => {
+    throw new Error('初始化向导不应请求 /organizations/options');
   });
 
   page.route('**/api/v1/init-wizard/setup', async (route) => {
@@ -67,16 +95,30 @@ function mockWizardApis(page: Page, opts: { currentVendor: string; expectEdition
     if (opts.raName) {
       expect(postData.registrationAuthorityName).toBe(opts.raName);
     }
-    // add-registrar-three-elements: 注册管理员三要素随 setup 提交
+    // ISO/IEC 11179-3:2023 表 24 文档语言随 setup 提交
     if (opts.expectEdition === 'PERSONAL') {
-      expect(postData.adminIndividualName).toBe('注册管理员');
-      expect(postData.adminRoleName).toBe('注册管理员');
-      expect(postData.adminOrganizationId).toBeNull();
+      expect(postData.registrationAuthorityDocumentLanguages).toEqual(['zh-CN']);
     }
     if (opts.expectEdition === 'TEAM') {
+      expect(postData.registrationAuthorityDocumentLanguages).toEqual(['en-US']);
+    }
+    // add-registrar-three-elements: 注册管理员姓名与角色随 setup 提交；
+    // 所属组织不由客户端提交（RegistrationAuthority extends Organization，RA 本身即组织）
+    expect(postData.adminOrganizationId).toBeUndefined();
+    if (opts.expectEdition === 'PERSONAL') {
+      // 前端不预填姓名（保持空白 = 选填）；后端对空值不兜底，PERSONAL 初始化不创建 Individual
+      expect(postData.adminIndividualName).toBeNull();
+      expect(postData.adminRoleName).toBe('注册管理员');
+    }
+    if (opts.expectEdition === 'TEAM' && opts.selfAsRegistrarOff) {
+      // 关闭「设为注册人员」→ 不创建 Registrar → 姓名与角色留空且不再校验
+      expect(postData.selfAsRegistrar).toBe(false);
+      expect(postData.adminIndividualName).toBeNull();
+      expect(postData.adminRoleName).toBeNull();
+    } else if (opts.expectEdition === 'TEAM') {
+      expect(postData.selfAsRegistrar).toBe(true);
       expect(postData.adminIndividualName).toBe('李雷');
       expect(postData.adminRoleName).toBe('数据治理主管');
-      expect(postData.adminOrganizationId).toBe('org-e2e-1');
     }
     // 标识与版本生成策略归属于命名空间步骤，默认值随请求提交
     expect(postData.identifierStrategy).toBe('SEGMENT_TEMPLATE');
@@ -163,7 +205,7 @@ test('个人版初始化流程（版本 → 数据库 → 治理配置预填默�
   await page.click('button:has-text("下一步")');
 
   await expect(stepTitle).toContainText('设置超级管理员密码');
-  await page.fill('input[placeholder="6-20 个字符"]', 'E2ePass@123');
+  await page.fill('input[placeholder="8-64 个字符"]', 'E2ePass@123');
   await page.fill('input[placeholder="再次输入新密码"]', 'E2ePass@123');
 
   await page.click('button:has-text("完成初始化并启用系统")');
@@ -193,13 +235,18 @@ test('团队版完整初始化流程（版本 → 数据库 → 治理配置 →
 
   // 注册机构
   await expect(stepTitle).toContainText('配置默认注册机构');
+  // ISO/IEC 11179-3:2023 表 24 文档语言（团队版必填，至少 1 个）
+  // 选项 label 为语言中文名，value 为 BCP 47 标识符
+  await page.locator('.el-select').filter({ hasText: '至少选择 1 个语言' }).click();
+  await page.locator('.el-select-dropdown__item', { hasText: '英语' }).first().click();
+  await page.keyboard.press('Escape');
+  // 名称
   await page.fill('input[placeholder*="信息化管理部"]', 'E2E Team RA');
-  // add-registrar-three-elements: 显式填写三要素
-  await page.fill('input[placeholder*="默认：注册管理员"][placeholder*="姓名"]', '李雷');
-  await page.fill('input[placeholder*="请输入角色名称"]', '数据治理主管');
-  // 组织下拉
-  await page.locator('.el-select').filter({ hasText: '选择组织' }).click();
-  await page.locator('.el-select-dropdown__item', { hasText: 'E2E Org One' }).first().click();
+  // add-registrar-three-elements: 显式填写姓名与角色（按表单项标签定位，不依赖 placeholder 文案）
+  await page.locator('.el-form-item').filter({ hasText: '注册人员姓名' }).locator('input').fill('李雷');
+  await page.locator('.el-form-item').filter({ hasText: '注册人员角色' }).locator('input').fill('数据治理主管');
+  // 所属组织不提供选择控件（初始化阶段不存在任何可选组织）
+  await expect(page.locator('.el-select').filter({ hasText: '选择组织' })).toHaveCount(0);
   await page.click('button:has-text("下一步")');
 
   // 命名空间
@@ -212,7 +259,57 @@ test('团队版完整初始化流程（版本 → 数据库 → 治理配置 →
 
   // 管理员密码
   await expect(stepTitle).toContainText('设置超级管理员密码');
-  await page.fill('input[placeholder="6-20 个字符"]', 'E2ePass@123');
+  await page.fill('input[placeholder="8-64 个字符"]', 'E2ePass@123');
+  await page.fill('input[placeholder="再次输入新密码"]', 'E2ePass@123');
+  await page.click('button:has-text("完成初始化并启用系统")');
+
+  await page.waitForURL('**/login');
+  expect(page.url()).toContain('/login');
+});
+
+test('团队版关闭「设为注册人员」后要素留空仍可完成注册机构步骤', async ({ page }) => {
+  mockWizardApis(page, {
+    currentVendor: 'sqlserver',
+    expectEdition: 'TEAM',
+    raName: 'E2E Team RA NoRegistrar',
+    selfAsRegistrarOff: true,
+  });
+
+  await page.goto('/init-wizard');
+  const stepTitle = page.locator('.step-title');
+
+  await page.locator('.mode-card', { hasText: '团队版' }).click();
+  await page.click('button:has-text("下一步")');
+  await expect(stepTitle).toContainText('配置数据库');
+  await page.click('button:has-text("下一步")');
+
+  // 注册机构步骤
+  await expect(stepTitle).toContainText('配置默认注册机构');
+  await page.locator('.el-select').filter({ hasText: '至少选择 1 个语言' }).click();
+  await page.locator('.el-select-dropdown__item', { hasText: '英语' }).first().click();
+  await page.keyboard.press('Escape');
+  await page.fill('input[placeholder*="信息化管理部"]', 'E2E Team RA NoRegistrar');
+
+  // 关闭「将当前超级管理员设为该机构的注册人员」
+  await expect(page.locator('.el-switch')).toBeVisible();
+  await page.locator('.el-switch').click();
+
+  // 姓名与角色均留空——不创建 Registrar 时不应被要求填写，直接进入下一步
+  const nameInput = page.locator('.el-form-item').filter({ hasText: '注册人员姓名' }).locator('input');
+  const roleInput = page.locator('.el-form-item').filter({ hasText: '注册人员角色' }).locator('input');
+  await expect(nameInput).toHaveValue('');
+  await expect(roleInput).toHaveValue('');
+
+  await page.click('button:has-text("下一步")');
+  await expect(stepTitle).toContainText('配置命名空间');
+
+  // 继续走完流程，触发 setup payload 断言：selfAsRegistrar=false 且两个要素均为 null
+  await page.click('button:has-text("下一步")');
+  await expect(stepTitle).toContainText('配置注册规范');
+  await page.click('button:has-text("下一步")');
+
+  await expect(stepTitle).toContainText('设置超级管理员密码');
+  await page.fill('input[placeholder="8-64 个字符"]', 'E2ePass@123');
   await page.fill('input[placeholder="再次输入新密码"]', 'E2ePass@123');
   await page.click('button:has-text("完成初始化并启用系统")');
 

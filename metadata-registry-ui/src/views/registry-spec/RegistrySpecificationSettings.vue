@@ -76,7 +76,7 @@
             <el-option
               v-for="lang in languageOptions"
               :key="lang.id"
-              :label="lang.languageIdentifier"
+              :label="lang.languageName ? `${lang.languageName}（${lang.languageIdentifier}）` : lang.languageIdentifier"
               :value="lang.id"
             />
           </el-select>
@@ -92,7 +92,7 @@
             <el-option
               v-for="lang in languageOptions"
               :key="lang.id"
-              :label="lang.languageIdentifier"
+              :label="lang.languageName ? `${lang.languageName}（${lang.languageIdentifier}）` : lang.languageIdentifier"
               :value="lang.id"
             />
           </el-select>
@@ -185,7 +185,7 @@ const saving = ref(false);
 const isEdit = ref(false);
 const regSection = ref<InstanceType<typeof ItemRegistrationSection>>();
 const editingRaName = ref<string | null>(null);
-const languageOptions = ref<{ id: string; languageIdentifier: string }[]>([]);
+const languageOptions = ref<{ id: string; languageIdentifier: string; languageName?: string }[]>([]);
 const contextOptions = ref<{ id: string; label: string }[]>([]);
 const languagesLoaded = ref(false);
 const { defaultLanguageId, load: loadDefaultLanguage } = useRegistryDefaultLanguage();
@@ -214,6 +214,7 @@ onMounted(async () => {
     languageOptions.value = (res.content || []).map((lang: any) => ({
       id: lang.id,
       languageIdentifier: lang.languageIdentifier || lang.identifier || '—',
+      languageName: lang.languageName ?? undefined,
     }));
   } catch {
     // ignore

@@ -199,7 +199,7 @@ class RegistrarServiceTest {
         existing.setId(registrarId);
         existing.setOrganization(organization);
         Individual existingIndividual = individual(UUID.randomUUID());
-        existingIndividual.getName().add(
+        existingIndividual.setName(
                 io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.Sign.of("李雷"));
         existing.setIndividual(existingIndividual);
         when(registrarRepository.findById(registrarId)).thenReturn(Optional.of(existing));
@@ -248,7 +248,7 @@ class RegistrarServiceTest {
         // individualId 非空 + individualName="新名字" → 改现有 Individual.name
         Organization organization = org(UUID.randomUUID());
         Individual existing = individual(UUID.randomUUID());
-        existing.getName().add(io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.Sign.of("旧名字"));
+        existing.setName(io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.Sign.of("旧名字"));
         when(organizationRepository.findById(organization.getId())).thenReturn(Optional.of(organization));
         when(individualRepository.findById(existing.getId())).thenReturn(Optional.of(existing));
         when(individualRepository.save(any(Individual.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -289,7 +289,9 @@ class RegistrarServiceTest {
     void createRegistrarForUser_individualNameProvided_createsIndividual() {
         RegistrationAuthority authority = ra();
         Role registrarRole = role(UUID.randomUUID(), "注册管理员");
-        when(accountRepository.findById(any(UUID.class))).thenReturn(Optional.of(new Account()));
+        Account account = new Account();
+        account.setUsername("admin");
+        when(accountRepository.findById(any(UUID.class))).thenReturn(Optional.of(account));
         when(roleRepository.findByRoleNameIgnoreCase("注册管理员")).thenReturn(Optional.empty());
         when(roleRepository.save(any(Role.class))).thenAnswer(inv -> {
             Role r = inv.getArgument(0);

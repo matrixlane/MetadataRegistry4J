@@ -44,7 +44,7 @@ class LanguagePresetSeederTest {
     }
 
     @Test
-    @DisplayName("reapplyPreset:空库执行脚本得到 22 条语言代码与 22 条名称,且使用脚本的固定 UUID")
+    @DisplayName("reapplyPreset:空库执行脚本清单得到 22 条语言代码与 22 条名称,zh-CN 名称为简体中文")
     void seeds22LanguagesAndNamesFromScript() throws Exception {
         javax.sql.DataSource ds = newDb();
         newSeeder(ds).reapplyPreset();
@@ -70,7 +70,8 @@ class LanguagePresetSeederTest {
                         + " WHERE l.language_identifier = 'zh-CN'", String.class);
         assertThat(zhScript).isEqualTo("Hans");
         assertThat(zhTerritory).isEqualTo("CN");
-        assertThat(zhName).isEqualTo("中文");
+        // 简体中文:V20260919003 播种「中文」后由 localize-language-names.sql 口径修正
+        assertThat(zhName).isEqualTo("简体中文");
         assertThat(zhTerritoryName).isEqualTo("中国");
         // 固定 UUID:与 V20260919003 sqlite 脚本中的字面量一致
         try (Connection conn = ds.getConnection(); Statement st = conn.createStatement();
@@ -108,6 +109,24 @@ class LanguagePresetSeederTest {
         assertThat(jdbc.queryForObject(
                 "SELECT COUNT(*) FROM ext_language_identification e JOIN language_identification l"
                         + " ON l.id = e.language_id WHERE l.language_identifier = 'zh-CN'", Integer.class)).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("reapplyPreset:既有「中文」口径经重放修正为「简体中文」(V20260929001 活副本通道)")
+    void localizesLegacyZhCnName() {
+        javax.sql.DataSource ds = newDb();
+        JdbcTemplate jdbc = new JdbcTemplate(ds);
+        newSeeder(ds).reapplyPreset();
+        // 模拟迁移应用前的旧口径
+        jdbc.update("UPDATE ext_language_identification SET language_name = '中文'"
+                + " WHERE language_name = '简体中文'");
+        newSeeder(ds).reapplyPreset();
+
+        String zhName = jdbc.queryForObject(
+                "SELECT e.language_name FROM ext_language_identification e"
+                        + " JOIN language_identification l ON l.id = e.language_id"
+                        + " WHERE l.language_identifier = 'zh-CN'", String.class);
+        assertThat(zhName).isEqualTo("简体中文");
     }
 
     @Test

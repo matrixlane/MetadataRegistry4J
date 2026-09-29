@@ -6,15 +6,13 @@ import io.github.matrixlane.metadataregistry.web.auth.AccountRepository;
 import io.github.matrixlane.metadataregistry.web.common.ApiCodes;
 import io.github.matrixlane.metadataregistry.web.common.BusinessException;
 import io.github.matrixlane.metadataregistry.web.common.ResourceNotFoundException;
+import io.github.matrixlane.metadataregistry.web.seed.StaticDataPresetService;
 import io.github.matrixlane.metadataregistry.web.service.database.DatabaseCleaner;
 import io.github.matrixlane.metadataregistry.web.service.database.DatabaseEnvironment;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import io.github.matrixlane.metadataregistry.web.seed.LanguageInitializer;
-import io.github.matrixlane.metadataregistry.web.seed.SystemDefaultNamespaceInitializer;
-import org.springframework.beans.factory.ObjectProvider;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -51,13 +49,7 @@ class FactoryResetServiceTest {
     private SystemSettingService systemSettingService;
 
     @Mock
-    private LanguageInitializer languageInitializer;
-
-    @Mock
-    private io.github.matrixlane.metadataregistry.web.seed.LanguagePresetSeeder languagePresetSeeder;
-
-    @Mock
-    private ObjectProvider<SystemDefaultNamespaceInitializer> systemDefaultNamespaceInitializerProvider;
+    private StaticDataPresetService staticDataPresetService;
 
     @Mock
     private DatabaseCleaner databaseCleaner;
@@ -135,10 +127,9 @@ class FactoryResetServiceTest {
                 eq("SUPER_ADMIN"), eq(true), eq(false), eq(false)
         );
 
-        verify(languageInitializer).run(null);
-        verify(systemDefaultNamespaceInitializerProvider).ifAvailable(any());
-        // 出厂清空语言表后须重放语言预置（Flyway 不会重跑已应用迁移）
-        verify(languagePresetSeeder).reapplyPreset();
+        // 静态预置统一入口（语言代码与中文名称、系统默认命名空间、全局默认策略、
+        // 标准流转规则）——出厂清空后由 presetAll 幂等恢复
+        verify(staticDataPresetService).presetAll();
     }
 
     @Test

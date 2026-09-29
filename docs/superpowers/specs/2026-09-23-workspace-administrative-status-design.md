@@ -141,7 +141,7 @@
   - `DRAFT_EDIT`：草稿期编辑（现状快照的完整化，供版本历史 UI）；
   - `SUBMITTED`：提交/创建/批准后的已提交状态；
   - `ROLLED_BACK`：回退操作生成。
-- **回退执行**：取该 Item 最近一条 `BASELINE`（无则 422 无可回退版本）；经 Item Service 内部 restore 路径写回（复用字段应用逻辑但绕过"编辑→Draft"副作用，直接落库）；写 `ROLLED_BACK` 快照；管理状态清空（null）。仅注册状态 ∈ {Recorded, Qualified, Standard, PreferredStandard, Superseded, Retired} 且管理状态 ∈ {Draft, Rejected} 时可回退（用户规则：版本控制内）。
+- **回退执行**：取该 Item 最近一条 `BASELINE`（无则 422 无可回退版本）；经 Item Service 内部 restore 路径写回（复用字段应用逻辑但绕过"编辑→Draft"副作用，直接落库）；写 `ROLLED_BACK` 快照；管理状态清空（null）。仅注册状态 ∈ {Candidate, Recorded, Qualified, Standard, PreferredStandard, Superseded, Retired} 且管理状态 ∈ {Draft, Rejected} 时可回退（与 11179-6 4.3.3.1.3 / 4.3.3.1.4 字面对齐：Candidate 起即受版本控制，故回退窗口按标准字面取 Candidate 起；详见 `openspec/specs/version-control` 的"回退窗口"需求）。
 - **Rejected 特例**：无内容变更的拒绝（未改内容即申请合格）回退 = 仅清管理状态（清空）（无 BASELINE 时降级为此行为，语义同"丢弃被拒绝版本"）。
 
 **列表仅显示当前版本 + 性能**：

@@ -30,6 +30,7 @@ metadata-registry-ui/test-results/
 
 # Playwright/MCP
 .playwright-mcp/
+.playwright-cli/
 
 # Notification backup
 .notification_backup_wi0104a/

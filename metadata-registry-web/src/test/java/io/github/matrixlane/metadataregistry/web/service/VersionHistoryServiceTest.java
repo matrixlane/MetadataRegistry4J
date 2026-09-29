@@ -450,6 +450,28 @@ class VersionHistoryServiceTest {
     }
 
     @Test
+    void recordSnapshot_shouldDoNothing_whenRegistrationStatusIncomplete() {
+        DataElement item = new DataElement();
+        item.setId(ITEM_ID);
+        bindAdministeredItem(item, RegistrationStatus.INCOMPLETE, null);
+
+        service.recordSnapshot(item, "CREATE");
+
+        verify(repository, never()).save(any());
+    }
+
+    @Test
+    void captureBaselineIfEnteringDraft_shouldDoNothing_whenRegistrationStatusIncomplete() {
+        DataElement item = new DataElement();
+        item.setId(ITEM_ID);
+        bindAdministeredItem(item, RegistrationStatus.INCOMPLETE, null);
+
+        service.captureBaselineIfEnteringDraft(item, new TestResponseDto("BaselineIncomplete"));
+
+        verify(repository, never()).save(any());
+    }
+
+    @Test
     void findLatestBaseline_shouldReturnMostRecentBaseline() {
         String baselineSnapshot = "{\"meta\":{\"itemType\":\"DataElement\",\"kind\":\"BASELINE\"},\"item\":{}}";
         String otherSnapshot = "{\"meta\":{\"itemType\":\"DataElement\",\"kind\":\"DRAFT_EDIT\"},\"item\":{}}";

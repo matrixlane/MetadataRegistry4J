@@ -63,7 +63,11 @@ public class SecurityConfig {
                                 "/api/v1/identifier-strategy/presets",
                                 "/api/v1/identifier-strategy/object-abbreviations",
                                 "/api/v1/identifier-strategy/preview",
-                                "/", "/index.html", "/favicon.svg", "/assets/**").permitAll()
+                                "/", "/index.html", "/favicon.svg", "/favicon.ico",
+                                "/apple-touch-icon.png", "/site.webmanifest", "/icons/**", "/assets/**").permitAll()
+                        // 语言字典的匿名只读列表（初始化向导在无账号状态下需拉取语言选项以显示中文语言名）；
+                        // 仅限 GET 精确路径，不开放 CRUD
+                        .requestMatchers(HttpMethod.GET, "/api/v1/languages").permitAll()
                         .requestMatchers("/swagger-ui.html",
                                 "/swagger-ui/**",
                                 "/v3/api-docs",
@@ -93,7 +97,7 @@ public class SecurityConfig {
                         // SPA 前端路由深链接（如 /login、/namespaces）：放行 GET，
                         // 由 SpaForwardController 转发到 index.html 交给客户端路由
                         .requestMatchers(RegexRequestMatcher.regexMatcher(HttpMethod.GET,
-                                "^/(?!api(?:/.*)?$|v3(?:/.*)?$|swagger-ui|actuator(?:/.*)?$|assets(?:/.*)?$|favicon\\.svg$|index\\.html$).*$"))
+                                "^/(?!api(?:/.*)?$|v3(?:/.*)?$|swagger-ui|actuator(?:/.*)?$|assets(?:/.*)?$|icons(?:/.*)?$|favicon\\.svg$|favicon\\.ico$|apple-touch-icon\\.png$|site\\.webmanifest$|index\\.html$).*$"))
                         .permitAll()
                         // 工作空间：GET summary/items 登录即可；写操作需 SUBMITTER/REGISTRAR/ADMIN
                         .requestMatchers(HttpMethod.GET, "/api/v1/workspace/summary", "/api/v1/workspace/items")

@@ -70,11 +70,13 @@ class InitWizardControllerTest {
     @Test
     void setup_shouldCallServiceSetup() throws Exception {
         InitWizardSetupRequest request = new InitWizardSetupRequest(
-                "TEAM", null, "Test Authority", "Test Authority English", "test@test.com", true, true,
+                "TEAM", null, "Test Authority", "Test Authority English", "test@test.com",
+                "0000", "RA", List.of("zh-CN"),  // registrationAuthorityIcd, organizationIdentifier, documentLanguages
+                true, true,
                 null, null, null, null, null, null,
                 true,
-                null, null, null,
-                null, null, null  // adminIndividualName, adminRoleName, adminOrganizationId
+                null, null, null, null,
+                null, null  // adminIndividualName, adminRoleName
         );
 
         AuthenticatedUser principal = new AuthenticatedUser(

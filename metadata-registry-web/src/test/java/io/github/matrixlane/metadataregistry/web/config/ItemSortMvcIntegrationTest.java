@@ -37,7 +37,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "spring.datasource.password=",
         "spring.jpa.properties.hibernate.dialect=org.hibernate.community.dialect.SQLiteDialect",
         "spring.jpa.properties.hibernate.default_schema=main",
-        "app.seed.enabled=false"
+        "app.seed.demo-data.enabled=false"
 })
 @AutoConfigureMockMvc(addFilters = false)
 @ActiveProfiles("test")

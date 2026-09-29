@@ -5,6 +5,7 @@ import io.github.matrixlane.metadataregistry.web.auth.AccountRepository;
 import io.github.matrixlane.metadataregistry.web.common.ApiCodes;
 import io.github.matrixlane.metadataregistry.web.common.BusinessException;
 import io.github.matrixlane.metadataregistry.web.common.ResourceNotFoundException;
+import io.github.matrixlane.metadataregistry.web.seed.StaticDataPresetService;
 import io.github.matrixlane.metadataregistry.web.service.database.DatabaseCleaner;
 import io.github.matrixlane.metadataregistry.web.service.database.DatabaseEnvironment;
 import lombok.RequiredArgsConstructor;
@@ -14,13 +15,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
 import java.util.Set;
 import java.util.UUID;
-import io.github.matrixlane.metadataregistry.web.seed.LanguageInitializer;
-import io.github.matrixlane.metadataregistry.web.seed.LanguagePresetSeeder;
-import io.github.matrixlane.metadataregistry.web.seed.SystemDefaultNamespaceInitializer;
-import org.springframework.beans.factory.ObjectProvider;
 
 /**
  * 恢复出厂设置服务。
@@ -36,10 +32,7 @@ public class FactoryResetService {
     private final AccountRepository accountRepository;
     private final PasswordEncoder passwordEncoder;
     private final JdbcTemplate jdbcTemplate;
-    private final SystemSettingService systemSettingService;
-    private final LanguageInitializer languageInitializer;
-    private final LanguagePresetSeeder languagePresetSeeder;
-    private final ObjectProvider<SystemDefaultNamespaceInitializer> systemDefaultNamespaceInitializerProvider;
+    private final StaticDataPresetService staticDataPresetService;
     private final DatabaseCleaner databaseCleaner;
     private final DatabaseEnvironment databaseEnvironment;
 
@@ -65,24 +58,15 @@ public class FactoryResetService {
         // 3. 清空所有业务表
         clearAllTables();
 
-        // 4. 重新创建默认管理员
+        // 4. 重新创建默认管理员（presetAll 的占位管理员步骤因账户非空跳过）
         reseedAdminUser();
 
-        // 4.5 重新初始化内置语言标识数据与系统默认命名空间
-        log.info("恢复出厂设置：开始重置默认语言标识...");
-        languageInitializer.run(null);
-        systemDefaultNamespaceInitializerProvider.ifAvailable(init -> {
-            log.info("恢复出厂设置：开始重置系统默认命名空间...");
-            init.run(null);
-        });
+        // 5. 静态预置统一入口：语言代码与中文名称、系统组织与 sys: 命名空间、
+        // 全局默认标识策略、标准注册流转规则（与启动期 / 初始化向导兜底同一顺序）
+        log.info("恢复出厂设置：应用静态预置（统一入口 presetAll）...");
+        staticDataPresetService.presetAll();
 
-        // 4.6 重新应用语言预置(出厂清空了 language_identification 标准表与同名扩展表,
-        // Flyway 不会重跑已应用迁移;重放 V20260919003 脚本恢复内置语言与名称,
-        // 脚本语句均带幂等守卫,与全新库/既有库共用同一份 SQL 数据源)
-        log.info("恢复出厂设置：重新应用语言预置（V20260919003）...");
-        languagePresetSeeder.reapplyPreset();
-
-        // 5. 系统初始化状态自动重置
+        // 6. 系统初始化状态自动重置
         // system_setting 表已被 clearAllTables() 清空，
         // SystemSettingService.isInitialized() 在找不到记录时返回 false，
         // 因此无需显式调用 setInitialized(false)。

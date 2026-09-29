@@ -81,6 +81,16 @@ class ForcePasswordResetInterceptorTest {
     }
 
     @Test
+    void forceChangeSession_languagesAlwaysAllowed() throws Exception {
+        authenticate(true);
+        // 语言字典为只读公共数据，与初始化状态无关
+        lenient().when(systemSettingService.isInitialized()).thenReturn(true);
+
+        assertThat(interceptor().preHandle(
+                request("/api/v1/languages"), new MockHttpServletResponse(), null)).isTrue();
+    }
+
+    @Test
     void forceChangeSession_otherEndpointsBlocked() {
         authenticate(true);
         when(systemSettingService.isInitialized()).thenReturn(true);

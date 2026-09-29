@@ -166,10 +166,10 @@ class WorkspaceRollbackServiceIntegrationTest {
                 requestWithDesignation("编辑后名称"));
 
         List<VersionHistory> versions = versionHistoryRepository.findByItemIdOrderByVersionNumberDesc(itemId);
-        assertThat(versions).hasSize(3);
+        // ISO/IEC 11179-6:2023 4.3.3.1.2: Incomplete 不入版本控制，故新建条目阶段不写 CREATE 快照
+        assertThat(versions).hasSize(2);
         assertThat(readKind(versions.get(0))).isEqualTo(SnapshotKind.DRAFT_EDIT);
         assertThat(readKind(versions.get(1))).isEqualTo(SnapshotKind.BASELINE);
-        assertThat(readKind(versions.get(2))).isEqualTo(SnapshotKind.SUBMITTED);
         assertThat(updated.meta().administrativeStatus()).isEqualTo("draft");
 
         workspaceRollbackService.rollback(itemId);
@@ -180,7 +180,7 @@ class WorkspaceRollbackServiceIntegrationTest {
         assertThat(rolledBack.meta().registrationStatus()).isEqualTo(RegistrationStatus.RECORDED);
 
         List<VersionHistory> afterRollback = versionHistoryRepository.findByItemIdOrderByVersionNumberDesc(itemId);
-        assertThat(afterRollback).hasSize(4);
+        assertThat(afterRollback).hasSize(3);
         assertThat(readKind(afterRollback.get(0))).isEqualTo(SnapshotKind.ROLLED_BACK);
     }
 
@@ -225,6 +225,75 @@ class WorkspaceRollbackServiceIntegrationTest {
                     BusinessException be = (BusinessException) e;
                     assertThat(be.getCode()).isEqualTo(ApiCodes.INVALID_ROLLBACK_STATE);
                 });
+    }
+
+    @Test
+    void rollbackCandidateDraft_shouldRestoreBaselineAndKeepCandidateStatus() throws Exception {
+        // ISO/IEC 11179-6:2023 4.3.3.1.3: Candidate 起即受版本控制，回退窗口按标准字面取 Candidate 起
+        DataElementResponse created = createDataElement("原始名称");
+        UUID itemId = created.id();
+        setRegistrationState(itemId, RegistrationStatus.CANDIDATE, null);
+
+        DataElementResponse updated = dataElementService.update(itemId,
+                requestWithDesignation("编辑后名称"));
+
+        List<VersionHistory> versions = versionHistoryRepository.findByItemIdOrderByVersionNumberDesc(itemId);
+        assertThat(versions).hasSize(2);
+        assertThat(readKind(versions.get(0))).isEqualTo(SnapshotKind.DRAFT_EDIT);
+        assertThat(readKind(versions.get(1))).isEqualTo(SnapshotKind.BASELINE);
+        assertThat(updated.meta().administrativeStatus()).isEqualTo("draft");
+
+        workspaceRollbackService.rollback(itemId);
+
+        DataElementResponse rolledBack = dataElementService.get(itemId);
+        assertThat(rolledBack.label()).isEqualTo("原始名称");
+        assertThat(rolledBack.meta().administrativeStatus()).isNull();
+        assertThat(rolledBack.meta().registrationStatus()).isEqualTo(RegistrationStatus.CANDIDATE);
+
+        List<VersionHistory> afterRollback = versionHistoryRepository.findByItemIdOrderByVersionNumberDesc(itemId);
+        assertThat(afterRollback).hasSize(3);
+        assertThat(readKind(afterRollback.get(0))).isEqualTo(SnapshotKind.ROLLED_BACK);
+    }
+
+    @Test
+    void rollbackCandidateRejected_withoutBaseline_shouldClearStatusOnly() {
+        DataElementResponse created = createDataElement("Candidate拒绝前名称");
+        UUID itemId = created.id();
+        setRegistrationState(itemId, RegistrationStatus.CANDIDATE, AdministrativeStatus.REJECTED);
+
+        workspaceRollbackService.rollback(itemId);
+
+        AdministeredItem ai = administeredItemRepository.findByItem_Id(itemId).orElseThrow();
+        assertThat(ai.getRegistrationState().getAdministrativeStatus()).isNull();
+        assertThat(ai.getRegistrationState().getRegistrationStatus()).isEqualTo(RegistrationStatus.CANDIDATE);
+
+        DataElementResponse after = dataElementService.get(itemId);
+        assertThat(after.label()).isEqualTo("Candidate拒绝前名称");
+
+        // 降级路径不写 ROLLED_BACK 快照
+        List<VersionHistory> versions = versionHistoryRepository.findByItemIdOrderByVersionNumberDesc(itemId);
+        assertThat(versions).isEmpty();
+    }
+
+    @Test
+    void incompleteItem_createAndEdit_shouldNotWriteVersionHistory() throws Exception {
+        // ISO/IEC 11179-6:2023 4.3.3.1.2：Incomplete 阶段不入版本控制
+        // 用户报告场景：新建条目（默认 INCOMPLETE + DRAFT）→ 立即编辑两次 → 不应有任何 version_history 行
+        DataElementResponse created = createDataElement("IncompleteTestA");
+        UUID itemId = created.id();
+
+        // 编辑 1
+        dataElementService.update(itemId, requestWithDesignation("IncompleteTestA-edit1"));
+        // 编辑 2
+        dataElementService.update(itemId, requestWithDesignation("IncompleteTestA-edit2"));
+
+        // 断言：version_history 表对该 item 无任何行
+        List<VersionHistory> versions = versionHistoryRepository.findByItemIdOrderByVersionNumberDesc(itemId);
+        assertThat(versions).isEmpty();
+
+        // 验证当前注册状态仍是 INCOMPLETE（编辑表单不能改注册状态）
+        AdministeredItem ai = administeredItemRepository.findByItem_Id(itemId).orElseThrow();
+        assertThat(ai.getRegistrationState().getRegistrationStatus()).isEqualTo(RegistrationStatus.INCOMPLETE);
     }
 
     private DataElementResponse createDataElement(String name) {

@@ -20,7 +20,7 @@
 | 组件 | 版本 / 选型 | 说明 |
 |------|-------------|------|
 | 框架 | Vue 3.5 | Composition API + `<script setup lang="ts">` |
-| 构建 | Vite 5.4 | 开发端口 5173，代理 `/api` → `localhost:8081` |
+| 构建 | Vite 5.4 | 开发端口 5173，代理 `/api` → `localhost:8181` |
 | 类型 | TypeScript 5.6 | `strict: true`，`verbatimModuleSyntax: true` |
 | UI 库 | Element Plus 2.8 | Sass 变量覆盖，`@use` modern-compiler API |
 | 状态 | Pinia 2.2 | Store 以 `defineStore('id', () => { ... })` Setup 风格编写 |

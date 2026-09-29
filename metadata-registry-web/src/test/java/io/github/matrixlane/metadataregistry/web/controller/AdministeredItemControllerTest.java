@@ -215,6 +215,7 @@ import io.github.matrixlane.metadataregistry.web.service.AdministeredItemService
                LocalDateTime.now(),
                LocalDateTime.now(),
                  "初始版本",
+                 null,
                  null);
     }
 }

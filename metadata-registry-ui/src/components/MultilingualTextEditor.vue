@@ -78,7 +78,7 @@
           <el-option
             v-for="lang in languages"
             :key="lang.id"
-            :label="lang.languageIdentifier"
+            :label="lang.languageName ? `${lang.languageName}（${lang.languageIdentifier}）` : lang.languageIdentifier"
             :value="lang.id"
           />
         </el-select>
@@ -140,7 +140,7 @@
                 :loading="searchingContexts"
               >
                 <template #label="{ label, value }">
-                  <span v-if="isPendingOption(value, contextOptions, contextsLoaded)">…</span>
+                  <span v-if="isPendingContextOption(value)">…</span>
                   <span v-else>{{ label }}</span>
                 </template>
                 <!-- 自引用选项（上下文条目编辑自身时由宿主传入），不依赖远程搜索 -->
@@ -151,7 +151,7 @@
                   :value="selfContextOption.id"
                 />
                 <el-option
-                  v-for="c in contextOptions"
+                  v-for="c in selectableContextOptions"
                   :key="c.id"
                   :label="c.label"
                   :value="c.id"
@@ -228,7 +228,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 const { t } = useI18n();
 import { Plus, Delete, ArrowRight, ArrowDown, Warning, MagicStick } from '@element-plus/icons-vue';
@@ -260,7 +260,7 @@ const emit = defineEmits<{
   'ai-generate-hover': [hovered: boolean, index: number];
 }>();
 
-const languages = ref<{ id: string; languageIdentifier: string }[]>([]);
+const languages = ref<{ id: string; languageIdentifier: string; languageName?: string }[]>([]);
 const contextOptions = ref<{ id: string; label: string }[]>([]);
 const referenceDocuments = ref<{ id: string; title?: string; identifier?: string }[]>([]);
 const { defaultContextId, load: loadDefaultContext } = useDefaultContext();
@@ -270,11 +270,25 @@ const searchingContexts = ref(false);
 const contextsLoaded = ref(false);
 const expanded = ref<Record<number, boolean>>({});
 
+/** 远程结果里剔除条目自身：由 selfContextOption 独占呈现，避免同名两条选项并存 */
+const selectableContextOptions = computed(() => {
+  const selfId = props.selfContextOption?.id;
+  return selfId ? contextOptions.value.filter((c) => c.id !== selfId) : contextOptions.value;
+});
+
 /** 选项列表加载完成前，未命中的选中值显示加载占位而非原始 id */
 function isPendingOption(value: unknown, options: { id: string }[], done: boolean): boolean {
   if (!value || typeof value !== 'string') return false;
   if (done) return false;
   return !options.some((o) => o.id === value);
+}
+
+/** 上下文选中值的占位判定：条目自身由 selfContextOption 单独呈现，不算未命中 */
+function isPendingContextOption(value: unknown): boolean {
+  if (!value || typeof value !== 'string') return false;
+  if (contextsLoaded.value) return false;
+  if (props.selfContextOption?.id === value) return false;
+  return !selectableContextOptions.value.some((o) => o.id === value);
 }
 
 function isIsolated(index: number): boolean {
@@ -335,6 +349,7 @@ onMounted(async () => {
     languages.value = (langRes.content || []).map((l: any) => ({
       id: l.id,
       languageIdentifier: l.languageIdentifier || l.identifier || '',
+      languageName: l.languageName ?? undefined,
     }));
     await searchContexts('');
   } catch {

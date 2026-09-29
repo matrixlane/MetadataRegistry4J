@@ -121,6 +121,7 @@ class DataDictionaryBrowserControllerTest {
                 LocalDateTime.now(),
                 LocalDateTime.now(),
                 "初始版本",
+                null,
                 null);
     }
 }

@@ -166,11 +166,11 @@ class WorkspaceServiceIntegrationTest {
 
         ownerAccount = createAccount("owner");
         ownerContact = contactRepository.findById(contactService.createMyContact(ownerAccount.getId(),
-                new MyContactRequest(org.getId(), null)).id()).orElseThrow();
+                new MyContactRequest(org.getId(), null, null)).id()).orElseThrow();
 
         otherAccount = createAccount("other");
         otherContact = contactRepository.findById(contactService.createMyContact(otherAccount.getId(),
-                new MyContactRequest(org.getId(), null)).id()).orElseThrow();
+                new MyContactRequest(org.getId(), null, null)).id()).orElseThrow();
 
         registrarAccount = createAccount("registrar");
         registrar = new Registrar(authority);

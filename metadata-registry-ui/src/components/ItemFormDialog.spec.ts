@@ -535,6 +535,30 @@ describe('ItemFormDialog 字段级 AI 生成', () => {
     wrapper.unmount();
   });
 
+  it('新建模式：draft 行语言发 BCP 47 标识符（中文名仅用于展示，不上行）', async () => {
+    const wrapper = await mountCreate();
+    (wrapper.vm as any).languages = [
+      { id: 'lang-1', languageCode: 'zh-CN', languageIdentifier: 'zh-CN', languageName: '简体中文' },
+      { id: 'lang-2', languageCode: 'en-US', languageIdentifier: 'en-US' },
+    ];
+    (wrapper.vm as any).form.designations = [
+      { clientKey: 'ck-dg1', languageId: 'lang-1', value: '血压' },
+      { clientKey: 'ck-dg2', languageId: 'lang-2', value: 'Blood Pressure' },
+    ];
+    await wrapper.vm.$nextTick();
+
+    const btns = document.body.querySelectorAll('[data-testid="ai-generate-btn"]');
+    (btns[0] as HTMLElement).click();
+    await flushPromises();
+
+    const payload = assistantMocks.createJob.mock.calls[0][0];
+    expect(payload.params.draft.designations).toEqual([
+      { language: 'zh-CN', value: '血压' },
+      { language: 'en-US', value: 'Blood Pressure' },
+    ]);
+    wrapper.unmount();
+  });
+
   it('编辑模式：载荷仍带 itemId 且不带 draft', async () => {
     const wrapper = await mountEditing();
     const btns = document.body.querySelectorAll('[data-testid="ai-generate-btn"]');

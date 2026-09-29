@@ -101,7 +101,11 @@ app:
   cors:
     allowed-origins: ${CORS_ORIGINS:http://localhost:5173}
   seed:
-    enabled: ${SEED_ENABLED:true}
+    # 演示数据开关：默认关闭。开启后启动时按既有规则灌入 8 条演示 Context
+    # （仅当 context 表为空）。静态预置（语言/系统默认命名空间/全局默认策略/
+    # 占位管理员/标准流转规则）不受此开关影响，由 StaticDataPresetService 统一预置。
+    demo-data:
+      enabled: ${SEED_DEMO_DATA_ENABLED:false}
 
   compliance:
     score:

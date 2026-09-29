@@ -51,7 +51,7 @@ MUST 系统必须允许在“个人”界面中新增和删除没有用户账户
 
 ### Requirement: "我的"界面联系人身份管理区
 
-"我的"界面 SHALL 在既有个人资料（Individual）维护功能之外，提供"联系人身份"管理区：展示当前账号的全部联系人身份与 Registrar 身份，支持新建、编辑、删除自建联系人身份以及设置默认联系人。该管理区 SHALL 面向所有登录用户开放，与账号角色无关。Registrar 身份 SHALL 仅可查看，其变更 MUST 走既有 Registrar 管理流程。
+"我的"界面 SHALL 在既有个人资料（Individual）维护功能之外，提供"联系人身份"管理区：展示当前账号的全部联系人身份与 Registrar 身份，支持新建、编辑、删除自建联系人身份以及设置默认联系人。该管理区 SHALL 面向所有登录用户开放，与账号角色无关。Registrar 身份 SHALL 仅可查看，其变更 MUST 走既有 Registrar 管理流程。Registrar 行的编辑入口 SHALL 同时允许修改 Role、Individual、Organization 三要素的关联，其中 Role 可被显式清空，Individual 与 Organization 在 Registrar 上下文中 MUST NOT 被清空。
 
 #### Scenario: 普通用户管理联系人身份
 

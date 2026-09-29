@@ -7,19 +7,6 @@
         <p>系统首次部署完成，请按照以下步骤完成基础配置</p>
       </div>
 
-      <el-alert
-        v-if="currentStep === 5"
-        type="warning"
-        :closable="false"
-        show-icon
-        class="final-step-alert"
-      >
-        <template #title>
-          <strong>这是初始化的最后一步。</strong>
-          完成管理员密码设置后系统将正式启用。中途中断将清除已配置的所有数据，请谨慎操作。
-        </template>
-      </el-alert>
-
       <el-steps :active="displayActive" align-center class="mb-8" :class="{ 'final-step-active': currentStep === 5 }">
         <el-step
           v-for="title in displaySteps"
@@ -144,24 +131,21 @@
           />
         </div>
 
-        <!-- Step 3: Registration Authority Details -->
+        <!-- Step 3: Registration Authority + Registrar Details -->
         <div v-if="currentStep === 2" class="step-pane fade-in">
           <h3 class="step-title">配置默认注册机构</h3>
           <p class="step-desc">注册机构是根据标准开展元数据管理和数据治理的最高权力组织机构</p>
 
+          <el-divider content-position="left">① 配置注册机构</el-divider>
           <el-form
-            ref="formStep2Ref"
-            :model="form"
-            :rules="rulesStep2"
             label-position="top"
             class="wizard-form"
           >
-            <el-form-item label="注册机构名称" prop="registrationAuthorityName">
+            <el-form-item label="名称">
               <el-input
                 v-model="form.registrationAuthorityName"
-                placeholder="例如：信息化管理部、数据治理委员会"
+                placeholder="例如：信息化管理部"
                 size="large"
-                clearable
               >
                 <template #prefix>
                   <el-icon><OfficeBuilding /></el-icon>
@@ -169,60 +153,53 @@
               </el-input>
             </el-form-item>
 
-            <el-form-item label="注册机构英文名称" prop="registrationAuthorityEnglishName">
-              <el-input
-                v-model="form.registrationAuthorityEnglishName"
-                placeholder="例如：Information Management Department"
+            <el-form-item label="文档语言">
+              <el-select
+                v-model="form.registrationAuthorityDocumentLanguages"
+                multiple
+                filterable
+                placeholder="至少选择 1 个语言"
+                style="width: 100%;"
                 size="large"
-                clearable
               >
-                <template #prefix>
-                  <el-icon><OfficeBuilding /></el-icon>
-                </template>
-              </el-input>
-            </el-form-item>
-
-            <el-form-item label="联系邮箱" prop="registrationAuthorityEmail">
-              <el-input
-                v-model="form.registrationAuthorityEmail"
-                placeholder="例如：ra-admin@example.com"
-                size="large"
-                clearable
-              >
-                <template #prefix>
-                  <el-icon><Message /></el-icon>
-                </template>
-              </el-input>
+                <el-option
+                  v-for="lang in languageOptions"
+                  :key="lang.languageIdentifier"
+                  :label="languageOptionLabel(lang)"
+                  :value="lang.languageIdentifier"
+                />
+              </el-select>
             </el-form-item>
           </el-form>
 
-          <h4 class="step-sub-title" style="margin: 8px 0 12px;">注册管理员三要素</h4>
-          <p class="step-desc" style="margin-top: 0;">
-            <span v-if="form.edition === 'PERSONAL'">个人版已自动预填，可按需调整。</span>
-            <span v-else>团队版必须显式填写。</span>
-          </p>
+          <el-divider content-position="left">② 配置注册人员</el-divider>
+          <div class="wizard-settings-box">
+            <!-- 个人版：admin 自动兼任 Registrar（前端固定为只读"自动"，后端强制 selfAsRegistrar=true）；
+                 团队版提供开关由管理员显式决定 -->
+            <div v-if="form.edition === 'TEAM'" class="setting-item">
+              <div class="setting-label-section">
+                <h4>将当前超级管理员设为该机构的注册人员</h4>
+                <p>勾选后，当前登录的超级管理员将直接兼任该注册机构的注册人员，从而拥有在该机构下创建命名空间、导入联系人的权限。</p>
+              </div>
+              <el-switch v-model="form.selfAsRegistrar" size="large" />
+            </div>
+            <div v-else class="setting-item">
+              <div class="setting-label-section">
+                <h4>当前超级管理员自动成为该机构的注册人员</h4>
+                <p>个人版下无需选择：当前超级管理员将自动兼任该注册机构的注册人员。</p>
+              </div>
+              <el-tag type="success" effect="dark" size="large">自动</el-tag>
+            </div>
+          </div>
+
           <el-form
             label-position="top"
             class="wizard-form"
-            style="margin-top: 12px;"
           >
-            <el-form-item label="注册管理员姓名" prop="adminIndividualName">
-              <el-input
-                v-model="form.adminIndividualName"
-                :placeholder="form.edition === 'PERSONAL' ? '默认：注册管理员' : '请输入注册管理员姓名'"
-                size="large"
-                clearable
-              >
-                <template #prefix>
-                  <el-icon><User /></el-icon>
-                </template>
-              </el-input>
-            </el-form-item>
-
-            <el-form-item label="注册管理员角色" prop="adminRoleName">
+            <el-form-item label="注册人员角色">
               <el-input
                 v-model="form.adminRoleName"
-                :placeholder="form.edition === 'PERSONAL' ? '默认：注册管理员' : '请输入角色名称（必填）'"
+                :placeholder="form.edition === 'PERSONAL' ? '默认：注册人员' : '请输入角色名称（必填）'"
                 size="large"
               >
                 <template #prefix>
@@ -231,49 +208,18 @@
               </el-input>
             </el-form-item>
 
-            <el-form-item v-if="form.edition === 'TEAM'" label="所属组织" required>
-              <el-select
-                v-model="form.adminOrganizationId"
-                placeholder="选择组织"
-                style="width: 100%;"
-                filterable
+            <el-form-item label="注册人员姓名">
+              <el-input
+                v-model="form.adminIndividualName"
+                placeholder="选填"
+                size="large"
               >
-                <el-option
-                  v-for="opt in organizationOptions"
-                  :key="opt.id"
-                  :label="opt.name || '—'"
-                  :value="opt.id"
-                />
-              </el-select>
+                <template #prefix>
+                  <el-icon><User /></el-icon>
+                </template>
+              </el-input>
             </el-form-item>
-            <el-alert
-              v-else
-              type="info"
-              :closable="false"
-              show-icon
-              style="margin-bottom: 12px;"
-              title="个人版下所属组织默认锁定为当前创建的注册机构"
-            />
           </el-form>
-
-          <div class="wizard-settings-box">
-            <!-- 个人版：Admin 自动成为 Registrar，无需选择（后端同样强制 selfAsRegistrar=true）；
-                 仅团队版提供该开关 -->
-            <div v-if="form.edition === 'TEAM'" class="setting-item">
-              <div class="setting-label-section">
-                <h4>将当前超级管理员设为该机构的注册管理员</h4>
-                <p>勾选后，当前登录的超级管理员将直接兼任该注册机构的注册管理员，从而拥有在该机构下创建命名空间、导入联系人的权限。</p>
-              </div>
-              <el-switch v-model="form.selfAsRegistrar" size="large" />
-            </div>
-            <div v-else class="setting-item">
-              <div class="setting-label-section">
-                <h4>当前超级管理员自动成为该机构的注册管理员</h4>
-                <p>个人版下无需选择：当前超级管理员将自动兼任该注册机构的注册管理员。</p>
-              </div>
-              <el-tag type="success" effect="dark" size="large">自动</el-tag>
-            </div>
-          </div>
         </div>
 
         <!-- Step 4: Namespace creation -->
@@ -297,7 +243,7 @@
             :model="form"
             :rules="rulesStep3"
             label-position="top"
-            class="wizard-form"
+            class="wizard-form wizard-form-wide"
           >
             <el-form-item label="命名空间名称" prop="namespaceName">
               <el-input
@@ -402,8 +348,12 @@
 
             <el-form-item label="默认语言">
               <el-select v-model="form.defaultLanguage" size="large" style="width: 100%;">
-                <el-option label="简体中文 (zh-CN)" value="zh-CN" />
-                <el-option label="英文 (en-US)" value="en-US" />
+                <el-option
+                  v-for="lang in languageOptions"
+                  :key="lang.languageIdentifier"
+                  :label="languageOptionLabel(lang)"
+                  :value="lang.languageIdentifier"
+                />
               </el-select>
             </el-form-item>
 
@@ -534,10 +484,10 @@ import { ref, reactive, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter, onBeforeRouteLeave } from 'vue-router';
 import type { FormInstance, FormRules } from 'element-plus';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Setting, OfficeBuilding, Check, Message, User, Medal } from '@element-plus/icons-vue';
+import { Setting, OfficeBuilding, Check, User, Medal } from '@element-plus/icons-vue';
 import request, { withSilentErrors } from '@/utils/request';
 import { useAuthStore } from '@/stores/auth';
-import { organizationApi } from '@/api/resources';
+import { languageApi } from '@/api/resources';
 import SegmentTemplateDesigner from '@/components/identifier/SegmentTemplateDesigner.vue';
 import { timeZoneValidator } from '@/views/registry-spec/registrySpecForm';
 
@@ -640,7 +590,6 @@ const dbFormModified = computed(
   () => dbChoice.value === 'change' && JSON.stringify(dbForm) !== dbFormSnapshot.value
 );
 
-const formStep2Ref = ref<FormInstance>();
 const formStep3Ref = ref<FormInstance>();
 const formStep4Ref = ref<FormInstance>();
 const formStep5Ref = ref<FormInstance>();
@@ -649,8 +598,8 @@ const form = reactive({
   edition: 'PERSONAL',
   runningMode: 'SINGLE',
   registrationAuthorityName: '',
-  registrationAuthorityEnglishName: '',
-  registrationAuthorityEmail: '',
+  // ISO/IEC 11179-3:2023 表 24 — documentation_language_identifier (1..*)
+  registrationAuthorityDocumentLanguages: ['zh-CN'] as string[],
   selfAsRegistrar: true,
   createNamespace: true,
   namespaceName: '默认命名空间',
@@ -684,30 +633,25 @@ const form = reactive({
   registryRepresentationClassSchemeId: '',
   registryReferenceDocumentIdentifierKinds: [] as string[],
   // ── 注册管理员三要素（add-registrar-three-elements）──
+  // 所属组织不在此处选择：RegistrationAuthority extends Organization 且 JOINED 共表，
+  // 注册机构本身即组织，初始化阶段系统内不存在其他组织；后端恒取本次创建的 RA。
   adminIndividualName: '',
   adminRoleName: '',
-  adminOrganizationId: '' as string,
 });
 
-interface OrganizationOption { id: string; name: string | null }
-const organizationOptions = ref<OrganizationOption[]>([]);
+// ISO/IEC 11179-3:2023 表 6 推荐使用 ISO 639-2 三字母编码；
+// 实际可选范围取自已登记且启用的语言条目（value 为 BCP 47 标识符，label 为「中文名（标识符）」）。
+interface LanguageOption { languageIdentifier: string; languageName?: string }
+const languageOptions = ref<LanguageOption[]>([]);
+
+/** 语言下拉显示项：中文名（BCP 47 标识符）；无中文名时只显示标识符。 */
+function languageOptionLabel(lang: LanguageOption): string {
+  return lang.languageName ? `${lang.languageName}（${lang.languageIdentifier}）` : lang.languageIdentifier;
+}
 
 const pwdForm = reactive({
   newPassword: '',
   confirmPassword: '',
-});
-
-const rulesStep2 = reactive<FormRules>({
-  registrationAuthorityName: [
-    { required: true, message: '请输入注册机构名称', trigger: 'blur' },
-    { min: 2, max: 100, message: '长度在 2 到 100 个字符', trigger: 'blur' }
-  ],
-  registrationAuthorityEnglishName: [
-    { min: 2, max: 100, message: '长度在 2 到 100 个字符', trigger: 'blur' }
-  ],
-  registrationAuthorityEmail: [
-    { type: 'email', message: '请输入正确的邮箱地址', trigger: 'blur' }
-  ]
 });
 
 const rulesStep4 = reactive<FormRules>({
@@ -812,26 +756,27 @@ watch(() => form.registrationAuthorityName, (newVal) => {
 // 个人版下 Admin 自动成为 Registrar（后端强制 selfAsRegistrar=true），前端同步锁定为 true。
 // 注册机构(Registration_Authority)是组织机构层级，默认名"默认注册机构"；
 // Registrar 是 admin 兼任的注册管理员（与组织机构区分），名称由绑定流程赋予。
-// 注册管理员三要素（Individual/Role/Organization）也在 PERSONAL 版下预填；TEAM 版显式填写。
+// 注册人员姓名在 PERSONAL 版下保持空白（选填）；后端对空值不再兜底，
+// 未填写则不创建 Individual，由用户后续在"我的"中填写并回填 Registrar。
 watch(() => form.edition, (val) => {
   if (val === 'PERSONAL') {
     if (!form.registrationAuthorityName.trim()) {
       form.registrationAuthorityName = '默认注册机构';
     }
-    if (!form.adminIndividualName.trim()) {
-      form.adminIndividualName = '注册管理员';
+    if (!form.registrationAuthorityDocumentLanguages.length) {
+      form.registrationAuthorityDocumentLanguages = ['zh-CN'];
     }
     if (!form.adminRoleName.trim()) {
       form.adminRoleName = '注册管理员';
     }
     form.selfAsRegistrar = true;
   } else {
-    // TEAM 版切到时清空 PERSONAL 留的默认（让用户显式填），保留他们输入过的真实值
-    if (form.adminIndividualName.trim() === '注册管理员') {
-      form.adminIndividualName = '';
-    }
+    // TEAM 版切到时清空 PERSONAL 留的角色默认（让用户显式填），保留他们输入过的真实值
     if (form.adminRoleName.trim() === '注册管理员') {
       form.adminRoleName = '';
+    }
+    if (form.registrationAuthorityDocumentLanguages.length === 1 && form.registrationAuthorityDocumentLanguages[0] === 'zh-CN') {
+      form.registrationAuthorityDocumentLanguages = [];
     }
   }
 }, { immediate: true });
@@ -857,10 +802,13 @@ async function callSetup(): Promise<void> {
     } = form;
     const payload = {
       ...base,
-      // add-registrar-three-elements: 注册管理员三要素
+      // ISO/IEC 11179-3:2023 表 24 documentation_language_identifier (1..*)
+      registrationAuthorityDocumentLanguages: form.registrationAuthorityDocumentLanguages.length
+        ? [...form.registrationAuthorityDocumentLanguages]
+        : null,
+      // add-registrar-three-elements: 注册管理员姓名与角色；所属组织由后端取本次创建的 RA
       adminIndividualName: (form.adminIndividualName || '').trim() || null,
       adminRoleName: (form.adminRoleName || '').trim() || null,
-      adminOrganizationId: form.adminOrganizationId || null,
       registrySpecificationAttributes: {
         webAddress: registryWebAddress || null,
         characterRepertoire: registryCharacterRepertoire || null,
@@ -943,22 +891,20 @@ async function nextStep() {
   }
 
   if (currentStep.value === 2) {
-    if (!formStep2Ref.value) return;
-    let isValid = false;
-    try {
-      isValid = await formStep2Ref.value.validate();
-    } catch {
-      isValid = false;
+    // 注册机构字段手工校验（与下方注册人员字段保持一致风格，避免 el-form 校验失败时高度抖动）
+    if (!form.registrationAuthorityName.trim()) {
+      ElMessage.error('请输入注册机构名称');
+      return;
     }
-    if (!isValid) return;
-    // add-registrar-three-elements: TEAM 版下角色与所属组织必须显式填写（与 spec system-initialization 对齐）。
-    if (form.edition === 'TEAM') {
+    if (!form.registrationAuthorityDocumentLanguages.length) {
+      ElMessage.error('请至少选择 1 个文档语言');
+      return;
+    }
+    // add-registrar-three-elements: TEAM 版下角色必填，但仅在确实要创建 Registrar 时。
+    // 关闭「设为注册人员」后不创建 Registrar，不应要求其要素（与 spec system-initialization 对齐）。
+    if (form.edition === 'TEAM' && form.selfAsRegistrar) {
       if (!form.adminRoleName.trim()) {
-        ElMessage.error('请填写注册管理员角色');
-        return;
-      }
-      if (!form.adminOrganizationId) {
-        ElMessage.error('请选择所属组织');
+        ElMessage.error('请填写注册人员角色');
         return;
       }
     }
@@ -1144,13 +1090,18 @@ function onBeforeUnload(e: BeforeUnloadEvent) {
 onMounted(async () => {
   window.addEventListener('beforeunload', onBeforeUnload);
   loadCurrentDb();
-  // 加载组织选项（TEAM 版注册管理员所属组织下拉用）
-  // 静默加载：后端 /organizations/options 未部署时不阻塞向导（PERSONAL 版兜底使用 RA，TEAM 版用户自行输入）。
+  // 加载可选语言（文档语言与默认语言共用；value 为 BCP 47 标识符，label 为「中文名（标识符）」）
+  // 静默加载：拉取失败不阻塞向导，两个下拉留空由用户继续操作。
   try {
-    const opts = await withSilentErrors(async () => (await organizationApi.options?.()) ?? []);
-    organizationOptions.value = (opts ?? []) as OrganizationOption[];
+    const langRes = await withSilentErrors(async () => (await languageApi.list({ size: 200, enabled: true })) ?? null);
+    languageOptions.value = (langRes?.content ?? [])
+      .map((l: any) => ({
+        languageIdentifier: l.languageIdentifier || '',
+        languageName: l.languageName ?? undefined,
+      }))
+      .filter((l: LanguageOption) => !!l.languageIdentifier);
   } catch {
-    organizationOptions.value = [];
+    languageOptions.value = [];
   }
 });
 
@@ -1191,19 +1142,6 @@ onBeforeUnmount(() => {
     margin: 0;
     color: #64748b;
     font-size: 14px;
-  }
-}
-
-.final-step-alert {
-  margin: 0 0 24px;
-  background-color: #fff7ed;
-  border: 1px solid #fdba74;
-  border-left: 4px solid #ea580c;
-
-  :deep(.el-alert__title) {
-    color: #9a3412;
-    font-size: 14px;
-    line-height: 1.6;
   }
 }
 
@@ -1346,8 +1284,92 @@ onBeforeUnmount(() => {
 }
 
 .wizard-form {
-  max-width: 560px;
+  // .step-pane 是 column flex 容器，交叉轴上的 auto 外边距会让 flex 子项放弃 stretch、
+  // 退回 fit-content 尺寸，表单列宽改由各控件的内容宽度决定。显式给出确定列宽后，
+  // 所有控件的 100% 才指向同一个值，「文档语言」下拉不再比其它输入框窄。
+  width: 255px;
+  max-width: 100%;
+  box-sizing: border-box;
   margin: 0 auto;
+  // el-select 根节点的宽度取自该变量（theme-chalk 里默认 100%，但允许被主题或组件内联样式改写），
+  // 显式钉死为 100%，避免下拉框走自己的宽度来源。
+  --el-select-width: 100%;
+
+  // 表单项内容区默认是 flex 容器，各控件作为 flex item 参与行内分配（min-width:auto 会阻止收缩到
+  // 100% 以下）。改为 block 后控件按块级填充内容列，输入框与下拉框共用同一个列宽基准。
+  :deep(.el-form-item__content) {
+    display: block !important;
+  }
+
+  // 元素 plus 2.x 的 el-input 是双层 inline-flex 容器（.el-input > .el-input__wrapper > .el-input__inner），
+  // 且 .el-input__suffix 默认 flex-shrink: 0。当 clearable 按钮在 focused 时显示后，
+  // suffix 区域被撑大、wrapper 跟着撑大、inline-flex 的 .el-input 因 content-driven width 越过 100%，
+  // 整体向右扩展约 50px。这里用 display: block + width:100% + max-width:100% + min-width:0
+  // 锁死三个层级严格不超出父容器，禁用 wrapper 的 GPU transform，强制文字 / placeholder 左对齐。
+  :deep(.el-input) {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    // 必须在这里（而不是只依赖文件末尾的非 scoped 块）声明 border-box：
+    // el-input 默认 content-box，width:100% 会再加上左右内边距（约 32px），
+    // 使输入框比同列的 el-select 宽一截。
+    box-sizing: border-box !important;
+  }
+  // el-select / el-input-number 根节点默认是 inline-block，走的是另一条内在宽度计算路径，
+  // 不加约束时会比 el-input 窄。与 el-input 同样锁成 block + 100% + border-box。
+  :deep(.el-select),
+  :deep(.el-input-number) {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+  }
+  :deep(.el-select__wrapper) {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+  }
+  :deep(.el-input__wrapper) {
+    display: flex !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    flex-grow: 0 !important;
+    flex-shrink: 1 !important;
+    transform: none !important;
+    // 与 .el-select__wrapper 保持同一盒模型：wrapper 默认 content-box，
+    // width:100% 还会再加左右内边距（各 15px），导致输入框可见边框比同列下拉框宽 30px
+    // （根节点同宽时下拉显得「短一截」）。统一 border-box 后两者可见边框同宽。
+    box-sizing: border-box !important;
+  }
+  :deep(.el-input__inner) {
+    width: 100% !important;
+    box-sizing: border-box !important;
+    text-align: left !important;
+  }
+  :deep(.el-input__inner::placeholder) {
+    text-align: left !important;
+  }
+  :deep(.el-select__placeholder) {
+    text-align: left !important;
+  }
+  // suffix 区域允许收缩（覆盖 element plus 默认的 flex-shrink: 0），
+  // 避免 clearable 按钮显示时把 wrapper / el-input 撑大。
+  :deep(.el-input__suffix) {
+    flex-shrink: 1 !important;
+  }
+  :deep(.el-input__prefix) {
+    flex-shrink: 1 !important;
+  }
+}
+
+// 命名空间步骤包含 SegmentTemplateDesigner 复合组件（预设库下拉、段编辑、映射表），
+// 255px 基础列宽过窄；该步表单使用宽列，内部控件沿用 .wizard-form 的 100% 锁宽规则。
+.wizard-form-wide {
+  width: 560px;
 }
 
 .wizard-settings-box {
@@ -1434,5 +1456,76 @@ onBeforeUnmount(() => {
     opacity: 1;
     transform: translateY(0);
   }
+}
+</style>
+
+<style lang="scss">
+// 关键修复（不 scoped，避开 Vue scoped CSS 的 [data-v-xxx] 干扰）：
+// Element Plus 2.x 的 .el-input__suffix 默认 flex-shrink: 0。当 el-input 设置了 clearable
+// 且有值时，focused 状态下 .el-input__suffix 内会渲染清空图标（× 按钮），
+// 让 suffix 区域被撑大；.el-input__wrapper 默认 display: inline-flex + flex-grow: 1
+// 跟着扩展；最外层 .el-input 也是 inline-flex + width: 100%，当内部内容超过 100% 时
+// 会按 max-content 撑大容器，最终整个 input 框向右扩展约 50px。
+// 这里用全局 CSS 强制锁死三个层级的尺寸（block 容器 + width 100% + max-width 100% + min-width 0），
+// 并让 wrapper / suffix / prefix 允许收缩（flex-shrink: 1），
+// 同时禁用 wrapper 的 GPU 加速 transform（避免合成层尺寸重算）。
+// 选择器用 .wizard-form 作为命名空间，仅作用于向导内 el-form，不污染项目其他位置。
+.wizard-form .el-input,
+.wizard-form .el-input.is-focus,
+.wizard-form .el-input--suffix,
+.wizard-form .el-input--prefix {
+  display: block !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+}
+.wizard-form .el-input__wrapper,
+.wizard-form .el-input__wrapper.is-focus {
+  display: flex !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  flex-grow: 0 !important;
+  flex-shrink: 1 !important;
+  transform: none !important;
+  // 统一盒模型：避免 content-box 下 width:100% 再加内边距，使可见边框比 el-select 宽 30px
+  box-sizing: border-box !important;
+}
+.wizard-form .el-input__suffix,
+.wizard-form .el-input__prefix {
+  flex-shrink: 1 !important;
+}
+.wizard-form .el-input__inner {
+  width: 100% !important;
+  box-sizing: border-box !important;
+  text-align: left !important;
+}
+.wizard-form .el-input__inner::placeholder {
+  text-align: left !important;
+}
+.wizard-form .el-select__placeholder {
+  text-align: left !important;
+}
+// 与上面的 .el-input 同理：el-select / el-input-number 根节点和 select 的 wrapper
+// 一并锁成 block + width 100% + border-box，否则下拉框会按自身内容宽度收缩、比同行输入框窄。
+// 同时把表单项内容区从 flex 改为 block，并钉死 --el-select-width，
+// 消除 flex item 分配和组件内联宽度这两条独立的「下拉框更窄」来源。
+.wizard-form .el-select,
+.wizard-form .el-input-number {
+  display: block !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+}
+.wizard-form .el-select__wrapper {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+}
+.wizard-form .el-form-item__content {
+  display: block !important;
 }
 </style>

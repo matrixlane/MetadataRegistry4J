@@ -4,7 +4,14 @@ import ElementPlus from 'element-plus';
 import MultilingualTextEditor from './MultilingualTextEditor.vue';
 
 vi.mock('@/api/resources', () => ({
-  languageApi: { list: vi.fn().mockResolvedValue({ content: [{ id: 'lang-1', languageIdentifier: 'zh-CN' }] }) },
+  languageApi: {
+    list: vi.fn().mockResolvedValue({
+      content: [
+        { id: 'lang-1', languageIdentifier: 'zh-CN', languageName: '简体中文' },
+        { id: 'lang-2', languageIdentifier: 'xx-YY' },
+      ],
+    }),
+  },
   contextApi: { options: vi.fn().mockResolvedValue([{ id: 'ctx-1', label: '默认上下文' }]) },
   referenceDocumentApi: { list: vi.fn().mockResolvedValue({ content: [{ id: 'doc-1', title: '参考文档', identifier: 'REF-1' }] }) },
 }));
@@ -129,5 +136,15 @@ describe('MultilingualTextEditor', () => {
     await new Promise(r => setTimeout(r, 0));
     const options = wrapper.findAllComponents({ name: 'ElOption' });
     expect(options.find((o) => o.props('value') === '00000000-0000-0000-0000-000000000000')).toBeUndefined();
+  });
+
+  it('语言下拉显示「中文名（标识符）」，无名称时只显示标识符', async () => {
+    const wrapper = mountComponent({
+      modelValue: [{ languageId: 'lang-1', value: 'A', contexts: [] }],
+    });
+    await new Promise(r => setTimeout(r, 0));
+    const options = wrapper.findAllComponents({ name: 'ElOption' });
+    expect(options.find((o) => o.props('value') === 'lang-1')!.props('label')).toBe('简体中文（zh-CN）');
+    expect(options.find((o) => o.props('value') === 'lang-2')!.props('label')).toBe('xx-YY');
   });
 });

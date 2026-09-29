@@ -25,6 +25,8 @@ public class InitializationWizardInterceptor implements HandlerInterceptor {
             path.startsWith("/api/v1/auth/login") ||
             path.startsWith("/api/v1/auth/me") ||
             path.startsWith("/api/v1/auth/allow-registration") ||
+            // 语言字典只读列表：初始化向导无账号状态下拉取语言选项（仅 GET，与 SecurityConfig 白名单一致）
+            (path.equals("/api/v1/languages") && "GET".equalsIgnoreCase(request.getMethod())) ||
             path.contains("/swagger-ui") ||
             path.contains("/v3/api-docs") ||
             path.endsWith("/swagger-ui.html")) {

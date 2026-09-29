@@ -20,7 +20,7 @@ import org.springframework.test.context.ActiveProfiles;
         "spring.datasource.password=",
         "spring.jpa.properties.hibernate.dialect=org.hibernate.community.dialect.SQLiteDialect",
         "spring.jpa.properties.hibernate.default_schema=main",
-        "app.seed.enabled=false"
+        "app.seed.demo-data.enabled=false"
 })
 @ActiveProfiles("test")
 public class ResetDatabaseHelperTest {

@@ -6,6 +6,9 @@ interface LanguageDict {
   languageIdentifier: string;
   scriptIdentifier?: string;
   geopoliticalTerritoryIdentifier?: string;
+  /** 中文语言名（可空）：下拉展示优先用其，无值时回退语言标识符 */
+  languageName?: string;
+  geopoliticalTerritoryName?: string;
 }
 
 interface SimpleDict {

@@ -52,6 +52,12 @@ public class ForcePasswordResetInterceptor implements HandlerInterceptor {
                     return true;
                 }
 
+                // 语言字典是只读公共数据，与账号密码无关；向导第 1 步挂载时
+                // 会加载语言列表，放行以避免强改密会话下出现误导性提示。
+                if (path.endsWith("/api/v1/languages")) {
+                    return true;
+                }
+
                 // Throw exception to be handled by GlobalExceptionHandler and mapped to 498 status
                 throw new io.github.matrixlane.metadataregistry.web.common.ForcePasswordResetException("安全提示：请先修改默认密码或临时密码");
             }

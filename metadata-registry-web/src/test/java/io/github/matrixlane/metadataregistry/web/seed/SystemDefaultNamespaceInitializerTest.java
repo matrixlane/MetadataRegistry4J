@@ -67,7 +67,7 @@ class SystemDefaultNamespaceInitializerTest {
         when(namespaceRepository.existsByShorthandPrefix(SystemDefaultNamespaceInitializer.SYSTEM_DEFAULT_PREFIX))
                 .thenReturn(true);
 
-        initializer.run(args);
+        initializer.initializeSystemDefaultNamespace();
 
         verify(namespaceRepository, never()).save(any(Namespace.class));
     }
@@ -92,7 +92,7 @@ class SystemDefaultNamespaceInitializerTest {
 
         ArgumentCaptor<Namespace> nsCaptor = ArgumentCaptor.forClass(Namespace.class);
 
-        initializer.run(args);
+        initializer.initializeSystemDefaultNamespace();
 
         verify(namespaceRepository).save(nsCaptor.capture());
         Namespace saved = nsCaptor.getValue();

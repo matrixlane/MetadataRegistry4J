@@ -100,19 +100,19 @@ public class RegistrarService {
         //   1) individualId 非空 → 改绑到指定 Individual（按 individualName 可选地更新其 name）
         //   2) individualId 为空 + individualName 非空 → 创建新 Individual 并绑定
         //   3) individualId 为空 + individualName 为空 → 保留现有 Individual（不清空）
+        // 注意：Individual.name 是单个 Sign（@Embedded），不是 List<Sign>。
         String requestedName = request.individualName() == null ? null : request.individualName().trim();
         if (request.individualId() != null) {
             Individual ind = individualRepository.findById(request.individualId())
                     .orElseThrow(() -> new ResourceNotFoundException("Individual", request.individualId()));
-            if (!requestedName.isEmpty()) {
-                ind.getName().clear();
-                ind.getName().add(Sign.of(requestedName));
+            if (requestedName != null && !requestedName.isEmpty()) {
+                ind.setName(Sign.of(requestedName));
                 individualRepository.save(ind);
             }
             entity.setIndividual(ind);
         } else if (requestedName != null && !requestedName.isEmpty()) {
             Individual created = new Individual();
-            created.getName().add(Sign.of(requestedName));
+            created.setName(Sign.of(requestedName));
             entity.setIndividual(individualRepository.save(created));
         }
         // else：保留 entity.getIndividual()

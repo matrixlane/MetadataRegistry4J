@@ -12,8 +12,8 @@ import org.springframework.stereotype.Component;
  * 启动期补建 Registry Context。
  *
  * <p>Registry Context 是注册系统固有数据（不是测试种子），因此不挂
- * {@code app.seed.enabled} 开关；仅在系统已初始化且 Registry Context 缺失时
- * 执行补建，避免在未配置标识/版本策略的未初始化系统启动期提前创建。
+ * 演示数据开关（{@code app.seed.demo-data.enabled}）；仅在系统已初始化且 Registry
+ * Context 缺失时执行补建，避免在未配置标识/版本策略的未初始化系统启动期提前创建。
  *
  * <p>顺序为 101：先于 {@link IdentifierStrategyLoader}（90，装载标识策略注册表）之后
  * 执行，确保补建时按命名空间策略生成标识（而非 UUID 回退）；也排在

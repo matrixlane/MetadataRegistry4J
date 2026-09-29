@@ -3,7 +3,7 @@ import urllib.parse
 import json
 import time
 
-base_url = "http://localhost:8081/api/v1"
+base_url = "http://localhost:8181/api/v1"
 
 # Login
 login_data = json.dumps({"username": "admin", "password": "Admin@123"}).encode('utf-8')

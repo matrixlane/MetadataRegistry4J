@@ -13,6 +13,7 @@ import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefi
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.AdministeredItem;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.AdministrativeStatus;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationState;
+import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationStatus;
 import io.github.matrixlane.metadataregistry.web.dto.version.FieldDiffEntry;
 import io.github.matrixlane.metadataregistry.web.dto.version.SnapshotKind;
 import io.github.matrixlane.metadataregistry.web.dto.version.VersionDiffResponse;
@@ -97,6 +98,11 @@ public class VersionHistoryService {
         if (!isAuditedType(itemType)) {
             return;
         }
+        // ISO/IEC 11179-6:2023 4.3.3.1.2: Incomplete 不入版本控制
+        RegistrationState regState = getRegistrationState(item);
+        if (regState != null && regState.getRegistrationStatus() == RegistrationStatus.INCOMPLETE) {
+            return;
+        }
 
         String snapshotJson;
         String summary;
@@ -140,6 +146,11 @@ public class VersionHistoryService {
         }
         String itemType = item.getClass().getSimpleName();
         if (!isAuditedType(itemType)) {
+            return;
+        }
+        // ISO/IEC 11179-6:2023 4.3.3.1.2: Incomplete 不入版本控制
+        RegistrationState regState = getRegistrationState(item);
+        if (regState != null && regState.getRegistrationStatus() == RegistrationStatus.INCOMPLETE) {
             return;
         }
         AdministrativeStatus status = getAdministrativeStatus(item);

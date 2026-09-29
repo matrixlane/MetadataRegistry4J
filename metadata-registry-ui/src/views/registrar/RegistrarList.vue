@@ -45,7 +45,7 @@
             <el-option
               v-for="opt in organizationOptions"
               :key="opt.id"
-              :label="opt.name"
+              :label="opt.name || '—'"
               :value="opt.id"
             />
           </el-select>
@@ -66,7 +66,7 @@ const tableRef = ref<InstanceType<typeof DataTablePage>>();
 const dialog = ref<InstanceType<typeof ResourceFormDialog>>();
 
 interface RoleOption { id: string; roleName: string }
-interface OrganizationOption { id: string; name: string }
+interface OrganizationOption { id: string; name: string | null }
 
 const roleOptions = ref<RoleOption[]>([]);
 const organizationOptions = ref<OrganizationOption[]>([]);
