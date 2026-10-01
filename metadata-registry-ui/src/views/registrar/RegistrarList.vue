@@ -10,7 +10,6 @@
       @delete="handleDelete"
     >
       <template #columns>
-        <el-table-column prop="identifier" label="标识符" width="160" sortable />
         <el-table-column prop="individualName" label="姓名" min-width="160" />
         <el-table-column prop="roleName" label="角色" min-width="140" />
         <el-table-column prop="organizationName" label="组织" min-width="180" />
@@ -24,9 +23,6 @@
       @success="tableRef?.fetchData()"
     >
       <template #fields="{ form }">
-        <el-form-item label="标识符" prop="identifier" required>
-          <el-input v-model="form.identifier" />
-        </el-form-item>
         <el-form-item label="姓名" prop="individualName">
           <el-input v-model="form.individualName" placeholder="如：李雷" clearable />
         </el-form-item>
@@ -95,7 +91,6 @@ watch(() => dialog.value, () => {
 
 function submitFn(data: Record<string, unknown>) {
   const payload = {
-    identifier: data.identifier,
     registrationAuthorityId: data.registrationAuthorityId ?? null,
     userId: data.userId ?? null,
     organizationId: data.organizationId,

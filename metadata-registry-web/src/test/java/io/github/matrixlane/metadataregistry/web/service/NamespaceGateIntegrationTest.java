@@ -102,7 +102,6 @@ class NamespaceGateIntegrationTest {
         account = accountRepository.save(account);
 
         Registrar registrar = new Registrar(registrationAuthority);
-        registrar.setIdentifier("registrar-test");
         registrar = registrarRepository.save(registrar);
         contactAccountBindingService.bind(registrar.getId(), account.getId());
 

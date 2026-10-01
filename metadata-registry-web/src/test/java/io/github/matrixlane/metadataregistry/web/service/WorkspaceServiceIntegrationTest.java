@@ -174,7 +174,6 @@ class WorkspaceServiceIntegrationTest {
 
         registrarAccount = createAccount("registrar");
         registrar = new Registrar(authority);
-        registrar.setIdentifier("registrar-workspace");
         registrar.setOrganization(org);
         registrar = registrarRepository.save(registrar);
         contactAccountBindingService.bind(registrar.getId(), registrarAccount.getId());

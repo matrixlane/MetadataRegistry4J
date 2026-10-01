@@ -8622,9 +8622,6 @@ components:
     RegistrarRequest:
       type: object
       properties:
-        identifier:
-          type: string
-          minLength: 1
         registrationAuthorityId:
           type: string
           format: uuid
@@ -8637,8 +8634,13 @@ components:
         individualId:
           type: string
           format: uuid
+        individualName:
+          type: string
+        roleId:
+          type: string
+          format: uuid
       required:
-      - identifier
+      - organizationId
     ApiResponseRegistrarResponse:
       type: object
       properties:
@@ -8658,8 +8660,6 @@ components:
         id:
           type: string
           format: uuid
-        identifier:
-          type: string
         registrationAuthorityId:
           type: string
           format: uuid
@@ -8677,6 +8677,11 @@ components:
           type: string
           format: uuid
         individualName:
+          type: string
+        roleId:
+          type: string
+          format: uuid
+        roleName:
           type: string
     ReferenceDocumentRequest:
       type: object

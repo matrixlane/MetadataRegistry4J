@@ -140,7 +140,6 @@ class WorkspaceRollbackServiceIntegrationTest {
         account = accountRepository.save(account);
 
         Registrar registrar = new Registrar(ra);
-        registrar.setIdentifier("registrar-rollback");
         registrar = registrarRepository.save(registrar);
         contactAccountBindingService.bind(registrar.getId(), account.getId());
 

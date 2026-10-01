@@ -24,6 +24,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.lang.reflect.RecordComponent;
+import java.util.Arrays;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -93,6 +95,18 @@ class RegistrarServiceTest {
         return i;
     }
 
+    /**
+     * remove-registrar-contact-identifier：identifier 非 ISO/IEC 11179-3:2023 §6.3.5 Contact
+     * 的标准属性，管理端请求/响应契约均不得再暴露。
+     */
+    @Test
+    void registrarContract_hasNoIdentifierComponent() {
+        assertThat(Arrays.stream(RegistrarRequest.class.getRecordComponents()).map(RecordComponent::getName))
+                .doesNotContain("identifier");
+        assertThat(Arrays.stream(RegistrarResponse.class.getRecordComponents()).map(RecordComponent::getName))
+                .doesNotContain("identifier");
+    }
+
     // ───────────────────────── applyRequest ─────────────────────────
 
     @Test
@@ -103,7 +117,6 @@ class RegistrarServiceTest {
         when(roleRepository.findById(role.getId())).thenReturn(Optional.of(role));
 
         RegistrarRequest req = new RegistrarRequest(
-                "admin-registrar",
                 null, null, organization.getId(), null, null, role.getId());
 
         service.create(req);
@@ -119,7 +132,6 @@ class RegistrarServiceTest {
         when(organizationRepository.findById(organization.getId())).thenReturn(Optional.of(organization));
 
         RegistrarRequest req = new RegistrarRequest(
-                "admin-registrar",
                 null, null, organization.getId(), null, null, null);
 
         service.create(req);
@@ -136,7 +148,6 @@ class RegistrarServiceTest {
         when(organizationRepository.findById(missing)).thenReturn(Optional.empty());
 
         RegistrarRequest req = new RegistrarRequest(
-                "admin-registrar",
                 null, null, missing, null, null, null);
 
         assertThatThrownBy(() -> service.create(req))
@@ -151,7 +162,6 @@ class RegistrarServiceTest {
         when(roleRepository.findById(missingRole)).thenReturn(Optional.empty());
 
         RegistrarRequest req = new RegistrarRequest(
-                "admin-registrar",
                 null, null, organization.getId(), null, null, missingRole);
 
         assertThatThrownBy(() -> service.create(req))
@@ -164,7 +174,6 @@ class RegistrarServiceTest {
         when(organizationRepository.findById(organization.getId())).thenReturn(Optional.of(organization));
 
         RegistrarRequest req = new RegistrarRequest(
-                "admin-registrar",
                 null, null, organization.getId(), null, null, null);
 
         service.create(req);
@@ -193,7 +202,6 @@ class RegistrarServiceTest {
         when(registrarRepository.save(any(Registrar.class))).thenAnswer(inv -> inv.getArgument(0));
 
         RegistrarRequest req = new RegistrarRequest(
-                "admin-registrar",
                 null, null, organization.getId(), null, null, null);
 
         service.update(registrarId, req);
@@ -219,7 +227,6 @@ class RegistrarServiceTest {
         when(registrarRepository.save(any(Registrar.class))).thenAnswer(inv -> inv.getArgument(0));
 
         RegistrarRequest req = new RegistrarRequest(
-                "admin-registrar",
                 null, null, organization.getId(),
                 null, null, null);
 
@@ -242,7 +249,6 @@ class RegistrarServiceTest {
 
         // individualId null + individualName="张习" → 创建新 Individual 并关联
         RegistrarRequest req = new RegistrarRequest(
-                "admin-registrar",
                 null, null, organization.getId(),
                 null, "张习", null);
 
@@ -266,7 +272,6 @@ class RegistrarServiceTest {
         when(individualRepository.save(any(Individual.class))).thenAnswer(inv -> inv.getArgument(0));
 
         RegistrarRequest req = new RegistrarRequest(
-                "admin-registrar",
                 null, null, organization.getId(),
                 existing.getId(), "新名字", null);
 
@@ -283,7 +288,6 @@ class RegistrarServiceTest {
         when(organizationRepository.findById(organization.getId())).thenReturn(Optional.of(organization));
 
         RegistrarRequest req = new RegistrarRequest(
-                "admin-registrar",
                 null, null, organization.getId(),
                 null, null, null);
 

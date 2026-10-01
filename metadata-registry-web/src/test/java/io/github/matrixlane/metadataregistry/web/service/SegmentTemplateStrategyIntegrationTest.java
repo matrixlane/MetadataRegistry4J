@@ -140,7 +140,6 @@ class SegmentTemplateStrategyIntegrationTest {
         account = accountRepository.save(account);
 
         registrar = new Registrar(registrationAuthority);
-        registrar.setIdentifier("registrar-" + suffix);
         registrar = registrarRepository.save(registrar);
         contactAccountBindingService.bind(registrar.getId(), account.getId());
 

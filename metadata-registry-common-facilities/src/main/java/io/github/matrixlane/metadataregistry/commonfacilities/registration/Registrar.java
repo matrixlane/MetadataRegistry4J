@@ -14,8 +14,6 @@ import lombok.Setter;
 @NoArgsConstructor
 public class Registrar extends Contact {
 
-    private String identifier;
-
     @ManyToOne
     @JoinColumn(name = "registration_authority_id")
     private RegistrationAuthority registrationAuthority;

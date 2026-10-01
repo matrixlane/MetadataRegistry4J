@@ -16,6 +16,10 @@ import io.github.matrixlane.metadataregistry.web.repository.RegistrarRepository;
 import io.github.matrixlane.metadataregistry.web.repository.RegistrationAuthorityRepository;
 import io.github.matrixlane.metadataregistry.web.auth.AccountRepository;
 import io.github.matrixlane.metadataregistry.web.repository.RoleRepository;
+import jakarta.persistence.criteria.Join;
+import jakarta.persistence.criteria.JoinType;
+import jakarta.persistence.criteria.Root;
+import jakarta.persistence.criteria.Subquery;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -42,10 +46,32 @@ public class RegistrarService {
     public Page<RegistrarResponse> list(String keyword, Pageable pageable) {
         Specification<Registrar> spec = Specification.where(null);
         if (keyword != null && !keyword.isBlank()) {
-            String like = "%" + keyword.toLowerCase() + "%";
-            spec = spec.and((root, q, cb) -> cb.like(cb.lower(root.get("identifier")), like));
+            spec = spec.and(matchesKeyword(keyword));
         }
         return registrarRepository.findAll(spec, pageable).map(this::toResponse);
+    }
+
+    /**
+     * 关键词按 Contact §6.3.5 的三要素检索：个人姓名、角色名、组织名。
+     * 三要素均可空，故个人/角色用 LEFT JOIN（默认内连接会把缺要素的 Registrar 整行滤掉）。
+     * 组织名是 {@code @ElementCollection}，join 会让同一 Registrar 按名称条数重复出现，
+     * 故走 exists 子查询，不改变结果基数。
+     */
+    private Specification<Registrar> matchesKeyword(String keyword) {
+        String like = "%" + keyword.toLowerCase() + "%";
+        return (root, q, cb) -> {
+            Join<?, Individual> individual = root.join("individual", JoinType.LEFT);
+            Join<?, Role> role = root.join("role", JoinType.LEFT);
+            Subquery<UUID> orgNameMatch = q.subquery(UUID.class);
+            Root<Organization> organization = orgNameMatch.from(Organization.class);
+            orgNameMatch.select(organization.get("id"))
+                    .where(cb.equal(organization.get("id"), root.get("organization").get("id")),
+                            cb.like(cb.lower(organization.join("name").get("value")), like));
+            return cb.or(
+                    cb.like(cb.lower(individual.get("name").get("value")), like),
+                    cb.like(cb.lower(role.get("roleName")), like),
+                    cb.exists(orgNameMatch));
+        };
     }
 
     @Transactional(readOnly = true)
@@ -82,8 +108,6 @@ public class RegistrarService {
     }
 
     private void applyRequest(Registrar entity, RegistrarRequest request) {
-        entity.setIdentifier(request.identifier());
-
         // RA：null 时保留现有（编辑表单通常不动 RA）
         if (request.registrationAuthorityId() != null) {
             RegistrationAuthority ra = registrationAuthorityRepository.findById(request.registrationAuthorityId())
@@ -144,7 +168,6 @@ public class RegistrarService {
     private RegistrarResponse toResponse(Registrar entity) {
         return new RegistrarResponse(
                 entity.getId(),
-                entity.getIdentifier(),
                 entity.getRegistrationAuthority() != null ? entity.getRegistrationAuthority().getId() : null,
                 entity.getRegistrationAuthority() != null
                         ? entity.getRegistrationAuthority().getName().stream().findFirst().map(n -> n.getValue()).orElse(null)
@@ -160,6 +183,12 @@ public class RegistrarService {
                 entity.getRole() != null ? entity.getRole().getRoleName() : null);
     }
 
+    /**
+     * 初始化向导为管理员账号建立 Registrar 身份。
+     *
+     * <p>{@code username} 此前只用于生成非标准的 {@code {username}-registrar} 标识符，
+     * 该列已按 ISO/IEC 11179-3:2023 §6.3.5 移除；参数保留是为避免改动既有调用点。
+     */
     public Registrar createRegistrarForUser(UUID accountId, String username, String individualName, String roleName, UUID organizationId, RegistrationAuthority ra) {
         // 1. Get current Account
         Account account = accountRepository.findById(accountId)
@@ -201,7 +230,6 @@ public class RegistrarService {
 
         // 5. Build the Registrar with all three elements wired up.
         Registrar registrar = new Registrar();
-        registrar.setIdentifier(username + "-registrar");
         registrar.setIndividual(individual);
         registrar.setRole(role);
         registrar.setRegistrationAuthority(ra);
