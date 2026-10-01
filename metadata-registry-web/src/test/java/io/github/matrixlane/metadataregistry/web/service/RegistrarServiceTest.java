@@ -327,7 +327,6 @@ class RegistrarServiceTest {
 
         assertThat(saved.getIndividual()).isNotNull();
         assertThat(saved.getIndividual().getName().getValue()).isEqualTo("李雷");
-        assertThat(saved.getIndividual().getIdentifier()).isEqualTo("admin");
         // 同一 Individual 必须同时挂到 Account：代表账户本人，避免"我的"保存时再产生第二个
         assertThat(account.getIndividual()).isSameAs(saved.getIndividual());
         assertThat(saved.getRole()).isNotNull();

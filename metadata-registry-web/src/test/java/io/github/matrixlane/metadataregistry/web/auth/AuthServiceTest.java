@@ -245,7 +245,6 @@ class AuthServiceTest {
         user.setUsername("admin");
 
         Individual existing = new Individual();
-        existing.setIdentifier("admin");
         Registrar registrar = new Registrar();
         registrar.setIndividual(existing);
 
@@ -255,7 +254,7 @@ class AuthServiceTest {
         when(contactAccountBindingService.registrarsOfAccount(org.mockito.ArgumentMatchers.any())).thenReturn(java.util.List.of());
         when(contactAccountBindingService.registrarsOfAccount(userId)).thenReturn(java.util.List.of(registrar));
 
-        IndividualRequest request = new IndividualRequest("汪汇", null, null, null, null, null);
+        IndividualRequest request = new IndividualRequest("汪汇", null, null, null, null);
         authService.updateMyIndividual(userId, request);
 
         // 复用同一行：Account 与 Registrar 指向同一 Individual，姓名就地更新
@@ -282,7 +281,7 @@ class AuthServiceTest {
         when(contactAccountBindingService.registrarsOfAccount(org.mockito.ArgumentMatchers.any())).thenReturn(java.util.List.of());
         when(contactAccountBindingService.registrarsOfAccount(userId)).thenReturn(java.util.List.of(registrar));
 
-        IndividualRequest request = new IndividualRequest("张三", null, null, null, null, null);
+        IndividualRequest request = new IndividualRequest("张三", null, null, null, null);
         authService.updateMyIndividual(userId, request);
 
         assertThat(user.getIndividual()).isNotNull();

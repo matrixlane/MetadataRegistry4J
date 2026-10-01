@@ -38,7 +38,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc(addFilters = false)
 class AuthControllerAvatarTest {
 
-    private static final String AVATAR_URL = "/api/v1/auth/me/individual/avatar";
+    private static final String AVATAR_URL = "/api/v1/auth/me/avatar";
     private static final int MAX_BYTES = 2 * 1024 * 1024;
 
     @Autowired

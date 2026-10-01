@@ -7,6 +7,7 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.Lob;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -67,6 +68,11 @@ public class Account {
      */
     @Column(name = "active_registrar_id", length = 36)
     private UUID activeRegistrarId;
+
+    /** 账号级头像（data URL）；Account 是应用扩展实体，头像不属 ISO/IEC 11179-3 标准属性。 */
+    @Lob
+    @Column(name = "avatar")
+    private String avatar;
 
     @PrePersist
     protected void onCreate() {

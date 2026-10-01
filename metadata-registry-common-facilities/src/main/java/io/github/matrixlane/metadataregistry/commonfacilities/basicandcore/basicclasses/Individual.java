@@ -12,7 +12,6 @@ import jakarta.persistence.Column;
 import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Embedded;
 import jakarta.persistence.JoinColumn;
-import jakarta.persistence.Lob;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -38,15 +37,7 @@ public class Individual extends Entity {
     })
     private Sign name = new Sign();
 
-    /** 应用扩展属性（ISO/IEC 11179-3:2023 中 Individual 无 identifier 属性）。 */
-    private String identifier;
-
     private String title;
-
-    /** 头像（data URL，应用扩展属性，非 ISO/IEC 11179-3 标准属性）。 */
-    @Lob
-    @Column(name = "avatar")
-    private String avatar;
 
     @Embedded
     @AttributeOverrides({

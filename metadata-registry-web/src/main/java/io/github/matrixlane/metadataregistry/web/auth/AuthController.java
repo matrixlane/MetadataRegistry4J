@@ -80,13 +80,13 @@ public class AuthController {
         return ApiResponse.ok(authService.updateMyIndividual(user.id(), request));
     }
 
-    @GetMapping("/me/individual/avatar")
+    @GetMapping("/me/avatar")
     @Operation(summary = "获取当前登录用户的头像（dataUrl，未设置时为 null）")
     public ApiResponse<AvatarResponse> getMyAvatar(@AuthenticationPrincipal AuthenticatedUser user) {
         return ApiResponse.ok(new AvatarResponse(authService.getMyAvatar(user.id())));
     }
 
-    @PutMapping("/me/individual/avatar")
+    @PutMapping("/me/avatar")
     @Operation(summary = "上传当前登录用户的头像（data URL，PNG/JPEG/WebP，≤2MB）")
     public ApiResponse<Void> updateMyAvatar(@AuthenticationPrincipal AuthenticatedUser user,
                                             @Valid @RequestBody AvatarRequest request) {
@@ -94,7 +94,7 @@ public class AuthController {
         return ApiResponse.ok();
     }
 
-    @DeleteMapping("/me/individual/avatar")
+    @DeleteMapping("/me/avatar")
     @Operation(summary = "删除当前登录用户的头像")
     public ApiResponse<Void> deleteMyAvatar(@AuthenticationPrincipal AuthenticatedUser user) {
         authService.deleteMyAvatar(user.id());

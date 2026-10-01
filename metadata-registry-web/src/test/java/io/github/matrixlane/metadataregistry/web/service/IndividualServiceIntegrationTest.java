@@ -105,14 +105,13 @@ class IndividualServiceIntegrationTest {
 
         // Create individual setting request
         IndividualRequest request = new IndividualRequest(
-                "My Name", null, "My Title", "My Address",
+                "My Name", "My Title", "My Address",
                 List.of("test@test.com"), List.of("1234567")
         );
 
         // Update profile
         IndividualResponse updatedRes = authService.updateMyIndividual(user.getId(), request);
         assertThat(updatedRes).isNotNull();
-        assertThat(updatedRes.identifier()).isEqualTo(user.getUsername() + "-individual");
         assertThat(updatedRes.name()).isEqualTo("My Name");
         assertThat(updatedRes.title()).isEqualTo("My Title");
         assertThat(updatedRes.mailAddress()).isEqualTo("My Address");

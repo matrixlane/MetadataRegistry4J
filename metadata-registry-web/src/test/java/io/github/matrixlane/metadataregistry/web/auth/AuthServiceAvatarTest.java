@@ -31,6 +31,11 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+/**
+ * 头像语义：头像是纯账号级属性（Account.avatar），与 ISO/IEC 11179-3:2023 §6.3.2 的
+ * Individual（仅 name/title/mail_address/email_address/phone_number）无关。
+ * 上传头像不得隐式创建 Individual。
+ */
 @ExtendWith(MockitoExtension.class)
 class AuthServiceAvatarTest {
 
@@ -72,6 +77,7 @@ class AuthServiceAvatarTest {
         account.setUsername("admin");
         account.setSysRole(SystemRole.SUPER_ADMIN);
         lenient().when(userRepository.findById(userId)).thenReturn(Optional.of(account));
+        lenient().when(userRepository.save(any(Account.class))).thenAnswer(inv -> inv.getArgument(0));
     }
 
     @AfterEach
@@ -84,29 +90,30 @@ class AuthServiceAvatarTest {
     }
 
     @Test
-    @DisplayName("上传头像：用户无 Individual 记录时先创建再写入 avatar")
-    void updateAvatar_firstTime_shouldCreateIndividual() {
+    @DisplayName("上传头像：账号无 Individual 时不创建 Individual，头像写在 Account 上")
+    void updateAvatar_withoutIndividual_shouldNotCreateIndividual() {
         String dataUrl = dataUrl("image/png", new byte[]{1, 2, 3});
-        when(individualRepository.save(any(Individual.class))).thenAnswer(inv -> inv.getArgument(0));
 
         authService.updateMyAvatar(userId, dataUrl);
 
-        verify(individualRepository, org.mockito.Mockito.times(2)).save(any(Individual.class));
-        assertThat(account.getIndividual()).isNotNull();
-        assertThat(account.getIndividual().getAvatar()).isEqualTo(dataUrl);
+        verify(individualRepository, never()).save(any(Individual.class));
+        assertThat(account.getIndividual()).isNull();
+        assertThat(account.getAvatar()).isEqualTo(dataUrl);
+        verify(userRepository).save(account);
     }
 
     @Test
-    @DisplayName("上传头像：已有 Individual 时直接更新 avatar")
-    void updateAvatar_existing_shouldUpdate() {
+    @DisplayName("上传头像：覆盖写入 Account.avatar，不触碰 Individual")
+    void updateAvatar_existing_shouldUpdateAccount() {
         Individual individual = new Individual();
         account.setIndividual(individual);
+        account.setAvatar("data:image/png;base64,OLD");
         String dataUrl = dataUrl("image/webp", new byte[]{9, 9});
-        when(individualRepository.save(any(Individual.class))).thenAnswer(inv -> inv.getArgument(0));
 
         authService.updateMyAvatar(userId, dataUrl);
 
-        assertThat(individual.getAvatar()).isEqualTo(dataUrl);
+        assertThat(account.getAvatar()).isEqualTo(dataUrl);
+        verify(individualRepository, never()).save(any(Individual.class));
     }
 
     @Test
@@ -114,7 +121,7 @@ class AuthServiceAvatarTest {
     void updateAvatar_gif_shouldThrow() {
         assertThatThrownBy(() -> authService.updateMyAvatar(userId, dataUrl("image/gif", new byte[]{1})))
                 .isInstanceOf(BusinessException.class);
-        verify(individualRepository, never()).save(any(Individual.class));
+        verify(userRepository, never()).save(any(Account.class));
     }
 
     @Test
@@ -130,12 +137,9 @@ class AuthServiceAvatarTest {
         assertThatThrownBy(() -> authService.updateMyAvatar(userId, dataUrl("image/png", new byte[MAX_BYTES + 1])))
                 .isInstanceOf(BusinessException.class);
 
-        Individual individual = new Individual();
-        account.setIndividual(individual);
-        when(individualRepository.save(any(Individual.class))).thenAnswer(inv -> inv.getArgument(0));
         String okUrl = dataUrl("image/jpeg", new byte[MAX_BYTES]);
         authService.updateMyAvatar(userId, okUrl);
-        assertThat(individual.getAvatar()).isEqualTo(okUrl);
+        assertThat(account.getAvatar()).isEqualTo(okUrl);
     }
 
     @Test
@@ -143,41 +147,35 @@ class AuthServiceAvatarTest {
     void getAvatar_shouldReturnValue() {
         assertThat(authService.getMyAvatar(userId)).isNull();
 
-        Individual individual = new Individual();
-        individual.setAvatar("data:image/png;base64,AAA");
-        account.setIndividual(individual);
+        account.setAvatar("data:image/png;base64,AAA");
         assertThat(authService.getMyAvatar(userId)).isEqualTo("data:image/png;base64,AAA");
     }
 
     @Test
     @DisplayName("保存基本资料：不得覆盖已存头像，且响应不携带 avatar 字段")
     void updateMyIndividual_shouldNotTouchAvatar() throws Exception {
-        Individual individual = new Individual();
-        individual.setAvatar("data:image/png;base64,KEEP");
-        account.setIndividual(individual);
+        account.setAvatar("data:image/png;base64,KEEP");
         when(individualRepository.save(any(Individual.class))).thenAnswer(inv -> inv.getArgument(0));
 
         var response = authService.updateMyIndividual(userId,
                 new io.github.matrixlane.metadataregistry.web.dto.individual.IndividualRequest(
-                        "张三", null, "架构师", null, null, null));
+                        "张三", null, "架构师", null, null));
 
-        assertThat(individual.getAvatar()).isEqualTo("data:image/png;base64,KEEP");
+        assertThat(account.getAvatar()).isEqualTo("data:image/png;base64,KEEP");
         String json = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(response);
         assertThat(json).doesNotContain("avatar").doesNotContain("dataUrl");
     }
 
     @Test
-    @DisplayName("删除头像：清除 avatar；未设置时幂等成功")
+    @DisplayName("删除头像：清除 Account.avatar；未设置时幂等成功")
     void deleteAvatar_shouldBeIdempotent() {
-        Individual individual = new Individual();
-        individual.setAvatar("data:image/png;base64,AAA");
-        account.setIndividual(individual);
-        when(individualRepository.save(any(Individual.class))).thenAnswer(inv -> inv.getArgument(0));
+        account.setAvatar("data:image/png;base64,AAA");
 
         authService.deleteMyAvatar(userId);
-        assertThat(individual.getAvatar()).isNull();
+        assertThat(account.getAvatar()).isNull();
 
         authService.deleteMyAvatar(userId);
-        assertThat(individual.getAvatar()).isNull();
+        assertThat(account.getAvatar()).isNull();
+        verify(individualRepository, never()).save(any(Individual.class));
     }
 }

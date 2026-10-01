@@ -362,20 +362,13 @@ public class AuthService {
                     .findFirst()
                     .orElse(null);
             if (entity == null) {
-                entity = new Individual();
-                entity.setIdentifier(user.getUsername() + "-individual");
-                entity = individualRepository.save(entity);
-            } else if (entity.getIdentifier() == null || entity.getIdentifier().isBlank()) {
-                entity.setIdentifier(user.getUsername() + "-individual");
+                entity = individualRepository.save(new Individual());
             }
             user.setIndividual(entity);
             userRepository.save(user);
         }
 
         applyIndividualRequest(entity, request);
-        if (entity.getIdentifier() == null || entity.getIdentifier().isBlank()) {
-            entity.setIdentifier(user.getUsername() + "-individual");
-        }
         entity = individualRepository.save(entity);
 
         if (isFirstTime) {
@@ -425,7 +418,6 @@ public class AuthService {
     private IndividualResponse toIndividualResponse(Individual entity) {
         return new IndividualResponse(
                 entity.getId(),
-                entity.getIdentifier(),
                 entity.getName() == null ? null : entity.getName().getValue(),
                 entity.getTitle(),
                 entity.getMailAddress() == null ? null : entity.getMailAddress().getValue(),
@@ -437,39 +429,25 @@ public class AuthService {
     public String getMyAvatar(UUID userId) {
         Account user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Account", userId));
-        return user.getIndividual() == null ? null : user.getIndividual().getAvatar();
+        return user.getAvatar();
     }
 
     public void updateMyAvatar(UUID userId, String dataUrl) {
         validateAvatar(dataUrl);
-        Individual entity = loadOrCreateMyIndividual(userId);
-        entity.setAvatar(dataUrl);
-        individualRepository.save(entity);
+        Account user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Account", userId));
+        user.setAvatar(dataUrl);
+        userRepository.save(user);
     }
 
     public void deleteMyAvatar(UUID userId) {
         Account user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Account", userId));
-        Individual entity = user.getIndividual();
-        if (entity == null || entity.getAvatar() == null) {
+        if (user.getAvatar() == null) {
             return;
         }
-        entity.setAvatar(null);
-        individualRepository.save(entity);
-    }
-
-    private Individual loadOrCreateMyIndividual(UUID userId) {
-        Account user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("Account", userId));
-        Individual entity = user.getIndividual();
-        if (entity == null) {
-            Individual created = new Individual();
-            created.setIdentifier(user.getUsername() + "-individual");
-            entity = individualRepository.save(created);
-            user.setIndividual(entity);
-            userRepository.save(user);
-        }
-        return entity;
+        user.setAvatar(null);
+        userRepository.save(user);
     }
 
     private static final List<String> AVATAR_PREFIXES = List.of(

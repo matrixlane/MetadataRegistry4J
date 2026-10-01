@@ -508,7 +508,7 @@ const AVATAR_MAX_BYTES = 2 * 1024 * 1024;
 
 async function loadAvatar() {
   try {
-    const res = await request.get<{ dataUrl?: string }>('/auth/me/individual/avatar');
+    const res = await request.get<{ dataUrl?: string }>('/auth/me/avatar');
     avatarDataUrl.value = res?.dataUrl || '';
   } catch {
     avatarDataUrl.value = '';
@@ -532,7 +532,7 @@ function handleFileChange(event: Event) {
   reader.onload = async () => {
     avatarUploading.value = true;
     try {
-      await request.put('/auth/me/individual/avatar', { dataUrl: reader.result });
+      await request.put('/auth/me/avatar', { dataUrl: reader.result });
       avatarDataUrl.value = reader.result as string;
       ElMessage.success('头像已更新');
     } catch {

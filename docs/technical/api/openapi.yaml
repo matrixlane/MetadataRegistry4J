@@ -2872,7 +2872,7 @@ paths:
             '*/*':
               schema:
                 $ref: '#/components/schemas/ApiResponseIndividualResponse'
-  /api/v1/auth/me/individual/avatar:
+  /api/v1/auth/me/avatar:
     get:
       tags:
       - 1. 认证
@@ -9699,8 +9699,6 @@ components:
         name:
           type: string
           minLength: 1
-        identifier:
-          type: string
         title:
           type: string
         mailAddress:
@@ -9734,8 +9732,6 @@ components:
         id:
           type: string
           format: uuid
-        identifier:
-          type: string
         name:
           type: string
         title:
