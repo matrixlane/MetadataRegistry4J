@@ -56,6 +56,7 @@ public class RegistryContextBootstrapService {
 
     private final ContextRepository contextRepository;
     private final LanguageIdentificationRepository languageRepository;
+    private final LanguageIdentifierResolver languageIdentifierResolver;
     private final ItemAdministrationService itemAdministrationService;
     private final RegistrySpecificationRepository registrySpecificationRepository;
     private final SystemSettingService systemSettingService;
@@ -251,7 +252,7 @@ public class RegistryContextBootstrapService {
     }
 
     private LanguageIdentification findOrCreateLanguage(String identifier, String script, String territory) {
-        return languageRepository.findByLanguageIdentifier(identifier).orElseGet(() -> {
+        return languageIdentifierResolver.resolve(identifier).orElseGet(() -> {
             LanguageIdentification lang = new LanguageIdentification();
             lang.setLanguageIdentifier(identifier);
             lang.setScriptIdentifier(script);

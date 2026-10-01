@@ -62,6 +62,7 @@ class MergeExecutorStrategyTest {
     @Mock private RegistrationAuthorityRepository registrationAuthorityRepository;
     @Mock private ScopedIdentifierRepository scopedIdentifierRepository;
     @Mock private LanguageIdentificationRepository languageRepository;
+    @Mock private io.github.matrixlane.metadataregistry.web.service.LanguageIdentifierResolver languageIdentifierResolver;
     @Mock private ItemAdministrationService itemAdministrationService;
     @Mock private VersionHistoryService versionHistoryService;
     @Mock private GenericItemCreator itemCreator;

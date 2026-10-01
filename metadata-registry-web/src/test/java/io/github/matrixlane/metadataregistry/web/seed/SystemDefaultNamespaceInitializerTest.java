@@ -8,6 +8,7 @@ import io.github.matrixlane.metadataregistry.web.repository.LanguageIdentificati
 import io.github.matrixlane.metadataregistry.web.repository.NamespaceRepository;
 import io.github.matrixlane.metadataregistry.web.repository.OrganizationRepository;
 import io.github.matrixlane.metadataregistry.web.repository.RegistrationAuthorityRepository;
+import io.github.matrixlane.metadataregistry.web.service.LanguageIdentifierResolver;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -49,6 +50,9 @@ class SystemDefaultNamespaceInitializerTest {
 
     @Mock
     private LanguageIdentificationRepository languageRepository;
+
+    @Mock
+    private LanguageIdentifierResolver languageIdentifierResolver;
 
     @Mock
     private OrganizationRepository organizationRepository;
@@ -101,8 +105,8 @@ class SystemDefaultNamespaceInitializerTest {
 
         LanguageIdentification langEn = new LanguageIdentification();
         langEn.setLanguageIdentifier("en-US");
-        when(languageRepository.findByLanguageIdentifier("en-US")).thenReturn(Optional.of(langEn));
-        when(languageRepository.findByLanguageIdentifier("zh-CN")).thenReturn(Optional.empty());
+        when(languageIdentifierResolver.resolve("en-US")).thenReturn(Optional.of(langEn));
+        when(languageIdentifierResolver.resolve("zh-CN")).thenReturn(Optional.empty());
         when(languageRepository.save(any(LanguageIdentification.class))).thenReturn(langEn);
 
         ArgumentCaptor<Namespace> nsCaptor = ArgumentCaptor.forClass(Namespace.class);

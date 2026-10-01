@@ -36,6 +36,9 @@ import io.github.matrixlane.metadataregistry.commonfacilities.registration.Regis
  
      @Mock
      private LanguageIdentificationRepository languageRepository;
+
+     @Mock
+     private LanguageIdentifierResolver languageIdentifierResolver;
  
      @Mock
      private ContextRepository contextRepository;
@@ -167,8 +170,8 @@ import io.github.matrixlane.metadataregistry.commonfacilities.registration.Regis
     void createDefault_fullAttributes_andDefaults() {
         UUID zhLang = UUID.randomUUID();
         UUID enLang = UUID.randomUUID();
-        when(languageRepository.findByLanguageIdentifier("zh-CN")).thenReturn(Optional.of(lang(zhLang, "zh-CN")));
-        when(languageRepository.findByLanguageIdentifier("en-US")).thenReturn(Optional.of(lang(enLang, "en-US")));
+        when(languageIdentifierResolver.resolve("zh-CN")).thenReturn(Optional.of(lang(zhLang, "zh-CN")));
+        when(languageIdentifierResolver.resolve("en-US")).thenReturn(Optional.of(lang(enLang, "en-US")));
         when(languageRepository.findById(zhLang)).thenReturn(Optional.of(lang(zhLang, "zh-CN")));
         when(languageRepository.findById(enLang)).thenReturn(Optional.of(lang(enLang, "en-US")));
         when(repository.save(any(RegistrySpecification.class))).thenAnswer(inv -> {

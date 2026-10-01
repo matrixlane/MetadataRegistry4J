@@ -143,3 +143,35 @@ Likely cause: Hibernate 对 `AdministeredItem`（RegisteredItem 子类）按 id 
 How to detect: 日志搜 `at most 64 tables in a join`。
 
 Mitigation: SQLite 冒烟跳过条目 update/delete 路径（用单元测试覆盖）；根治须拆分实体继承映射或改 `findByItem_Id` 查询形状（单独 backlog）。
+
+### Failure Pattern: mdr.* 自然键列缺 UNIQUE 约束 + JPA findBy* 隐含唯一假设
+- id: failure-2026-09-30-natural-key-without-unique-constraint
+- type: failure_pattern
+- status: active
+- confidence: verified
+- last_updated: 2026-09-30
+- source: 2026-09-25 23:59 启动崩溃事故链（`NonUniqueResultException` 终止 Spring 上下文刷新，后端 503）；根治见 openspec 变更 `enforce-language-identification-uniqueness`（迁移 `V20260926001__Enforce_language_identifier_unique.sql` + `LanguageIdentifierResolver` + 8 个调用点迁移）
+- owner: matrixlane
+- review_after: 2026-12-30
+
+Trigger: 某张注册表把自然键列（业务上唯一的标识列）只用主键约束保护，同时用 Spring Data JPA 派生方法按该列查询并返回 `Optional<实体>`／单值——如 `findByXxx(...)` 返回 `Optional`。任何绕过应用层的写入（脚本、外部同步、手工 SQL、并发 upsert 竞态）产生重复行即触发。
+
+Symptom: 两级放大。(1) 查询期：Hibernate 抛 `NonUniqueResultException: query did not return a unique result`。(2) 若该查询发生在 `ApplicationRunner`／`CommandLineRunner`／`@PostConstruct` 期，异常会终止 Spring 上下文刷新 → 内嵌 Tomcat 优雅停机 → 后端 503，业务**全面**不可用，而非"某功能报错"。数据本身看起来完全正常（表里有 22 条合法语言行，只是多了一条重复的）。
+
+Likely cause: 实体层的 `Optional` 返回值把"自然键唯一"写成了隐含假设，DB 层却只有主键约束，二者没有一处强制。`Optional<T>` 的类型签名给了编译器与评审一个"至多一行"的假信号，`findByXxx(...).orElseGet(...)`／`.orElseThrow(...)` 读起来像普通的"不存在则创建"逻辑，不会有人想到多行分支。
+
+How to detect: (1) 审计派生方法——`grep -rn "findBy" --include=*.java <模块>/src/main/java` 找返回 `Optional`／单值的按自然键查询，逐个核对对应列是否有 UNIQUE 约束（`PRAGMA index_list` / `sys.indexes`）。(2) 运行期搜 `NonUniqueResultException`。(3) 库级体检：按自然键 `GROUP BY` 找 `HAVING COUNT(*) > 1` 的组。(4) 启动期故障优先怀疑播种/初始化 Runner 抛异常，而非 Runner 自身逻辑。
+
+Mitigation: 两道防线，缺一不可——**DB 侧**用迁移施加 `CREATE UNIQUE INDEX`（SQLite 不支持 `ALTER TABLE ADD CONSTRAINT`，三方言统一走索引路线），并让迁移自带幂等 dedup（按自然键分组保留 id 最小行 → 外键引用表重定向 → 删多余行 → 建索引），不能依赖人工预处理；**应用侧**把所有自然键解析收敛到统一防御式入口（`LanguageIdentifierResolver.resolve`），0 行→empty／1 行→该行／多行→取 id 字典序最小行 + WARN（含标识符、行数、保留行 id）而不抛异常，让历史脏数据不阻塞业务。注意多行保留行必须用 **UUID 文本字典序**而非 `UUID.compareTo`：后者按有符号 64 位比较 `mostSigBits`/`leastSigBits`，两枚 id 符号位不同时与 SQL `MIN(id)`（大端无符号字节序）结论相反。
+
+Backlog（同类表审计清单，尚未处理，按用户"只修报告的"原则留待报告再修）：
+
+| 表 | 自然键列 | 现状 |
+| --- | --- | --- |
+| `mdr.namespace` | `shorthand_prefix` | 仅主键约束 + `findByShorthandPrefix` 返回 `Optional` |
+| `mdr.account` | `username` | 仅主键约束；登录/查找按 `username` 走 `Optional` |
+| `mdr.organization` | 组织标识列 | 仅主键约束 |
+| `mdr.registration_authority` | 注册机构标识列 | 仅主键约束 |
+| `mdr.identifier_strategy_config` | `strategy_type`（+作用域） | 仅主键约束；已有"写 UUID 实为空操作"的相关遗留 |
+
+后续同类修复应复用本次模式：迁移（D1/D2 决策）+ 统一防御式解析器 + 全部调用点迁移，并补一条"`findAllBy*` 多行集成测试"（注意：测试 profile 关闭 Flyway，由 Hibernate `ddl-auto` 建表，唯一索引不会自动出现，因此集成测试**能**造重复行；用 `PRAGMA index_list` 断言该前提，schema 变了会给出可读失败）。

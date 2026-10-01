@@ -36,6 +36,7 @@ import io.github.matrixlane.metadataregistry.web.repository.NamespaceRepository;
 import io.github.matrixlane.metadataregistry.web.repository.RegistrationAuthorityRepository;
 import io.github.matrixlane.metadataregistry.web.repository.ScopedIdentifierRepository;
 import io.github.matrixlane.metadataregistry.web.service.ItemAdministrationService;
+import io.github.matrixlane.metadataregistry.web.service.LanguageIdentifierResolver;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -79,6 +80,7 @@ public class GenericItemCreator {
     private final ItemRepository itemRepository;
     private final RegistrationAuthorityRepository registrationAuthorityRepository;
     private final LanguageIdentificationRepository languageRepository;
+    private final LanguageIdentifierResolver languageIdentifierResolver;
     private final NamespaceRepository namespaceRepository;
     private final ScopedIdentifierRepository scopedIdentifierRepository;
     private final IdentifierVersionHistoryRepository identifierVersionHistoryRepository;
@@ -185,7 +187,7 @@ public class GenericItemCreator {
     }
 
     private UUID resolveLanguage(String identifier) {
-        return languageRepository.findByLanguageIdentifier(identifier)
+        return languageIdentifierResolver.resolve(identifier)
                 .map(io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.LanguageIdentification::getId)
                 .orElse(null);
     }

@@ -60,6 +60,7 @@ public class InitWizardService {
     private final IdentifierStrategyLoader identifierStrategyLoader;
     private final RegistrySpecificationService registrySpecificationService;
     private final LanguageIdentificationRepository languageRepository;
+    private final LanguageIdentifierResolver languageIdentifierResolver;
     private final StaticDataPresetService staticDataPresetService;
     private final PasswordEncoder passwordEncoder;
     private final DatabaseCleaner databaseCleaner;
@@ -269,7 +270,7 @@ public class InitWizardService {
         // 存在，按 BCP 47 标识符命中复用既有 LanguageIdentification；仅当用户提交了
         // 非内置语言时才新建实体并 save。
         for (String langTag : requestedDocLangs) {
-            LanguageIdentification lang = languageRepository.findByLanguageIdentifier(langTag)
+            LanguageIdentification lang = languageIdentifierResolver.resolve(langTag)
                     .orElseGet(() -> languageRepository.save(buildLanguageIdentification(langTag)));
             if (!ra.getDocumentationLanguageIdentifier().contains(lang)) {
                 ra.getDocumentationLanguageIdentifier().add(lang);

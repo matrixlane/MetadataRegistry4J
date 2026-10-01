@@ -22,6 +22,7 @@ import io.github.matrixlane.metadataregistry.web.repository.NamespaceRepository;
 import io.github.matrixlane.metadataregistry.web.repository.RegistrationAuthorityRepository;
 import io.github.matrixlane.metadataregistry.web.repository.ScopedIdentifierRepository;
 import io.github.matrixlane.metadataregistry.web.service.ItemAdministrationService;
+import io.github.matrixlane.metadataregistry.web.service.LanguageIdentifierResolver;
 import io.github.matrixlane.metadataregistry.web.service.VersionHistoryService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -61,6 +62,7 @@ public class MergeExecutor {
     private final io.github.matrixlane.metadataregistry.web.service.ScopedIdentifierLifecycleService lifecycleService;
     private final io.github.matrixlane.metadataregistry.web.service.NamespaceIdentifierSettingsService settingsService;
     private final LanguageIdentificationRepository languageRepository;
+    private final LanguageIdentifierResolver languageIdentifierResolver;
     private final ItemAdministrationService itemAdministrationService;
     private final VersionHistoryService versionHistoryService;
     private final GenericItemCreator itemCreator;
@@ -338,7 +340,7 @@ public class MergeExecutor {
         if (identifier == null) {
             return null;
         }
-        return languageRepository.findByLanguageIdentifier(identifier)
+        return languageIdentifierResolver.resolve(identifier)
                 .map(LanguageIdentification::getId)
                 .orElse(null);
     }

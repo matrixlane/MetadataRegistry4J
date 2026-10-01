@@ -47,6 +47,7 @@ class GlobalNamespaceServiceTest {
     @Mock private ScopedIdentifierRepository scopedIdentifierRepository;
     @Mock private IdentifierStrategyConfigRepository identifierStrategyConfigRepository;
     @Mock private LanguageIdentificationRepository languageRepository;
+    @Mock private io.github.matrixlane.metadataregistry.web.service.LanguageIdentifierResolver languageIdentifierResolver;
     @Mock private OrganizationRepository organizationRepository;
     @Mock private io.github.matrixlane.metadataregistry.web.service.ScopedIdentifierLifecycleService lifecycleService;
     @Mock private io.github.matrixlane.metadataregistry.web.service.NamespaceIdentifierSettingsService settingsService;
@@ -56,7 +57,7 @@ class GlobalNamespaceServiceTest {
 
     @BeforeEach
     void setUp() {
-        lenient().when(languageRepository.findByLanguageIdentifier(any()))
+        lenient().when(languageIdentifierResolver.resolve(any()))
                 .thenAnswer(inv -> {
                     LanguageIdentification lang = new LanguageIdentification();
                     lang.setId(UUID.randomUUID());

@@ -17,6 +17,7 @@ import io.github.matrixlane.metadataregistry.web.repository.LanguageIdentificati
 import io.github.matrixlane.metadataregistry.web.repository.NamespaceRepository;
 import io.github.matrixlane.metadataregistry.web.repository.OrganizationRepository;
 import io.github.matrixlane.metadataregistry.web.repository.ScopedIdentifierRepository;
+import io.github.matrixlane.metadataregistry.web.service.LanguageIdentifierResolver;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -55,6 +56,7 @@ public class GlobalNamespaceService {
     private final ScopedIdentifierRepository scopedIdentifierRepository;
     private final IdentifierStrategyConfigRepository identifierStrategyConfigRepository;
     private final LanguageIdentificationRepository languageRepository;
+    private final LanguageIdentifierResolver languageIdentifierResolver;
     private final OrganizationRepository organizationRepository;
 
     public static boolean isGlobalNamespace(Namespace ns) {
@@ -213,7 +215,7 @@ public class GlobalNamespaceService {
     }
 
     private void addDesignation(Namespace ns, String text, String langId, String script, String territory) {
-        LanguageIdentification lang = languageRepository.findByLanguageIdentifier(langId)
+        LanguageIdentification lang = languageIdentifierResolver.resolve(langId)
                 .orElseGet(() -> {
                     LanguageIdentification created = new LanguageIdentification();
                     created.setLanguageIdentifier(langId);

@@ -47,6 +47,7 @@ class GenericItemCreatorTest {
     @Mock private ItemRepository itemRepository;
     @Mock private RegistrationAuthorityRepository registrationAuthorityRepository;
     @Mock private LanguageIdentificationRepository languageRepository;
+    @Mock private io.github.matrixlane.metadataregistry.web.service.LanguageIdentifierResolver languageIdentifierResolver;
     @Mock private NamespaceRepository namespaceRepository;
     @Mock private ScopedIdentifierRepository scopedIdentifierRepository;
     @Mock private IdentifierVersionHistoryRepository identifierVersionHistoryRepository;

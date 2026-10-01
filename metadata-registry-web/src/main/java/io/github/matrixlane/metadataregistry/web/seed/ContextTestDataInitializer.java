@@ -12,6 +12,7 @@ import io.github.matrixlane.metadataregistry.web.repository.LanguageIdentificati
 import io.github.matrixlane.metadataregistry.web.repository.NamespaceRepository;
 import io.github.matrixlane.metadataregistry.web.repository.RegistrationAuthorityRepository;
 import io.github.matrixlane.metadataregistry.web.service.ContextService;
+import io.github.matrixlane.metadataregistry.web.service.LanguageIdentifierResolver;
 import io.github.matrixlane.metadataregistry.web.service.database.DatabaseEnvironment;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -39,6 +40,7 @@ public class ContextTestDataInitializer implements CommandLineRunner {
 
     private final ContextRepository contextRepository;
     private final LanguageIdentificationRepository languageRepository;
+    private final LanguageIdentifierResolver languageIdentifierResolver;
     private final NamespaceRepository namespaceRepository;
     private final RegistrationAuthorityRepository registrationAuthorityRepository;
     private final ContextService contextService;
@@ -149,7 +151,7 @@ public class ContextTestDataInitializer implements CommandLineRunner {
     }
 
     private LanguageIdentification findOrCreateLanguage(String identifier, String script, String territory) {
-        return languageRepository.findByLanguageIdentifier(identifier).orElseGet(() -> {
+        return languageIdentifierResolver.resolve(identifier).orElseGet(() -> {
             LanguageIdentification lang = new LanguageIdentification();
             lang.setLanguageIdentifier(identifier);
             lang.setScriptIdentifier(script);

@@ -35,6 +35,7 @@ public class RegistrySpecificationService {
     private final RegistrySpecificationRepository repository;
     private final ItemRepository itemRepository;
     private final LanguageIdentificationRepository languageRepository;
+    private final LanguageIdentifierResolver languageIdentifierResolver;
     private final ContextRepository contextRepository;
     private final ItemAdministrationService itemAdministrationService;
 
@@ -172,7 +173,7 @@ public class RegistrySpecificationService {
         if (languageIdentifier == null || languageIdentifier.isBlank()) {
             return null;
         }
-        return languageRepository.findByLanguageIdentifier(languageIdentifier)
+        return languageIdentifierResolver.resolve(languageIdentifier)
                 .map(LanguageIdentification::getId)
                 .orElse(null);
     }

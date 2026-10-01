@@ -14,6 +14,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.jdbc.core.JdbcTemplate;
+import io.github.matrixlane.metadataregistry.web.service.LanguageIdentifierResolver;
 import io.github.matrixlane.metadataregistry.web.service.database.DatabaseEnvironment;
 
 import java.util.List;
@@ -60,6 +61,7 @@ public class SystemDefaultNamespaceInitializer {
 
    private final NamespaceRepository namespaceRepository;
    private final LanguageIdentificationRepository languageRepository;
+   private final LanguageIdentifierResolver languageIdentifierResolver;
    private final OrganizationRepository organizationRepository;
    private final RegistrationAuthorityRepository registrationAuthorityRepository;
    private final JdbcTemplate jdbcTemplate;
@@ -160,7 +162,7 @@ public class SystemDefaultNamespaceInitializer {
     }
 
     private LanguageIdentification createLanguage(String identifier, String script, String territory) {
-        return languageRepository.findByLanguageIdentifier(identifier)
+        return languageIdentifierResolver.resolve(identifier)
                 .orElseGet(() -> {
                     LanguageIdentification lang = new LanguageIdentification();
                     lang.setLanguageIdentifier(identifier);
