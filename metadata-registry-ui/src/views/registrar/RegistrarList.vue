@@ -28,6 +28,11 @@
         </el-form-item>
         <el-form-item label="角色" prop="roleId">
           <el-select v-model="form.roleId" clearable filterable placeholder="选择角色" style="width: 100%;">
+            <template #label="{ label, value }">
+              <span v-if="isPendingOption(value, roleOptions, rolesLoaded)">…</span>
+              <span v-else-if="isUnresolvedOption(value, roleOptions)">未解析项目</span>
+              <span v-else>{{ label }}</span>
+            </template>
             <el-option
               v-for="opt in roleOptions"
               :key="opt.id"
@@ -38,6 +43,11 @@
         </el-form-item>
         <el-form-item label="组织" prop="organizationId" required>
           <el-select v-model="form.organizationId" filterable placeholder="选择组织" style="width: 100%;">
+            <template #label="{ label, value }">
+              <span v-if="isPendingOption(value, organizationOptions, organizationsLoaded)">…</span>
+              <span v-else-if="isUnresolvedOption(value, organizationOptions)">未解析项目</span>
+              <span v-else>{{ label }}</span>
+            </template>
             <el-option
               v-for="opt in organizationOptions"
               :key="opt.id"
@@ -66,19 +76,36 @@ interface OrganizationOption { id: string; name: string | null }
 
 const roleOptions = ref<RoleOption[]>([]);
 const organizationOptions = ref<OrganizationOption[]>([]);
+const rolesLoaded = ref(false);
+const organizationsLoaded = ref(false);
+
+/** 选项加载完成前，未命中的选中值显示占位而非原始 id */
+function isPendingOption(value: unknown, options: { id: string }[], done: boolean): boolean {
+  if (!value || typeof value !== 'string') return false;
+  if (done) return false;
+  return !options.some((o) => o.id === value);
+}
+
+/** 加载完成后仍不在选项中（如角色/组织已删除）：永不回显原始 id */
+function isUnresolvedOption(value: unknown, options: { id: string }[]): boolean {
+  if (!value || typeof value !== 'string') return false;
+  return !options.some((o) => o.id === value);
+}
 
 async function loadOptions() {
-  // add-registrar-three-elements: 静默加载选项；后端 /organizations/options 端点缺失时
-  // 不应阻塞列表渲染与编辑保存（fallback：编辑时 el-select 没 option 但 v-model 用 row 原值即可）。
   try {
     roleOptions.value = await withSilentErrors(async () => (await roleApi.options?.()) ?? []);
   } catch {
     roleOptions.value = [];
+  } finally {
+    rolesLoaded.value = true;
   }
   try {
     organizationOptions.value = await withSilentErrors(async () => (await organizationApi.options?.()) ?? []);
   } catch {
     organizationOptions.value = [];
+  } finally {
+    organizationsLoaded.value = true;
   }
 }
 

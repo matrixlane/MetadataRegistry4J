@@ -34,7 +34,13 @@
           <el-input v-model="form.uri" />
         </el-form-item>
         <el-form-item label="文档类型" required>
-          <el-input v-model="form.typeDescriptionId" placeholder="UUID" />
+          <SmartItemPicker
+            v-model="form.typeDescriptionId"
+            :item-types="['DocumentType']"
+            :scope="'all'"
+            :show-advanced-filter="false"
+            placeholder="搜索文档类型（输入名称或标识符）"
+          />
         </el-form-item>
       </template>
     </ResourceFormDialog>
@@ -46,6 +52,7 @@ import { ref } from 'vue';
 import { referenceDocumentApi } from '@/api/resources';
 import DataTablePage from '@/components/DataTablePage.vue';
 import ResourceFormDialog from '@/components/ResourceFormDialog.vue';
+import SmartItemPicker from '@/components/SmartItemPicker.vue';
 
 const tableRef = ref<InstanceType<typeof DataTablePage>>();
 const dialog = ref<InstanceType<typeof ResourceFormDialog>>();

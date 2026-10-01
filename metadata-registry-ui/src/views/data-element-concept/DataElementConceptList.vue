@@ -45,7 +45,6 @@
             :show-advanced-filter="false"
             placeholder="搜索对象类（输入业务标识符或名称）"
           />
-          <el-input v-model="form.objectClassId" placeholder="UUID" style="display: none;" />
         </el-form-item>
         <el-form-item label="特性">
           <SmartItemPicker

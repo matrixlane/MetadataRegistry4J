@@ -74,7 +74,8 @@
         <el-form-item label="默认语言">
           <el-select v-model="form.defaultLanguageId" clearable placeholder="选择默认语言" style="width: 100%;">
             <template #label="{ label, value }">
-              <span v-if="isPendingLanguage(value)">…</span>
+              <span v-if="isPendingOption(value, languageOptions, languagesLoaded)">…</span>
+              <span v-else-if="isUnresolvedOption(value, languageOptions)">{{ $t('common.unresolvedEntry') }}</span>
               <span v-else>{{ label }}</span>
             </template>
             <el-option
@@ -93,6 +94,11 @@
             placeholder="选择注册表中使用的其他语言"
             style="width: 100%;"
           >
+            <template #label="{ label, value }">
+              <span v-if="isPendingOption(value, languageOptions, languagesLoaded)">…</span>
+              <span v-else-if="isUnresolvedOption(value, languageOptions)">{{ $t('common.unresolvedEntry') }}</span>
+              <span v-else>{{ label }}</span>
+            </template>
             <el-option
               v-for="lang in languageOptions"
               :key="lang.id"
@@ -109,6 +115,11 @@
             placeholder="注册表自身的默认上下文"
             style="width: 100%;"
           >
+            <template #label="{ label, value }">
+              <span v-if="isPendingOption(value, contextOptions, contextsLoaded)">…</span>
+              <span v-else-if="isUnresolvedOption(value, contextOptions)">{{ $t('common.unresolvedEntry') }}</span>
+              <span v-else>{{ label }}</span>
+            </template>
             <el-option
               v-for="ctx in contextOptions"
               :key="ctx.id"
@@ -192,6 +203,7 @@ const editingRaName = ref<string | null>(null);
 const languageOptions = ref<{ id: string; languageIdentifier: string; languageName?: string }[]>([]);
 const contextOptions = ref<{ id: string; label: string }[]>([]);
 const languagesLoaded = ref(false);
+const contextsLoaded = ref(false);
 const { defaultLanguageId, load: loadDefaultLanguage } = useRegistryDefaultLanguage();
 const { defaultContextId, load: loadDefaultContext } = useDefaultContext();
 
@@ -204,11 +216,17 @@ function degreeOfConformanceLabel(value?: string | null): string {
   return value || '—';
 }
 
-/** 语言列表加载完成前，未命中的选中值显示占位而非原始 id */
-function isPendingLanguage(value: unknown): boolean {
+/** 选项加载完成前，未命中的选中值显示占位而非原始 id */
+function isPendingOption(value: unknown, options: { id: string }[], done: boolean): boolean {
   if (!value || typeof value !== 'string') return false;
-  if (languagesLoaded.value) return false;
-  return !languageOptions.value.some((l) => l.id === value);
+  if (done) return false;
+  return !options.some((o) => o.id === value);
+}
+
+/** 加载完成后仍不在选项中（如语言/上下文已删除）：永不回显原始 id */
+function isUnresolvedOption(value: unknown, options: { id: string }[]): boolean {
+  if (!value || typeof value !== 'string') return false;
+  return !options.some((o) => o.id === value);
 }
 
 const rules: FormRules = {
@@ -236,6 +254,8 @@ onMounted(async () => {
     contextOptions.value = (await contextApi.options()) || [];
   } catch {
     // ignore
+  } finally {
+    contextsLoaded.value = true;
   }
 });
 

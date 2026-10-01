@@ -156,23 +156,6 @@
           </template>
           <el-collapse v-if="contacts.length > 0" v-model="registrationRecordsCollapse" style="margin-top: 16px;">
             <el-collapse-item :title="$t('itemForm.stewardshipInfo.title')" name="stewardship">
-              <el-form-item :label="$t('itemForm.submissionInfo.contact')">
-                <el-select
-                  v-model="form.registration.stewardship.contactId"
-                  :placeholder="$t('itemForm.submissionInfo.contactPlaceholder')"
-                  clearable
-                  style="width: 100%;"
-                  data-testid="stewardship-contact-select"
-                  @change="onStewardshipContactChange"
-                >
-                  <el-option
-                    v-for="c in contacts"
-                    :key="c.id"
-                    :label="contactLabel(c)"
-                    :value="c.id"
-                  />
-                </el-select>
-              </el-form-item>
               <el-form-item :label="$t('itemForm.submissionInfo.organization')">
                 <el-select
                   v-model="form.registration.stewardship.organizationId"
@@ -182,11 +165,38 @@
                   style="width: 100%;"
                   data-testid="stewardship-organization-select"
                 >
+                  <template #label="{ label, value }">
+                    <span v-if="isPendingOption(value, organizationOptions, organizationsLoaded)">…</span>
+                    <span v-else-if="isUnresolvedOption(value, organizationOptions)">{{ $t('common.unresolvedEntry') }}</span>
+                    <span v-else>{{ label }}</span>
+                  </template>
                   <el-option
                     v-for="org in organizationOptions"
                     :key="org.id"
                     :label="org.label"
                     :value="org.id"
+                  />
+                </el-select>
+              </el-form-item>
+              <el-form-item :label="$t('itemForm.submissionInfo.contact')">
+                <el-select
+                  v-model="form.registration.stewardship.contactId"
+                  :placeholder="$t('itemForm.submissionInfo.contactPlaceholder')"
+                  clearable
+                  style="width: 100%;"
+                  data-testid="stewardship-contact-select"
+                  @change="onStewardshipContactChange"
+                >
+                  <template #label="{ label, value }">
+                    <span v-if="isPendingOption(value, contacts, contactsLoaded)">…</span>
+                    <span v-else-if="isUnresolvedOption(value, contacts)">{{ $t('common.unresolvedEntry') }}</span>
+                    <span v-else>{{ label }}</span>
+                  </template>
+                  <el-option
+                    v-for="c in contacts"
+                    :key="c.id"
+                    :label="contactLabel(c)"
+                    :value="c.id"
                   />
                 </el-select>
               </el-form-item>
@@ -380,7 +390,7 @@ interface RegistrationForm {
   unresolvedIssue?: string;
   /** 条目解释性注释（explanatory comment）；null/undefined = 不变更，空串 = 清空 */
   explanatoryComment?: string;
-  /** 主管信息（联系人 + 所属组织），编辑表单可维护。 */
+  /** 主管信息（所属组织 + 联系人），编辑表单可维护。 */
   stewardship: { contactId: string | null; organizationId: string | null };
   /** 关联 SubmissionRecord 列表（align-submission-record-to-iso 只读展示用）。
    *  编辑表单展示历史提交记录；后端 ItemMetaResponse.submissionRecordSummaries 填充。 */
@@ -699,8 +709,22 @@ const loaded = ref(false);
 const contacts = ref<MyContactResponse[]>([]);
 const contactsLoaded = ref(false);
 const organizationOptions = ref<{ id: string; label: string }[]>([]);
+const organizationsLoaded = ref(false);
 const submissionCollapse = ref<string[]>(['submission']);
 const registrationRecordsCollapse = ref<string[]>(['stewardship']);
+
+/** 选项加载完成前，未命中的选中值显示占位而非原始 id */
+function isPendingOption(value: unknown, options: { id: string }[], done: boolean): boolean {
+  if (!value || typeof value !== 'string') return false;
+  if (done) return false;
+  return !options.some((o) => o.id === value);
+}
+
+/** 加载完成后仍不在选项中（如组织/联系人已删除）：永不回显原始 id */
+function isUnresolvedOption(value: unknown, options: { id: string }[]): boolean {
+  if (!value || typeof value !== 'string') return false;
+  return !options.some((o) => o.id === value);
+}
 
 function contactLabel(contact: MyContactResponse): string {
   const parts = [
@@ -708,7 +732,7 @@ function contactLabel(contact: MyContactResponse): string {
     contact.organizationName && contact.individualName ? `(${contact.organizationName})` : undefined,
     contact.roleName,
   ].filter(Boolean);
-  const label = parts.join(' · ') || contact.id;
+  const label = parts.join(' · ') || '—';
   return contact.isDefault ? `${label} (${t('contactIdentity.default')})` : label;
 }
 
@@ -725,13 +749,16 @@ async function loadContacts() {
 
 async function loadOrganizations() {
   try {
-    const res = await organizationApi.list({ size: 200 });
-    organizationOptions.value = (res.content || []).map((o: { id: string; name?: string; englishName?: string }) => ({
+    // /organizations/options 不分页，避免 list(size:200) 截断导致部分组织无法解析
+    const opts = await organizationApi.options();
+    organizationOptions.value = (opts || []).map((o) => ({
       id: o.id,
-      label: o.name || o.englishName || '—',
+      label: o.name || '—',
     }));
   } catch {
     organizationOptions.value = [];
+  } finally {
+    organizationsLoaded.value = true;
   }
 }
 
