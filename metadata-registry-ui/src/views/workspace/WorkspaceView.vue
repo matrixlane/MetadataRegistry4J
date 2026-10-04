@@ -171,6 +171,7 @@ import SubmissionRecordPicker from './SubmissionRecordPicker.vue';
 import { useWorkspaceBadge } from '@/composables/useWorkspaceBadge';
 import {
   workspaceApi,
+  myContactApi,
   registrationProcessApi,
   administeredItemApi,
   dataElementApi,
@@ -193,6 +194,7 @@ import type {
   WorkspaceItemResponse,
   WorkspaceSummaryResponse,
   SubmissionInfo,
+  MyContactResponse,
   RegistrationStatus,
   ElTagType,
 } from '@/types/common';
@@ -306,23 +308,59 @@ onMounted(() => {
 
 // ── 提交 / 请求成为候选（共用 SubmissionRecordPicker）────────────────────────
 
-function openSubmit(row: WorkspaceItemResponse) {
+/**
+ * 提交入口预检（acg-submission）：当前账号在当前所选机构（活动 Registrar 身份组织；
+ * 无活动身份时任一身份组织均可）无任何联系人身份时，提示并阻止打开 picker。
+ */
+async function ensureSubmissionIdentity(): Promise<boolean> {
+  let identities: MyContactResponse[];
+  try {
+    identities = await myContactApi.list();
+  } catch {
+    // 身份列表加载失败时不阻塞入口，由后端提交校验兜底
+    return true;
+  }
+  const bound = (identities || []).filter((i) => i.organizationId);
+  const registrarOrgIds = new Set(bound.filter((i) => i.isRegistrar).map((i) => i.organizationId));
+  const eligibleOrgIds = registrarOrgIds.size > 0
+    ? registrarOrgIds
+    : new Set(bound.map((i) => i.organizationId));
+  const hasIdentityInCurrentOrg = bound.some((i) => eligibleOrgIds.has(i.organizationId as string));
+  if (bound.length === 0 || !hasIdentityInCurrentOrg) {
+    try {
+      await ElMessageBox.alert(
+        t('workspace.submissionIdentityRequiredHint'),
+        t('workspace.submissionIdentityRequired'),
+        { type: 'warning' }
+      );
+    } catch {
+      // 用户关闭提示框
+    }
+    return false;
+  }
+  return true;
+}
+
+async function openSubmit(row: WorkspaceItemResponse) {
+  if (!(await ensureSubmissionIdentity())) return;
   pickerMode.value = 'submit-single';
   pickerTargetRow.value = row;
   pickerRef.value?.open();
 }
 
-function openBatchSubmit() {
+async function openBatchSubmit() {
   if (selectedSubmittableIds.value.length === 0) {
     ElMessage.warning(t('workspace.noEligibleItems'));
     return;
   }
+  if (!(await ensureSubmissionIdentity())) return;
   pickerMode.value = 'submit-batch';
   pickerTargetRow.value = null;
   pickerRef.value?.open();
 }
 
-function openRequestCandidate(row: WorkspaceItemResponse) {
+async function openRequestCandidate(row: WorkspaceItemResponse) {
+  if (!(await ensureSubmissionIdentity())) return;
   pickerMode.value = 'request-candidate';
   pickerTargetRow.value = row;
   pickerRef.value?.open();

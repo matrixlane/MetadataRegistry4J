@@ -402,8 +402,38 @@ public class WorkspaceService {
         return values.isEmpty() ? null : values.get(0);
     }
 
+    /**
+     * 提交信息校验（acg-submission）：与
+     * {@link ItemAdministrationService#resolveContactAndOrganization} 保持同一套规则——
+     * organizationId 显式给出时，必须能从当前账号绑定的身份中解析出该组织下的
+     * 联系人身份；contactId 同时给出时追加从属校验（联系人须属于所选组织）。
+     * 仅给 contactId 时保持历史行为（联系人必须属于当前账号）。
+     */
     private void validateSubmissionInfo(SubmissionInfo submission, UUID accountId) {
-        if (submission == null || submission.contactId() == null) {
+        if (submission == null) {
+            return;
+        }
+        if (submission.organizationId() != null) {
+            organizationRepository.findById(submission.organizationId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Organization", submission.organizationId()));
+            resolveOwnIdentityInOrganization(accountId, submission.organizationId());
+            if (submission.contactId() != null) {
+                Contact contact = contactRepository.findById(submission.contactId())
+                        .orElseThrow(() -> new ResourceNotFoundException("Contact", submission.contactId()));
+                Optional<UUID> boundAccount = contactAccountBindingService.accountIdOfContact(contact.getId());
+                if (boundAccount.isEmpty() || !accountId.equals(boundAccount.get())) {
+                    throw new BusinessException(ApiCodes.VALIDATION_FAILED,
+                            "提交信息中的联系人必须是当前账号绑定的联系人身份");
+                }
+                if (contact.getOrganization() == null
+                        || !submission.organizationId().equals(contact.getOrganization().getId())) {
+                    throw new BusinessException(ApiCodes.VALIDATION_FAILED,
+                            "提交信息中的联系人必须属于所选提交组织");
+                }
+            }
+            return;
+        }
+        if (submission.contactId() == null) {
             return;
         }
         Contact contact = contactRepository.findById(submission.contactId())
@@ -413,10 +443,25 @@ public class WorkspaceService {
             throw new BusinessException(ApiCodes.VALIDATION_FAILED,
                     "提交信息中的联系人必须是当前账号绑定的联系人身份");
         }
-        if (submission.organizationId() != null) {
-            organizationRepository.findById(submission.organizationId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Organization", submission.organizationId()));
+    }
+
+    /** 当前账号绑定的身份中，organization.id == organizationId 的联系人身份；无则空。 */
+    private Contact resolveOwnIdentityInOrganization(UUID accountId, UUID organizationId) {
+        List<UUID> contactIds = contactAccountBindingService.bindingsOfAccount(accountId).stream()
+                .map(ContactAccountBinding::getContactId)
+                .toList();
+        if (contactIds.isEmpty()) {
+            throw noIdentityInOrganization();
         }
+        return contactRepository.findAllById(contactIds).stream()
+                .filter(c -> c.getOrganization() != null && organizationId.equals(c.getOrganization().getId()))
+                .findFirst()
+                .orElseThrow(this::noIdentityInOrganization);
+    }
+
+    private BusinessException noIdentityInOrganization() {
+        return new BusinessException(ApiCodes.VALIDATION_FAILED,
+                "提交组织必须是当前账号具有联系人身份的组织，请先创建为该机构联系人");
     }
 
     private ItemRegistrationRequest syntheticRequest(SubmissionInfo submission) {
