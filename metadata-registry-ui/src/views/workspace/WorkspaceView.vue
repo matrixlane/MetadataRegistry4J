@@ -172,6 +172,7 @@ import { useWorkspaceBadge } from '@/composables/useWorkspaceBadge';
 import {
   workspaceApi,
   myContactApi,
+  activeRegistrarApi,
   registrationProcessApi,
   administeredItemApi,
   dataElementApi,
@@ -309,8 +310,10 @@ onMounted(() => {
 // ── 提交 / 请求成为候选（共用 SubmissionRecordPicker）────────────────────────
 
 /**
- * 提交入口预检（acg-submission）：当前账号在当前所选机构（活动 Registrar 身份组织；
- * 无活动身份时任一身份组织均可）无任何联系人身份时，提示并阻止打开 picker。
+ * 提交入口预检（acg-submission）：当前机构 = 活动 Registrar 身份所属组织
+ * （active-registrar-ownership）；账号在该机构下无任何联系人身份时，提示并
+ * 阻止打开 picker。仅当无活动身份（或活动身份查询失败）时才放宽为"任一身份
+ * 组织均可"。
  */
 async function ensureSubmissionIdentity(): Promise<boolean> {
   let identities: MyContactResponse[];
@@ -321,24 +324,42 @@ async function ensureSubmissionIdentity(): Promise<boolean> {
     return true;
   }
   const bound = (identities || []).filter((i) => i.organizationId);
-  const registrarOrgIds = new Set(bound.filter((i) => i.isRegistrar).map((i) => i.organizationId));
-  const eligibleOrgIds = registrarOrgIds.size > 0
-    ? registrarOrgIds
-    : new Set(bound.map((i) => i.organizationId));
-  const hasIdentityInCurrentOrg = bound.some((i) => eligibleOrgIds.has(i.organizationId as string));
-  if (bound.length === 0 || !hasIdentityInCurrentOrg) {
-    try {
-      await ElMessageBox.alert(
-        t('workspace.submissionIdentityRequiredHint'),
-        t('workspace.submissionIdentityRequired'),
-        { type: 'warning' }
-      );
-    } catch {
-      // 用户关闭提示框
+  if (bound.length === 0) {
+    await alertIdentityRequired();
+    return false;
+  }
+  // 当前机构 = 活动 Registrar 身份组织；activeOrgId 三态：
+  // undefined = 无活动身份/查询失败（放宽），string = 活动身份组织，null = 有活动身份但身份不在列表中
+  let activeOrgId: string | null | undefined;
+  try {
+    const ar = await activeRegistrarApi.current();
+    const activeRegistrarId = ar?.active?.registrarId;
+    if (activeRegistrarId) {
+      activeOrgId = bound.find((i) => i.id === activeRegistrarId)?.organizationId ?? null;
     }
+  } catch {
+    // 活动身份查询失败时放宽为任一身份组织
+  }
+  const hasIdentityInCurrentOrg = activeOrgId === undefined
+    ? true
+    : bound.some((i) => i.organizationId === activeOrgId);
+  if (!hasIdentityInCurrentOrg) {
+    await alertIdentityRequired();
     return false;
   }
   return true;
+}
+
+async function alertIdentityRequired() {
+  try {
+    await ElMessageBox.alert(
+      t('workspace.submissionIdentityRequiredHint'),
+      t('workspace.submissionIdentityRequired'),
+      { type: 'warning' }
+    );
+  } catch {
+    // 用户关闭提示框
+  }
 }
 
 async function openSubmit(row: WorkspaceItemResponse) {

@@ -184,8 +184,19 @@ class RegistrationAuthorityServiceTest {
 
     @Test
     void create_personalEditionNonSuperAdminRejected() {
-        when(systemSettingService.getEdition()).thenReturn(DeploymentEdition.PERSONAL);
+        // M4：角色门槛先于版本治理判定——非 SUPER_ADMIN 直接拒绝
+        assertThatThrownBy(() -> service.create(request(), ACCOUNT_ID, null))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("超级管理员");
 
+        verify(repository, never()).save(any(RegistrationAuthority.class));
+        verify(registrarService, never()).createRegistrarForUser(any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void create_teamEditionNonSuperAdminRejected() {
+        // M4：创建注册机构要求 SUPER_ADMIN（不分版本）；SUBMITTER/REGISTRAR 业务角色
+        //（SystemRole 非 SUPER_ADMIN）一律拒绝（角色门槛先于版本治理判定）
         assertThatThrownBy(() -> service.create(request(), ACCOUNT_ID, null))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("超级管理员");
@@ -213,7 +224,7 @@ class RegistrationAuthorityServiceTest {
         when(systemSettingService.getEdition()).thenReturn(DeploymentEdition.PERSONAL);
         when(repository.findById(id)).thenReturn(Optional.of(ra));
 
-        assertThatThrownBy(() -> service.delete(id))
+        assertThatThrownBy(() -> service.delete(id, SystemRole.SUPER_ADMIN))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("主要注册机构不允许删除");
 
@@ -229,25 +240,110 @@ class RegistrationAuthorityServiceTest {
         when(systemSettingService.getEdition()).thenReturn(DeploymentEdition.PERSONAL);
         when(repository.findById(id)).thenReturn(Optional.of(ra));
 
-        service.delete(id);
+        service.delete(id, SystemRole.SUPER_ADMIN);
 
         verify(deletionService).delete(id);
     }
 
     @Test
-    void delete_teamEditionSingleModeRejected() {
+    void delete_teamEditionSingleModeNonPrimarySucceeds() {
+        // M1：删除保护仅按版本判定——TEAM（含版本未知按 TEAM）不再看 runningMode，
+        // SINGLE 只约束创建数量；非 Primary 机构在 SINGLE 下亦可删除
         UUID id = UUID.randomUUID();
         RegistrationAuthority ra = new RegistrationAuthority();
         ra.setId(id);
         when(systemSettingService.getEdition()).thenReturn(DeploymentEdition.TEAM);
-        when(systemSettingService.getRunningMode()).thenReturn("SINGLE");
         when(repository.findById(id)).thenReturn(Optional.of(ra));
 
-        assertThatThrownBy(() -> service.delete(id))
+        service.delete(id, SystemRole.SUPER_ADMIN);
+
+        verify(deletionService).delete(id);
+    }
+
+    @Test
+    void delete_unsetEditionTreatedAsTeam_singleModeNonPrimarySucceeds() {
+        // 版本未知保守按 TEAM：删除同样不受 runningMode 约束
+        UUID id = UUID.randomUUID();
+        RegistrationAuthority ra = new RegistrationAuthority();
+        ra.setId(id);
+        when(systemSettingService.getEdition()).thenReturn(null);
+        when(repository.findById(id)).thenReturn(Optional.of(ra));
+
+        service.delete(id, SystemRole.SUPER_ADMIN);
+
+        verify(deletionService).delete(id);
+    }
+
+    @Test
+    void delete_nonSuperAdminRejected() {
+        // M4：删除注册机构要求 SUPER_ADMIN；SUBMITTER/REGISTRAR 业务角色拒绝
+        // （角色门槛先于存在性检查，findById 不应被调用）
+        assertThatThrownBy(() -> service.delete(UUID.randomUUID(), null))
                 .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("单注册表模式下不允许删除注册机构");
+                .hasMessageContaining("超级管理员");
 
         verify(deletionService, never()).delete(any());
+        verify(repository, never()).findById(any());
+    }
+
+    @Test
+    void update_nonSuperAdminRejected() {
+        // M4：更新注册机构要求 SUPER_ADMIN（角色门槛先于存在性检查）
+        assertThatThrownBy(() -> service.update(UUID.randomUUID(), request(), null))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("超级管理员");
+
+        verify(repository, never()).save(any(RegistrationAuthority.class));
+        verify(repository, never()).findById(any());
+    }
+
+    @Test
+    void update_superAdminSucceeds() {
+        UUID id = UUID.randomUUID();
+        RegistrationAuthority ra = new RegistrationAuthority();
+        ra.setId(id);
+        when(repository.findById(id)).thenReturn(Optional.of(ra));
+        when(repository.save(any(RegistrationAuthority.class))).thenAnswer(i -> i.getArgument(0));
+
+        RegistrationAuthorityResponse response = service.update(id, request(), SystemRole.SUPER_ADMIN);
+
+        assertThat(response).isNotNull();
+        verify(repository).save(any(RegistrationAuthority.class));
+    }
+
+    @Test
+    void listAndGet_fillDeletableByEditionAndPrimary() {
+        // m6：deletable = !(个人版 && Primary)；版本未知按个人版保守
+        UUID primaryId = UUID.randomUUID();
+        RegistrationAuthority primary = new RegistrationAuthority();
+        primary.setId(primaryId);
+        primary.setPrimary(true);
+        primary.getName().add(io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.Sign.of("主要机构"));
+        UUID normalId = UUID.randomUUID();
+        RegistrationAuthority normal = new RegistrationAuthority();
+        normal.setId(normalId);
+        normal.getName().add(io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.Sign.of("普通机构"));
+        when(repository.findAll(any(org.springframework.data.jpa.domain.Specification.class),
+                any(org.springframework.data.domain.Pageable.class)))
+                .thenReturn(new org.springframework.data.domain.PageImpl<>(List.of(primary, normal)));
+
+        // 个人版：Primary 不可删，其余可删
+        when(systemSettingService.getEdition()).thenReturn(DeploymentEdition.PERSONAL);
+        var personalPage = service.list(null, org.springframework.data.domain.PageRequest.of(0, 10));
+        assertThat(personalPage.getContent().get(0).deletable()).isFalse();
+        assertThat(personalPage.getContent().get(1).deletable()).isTrue();
+        when(repository.findById(primaryId)).thenReturn(Optional.of(primary));
+        assertThat(service.get(primaryId).deletable()).isFalse();
+
+        // 团队版：无 Primary 删除保护，均可删
+        when(systemSettingService.getEdition()).thenReturn(DeploymentEdition.TEAM);
+        var teamPage = service.list(null, org.springframework.data.domain.PageRequest.of(0, 10));
+        assertThat(teamPage.getContent().get(0).deletable()).isTrue();
+
+        // 版本未知：按个人版保守
+        when(systemSettingService.getEdition()).thenReturn(null);
+        var unsetPage = service.list(null, org.springframework.data.domain.PageRequest.of(0, 10));
+        assertThat(unsetPage.getContent().get(0).deletable()).isFalse();
     }
 
     @Test
@@ -256,28 +352,11 @@ class RegistrationAuthorityServiceTest {
         RegistrationAuthority ra = new RegistrationAuthority();
         ra.setId(id);
         when(systemSettingService.getEdition()).thenReturn(DeploymentEdition.TEAM);
-        when(systemSettingService.getRunningMode()).thenReturn("MULTIPLE");
         when(repository.findById(id)).thenReturn(Optional.of(ra));
 
-        service.delete(id);
+        service.delete(id, SystemRole.SUPER_ADMIN);
 
         verify(deletionService).delete(id);
-    }
-
-    @Test
-    void delete_unsetEditionTreatedAsTeam_rejectsInSingleMode() {
-        UUID id = UUID.randomUUID();
-        RegistrationAuthority ra = new RegistrationAuthority();
-        ra.setId(id);
-        when(systemSettingService.getEdition()).thenReturn(null);
-        when(systemSettingService.getRunningMode()).thenReturn("SINGLE");
-        when(repository.findById(id)).thenReturn(Optional.of(ra));
-
-        assertThatThrownBy(() -> service.delete(id))
-                .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("单注册表模式下不允许删除注册机构");
-
-        verify(deletionService, never()).delete(any());
     }
 
     @Test
@@ -285,7 +364,7 @@ class RegistrationAuthorityServiceTest {
         UUID id = UUID.randomUUID();
         when(repository.findById(id)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.delete(id))
+        assertThatThrownBy(() -> service.delete(id, SystemRole.SUPER_ADMIN))
                 .isInstanceOf(ResourceNotFoundException.class);
 
         verify(deletionService, never()).delete(any());

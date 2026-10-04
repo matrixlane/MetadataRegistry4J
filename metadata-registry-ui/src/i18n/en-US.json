@@ -380,9 +380,8 @@
     "loadContactsError": "Failed to load contact identities",
     "empty": "No administered items in the current view",
     "selectContact": "Please select a contact",
-    "contactRequired": "Contact is required",
     "organization": "Organization",
-    "organizationAuto": "Derived from selected contact automatically",
+    "submissionContactAuto": "Determined automatically from the selected organization",
     "badgeTooltipWithCount": "Workspace ({count} uncommitted)",
     "submissionIdentityRequired": "Before submitting metadata, please first register yourself as a contact of the current registration authority",
     "submissionIdentityRequiredHint": "Go to \"My\" to create a contact identity, then submit",
@@ -401,13 +400,16 @@
     },
     "createAutoRegistrarHint": "After creation, you will automatically become a registrar of this authority",
     "deleteConfirmTitle": "Delete Registration Authority",
-    "deleteConfirmMessage": "Deleting this registration authority will also delete all data listed above and cannot be undone",
+    "deleteConfirmMessage": "Deleting this registration authority will also delete all administered items and associated data under it, and cannot be undone",
     "deleteSuccess": "Registration authority deleted",
+    "primaryNotDeletable": "The primary registration authority cannot be deleted",
     "deletePreview": {
       "administeredItems": "Administered items",
+      "submissionRecords": "Submission records",
       "registrars": "Registrars",
       "namespaces": "Namespaces",
-      "submissionRecords": "Submission records"
+      "stewardshipRecords": "Stewardship records",
+      "transitionRules": "Transition rules"
     }
   },
   "acceptability": {

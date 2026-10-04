@@ -448,6 +448,16 @@ export interface SubmissionInfo {
   organizationId?: string | null;
 }
 
+/** GET /api/v1/registration-authorities 行项 */
+export interface RegistrationAuthorityResponse {
+  id: string;
+  organizationIdentifier?: string;
+  name?: string | null;
+  englishName?: string | null;
+  /** 是否允许删除；个人版 Primary（主要）注册机构恒为 false，其余为 true */
+  deletable: boolean;
+}
+
 /** GET /api/v1/registration-authorities/{id}/deletion-preview 返回的删除预览（级联删除计数） */
 export interface RegistrationAuthorityDeletionPreview {
   registrationAuthorityId: string;

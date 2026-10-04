@@ -18,5 +18,6 @@ public record RegistrationAuthorityResponse(
         UUID namespaceId,
         String namespaceLabel,
         List<UUID> documentationLanguageIds,
-        List<String> documentationLanguages) {
+        List<String> documentationLanguages,
+        boolean deletable) {
 }

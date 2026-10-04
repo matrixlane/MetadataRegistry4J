@@ -93,7 +93,7 @@ class RegistrationAuthorityControllerTest {
         );
         RegistrationAuthorityResponse response = new RegistrationAuthorityResponse(
                 RA_ID, "Test RA", "Test RA English", "Address", List.of(), List.of(), "http://test.com",
-                null, null, null, null, null, null, List.of(), List.of());
+                null, null, null, null, null, null, List.of(), List.of(), true);
         when(service.create(any(RegistrationAuthorityRequest.class), eq(ACCOUNT_ID), eq(SystemRole.SUPER_ADMIN)))
                 .thenReturn(response);
 
@@ -111,5 +111,50 @@ class RegistrationAuthorityControllerTest {
         }
 
         verify(service).create(any(RegistrationAuthorityRequest.class), eq(ACCOUNT_ID), eq(SystemRole.SUPER_ADMIN));
+    }
+
+    @Test
+    void update_passesAuthenticatedPrincipalToService() throws Exception {
+        RegistrationAuthorityRequest request = new RegistrationAuthorityRequest(
+                "Test RA", "Test RA English", "Address", List.of(), List.of(), "http://test.com",
+                null, null, null, null, null, List.of()
+        );
+        RegistrationAuthorityResponse response = new RegistrationAuthorityResponse(
+                RA_ID, "Test RA", "Test RA English", "Address", List.of(), List.of(), "http://test.com",
+                null, null, null, null, null, null, List.of(), List.of(), true);
+        when(service.update(eq(RA_ID), any(RegistrationAuthorityRequest.class), eq(SystemRole.SUPER_ADMIN)))
+                .thenReturn(response);
+
+        AuthenticatedUser principal = new AuthenticatedUser(ACCOUNT_ID, "admin", SystemRole.SUPER_ADMIN);
+        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
+                principal, null, List.of(new SimpleGrantedAuthority("ROLE_SUPER_ADMIN"))));
+        try {
+            mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                            .put(BASE_URL + "/{id}", RA_ID)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.id").value(RA_ID.toString()));
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
+
+        verify(service).update(eq(RA_ID), any(RegistrationAuthorityRequest.class), eq(SystemRole.SUPER_ADMIN));
+    }
+
+    @Test
+    void delete_passesAuthenticatedPrincipalToService() throws Exception {
+        AuthenticatedUser principal = new AuthenticatedUser(ACCOUNT_ID, "admin", SystemRole.SUPER_ADMIN);
+        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
+                principal, null, List.of(new SimpleGrantedAuthority("ROLE_SUPER_ADMIN"))));
+        try {
+            mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                            .delete(BASE_URL + "/{id}", RA_ID))
+                    .andExpect(status().isOk());
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
+
+        verify(service).delete(RA_ID, SystemRole.SUPER_ADMIN);
     }
 }

@@ -45,6 +45,7 @@ class ContactServiceMyContactsTest {
     @Mock private AccountRepository accountRepository;
     @Mock private ContactAccountBindingService bindingService;
     @Mock private SystemSettingService systemSettingService;
+    @Mock private io.github.matrixlane.metadataregistry.web.repository.RegistrationAuthorityRepository registrationAuthorityRepository;
     @Mock private io.github.matrixlane.metadataregistry.web.repository.SubmissionRecordRepository submissionRecordRepository;
     @Mock private io.github.matrixlane.metadataregistry.web.repository.StewardshipRecordRepository stewardshipRecordRepository;
     @Mock private io.github.matrixlane.metadataregistry.web.repository.RegistrationTransitionApprovalRepository registrationTransitionApprovalRepository;
@@ -188,6 +189,54 @@ class ContactServiceMyContactsTest {
     }
 
     @Test
+    void createMyContact_registrarKind_organizationIsRa_bindsRegistrationAuthority() {
+        // M2：所选 organization 即注册机构时回填 Registrar.registrationAuthority，
+        // 不产生 null-RA 的僵尸身份
+        RegistrationAuthority ra = new RegistrationAuthority();
+        ra.setId(UUID.randomUUID());
+        Account account = new Account();
+        account.setSysRole(SystemRole.SUPER_ADMIN);
+        when(accountRepository.findById(accountId)).thenReturn(Optional.of(account));
+        when(organizationRepository.findById(ra.getId())).thenReturn(Optional.of(ra));
+        when(registrationAuthorityRepository.findById(ra.getId())).thenReturn(Optional.of(ra));
+        when(contactRepository.save(any(Contact.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(bindingService.hasAnyContact(accountId)).thenReturn(false);
+
+        MyContactResponse response = contactService.createMyContact(
+                accountId, new MyContactRequest(ra.getId(), null, null, ContactIdentityKind.REGISTRAR));
+
+        org.mockito.ArgumentCaptor<Contact> captor = org.mockito.ArgumentCaptor.forClass(Contact.class);
+        verify(contactRepository).save(captor.capture());
+        assertThat(captor.getValue()).isInstanceOf(Registrar.class);
+        assertThat(((Registrar) captor.getValue()).getRegistrationAuthority()).isSameAs(ra);
+        assertThat(response.registrationAuthorityId()).isEqualTo(ra.getId());
+    }
+
+    @Test
+    void createMyContact_registrarKind_plainOrganization_leavesRaNull() {
+        // M2：所选 organization 非注册机构（普通组织）时 registrationAuthority 留空——
+        // 合法状态，由 Registrar 管理流程补挂
+        Organization plainOrg = new Organization();
+        plainOrg.setId(UUID.randomUUID());
+        Account account = new Account();
+        account.setSysRole(SystemRole.SUPER_ADMIN);
+        when(accountRepository.findById(accountId)).thenReturn(Optional.of(account));
+        when(organizationRepository.findById(plainOrg.getId())).thenReturn(Optional.of(plainOrg));
+        when(registrationAuthorityRepository.findById(plainOrg.getId())).thenReturn(Optional.empty());
+        when(contactRepository.save(any(Contact.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(bindingService.hasAnyContact(accountId)).thenReturn(false);
+
+        MyContactResponse response = contactService.createMyContact(
+                accountId, new MyContactRequest(plainOrg.getId(), null, null, ContactIdentityKind.REGISTRAR));
+
+        org.mockito.ArgumentCaptor<Contact> captor = org.mockito.ArgumentCaptor.forClass(Contact.class);
+        verify(contactRepository).save(captor.capture());
+        assertThat(captor.getValue()).isInstanceOf(Registrar.class);
+        assertThat(((Registrar) captor.getValue()).getRegistrationAuthority()).isNull();
+        assertThat(response.registrationAuthorityId()).isNull();
+    }
+
+    @Test
     void createMyContact_contactKind_unaffectedForNonAdmin() {
         // 4.1 门控：非管理员创建 CONTACT 身份不受影响（kind 显式 CONTACT 与缺省同路径）
         Organization organization = new Organization();
@@ -320,6 +369,24 @@ class ContactServiceMyContactsTest {
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("所属注册机构仍存在");
         verify(contactRepository, never()).delete(any(Contact.class));
+    }
+
+    @Test
+    void deleteMyContact_personalEdition_nullRaRegistrar_deletes() {
+        // M2：null-RA 的 Registrar 行（createMyContact 选普通组织产生）允许删除，
+        // 走正常解绑流程；守卫消息不再出现
+        Registrar registrar = new Registrar();
+        registrar.setId(UUID.randomUUID());
+        when(contactRepository.findById(registrar.getId())).thenReturn(Optional.of(registrar));
+        when(bindingService.accountIdOfContact(registrar.getId())).thenReturn(Optional.of(accountId));
+        when(systemSettingService.getEdition()).thenReturn(DeploymentEdition.PERSONAL);
+        when(bindingService.defaultBindingOf(accountId))
+                .thenReturn(Optional.of(binding(UUID.randomUUID(), true)));
+
+        contactService.deleteMyContact(accountId, registrar.getId());
+
+        verify(bindingService).unbind(registrar.getId());
+        verify(contactRepository).delete(registrar);
     }
 
     @Test

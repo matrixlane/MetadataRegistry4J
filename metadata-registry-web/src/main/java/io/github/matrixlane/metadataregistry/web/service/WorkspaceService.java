@@ -39,6 +39,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -445,16 +447,30 @@ public class WorkspaceService {
         }
     }
 
-    /** 当前账号绑定的身份中，organization.id == organizationId 的联系人身份；无则空。 */
+    /**
+     * 当前账号绑定的身份中，organization.id == organizationId 的联系人身份；无则空。
+     * 确定性排序（minor-1）：默认绑定优先，其余按绑定顺序（contactId 升序，即最早绑定在前）——
+     * findAllById 的返回顺序未定义，同一组织多身份时不得直接 findFirst。
+     */
     private Contact resolveOwnIdentityInOrganization(UUID accountId, UUID organizationId) {
-        List<UUID> contactIds = contactAccountBindingService.bindingsOfAccount(accountId).stream()
+        List<ContactAccountBinding> bindings = contactAccountBindingService.bindingsOfAccount(accountId);
+        List<UUID> contactIds = bindings.stream()
                 .map(ContactAccountBinding::getContactId)
                 .toList();
         if (contactIds.isEmpty()) {
             throw noIdentityInOrganization();
         }
-        return contactRepository.findAllById(contactIds).stream()
+        Set<UUID> defaultIds = bindings.stream()
+                .filter(ContactAccountBinding::isDefault)
+                .map(ContactAccountBinding::getContactId)
+                .collect(java.util.stream.Collectors.toSet());
+        Map<UUID, Contact> byId = new java.util.HashMap<>();
+        contactRepository.findAllById(contactIds).forEach(c -> byId.put(c.getId(), c));
+        return contactIds.stream()
+                .map(byId::get)
+                .filter(Objects::nonNull)
                 .filter(c -> c.getOrganization() != null && organizationId.equals(c.getOrganization().getId()))
+                .sorted(java.util.Comparator.comparing(c -> !defaultIds.contains(c.getId())))
                 .findFirst()
                 .orElseThrow(this::noIdentityInOrganization);
     }

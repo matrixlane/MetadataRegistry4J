@@ -64,14 +64,16 @@ public class RegistrationAuthorityController {
     @PutMapping("/{id}")
     @Operation(summary = "更新注册机构")
     public ApiResponse<RegistrationAuthorityResponse> update(@PathVariable UUID id,
-                                                             @Valid @RequestBody RegistrationAuthorityRequest request) {
-        return ApiResponse.ok(service.update(id, request));
+                                                             @Valid @RequestBody RegistrationAuthorityRequest request,
+                                                             @AuthenticationPrincipal AuthenticatedUser user) {
+        return ApiResponse.ok(service.update(id, request, user.role()));
     }
 
     @DeleteMapping("/{id}")
     @Operation(summary = "删除注册机构")
-    public ApiResponse<Void> delete(@PathVariable UUID id) {
-        service.delete(id);
+    public ApiResponse<Void> delete(@PathVariable UUID id,
+                                    @AuthenticationPrincipal AuthenticatedUser user) {
+        service.delete(id, user.role());
         return ApiResponse.ok();
     }
 }

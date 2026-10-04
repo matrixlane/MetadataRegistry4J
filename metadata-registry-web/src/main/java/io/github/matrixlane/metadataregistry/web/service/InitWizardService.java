@@ -227,8 +227,9 @@ public class InitWizardService {
         if (selfAsRegistrar && (adminRoleName == null || adminRoleName.isBlank())) {
             throw new BusinessException(ApiCodes.VALIDATION_FAILED, "注册管理员角色不能为空");
         }
-        // 注册规范为数据治理先决条件，两个版本均必选：向导不再设独立配置步骤，
-        // 由系统在 setup 时自动创建；显式 false 视为契约违规，仍被拒绝。
+        // 注册规范为数据治理先决条件，两个版本均必选：向导设独立"配置注册规范"步骤
+        // （治理步骤第一步，完整属性表单随 setup 提交，缺省值由表单预填、后端再兜底）；
+        // 显式 false 视为契约违规，仍被拒绝。
         if (Boolean.FALSE.equals(request.createRegistrySpecification())) {
             throw new BusinessException(ApiCodes.VALIDATION_FAILED, "注册规范为必选项，不能跳过创建");
         }

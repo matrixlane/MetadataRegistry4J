@@ -49,6 +49,7 @@ public class ContactService {
     private final AccountRepository accountRepository;
     private final ContactAccountBindingService contactAccountBindingService;
     private final SystemSettingService systemSettingService;
+    private final io.github.matrixlane.metadataregistry.web.repository.RegistrationAuthorityRepository registrationAuthorityRepository;
     private final io.github.matrixlane.metadataregistry.web.repository.SubmissionRecordRepository submissionRecordRepository;
     private final io.github.matrixlane.metadataregistry.web.repository.StewardshipRecordRepository stewardshipRecordRepository;
     private final io.github.matrixlane.metadataregistry.web.repository.RegistrationTransitionApprovalRepository registrationTransitionApprovalRepository;
@@ -202,6 +203,10 @@ public class ContactService {
      *
      * <p>kind=REGISTRAR 时创建 Registrar 实体（类型即身份，ISO/IEC 11179-3），两版本一致：
      * 仅超级管理员可创建注册人员身份，其他账号一律拒绝；kind 缺省按 CONTACT 处理。
+     *
+     * <p>REGISTRAR 归属（M2）：所选 organization 即注册机构时回填
+     * {@code Registrar.registrationAuthority}，避免产生 registration_authority 为 null 的
+     * 僵尸身份；非注册机构的普通组织留空（合法状态，由 Registrar 管理流程补挂）。</p>
      */
     public MyContactResponse createMyContact(UUID accountId, MyContactRequest request) {
         Account account = accountRepository.findById(accountId)
@@ -214,6 +219,10 @@ public class ContactService {
         }
         Contact entity = request.kind() == ContactIdentityKind.REGISTRAR ? new Registrar() : new Contact();
         applyRequest(entity, request);
+        if (entity instanceof Registrar registrar && request.organizationId() != null) {
+            registrationAuthorityRepository.findById(request.organizationId())
+                    .ifPresent(registrar::setRegistrationAuthority);
+        }
         // 未指定 Individual 时回填账号自身的 Individual，便于身份列表展示姓名
         if (entity.getIndividual() == null && account.getIndividual() != null) {
             entity.setIndividual(account.getIndividual());
@@ -286,8 +295,10 @@ public class ContactService {
      * 删除联系人身份（含仅剩的一个）。版本分支（SystemSettingService.getEdition）：
      *
      * <ul>
-     *   <li>个人版（PERSONAL，含未初始化 null，按个人版保守处理）：Registrar 行所属注册机构
-     *       仍存在，一律拒绝删除，须先删除其注册机构；CONTACT 行保留提交记录引用守卫。</li>
+     *   <li>个人版（PERSONAL，含未初始化 null，按个人版保守处理）：Registrar 行
+     *       已挂注册机构（registration_authority 非空）时一律拒绝删除，须先删除其注册机构；
+     *       null-RA 的 Registrar 行（历史/边缘数据）允许删除，走正常解绑流程。
+     *       CONTACT 行保留提交记录引用守卫。</li>
      *   <li>团队版（TEAM）：移除 SubmissionRecord / Stewardship / 审批三处引用守卫，任何身份
      *       可直接删除。</li>
      * </ul>
@@ -301,21 +312,24 @@ public class ContactService {
         boolean isRegistrar = entity instanceof Registrar;
         DeploymentEdition edition = systemSettingService.getEdition();
         if (edition != DeploymentEdition.TEAM) {
-            // 个人版（或未初始化，按个人版保守处理）：注册人员身份随注册机构存在，不可单独删除。
-            // 该守卫位于引用守卫之前：注册机构未删时无需再查引用。
-            if (isRegistrar) {
+            // 个人版（或未初始化，按个人版保守处理）：已挂注册机构的注册人员身份随
+            // 注册机构存在，不可单独删除。该守卫位于引用守卫之前：注册机构未删时无需再查引用。
+            // null-RA 的 Registrar 行（createMyContact 选普通组织产生）允许删除（M2）。
+            if (isRegistrar && ((Registrar) entity).getRegistrationAuthority() != null) {
                 throw new io.github.matrixlane.metadataregistry.web.common.BusinessException(
                         io.github.matrixlane.metadataregistry.web.common.ApiCodes.CONFLICT,
                         "该注册人员身份所属注册机构仍存在，不可删除；如确需删除请先删除该注册机构");
             }
-            // 个人版 CONTACT 行：已被 SubmissionRecord 引用时拒绝删除（外键非空，删除必失败；409 提示更友好）
+            // 个人版 CONTACT 行：已被 SubmissionRecord 引用时拒绝删除（409 提示更友好；
+            // 三方言基线无此外键约束，直接删除会静默悬挂，故须服务层守卫）
             if (submissionRecordRepository.existsByContactId(contactId)) {
                 throw new io.github.matrixlane.metadataregistry.web.common.BusinessException(
                         io.github.matrixlane.metadataregistry.web.common.ApiCodes.CONFLICT,
                         "该联系人身份已作为提交联系人被提交记录引用，不可删除");
             }
         }
-        // 团队版：不做任何引用守卫，任何身份可直接删除（外键非空时由数据库约束兜底报错）
+        // 团队版：不做任何引用守卫，任何身份可直接删除（三方言基线无引用外键约束，
+        // 引用列随之悬挂，由对应业务视图按活数据口径过滤）
         boolean wasDefault = contactAccountBindingService.defaultBindingOf(accountId)
                 .map(b -> contactId.equals(b.getContactId()))
                 .orElse(false);

@@ -18,15 +18,24 @@
         </el-table-column>
       </template>
       <template #actions="{ row }">
-        <el-button
-          size="small"
-          type="danger"
-          text
-          data-testid="row-delete"
-          @click="handleDelete(row)"
+        <el-tooltip
+          :disabled="row.deletable !== false"
+          :content="$t('registrationAuthority.primaryNotDeletable')"
+          placement="top"
         >
-          {{ $t('common.delete') }}
-        </el-button>
+          <span>
+            <el-button
+              size="small"
+              type="danger"
+              text
+              data-testid="row-delete"
+              :disabled="row.deletable === false"
+              @click="handleDelete(row)"
+            >
+              {{ $t('common.delete') }}
+            </el-button>
+          </span>
+        </el-tooltip>
       </template>
     </DataTablePage>
 
@@ -108,8 +117,8 @@ function submitFn(data: Record<string, unknown>) {
 /**
  * 删除（acg-submission）：先调 deletion-preview 端点取级联删除计数，
  * 确认对话框展示计数与不可恢复警告后才执行删除。
- * 个人版主要注册机构（primary）行：前端列表 DTO 无 primary 字段不做入口禁用，
- * 由后端拒绝并 toast 错误消息兜底。
+ * 个人版主要注册机构（primary）行由后端 DTO 的 deletable=false 标记，
+ * 前端禁用删除入口并提示；其余行正常放行。
  */
 async function handleDelete(row: Record<string, unknown>) {
   const id = row.id as string;
@@ -122,9 +131,11 @@ async function handleDelete(row: Record<string, unknown>) {
   }
   const lines = [
     `${t('registrationAuthority.deletePreview.administeredItems')}: ${preview.administeredItemCount}`,
+    `${t('registrationAuthority.deletePreview.submissionRecords')}: ${preview.submissionRecordCount}`,
     `${t('registrationAuthority.deletePreview.registrars')}: ${preview.registrarCount}`,
     `${t('registrationAuthority.deletePreview.namespaces')}: ${preview.namespaceCount}`,
-    `${t('registrationAuthority.deletePreview.submissionRecords')}: ${preview.submissionRecordCount}`,
+    `${t('registrationAuthority.deletePreview.stewardshipRecords')}: ${preview.stewardshipRecordCount}`,
+    `${t('registrationAuthority.deletePreview.transitionRules')}: ${preview.transitionRuleCount}`,
   ].join('\n');
   try {
     await ElMessageBox.confirm(

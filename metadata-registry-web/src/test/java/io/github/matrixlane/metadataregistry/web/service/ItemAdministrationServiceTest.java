@@ -1534,4 +1534,61 @@ class ItemAdministrationServiceTest {
         assertThat(captor.getValue().getContact()).isSameAs(identity);
         assertThat(captor.getValue().getOrganization()).isSameAs(org);
     }
+
+    @Test
+    void recordSubmissionForBatch_multipleIdentitiesInOrganization_defaultBindingWins() {
+        // minor-1：同一组织多身份时按"默认绑定优先、其次最早绑定"确定性排序；
+        // findAllById 返回顺序未定义——故意逆序返回，验证解析结果不依赖其顺序
+        UUID accountId = UUID.randomUUID();
+        Organization org = newOrganization(UUID.randomUUID());
+        Contact earliest = newContact(UUID.randomUUID(), org);
+        Contact defaultIdentity = newContact(UUID.randomUUID(), org);
+        Item persisted = newPersistedItem();
+        stubAccount(accountId);
+        when(organizationRepository.findById(org.getId())).thenReturn(Optional.of(org));
+        when(contactAccountBindingService.bindingsOfAccount(accountId)).thenReturn(List.of(
+                new ContactAccountBinding(earliest.getId(), accountId),
+                new ContactAccountBinding(defaultIdentity.getId(), accountId, true)));
+        when(contactRepository.findAllById(any())).thenReturn(List.of(defaultIdentity, earliest));
+        when(submissionRecordRepository.save(any(SubmissionRecord.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+
+        SubmissionInfo submission = new SubmissionInfo(null, org.getId());
+
+        itemAdministrationService.recordSubmissionForBatch(
+                List.of(persisted), submission, SubmissionRecordSource.USER_SUBMISSION);
+
+        ArgumentCaptor<SubmissionRecord> captor =
+                ArgumentCaptor.forClass(SubmissionRecord.class);
+        verify(submissionRecordRepository).save(captor.capture());
+        assertThat(captor.getValue().getContact()).isSameAs(defaultIdentity);
+    }
+
+    @Test
+    void recordSubmissionForBatch_multipleIdentitiesInOrganization_earliestBindingWinsWhenNoDefault() {
+        // minor-1：无默认绑定时取最早绑定（contactId 升序首条），与 findAllById 顺序无关
+        UUID accountId = UUID.randomUUID();
+        Organization org = newOrganization(UUID.randomUUID());
+        Contact earliest = newContact(UUID.randomUUID(), org);
+        Contact later = newContact(UUID.randomUUID(), org);
+        Item persisted = newPersistedItem();
+        stubAccount(accountId);
+        when(organizationRepository.findById(org.getId())).thenReturn(Optional.of(org));
+        when(contactAccountBindingService.bindingsOfAccount(accountId)).thenReturn(List.of(
+                new ContactAccountBinding(earliest.getId(), accountId),
+                new ContactAccountBinding(later.getId(), accountId)));
+        when(contactRepository.findAllById(any())).thenReturn(List.of(later, earliest));
+        when(submissionRecordRepository.save(any(SubmissionRecord.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+
+        SubmissionInfo submission = new SubmissionInfo(null, org.getId());
+
+        itemAdministrationService.recordSubmissionForBatch(
+                List.of(persisted), submission, SubmissionRecordSource.USER_SUBMISSION);
+
+        ArgumentCaptor<SubmissionRecord> captor =
+                ArgumentCaptor.forClass(SubmissionRecord.class);
+        verify(submissionRecordRepository).save(captor.capture());
+        assertThat(captor.getValue().getContact()).isSameAs(earliest);
+    }
 }

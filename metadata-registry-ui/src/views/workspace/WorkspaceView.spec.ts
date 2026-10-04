@@ -8,6 +8,7 @@ import WorkspaceView from './WorkspaceView.vue';
 import {
   workspaceApi,
   myContactApi,
+  activeRegistrarApi,
   registrationProcessApi,
   administeredItemApi,
   dataElementApi,
@@ -92,6 +93,7 @@ vi.mock('@/api/resources', () => ({
     rollback: vi.fn(),
   },
   myContactApi: { list: vi.fn() },
+  activeRegistrarApi: { current: vi.fn() },
   registrationProcessApi: {
     availableTransitions: vi.fn(),
     approve: vi.fn(),
@@ -116,6 +118,7 @@ vi.mock('@/api/resources', () => ({
 }));
 
 const mockedSummary = vi.mocked(workspaceApi.summary);
+const mockedActiveCurrent = vi.mocked(activeRegistrarApi.current);
 const mockedItems = vi.mocked(workspaceApi.items);
 const mockedSubmit = vi.mocked(workspaceApi.submit);
 const mockedRequestCandidate = vi.mocked(workspaceApi.requestCandidate);
@@ -148,6 +151,8 @@ const mounted: VueWrapper[] = [];
 beforeEach(() => {
   vi.clearAllMocks();
   mockedSummary.mockResolvedValue(summaryFixture);
+  // 默认无活动身份：预检按"任一身份组织均可"的放宽语义，保持既有用例行为
+  mockedActiveCurrent.mockResolvedValue({ active: null, identities: [] });
   mockedItems.mockImplementation((view) => {
     if (view === 'DRAFTS') return Promise.resolve(pageOf([rowFixtures.draft]));
     if (view === 'PENDING') return Promise.resolve(pageOf([rowFixtures.pending]));
@@ -413,6 +418,96 @@ describe('WorkspaceView', () => {
 
     expect(alertSpy).toHaveBeenCalled();
     expect(wrapper.find('[data-testid="submission-organization-select"]').exists()).toBe(false);
+    alertSpy.mockRestore();
+  });
+
+  it('M1：身份仅在其它组织时（活动 Registrar 机构下无身份），提交被阻止并提示且不打开 picker', async () => {
+    const wrapper = mountWorkspace();
+    mounted.push(wrapper);
+    await flushPromises();
+
+    vi.mocked(myContactApi.list).mockResolvedValue([
+      {
+        id: 'contact-1',
+        organizationId: 'org-1',
+        organizationName: '组织 A',
+        individualName: '张三',
+        isRegistrar: false,
+        isDefault: true,
+      },
+    ] as any);
+    mockedActiveCurrent.mockResolvedValue({
+      active: {
+        registrarId: 'contact-ra-2',
+        registrationAuthorityId: 'ra-2',
+        registrationAuthorityName: '机构 B',
+      },
+      identities: [
+        {
+          registrarId: 'contact-ra-2',
+          registrationAuthorityId: 'ra-2',
+          registrationAuthorityName: '机构 B',
+        },
+      ],
+    } as any);
+    const alertSpy = vi.spyOn(ElMessageBox, 'alert').mockResolvedValue(undefined as never);
+
+    await wrapper.find('[data-testid="row-submit"]').trigger('click');
+    await flushPromises();
+
+    expect(mockedActiveCurrent).toHaveBeenCalled();
+    expect(alertSpy).toHaveBeenCalled();
+    expect(alertSpy.mock.calls[0][0]).toContain('创建联系人身份');
+    expect(wrapper.find('[data-testid="submission-organization-select"]').exists()).toBe(false);
+    alertSpy.mockRestore();
+  });
+
+  it('M1：存在活动 Registrar 身份时，行级提交正常打开 picker', async () => {
+    const wrapper = mountWorkspace();
+    mounted.push(wrapper);
+    await flushPromises();
+
+    vi.mocked(myContactApi.list).mockResolvedValue([
+      {
+        id: 'contact-1',
+        organizationId: 'org-1',
+        organizationName: '组织 A',
+        individualName: '张三',
+        isRegistrar: false,
+        isDefault: true,
+      },
+      {
+        id: 'contact-2',
+        organizationId: 'org-2',
+        organizationName: '组织 B',
+        individualName: '李四',
+        isRegistrar: true,
+        registrationAuthorityId: 'ra-2',
+        registrationAuthorityName: '机构 B',
+        isDefault: false,
+      },
+    ] as any);
+    mockedActiveCurrent.mockResolvedValue({
+      active: {
+        registrarId: 'contact-2',
+        registrationAuthorityId: 'ra-2',
+        registrationAuthorityName: '机构 B',
+      },
+      identities: [
+        {
+          registrarId: 'contact-2',
+          registrationAuthorityId: 'ra-2',
+          registrationAuthorityName: '机构 B',
+        },
+      ],
+    } as any);
+    const alertSpy = vi.spyOn(ElMessageBox, 'alert').mockResolvedValue(undefined as never);
+
+    await wrapper.find('[data-testid="row-submit"]').trigger('click');
+    await flushPromises();
+
+    expect(alertSpy).not.toHaveBeenCalled();
+    expect(wrapper.find('[data-testid="submission-organization-select"]').exists()).toBe(true);
     alertSpy.mockRestore();
   });
 });

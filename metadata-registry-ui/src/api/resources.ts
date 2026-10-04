@@ -27,6 +27,7 @@ import type {
   WorkspaceSubmitResult,
   SubmissionInfo,
   ContactIdentityKind,
+  RegistrationAuthorityResponse,
   RegistrationAuthorityDeletionPreview,
 } from '@/types/common';
 
@@ -43,7 +44,7 @@ function crud<T>(base: string) {
 }
 
 export const registrationAuthorityApi = {
-  ...crud('/registration-authorities'),
+  ...crud<RegistrationAuthorityResponse>('/registration-authorities'),
   deletionPreview: (id: string) =>
     request.get<RegistrationAuthorityDeletionPreview>(`/registration-authorities/${id}/deletion-preview`),
 };

@@ -67,22 +67,26 @@ public class RegistrationAuthorityService {
     }
 
     /**
-     * 新增注册机构（版本化治理）。
+     * 新增注册机构（版本化治理 + 角色门槛）。
      *
-     * <p>PERSONAL 个人版：不设数量限制，调用者必须为 SUPER_ADMIN；创建成功后自动为
-     * 当前账号建立该机构的 Registrar（注册管理员），若为该账号首个身份则标为默认。
+     * <p>角色门槛（M4）：创建注册机构要求调用者为 SUPER_ADMIN（不分版本）；
+     * SUBMITTER/REGISTRAR 业务角色一律拒绝。</p>
+     *
+     * <p>PERSONAL 个人版：不设数量限制；创建成功后自动为当前账号建立该机构的
+     * Registrar（注册管理员），若为该账号首个身份则标为默认。
      * TEAM 团队版（或版本未设置，保守按 TEAM）：沿用 runningMode 规则——SINGLE 且
-     * 已存在注册机构时拒绝；不自动建立注册人员。</p>
+     * 已存在注册机构时拒绝；runningMode 仅约束 TEAM 创建数量，不影响删除；
+     * 不自动建立注册人员。</p>
      */
     public RegistrationAuthorityResponse create(RegistrationAuthorityRequest request,
                                                 UUID accountId, SystemRole role) {
+        if (role != SystemRole.SUPER_ADMIN) {
+            throw new BusinessException(ApiCodes.FORBIDDEN, "仅超级管理员可创建注册机构");
+        }
         DeploymentEdition edition = systemSettingService.getEdition();
         boolean personal = edition == DeploymentEdition.PERSONAL;
-        if (personal) {
-            if (role != SystemRole.SUPER_ADMIN) {
-                throw new BusinessException(ApiCodes.VALIDATION_FAILED, "个人版仅允许超级管理员创建注册机构");
-            }
-        } else if ("SINGLE".equalsIgnoreCase(systemSettingService.getRunningMode()) && repository.count() >= 1) {
+        if (!personal && "SINGLE".equalsIgnoreCase(systemSettingService.getRunningMode())
+                && repository.count() >= 1) {
             throw new BusinessException(ApiCodes.VALIDATION_FAILED, "单注册表模式下只能创建一个注册机构");
         }
         RegistrationAuthority entity = new RegistrationAuthority();
@@ -108,7 +112,13 @@ public class RegistrationAuthorityService {
         }
     }
 
-    public RegistrationAuthorityResponse update(UUID id, RegistrationAuthorityRequest request) {
+    /**
+     * 更新注册机构（M4 角色门槛：仅 SUPER_ADMIN）。
+     */
+    public RegistrationAuthorityResponse update(UUID id, RegistrationAuthorityRequest request, SystemRole role) {
+        if (role != SystemRole.SUPER_ADMIN) {
+            throw new BusinessException(ApiCodes.FORBIDDEN, "仅超级管理员可更新注册机构");
+        }
         RegistrationAuthority entity = loadOrThrow(id);
         applyRequest(entity, request);
         return toResponse(repository.save(entity));
@@ -117,19 +127,21 @@ public class RegistrationAuthorityService {
     /**
      * 删除注册机构（版本化治理 + 级联删除）。
      *
-     * <p>PERSONAL 个人版：主要注册机构（isPrimary）不允许删除，其余经
-     * {@link RegistrationAuthorityDeletionService} 级联删除。TEAM 团队版
-     * （或版本未设置，保守按 TEAM）：SINGLE 模式下不允许删除。</p>
+     * <p>删除保护仅按版本判定（M1）：PERSONAL 个人版主要注册机构（isPrimary）
+     * 不允许删除，其余一律放行——runningMode 只约束 TEAM 创建数量，不约束删除；
+     * TEAM 团队版（或版本未设置，保守按 TEAM）无 Primary 保护，任何机构可删。
+     * 级联删除经 {@link RegistrationAuthorityDeletionService} 完成。</p>
+     *
+     * <p>角色门槛（M4）：仅 SUPER_ADMIN 可删除；SUBMITTER/REGISTRAR 业务角色拒绝。</p>
      */
-    public void delete(UUID id) {
+    public void delete(UUID id, SystemRole role) {
+        if (role != SystemRole.SUPER_ADMIN) {
+            throw new BusinessException(ApiCodes.FORBIDDEN, "仅超级管理员可删除注册机构");
+        }
         RegistrationAuthority entity = loadOrThrow(id);
         DeploymentEdition edition = systemSettingService.getEdition();
-        if (edition == DeploymentEdition.PERSONAL) {
-            if (entity.isPrimary()) {
-                throw new BusinessException(ApiCodes.VALIDATION_FAILED, "主要注册机构不允许删除");
-            }
-        } else if ("SINGLE".equalsIgnoreCase(systemSettingService.getRunningMode())) {
-            throw new BusinessException(ApiCodes.VALIDATION_FAILED, "单注册表模式下不允许删除注册机构");
+        if (edition == DeploymentEdition.PERSONAL && entity.isPrimary()) {
+            throw new BusinessException(ApiCodes.VALIDATION_FAILED, "主要注册机构不允许删除");
         }
         deletionService.delete(id);
     }
@@ -198,6 +210,11 @@ public class RegistrationAuthorityService {
         List<String> names = entity.getName().stream().map(Sign::getValue).toList();
         String name = names.isEmpty() ? null : names.get(0);
         String englishName = names.size() > 1 ? names.get(1) : null;
+        // m6：deletable 间接信号——个人版 Primary 机构不可删（isPrimary 不进 DTO）；
+        // 版本未知按个人版保守。团队版无 Primary 删除保护。
+        DeploymentEdition edition = systemSettingService.getEdition();
+        boolean personal = edition != DeploymentEdition.TEAM;
+        boolean deletable = !(personal && entity.isPrimary());
         return new RegistrationAuthorityResponse(
                 entity.getId(),
                 name,
@@ -213,6 +230,7 @@ public class RegistrationAuthorityService {
                 ns == null ? null : ns.getId(),
                 ns == null ? null : ItemNamingHelper.preferredDesignation(ns),
                 langIds,
-                langCodes);
+                langCodes,
+                deletable);
     }
 }

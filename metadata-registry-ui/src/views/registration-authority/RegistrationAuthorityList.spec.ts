@@ -12,6 +12,14 @@ const raRow = vi.hoisted(() => ({
   id: 'ra-1',
   organizationIdentifier: 'RA-001',
   name: '示例机构',
+  deletable: true,
+}));
+
+const raPrimaryRow = vi.hoisted(() => ({
+  id: 'ra-primary',
+  organizationIdentifier: 'RA-PRIMARY',
+  name: '主要注册机构',
+  deletable: false,
 }));
 
 const previewFixture = vi.hoisted(() => ({
@@ -105,7 +113,7 @@ describe('RegistrationAuthorityList（acg-submission）', () => {
     expect(createBtn.exists()).toBe(false);
   });
 
-  it('删除：先取删除预览，确认对话框展示计数与不可恢复警告，确认后才删除', async () => {
+  it('删除：先取删除预览，确认对话框展示 6 项计数与不可恢复警告，确认后才删除', async () => {
     mockedStatusGet.mockResolvedValue({ edition: 'PERSONAL', runningMode: 'SINGLE' } as any);
     const wrapper = mountList();
     mounted.push(wrapper);
@@ -120,14 +128,34 @@ describe('RegistrationAuthorityList（acg-submission）', () => {
     expect(confirmSpy).toHaveBeenCalled();
     const message = confirmSpy.mock.calls[0][0] as string;
     expect(message).toContain('受管项: 3');
+    expect(message).toContain('提交记录: 2');
     expect(message).toContain('注册人员: 1');
     expect(message).toContain('命名空间: 4');
-    expect(message).toContain('提交记录: 2');
-    expect(message).toContain('不可恢复');
+    expect(message).toContain('主管记录: 0');
+    expect(message).toContain('流转规则: 5');
+    expect(message).toContain('删除该注册机构将同时删除其下全部受管项及关联数据，且不可恢复');
 
     await flushPromises();
     expect(mockedDelete).toHaveBeenCalledWith('ra-1');
     confirmSpy.mockRestore();
+  });
+
+  it('m6：个人版 Primary 行（deletable=false）删除入口禁用并给出说明', async () => {
+    mockedStatusGet.mockResolvedValue({ edition: 'PERSONAL', runningMode: 'SINGLE' } as any);
+    mockedList.mockResolvedValue(pageOf([raRow, raPrimaryRow]) as any);
+    const wrapper = mountList();
+    mounted.push(wrapper);
+    await flushPromises();
+
+    const buttons = wrapper.findAll('[data-testid="row-delete"]');
+    expect(buttons).toHaveLength(2);
+    expect((buttons[0].element as HTMLButtonElement).disabled).toBe(false);
+    expect((buttons[1].element as HTMLButtonElement).disabled).toBe(true);
+
+    const tooltip = wrapper
+      .findAllComponents({ name: 'ElTooltip' })
+      .find((t) => (t.props('content') as string | undefined)?.includes('主要注册机构不允许删除'));
+    expect(tooltip).toBeTruthy();
   });
 
   it('删除：取消确认后不调用删除接口', async () => {

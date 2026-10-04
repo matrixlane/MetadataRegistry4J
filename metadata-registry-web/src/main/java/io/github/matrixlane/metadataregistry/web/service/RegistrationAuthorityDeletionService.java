@@ -19,10 +19,13 @@ import java.util.UUID;
 /**
  * 注册机构级联删除服务（acg-ra-governance）。
  *
- * <p>按外键依赖顺序逐项清理注册机构名下的全部数据：管理项 Item 图、提交记录、
- * 主管记录、注册人员（含账号绑定与激活指向）、自有命名空间（sys: 系统命名空间
- * 保留，仅解除 NamingAuthority 挂接）、注册流程迁移规则与文档语言关联，
- * 最后删除注册机构行与 Organization JOINED 行。</p>
+ * <p>按外键依赖顺序逐项清理注册机构名下的全部数据：管理项 Item 图（含 Context
+ * JOINED 子表与指向被删 Context 的指称/定义/配对关联，registry_specification.context_id
+ * 置空）、提交记录（候选集 = join 行触及的 SR，SQL 侧 NOT EXISTS 分批）、主管记录、
+ * 注册人员（registration_authority_id = RA 或 organization_id = RA 的 Registrar 行，
+ * 含账号绑定与激活指向）、自有命名空间（sys: 系统命名空间保留，仅解除 NamingAuthority
+ * 挂接）、注册流程迁移规则与文档语言关联，最后删除注册机构行与 Organization
+ * JOINED 行。</p>
  *
  * <p>实现走原生 JDBC（{@link DatabaseEnvironment#qualifyAuto} 方言/schema 感知 +
  * {@link JdbcTemplate}），与 DimensionalityService 清 join 表、
@@ -48,9 +51,14 @@ public class RegistrationAuthorityDeletionService {
 
     /**
      * 删除预览：统计级联删除将波及的数据量。注册机构不存在时抛 404。
+     *
+     * <p>角色门槛（M4）：仅 SUPER_ADMIN 或 REGISTRAR 业务角色可查看删除预览；
+     * 角色取自 SecurityContext authorities，与 SecurityConfig 的 ROLE_* 口径一致，
+     * 服务层校验——前端门控不作为唯一防线。其余角色（含 SUBMITTER）拒绝。
      */
     @Transactional(readOnly = true)
     public RegistrationAuthorityDeletionPreview preview(UUID registrationAuthorityId) {
+        requirePreviewAuthorized();
         requireExists(registrationAuthorityId);
         List<UUID> aiIds = administeredItemIds(registrationAuthorityId);
         List<UUID> allRegIds = allRegisteredItemIds(aiIds);
@@ -59,7 +67,7 @@ public class RegistrationAuthorityDeletionService {
                 registrationAuthorityId,
                 aiIds.size(),
                 submissionRecordIds.size(),
-                countWhere("registrar", "registration_authority_id", registrationAuthorityId),
+                registrarCount(registrationAuthorityId),
                 countWhere("namespace", "registration_authority_id", registrationAuthorityId),
                 countWhere("stewardship_record", "organization_id", registrationAuthorityId),
                 countWhere("registration_transition_rule", "registration_authority_id", registrationAuthorityId));
@@ -113,13 +121,32 @@ public class RegistrationAuthorityDeletionService {
         deleteByIds(t("designation"), "item_id", itemIds);
         deleteByIds(t("definition"), "item_id", itemIds);
 
+        // 1c-ctx. Context 子表（JOINED）与指向被删 Context 的关联行（B1）：
+        // Registry Context 是挂在 RA 下的 AdministeredItem（context 行 id = item id）；
+        // 连同其余条目（命名空间等）若是 Context 一并清理。先删指向它们的关联行，
+        // 再删子表行（先于父 item 行），并把 registry_specification.context_id 置空
+        // （全局默认上下文由启动调和 backfillIfInitialized 在下次启动补建并回填）。
+        List<UUID> contextIds = queryUuidsByIds(
+                "SELECT id FROM " + t("context") + " WHERE id IN (", itemIds);
+        if (!contextIds.isEmpty()) {
+            deleteByIds(t("designation_context_relation"), "context_id", contextIds);
+            deleteByIds(t("definition_context_relation"), "context_id", contextIds);
+            deleteByIds(t("designation_definition_pairing"), "context_id", contextIds);
+            for (List<UUID> chunk : chunks(contextIds)) {
+                jdbcTemplate.update("UPDATE " + t("registry_specification") + " SET context_id = NULL"
+                        + " WHERE context_id IN (" + inClause(chunk.size()) + ")", uuidParams(chunk));
+            }
+            deleteByIds(t("context"), "id", contextIds);
+        }
+
         // 1d. 提交关联 + 注册流程审批记录
         Set<UUID> submissionRecordIds = submissionRecordIdsToDelete(allRegIds);
         deleteByIds(t("submission_record_registered_item"), "registered_item_id", allRegIds);
         deleteByIds(t("registration_transition_approval"), "administered_item_id", aiIds);
 
-        // 1e. 仅关联被删 item 的 SubmissionRecord（以及无剩余关联的 SR）
-        deleteByIds(t("submission_record"), "id", List.copyOf(submissionRecordIds));
+        // 1e. 候选集中已无剩余关联的 SubmissionRecord（M3：候选集 = join 行中
+        // item_id ∈ 被删集合触及的 SR；SQL 侧 NOT EXISTS 分批删除，其它机构的无关联 SR 不动）
+        deleteOrphanedSubmissionRecords(submissionRecordIds);
 
         // 1f. Item 图主干（子表 -> 父表）
         List<UUID> stateIds = queryUuidsByIds(
@@ -135,10 +162,9 @@ public class RegistrationAuthorityDeletionService {
         // ===== 2. StewardshipRecord（organization_id = RA） =====
         deleteWhereEq(t("stewardship_record"), "organization_id", registrationAuthorityId);
 
-        // ===== 3. Registrar（registration_authority_id = RA） =====
-        List<UUID> registrarIds = queryUuids(
-                "SELECT id FROM " + t("registrar") + " WHERE registration_authority_id = ?",
-                uuidArg(registrationAuthorityId));
+        // ===== 3. Registrar（registration_authority_id = RA；organization_id = RA 的
+        // Registrar 行一并匹配——兜住 createMyContact(REGISTRAR) 产生的 null-RA 历史/边缘行） =====
+        List<UUID> registrarIds = registrarIdsOf(registrationAuthorityId);
         deleteByIds(t("registration_transition_rule_approver"), "registrar_id", registrarIds);
         deleteByIds(t("registration_transition_approval"), "registrar_id", registrarIds);
         // 解绑 ContactAccountBinding、清理所有 account.active_registrar_id 指向（EXT）
@@ -245,23 +271,79 @@ public class RegistrationAuthorityDeletionService {
     }
 
     /**
-     * 将被删除的 SubmissionRecord 集合：仅关联被删 item 的（全部关联都在被删集合内，
-     * 与幸存 item 共享提交的 SR 保留）以及无剩余关联的 SR。join 行未删时即可算得，
-     * 与删除执行时的语义一致（预览复用）。
+     * 将被删除的 SubmissionRecord 集合（M3）：候选集仅限 join 行中
+     * item_id ∈ 被删集合触及的 SR（DISTINCT）——不扫描 submission_record 全表，
+     * 不波及其他机构的无关联 SR；与幸存 item 共享的 SR 保留。
+     * join 行未删时即可算得，与删除执行时的语义一致（预览复用）。
      */
     private Set<UUID> submissionRecordIdsToDelete(List<UUID> allRegIds) {
-        List<UUID> withSurvivingLinks = allRegIds.isEmpty()
-                ? queryUuids("SELECT DISTINCT submission_record_id FROM " + t("submission_record_registered_item"))
-                : queryUuidsByIds("SELECT DISTINCT submission_record_id FROM "
-                        + t("submission_record_registered_item") + " WHERE registered_item_id NOT IN (", allRegIds);
-        Set<UUID> surviving = new LinkedHashSet<>(withSurvivingLinks);
-        Set<UUID> toDelete = new LinkedHashSet<>();
-        for (UUID id : queryUuids("SELECT id FROM " + t("submission_record"))) {
-            if (!surviving.contains(id)) {
-                toDelete.add(id);
-            }
+        if (allRegIds.isEmpty()) {
+            return Set.of();
         }
-        return toDelete;
+        Set<UUID> candidates = new LinkedHashSet<>(queryUuidsByIds(
+                "SELECT DISTINCT submission_record_id FROM " + t("submission_record_registered_item")
+                        + " WHERE registered_item_id IN (", allRegIds));
+        if (candidates.isEmpty()) {
+            return Set.of();
+        }
+        // 与幸存 item 仍有共享关联的候选 SR 保留
+        Set<UUID> surviving = new LinkedHashSet<>(queryUuidsByIds(
+                "SELECT DISTINCT submission_record_id FROM " + t("submission_record_registered_item")
+                        + " WHERE registered_item_id NOT IN (", allRegIds));
+        candidates.removeAll(surviving);
+        return candidates;
+    }
+
+    /**
+     * 候选集中已无剩余关联的 SubmissionRecord 删除（M3）：join 行删除后执行，
+     * SQL 侧 NOT EXISTS 守卫 + IN 分块；不在候选集内的 SR（含其他机构的无关联 SR）不动。
+     */
+    private void deleteOrphanedSubmissionRecords(Set<UUID> candidates) {
+        for (List<UUID> chunk : chunks(List.copyOf(candidates))) {
+            jdbcTemplate.update("DELETE FROM " + t("submission_record") + " WHERE id IN ("
+                    + inClause(chunk.size()) + ") AND NOT EXISTS (SELECT 1 FROM "
+                    + t("submission_record_registered_item") + " WHERE submission_record_id = "
+                    + t("submission_record") + ".id)", uuidParams(chunk));
+        }
+    }
+
+    /**
+     * 该 RA 名下的 Registrar 行 id（M2）：registration_authority_id = RA，
+     * 或 organization_id = RA 的 Registrar 行（contact JOINED 子表口径，
+     * 兜住 null-RA 的历史/边缘 Registrar 行）。级联删除与删除预览共用同一口径。
+     */
+    private List<UUID> registrarIdsOf(UUID registrationAuthorityId) {
+        return queryUuids(
+                "SELECT r.id FROM " + t("registrar") + " r LEFT JOIN " + t("contact") + " c ON c.id = r.id"
+                        + " WHERE r.registration_authority_id = ? OR c.organization_id = ?",
+                uuidArg(registrationAuthorityId), uuidArg(registrationAuthorityId));
+    }
+
+    /** Registrar 行计数（删除预览用，与 {@link #registrarIdsOf} 同口径）。 */
+    private long registrarCount(UUID registrationAuthorityId) {
+        Long count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM " + t("registrar") + " r LEFT JOIN " + t("contact") + " c ON c.id = r.id"
+                        + " WHERE r.registration_authority_id = ? OR c.organization_id = ?",
+                Long.class, uuidArg(registrationAuthorityId), uuidArg(registrationAuthorityId));
+        return count == null ? 0 : count;
+    }
+
+    /**
+     * 删除预览授权（M4）：仅 SUPER_ADMIN 或 REGISTRAR 业务角色可查看删除预览；
+     * 其余角色（含 SUBMITTER）拒绝。角色取自 SecurityContext authorities，
+     * 与 SecurityConfig 的 ROLE_* 口径一致（服务层校验，前端门控不作唯一防线）。
+     */
+    private void requirePreviewAuthorized() {
+        org.springframework.security.core.Authentication auth =
+                org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        boolean allowed = auth != null && auth.getAuthorities().stream()
+                .map(org.springframework.security.core.GrantedAuthority::getAuthority)
+                .anyMatch(a -> "ROLE_SUPER_ADMIN".equals(a) || "ROLE_REGISTRAR".equals(a));
+        if (!allowed) {
+            throw new io.github.matrixlane.metadataregistry.web.common.BusinessException(
+                    io.github.matrixlane.metadataregistry.web.common.ApiCodes.FORBIDDEN,
+                    "仅超级管理员或注册人员可查看删除预览");
+        }
     }
 
     private void deleteDesignationDefinitionPairings(List<UUID> designationIds, List<UUID> definitionIds) {
@@ -315,6 +397,10 @@ public class RegistrationAuthorityDeletionService {
     /**
      * 列是否存在（当前库）。用于存量库遗留列（如 registration_authority.namespace_id）：
      * 新部署的实体驱动 schema（ddl-auto）可能已无该列。
+     *
+     * <p>DM 分支统一 {@code ALL_TAB_COLUMNS} 口径（与 dm 迁移脚本一致）：
+     * DM 的 INFORMATION_SCHEMA.COLUMNS 大小写敏感、结果不可靠；
+     * ALL_TAB_COLUMNS 中对象名以大写存储，故 owner/表名/列名一律转大写匹配。
      */
     private boolean columnExists(String table, String column) {
         return switch (databaseEnvironment.vendor()) {
@@ -323,13 +409,23 @@ public class RegistrationAuthorityDeletionService {
                         "SELECT COUNT(*) FROM pragma_table_info(?) WHERE name = ?", Integer.class, table, column);
                 yield count != null && count > 0;
             }
-            case SQLSERVER, DM -> {
+            case SQLSERVER -> {
                 String schema = databaseEnvironment.schemaOf(table);
                 Integer count = jdbcTemplate.queryForObject(
                         "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = ? AND COLUMN_NAME = ?"
                                 + (schema == null ? "" : " AND TABLE_SCHEMA = ?"),
                         Integer.class,
                         schema == null ? new Object[]{table, column} : new Object[]{table, column, schema});
+                yield count != null && count > 0;
+            }
+            case DM -> {
+                String schema = databaseEnvironment.schemaOf(table);
+                Integer count = jdbcTemplate.queryForObject(
+                        "SELECT COUNT(*) FROM ALL_TAB_COLUMNS WHERE OWNER = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?",
+                        Integer.class,
+                        (schema == null ? databaseEnvironment.schema() : schema).toUpperCase(java.util.Locale.ROOT),
+                        table.toUpperCase(java.util.Locale.ROOT),
+                        column.toUpperCase(java.util.Locale.ROOT));
                 yield count != null && count > 0;
             }
         };

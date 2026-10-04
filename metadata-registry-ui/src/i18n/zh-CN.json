@@ -398,9 +398,8 @@
     "loadContactsError": "加载联系人身份失败",
     "empty": "当前视图暂无管理项",
     "selectContact": "请选择联系人",
-    "contactRequired": "联系人必选",
     "organization": "所属组织",
-    "organizationAuto": "随所选联系人自动推导",
+    "submissionContactAuto": "随所选组织自动确定",
     "badgeTooltipWithCount": "工作空间（{count} 项未提交）",
     "submissionIdentityRequired": "在提交元数据前，请先创建为当前注册机构的联系人",
     "submissionIdentityRequiredHint": "请前往「我的」页面创建联系人身份后再提交",
@@ -419,13 +418,16 @@
     },
     "createAutoRegistrarHint": "创建后您将自动成为该机构的注册人员",
     "deleteConfirmTitle": "删除注册机构",
-    "deleteConfirmMessage": "删除该注册机构将同时删除上述全部数据，且不可恢复",
+    "deleteConfirmMessage": "删除该注册机构将同时删除其下全部受管项及关联数据，且不可恢复",
     "deleteSuccess": "注册机构已删除",
+    "primaryNotDeletable": "主要注册机构不允许删除",
     "deletePreview": {
       "administeredItems": "受管项",
+      "submissionRecords": "提交记录",
       "registrars": "注册人员",
       "namespaces": "命名空间",
-      "submissionRecords": "提交记录"
+      "stewardshipRecords": "主管记录",
+      "transitionRules": "流转规则"
     }
   },
   "namespace": {

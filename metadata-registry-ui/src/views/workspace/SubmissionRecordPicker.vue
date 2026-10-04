@@ -33,7 +33,7 @@
           <el-input
             :model-value="contactDisplay"
             readonly
-            :placeholder="$t('workspace.organizationAuto')"
+            :placeholder="$t('workspace.submissionContactAuto')"
             data-testid="submission-contact-display"
           />
         </el-form-item>
@@ -64,8 +64,8 @@
 import { ref, computed, reactive } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus';
-import { myContactApi } from '@/api/resources';
-import type { MyContactResponse, SubmissionInfo } from '@/types/common';
+import { myContactApi, activeRegistrarApi } from '@/api/resources';
+import type { ActiveRegistrarResponse, MyContactResponse, SubmissionInfo } from '@/types/common';
 
 const { t } = useI18n();
 
@@ -82,6 +82,8 @@ const visible = ref(false);
 const submitting = ref(false);
 const contacts = ref<MyContactResponse[]>([]);
 const contactsLoaded = ref(false);
+/** 活动 Registrar 身份（active-registrar-ownership）；每次打开时重新拉取 */
+const activeRegistrar = ref<ActiveRegistrarResponse | null>(null);
 const formRef = ref<FormInstance>();
 const form = reactive({
   organizationId: '',
@@ -142,19 +144,33 @@ async function loadContacts() {
   }
 }
 
+async function loadActiveRegistrar() {
+  try {
+    activeRegistrar.value = await activeRegistrarApi.current();
+  } catch {
+    activeRegistrar.value = null;
+  }
+}
+
+/**
+ * 默认选中（D5）：活动 Registrar 身份组织 → 第一条 Registrar 身份组织 → 默认身份组织。
+ */
 function defaultOrganizationId(): string {
   const list = contacts.value || [];
-  // 默认选中 = 活动 RA 身份组织（身份中 isRegistrar 且关联注册机构）；
-  // MyContactResponse 不含 RA 所属组织字段，该身份自身的 organizationId 即该组织。
+  const activeRegistrarId = activeRegistrar.value?.active?.registrarId;
+  if (activeRegistrarId) {
+    const activeIdentity = list.find((c) => c.id === activeRegistrarId && c.organizationId);
+    if (activeIdentity) return activeIdentity.organizationId as string;
+  }
   const registrarIdentity = list.find((c) => c.isRegistrar && c.registrationAuthorityId && c.organizationId);
-  if (registrarIdentity) return registrarIdentity.organizationId;
+  if (registrarIdentity) return registrarIdentity.organizationId as string;
   const defaultIdentity = list.find((c) => c.isDefault && c.organizationId);
   return (defaultIdentity ?? list.find((c) => c.organizationId))?.organizationId ?? '';
 }
 
 function onOpen() {
   reset();
-  loadContacts().then(() => {
+  Promise.all([loadContacts(), loadActiveRegistrar()]).then(() => {
     form.organizationId = defaultOrganizationId();
   });
 }
@@ -162,6 +178,7 @@ function onOpen() {
 function reset() {
   form.organizationId = '';
   contactsLoaded.value = false;
+  activeRegistrar.value = null;
 }
 
 function open() {
