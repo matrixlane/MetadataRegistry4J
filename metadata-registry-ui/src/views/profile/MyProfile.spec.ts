@@ -119,7 +119,7 @@ describe('MyProfile 联系人身份管理', () => {
     expect(wrapper.findAll('[data-testid="contact-default-badge"]').length).toBe(1);
   });
 
-  it('Registrar 身份显示编辑入口但不显示删除入口', async () => {
+  it('Registrar 身份显示编辑入口与删除入口（删除门控移至点击时按版本裁决）', async () => {
     myContactApi.list.mockResolvedValueOnce([
       {
         id: 'contact-3',
@@ -140,7 +140,7 @@ describe('MyProfile 联系人身份管理', () => {
     const items = wrapper.findAll('[data-testid="contact-identity-item"]');
     expect(items.length).toBe(1);
     expect(wrapper.find('[data-testid="contact-edit-btn"]').exists()).toBe(true);
-    expect(wrapper.find('[data-testid="contact-delete-btn"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="contact-delete-btn"]').exists()).toBe(true);
   });
 
   it('编辑 Registrar 身份时组织选择器禁用（仅角色可改）', async () => {
