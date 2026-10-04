@@ -39,6 +39,10 @@ import java.util.UUID;
  *
  * <p>创建时机：必须晚于初始化向导中标识/版本策略的配置，因此仅在向导 setup 末尾或
  * 已初始化系统的启动补建路径中调用。
+ *
+ * <p>除 Registry Context 外，本服务还承担存量已初始化库的注册机构 Primary 标志
+ * 启动调和（{@link #backfillPrimaryAuthorityFlag()}）：旧库无 Primary 概念，启动时
+ * 把 id 字典序最小的既有机构补标为 Primary（幂等）。
  */
 @Slf4j
 @Service
@@ -152,13 +156,17 @@ public class RegistryContextBootstrapService {
     }
 
     /**
-     * 启动期补建入口：仅当系统已初始化且 Registry Context 缺失时执行。
+     * 启动期存量调和入口（系统已初始化时执行）：先回填注册机构 Primary 标志
+     * （任何已初始化库，幂等），再于 Registry Context 缺失时补建之。
      * 失败仅记录 warn，不阻止应用启动。
      */
     public void backfillIfInitialized() {
         if (!systemSettingService.isInitialized()) {
             return;
         }
+        // 存量库 Primary 标志回填与 Registry Context 补建相互独立：上下文已存在的
+        // 库也要执行，故先于存在性检查调用
+        selfProvider.getObject().backfillPrimaryAuthorityFlag();
         if (contextRepository.existsById(REGISTRY_CONTEXT_ID)) {
             // 经代理调用使 @Transactional 生效（本方法会触碰 LAZY 集合）
             selfProvider.getObject().normalizeSystemPresetStatus();
@@ -242,6 +250,37 @@ public class RegistryContextBootstrapService {
             });
         } catch (Exception e) {
             log.warn("Registry Context 状态归一失败: {}", e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 存量库 Primary 标志回填（authority-contact-governance D1）：系统已初始化但
+     * registration_authority 没有任何 Primary 行时，把 id 字典序最小的既有机构补标
+     * Primary。选择口径与 {@code LanguageIdentifierResolver} 一致——UUID 规范文本的
+     * 字典序等价于三方言 SQL {@code MIN(id)} 的 128 位无符号字节序。存量库通常只有
+     * 一个机构（个人版历史 SINGLE 限建 1 个），多机构时该口径给出确定结果。
+     *
+     * <p>幂等：已有 Primary 行即跳过，二次启动不再改动。无机构行时静默跳过。
+     * 异常仅记 warn，不阻止启动。须经代理调用以启用事务（REQUIRED，单事务，
+     * SQLite 单连接池下禁止 REQUIRES_NEW 嵌套）。
+     */
+    @Transactional
+    public void backfillPrimaryAuthorityFlag() {
+        try {
+            List<RegistrationAuthority> authorities = registrationAuthorityRepository.findAll();
+            if (authorities.isEmpty() || authorities.stream().anyMatch(RegistrationAuthority::isPrimary)) {
+                return;
+            }
+            RegistrationAuthority primary = authorities.stream()
+                    .min(java.util.Comparator.comparing(
+                            ra -> Optional.ofNullable(ra.getId()).map(UUID::toString).orElse("")))
+                    .orElseThrow(() -> new IllegalStateException("注册机构列表非空但无最小 id 行"));
+            primary.setPrimary(true);
+            registrationAuthorityRepository.save(primary);
+            log.info("存量注册机构已回填 Primary 标志：id={}（共 {} 个机构，原无任何 Primary 行）",
+                    primary.getId(), authorities.size());
+        } catch (Exception e) {
+            log.warn("Primary 标志回填失败: {}", e.getMessage(), e);
         }
     }
 

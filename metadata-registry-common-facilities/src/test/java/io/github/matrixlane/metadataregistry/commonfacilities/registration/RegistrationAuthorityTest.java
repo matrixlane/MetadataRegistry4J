@@ -52,4 +52,17 @@ class RegistrationAuthorityTest {
         authority.setNamespace(ns);
         assertThat(authority.getNamespace()).isEqualTo(ns);
     }
+
+    @Test
+    void shouldDefaultToNotPrimary() {
+        RegistrationAuthority authority = new RegistrationAuthority();
+        assertThat(authority.isPrimary()).isFalse();
+    }
+
+    @Test
+    void shouldMarkPrimary() {
+        RegistrationAuthority authority = new RegistrationAuthority();
+        authority.setPrimary(true);
+        assertThat(authority.isPrimary()).isTrue();
+    }
 }

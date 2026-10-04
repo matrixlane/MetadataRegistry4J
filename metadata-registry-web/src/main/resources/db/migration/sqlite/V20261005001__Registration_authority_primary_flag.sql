@@ -1,0 +1,13 @@
+-- registration_authority 新增 is_primary 标志（authority-contact-governance，设计 D1）：
+-- 初始化向导创建的注册机构在后台被标记为 Primary（隐式标志，不进入任何 DTO/前端），
+-- 个人版据此实施删除保护。ISO/IEC 11179-3:2023 表 24 无该属性，属应用扩展列
+-- （与 dimensionality.coordinate_indicator 先例一致）。
+-- 存量行一律回填 false；主要机构的认定不在迁移内做——由启动调和
+-- （RegistryContextBootstrapService.backfillIfInitialized）把 id 字典序最小的
+-- 既有机构补标 Primary（幂等，二次启动不再改动）。
+-- SQLite 无 schema 概念，语句不加限定；SQLite 不支持 ADD COLUMN IF EXISTS，
+-- Flyway 一次语义无需守卫（同 V20260901016/V20260930001 先例）。
+-- 执行顺序：personal profile ddl-auto=none，本脚本是该列的唯一来源；若 local
+-- profile（ddl-auto=update）下 Hibernate 已先行建列，本脚本报 duplicate column
+-- 属既有平台限制（见 V20260924002 sqlite 头注）。
+alter table registration_authority add column is_primary boolean not null default false;

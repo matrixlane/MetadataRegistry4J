@@ -28,6 +28,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 
@@ -310,6 +311,73 @@ class RegistryContextBootstrapServiceTest {
     }
 
     @Test
+    void backfillIfInitialized_initializedWithoutAnyPrimary_marksEarliestAuthority() {
+        RegistrationAuthority wizardRa = runWizardAndGetRa("AUTO_WITH_OVERRIDE", "AUTO_WITH_OVERRIDE", "SEMVER");
+        // 模拟存量库补充机构（旧库无 Primary 概念，is_primary 均为 false）
+        RegistrationAuthority legacy = registrationAuthorityRepository.save(newLegacyAuthority("LEGACY-RA-1"));
+        systemSettingService.setInitialized(true);
+
+        registryContextBootstrapService.backfillIfInitialized();
+
+        // "最早创建"= id（UUID）字典序最小，与三方言 SQL MIN(id) 一致（LanguageIdentifierResolver 口径）
+        UUID earliestId = java.util.stream.Stream.of(wizardRa.getId(), legacy.getId())
+                .min(Comparator.comparing(UUID::toString))
+                .orElseThrow();
+        UUID otherId = earliestId.equals(wizardRa.getId()) ? legacy.getId() : wizardRa.getId();
+        assertThat(registrationAuthorityRepository.findById(earliestId).orElseThrow().isPrimary()).isTrue();
+        assertThat(registrationAuthorityRepository.findById(otherId).orElseThrow().isPrimary()).isFalse();
+    }
+
+    @Test
+    void backfillIfInitialized_alreadyHasPrimary_leavesFlagsUnchanged() {
+        RegistrationAuthority ra1 = registrationAuthorityRepository.save(newLegacyAuthority("LEGACY-RA-1"));
+        RegistrationAuthority ra2 = registrationAuthorityRepository.save(newLegacyAuthority("LEGACY-RA-2"));
+        // 故意把非最早的机构标为 Primary：guard 生效则两次启动都不会改动任何标志
+        RegistrationAuthority kept = ra1.getId().toString().compareTo(ra2.getId().toString()) < 0 ? ra2 : ra1;
+        kept.setPrimary(true);
+        registrationAuthorityRepository.save(kept);
+        systemSettingService.setInitialized(true);
+
+        registryContextBootstrapService.backfillIfInitialized();
+        registryContextBootstrapService.backfillIfInitialized();
+
+        assertThat(registrationAuthorityRepository.findById(ra1.getId()).orElseThrow().isPrimary())
+                .isEqualTo(ra1.getId().equals(kept.getId()));
+        assertThat(registrationAuthorityRepository.findById(ra2.getId()).orElseThrow().isPrimary())
+                .isEqualTo(ra2.getId().equals(kept.getId()));
+    }
+
+    @Test
+    void backfillIfInitialized_registryContextExistsButNoPrimary_stillBackfillsFlag() {
+        RegistrationAuthority ra = runWizardAndGetRa("AUTO_WITH_OVERRIDE", "AUTO_WITH_OVERRIDE", "SEMVER");
+        registryContextBootstrapService.ensureRegistryContext(ra);
+        systemSettingService.setInitialized(true);
+
+        registryContextBootstrapService.backfillIfInitialized();
+
+        assertThat(registrationAuthorityRepository.findById(ra.getId()).orElseThrow().isPrimary()).isTrue();
+    }
+
+    @Test
+    void backfillIfInitialized_notInitialized_leavesPrimaryUnset() {
+        RegistrationAuthority ra = registrationAuthorityRepository.save(newLegacyAuthority("LEGACY-RA-1"));
+        systemSettingService.setInitialized(false);
+
+        registryContextBootstrapService.backfillIfInitialized();
+
+        assertThat(registrationAuthorityRepository.findById(ra.getId()).orElseThrow().isPrimary()).isFalse();
+    }
+
+    @Test
+    void backfillIfInitialized_initializedWithoutAnyAuthority_keepsSystemIntact() {
+        systemSettingService.setInitialized(true);
+
+        registryContextBootstrapService.backfillIfInitialized();
+
+        assertThat(registrationAuthorityRepository.findAll()).isEmpty();
+    }
+
+    @Test
     void ensureRegistryContext_noSubmissionRecordIsCreated() {
         RegistrationAuthority ra = runWizardAndGetRa("AUTO_WITH_OVERRIDE", "AUTO_WITH_OVERRIDE", "SEMVER");
         Context ctx = registryContextBootstrapService.ensureRegistryContext(ra);
@@ -319,6 +387,16 @@ class RegistryContextBootstrapServiceTest {
                 .filter(sub -> sub.getRegisteredItems().stream()
                         .anyMatch(ri -> ri.getId().equals(ai.getId()))))
                 .isEmpty();
+    }
+
+    private RegistrationAuthority newLegacyAuthority(String organizationIdentifier) {
+        RegistrationAuthority ra = new RegistrationAuthority();
+        io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.RegistrationAuthorityIdentifier rai =
+                new io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.RegistrationAuthorityIdentifier();
+        rai.setInternationalCodeDesignator("ISO");
+        rai.setOrganizationIdentifier(organizationIdentifier);
+        ra.setRegistrationAuthorityIdentifier(rai);
+        return ra;
     }
 
     private RegistrationAuthority runWizardAndGetRa(String identifierInputMode,
