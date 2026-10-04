@@ -37,8 +37,8 @@ import java.util.UUID;
 /**
  * 5-step transactional init-wizard service.
  *
- * Step 1-4 (running mode → registration authority → admin & namespace → registry
- * spec) is the "setup" phase. The wizard writes business data during setup
+ * Step 1-4 (running mode → registry spec → registration authority → admin &
+ * namespace) is the "setup" phase. The wizard writes business data during setup
  * but does NOT flip {@code system.initialized} — the system is still
  * considered un-initialised until the admin completes step 5 (set admin
  * password) which calls {@link #commit}. Any interruption (page reload,
@@ -233,8 +233,30 @@ public class InitWizardService {
             throw new BusinessException(ApiCodes.VALIDATION_FAILED, "注册规范为必选项，不能跳过创建");
         }
 
-        // 1. Create RegistrationAuthority
+        // 1. 注册规范（必选，注册表固有对象，注册治理先决条件——先于注册机构创建）：
+        // 向导步骤可携带表 28 全量标量属性，缺省时由 createDefault 按系统默认值兜底
+        // （字符集 UTF-8、标准 ISO/IEC 11179-3:2023、时区 +0800、默认语言 zh-CN）。
+        InitWizardSpecAttributes specAttrs = request.registrySpecificationAttributes();
+        registrySpecificationService.createDefault(
+                registryName,
+                request.defaultLanguage() != null ? request.defaultLanguage() : "zh-CN",
+                request.registryDescription(),
+                specAttrs != null ? specAttrs.webAddress() : null,
+                specAttrs != null ? specAttrs.characterRepertoire() : null,
+                specAttrs != null ? specAttrs.standard() : null,
+                specAttrs != null ? specAttrs.degreeOfConformance() : null,
+                specAttrs != null ? specAttrs.conformanceLevel() : null,
+                specAttrs != null ? specAttrs.conformanceLabel() : null,
+                specAttrs != null ? specAttrs.includedFeatures() : null,
+                specAttrs != null ? specAttrs.excludedFeatures() : null,
+                specAttrs != null ? specAttrs.defaultTimeZone() : null,
+                specAttrs != null ? specAttrs.alternativeLanguages() : null,
+                specAttrs != null ? specAttrs.referenceDocumentIdentifierKinds() : null,
+                specAttrs != null ? specAttrs.representationClassSchemeId() : null);
+
+        // 2. Create RegistrationAuthority（初始化创建的注册机构即 Primary 注册机构）
         RegistrationAuthority ra = new RegistrationAuthority();
+        ra.setPrimary(true);
         ra.getName().add(Sign.of(raName));
         if (request.registrationAuthorityEnglishName() != null && !request.registrationAuthorityEnglishName().isBlank()) {
             ra.getName().add(Sign.of(request.registrationAuthorityEnglishName()));
@@ -252,7 +274,7 @@ public class InitWizardService {
 
         ra = registrationAuthorityRepository.save(ra);
 
-        // 2. Assign self as registrar if checked
+        // 3. Assign self as registrar if checked
         if (selfAsRegistrar) {
             // Registrar 的组织恒为本次创建的 RA：RegistrationAuthority extends Organization
             // 且 JOINED 共表，注册机构本身即组织；初始化阶段无其他组织可选。
@@ -266,7 +288,7 @@ public class InitWizardService {
             );
         }
 
-        // 表 24:documentation_language_identifier (1..*)。静态预置已保证内置 G20 语言
+        // 4. 表 24:documentation_language_identifier (1..*)。静态预置已保证内置 G20 语言
         // 存在，按 BCP 47 标识符命中复用既有 LanguageIdentification；仅当用户提交了
         // 非内置语言时才新建实体并 save。
         for (String langTag : requestedDocLangs) {
@@ -278,7 +300,7 @@ public class InitWizardService {
         }
         registrationAuthorityRepository.save(ra);
 
-        // 3. Create default namespace if checked
+        // 5. Create default namespace if checked
         if (createNamespace) {
             Namespace ns = new Namespace();
 
@@ -313,28 +335,7 @@ public class InitWizardService {
             registrationAuthorityRepository.save(ra);
         }
 
-        // 3.5 注册规范（必选，注册表固有对象）：向导步骤可携带表 28 全量标量属性，
-        // 缺省时由 createDefault 按系统默认值兜底（字符集 UTF-8、标准
-        // ISO/IEC 11179-3:2023、时区 +0800、默认语言 zh-CN）。
-        InitWizardSpecAttributes specAttrs = request.registrySpecificationAttributes();
-        registrySpecificationService.createDefault(
-                registryName,
-                request.defaultLanguage() != null ? request.defaultLanguage() : "zh-CN",
-                request.registryDescription(),
-                specAttrs != null ? specAttrs.webAddress() : null,
-                specAttrs != null ? specAttrs.characterRepertoire() : null,
-                specAttrs != null ? specAttrs.standard() : null,
-                specAttrs != null ? specAttrs.degreeOfConformance() : null,
-                specAttrs != null ? specAttrs.conformanceLevel() : null,
-                specAttrs != null ? specAttrs.conformanceLabel() : null,
-                specAttrs != null ? specAttrs.includedFeatures() : null,
-                specAttrs != null ? specAttrs.excludedFeatures() : null,
-                specAttrs != null ? specAttrs.defaultTimeZone() : null,
-                specAttrs != null ? specAttrs.alternativeLanguages() : null,
-                specAttrs != null ? specAttrs.referenceDocumentIdentifierKinds() : null,
-                specAttrs != null ? specAttrs.representationClassSchemeId() : null);
-
-        // 3.6 sys: 系统默认命名空间 NamingAuthority 挂接到本次创建的注册机构
+        // 6. sys: 系统默认命名空间 NamingAuthority 挂接到本次创建的注册机构
         // （未初始化期间留空；initializeSystemDefaultNamespace 内调和逻辑幂等）。
         systemDefaultNamespaceInitializer.initializeSystemDefaultNamespace();
 

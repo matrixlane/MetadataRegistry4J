@@ -313,6 +313,10 @@ class RegistryContextBootstrapServiceTest {
     @Test
     void backfillIfInitialized_initializedWithoutAnyPrimary_marksEarliestAuthority() {
         RegistrationAuthority wizardRa = runWizardAndGetRa("AUTO_WITH_OVERRIDE", "AUTO_WITH_OVERRIDE", "SEMVER");
+        // 向导创建的机构现即 Primary；本用例模拟迁移前存量状态（全库无任何 Primary），
+        // 故显式清除该标志
+        wizardRa.setPrimary(false);
+        registrationAuthorityRepository.save(wizardRa);
         // 模拟存量库补充机构（旧库无 Primary 概念，is_primary 均为 false）
         RegistrationAuthority legacy = registrationAuthorityRepository.save(newLegacyAuthority("LEGACY-RA-1"));
         systemSettingService.setInitialized(true);
