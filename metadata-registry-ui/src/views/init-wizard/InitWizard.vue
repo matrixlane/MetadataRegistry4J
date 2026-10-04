@@ -131,8 +131,79 @@
           />
         </div>
 
-        <!-- Step 3: Registration Authority + Registrar Details -->
+        <!-- Step 3: Registry Specification Configuration -->
         <div v-if="currentStep === 2" class="step-pane fade-in">
+          <h3 class="step-title">配置注册规范</h3>
+          <p class="step-desc">注册规范描述注册表的运行环境，是注册表的固有组成部分。以下为系统默认配置，可按部署实际调整</p>
+
+          <el-form
+            ref="formStep3Ref"
+            :model="form"
+            :rules="rulesStep3"
+            label-position="top"
+            class="wizard-form"
+          >
+            <el-form-item label="注册规范名称" prop="registryName">
+              <el-input
+                v-model="form.registryName"
+                placeholder="例如：主元数据注册表规范"
+                size="large"
+                clearable
+              />
+            </el-form-item>
+
+            <el-form-item label="注释">
+              <el-input
+                v-model="form.registryDescription"
+                type="textarea"
+                :rows="2"
+                placeholder="关于此注册规范的简要说明"
+              />
+            </el-form-item>
+
+            <el-form-item label="网址">
+              <el-input
+                v-model="form.registryWebAddress"
+                placeholder="注册表的 Web 地址（可选）"
+                size="large"
+              />
+            </el-form-item>
+
+            <el-form-item label="默认时区" prop="registryDefaultTimeZone">
+              <el-input v-model="form.registryDefaultTimeZone" placeholder="[-+]HHMM，如 +0800、-0230" size="large" />
+            </el-form-item>
+
+            <el-form-item label="默认语言">
+              <el-select v-model="form.defaultLanguage" size="large" style="width: 100%;">
+                <el-option
+                  v-for="lang in languageOptions"
+                  :key="lang.languageIdentifier"
+                  :label="languageOptionLabel(lang)"
+                  :value="lang.languageIdentifier"
+                />
+              </el-select>
+            </el-form-item>
+
+            <el-form-item label="字符集" prop="registryCharacterRepertoire">
+              <el-input v-model="form.registryCharacterRepertoire" size="large" />
+            </el-form-item>
+
+            <el-form-item label="标准">
+              <el-input v-model="form.registryStandard" size="large" />
+            </el-form-item>
+
+            <el-form-item label="合规程度">
+              <el-select v-model="form.registryDegreeOfConformance" clearable size="large" style="width: 100%;">
+                <el-option label="合规" value="CONFORMING" />
+                <el-option label="严格合规" value="STRICTLY_CONFORMING" />
+              </el-select>
+            </el-form-item>
+
+          </el-form>
+        </div>
+
+        <!-- Step 4: Registration Authority + Registrar Details -->
+        <div v-if="currentStep === 3" class="step-pane fade-in">
           <h3 class="step-title">配置默认注册机构</h3>
           <p class="step-desc">注册机构是根据标准开展元数据管理和数据治理的最高权力组织机构</p>
 
@@ -222,8 +293,8 @@
           </el-form>
         </div>
 
-        <!-- Step 4: Namespace creation -->
-        <div v-if="currentStep === 3" class="step-pane fade-in">
+        <!-- Step 5: Namespace creation -->
+        <div v-if="currentStep === 4" class="step-pane fade-in">
           <h3 class="step-title">配置命名空间</h3>
           <p class="step-desc">命名空间是创建自有数据标准的前提；标识与版本生成策略均在命名空间级别生效</p>
 
@@ -239,9 +310,9 @@
 
           <el-form
             v-if="form.createNamespace"
-            ref="formStep3Ref"
+            ref="formStep5Ref"
             :model="form"
-            :rules="rulesStep3"
+            :rules="rulesStep5"
             label-position="top"
             class="wizard-form wizard-form-wide"
           >
@@ -304,77 +375,6 @@
           </el-form>
         </div>
 
-        <!-- Step 5: Registry Specification Configuration -->
-        <div v-if="currentStep === 4" class="step-pane fade-in">
-          <h3 class="step-title">配置注册规范</h3>
-          <p class="step-desc">注册规范描述注册表的运行环境，是注册表的固有组成部分。以下为系统默认配置，可按部署实际调整</p>
-
-          <el-form
-            ref="formStep4Ref"
-            :model="form"
-            :rules="rulesStep4"
-            label-position="top"
-            class="wizard-form"
-          >
-            <el-form-item label="注册规范名称" prop="registryName">
-              <el-input
-                v-model="form.registryName"
-                placeholder="例如：主元数据注册表规范"
-                size="large"
-                clearable
-              />
-            </el-form-item>
-
-            <el-form-item label="注释">
-              <el-input
-                v-model="form.registryDescription"
-                type="textarea"
-                :rows="2"
-                placeholder="关于此注册规范的简要说明"
-              />
-            </el-form-item>
-
-            <el-form-item label="网址">
-              <el-input
-                v-model="form.registryWebAddress"
-                placeholder="注册表的 Web 地址（可选）"
-                size="large"
-              />
-            </el-form-item>
-
-            <el-form-item label="默认时区" prop="registryDefaultTimeZone">
-              <el-input v-model="form.registryDefaultTimeZone" placeholder="[-+]HHMM，如 +0800、-0230" size="large" />
-            </el-form-item>
-
-            <el-form-item label="默认语言">
-              <el-select v-model="form.defaultLanguage" size="large" style="width: 100%;">
-                <el-option
-                  v-for="lang in languageOptions"
-                  :key="lang.languageIdentifier"
-                  :label="languageOptionLabel(lang)"
-                  :value="lang.languageIdentifier"
-                />
-              </el-select>
-            </el-form-item>
-
-            <el-form-item label="字符集" prop="registryCharacterRepertoire">
-              <el-input v-model="form.registryCharacterRepertoire" size="large" />
-            </el-form-item>
-
-            <el-form-item label="标准">
-              <el-input v-model="form.registryStandard" size="large" />
-            </el-form-item>
-
-            <el-form-item label="合规程度">
-              <el-select v-model="form.registryDegreeOfConformance" clearable size="large" style="width: 100%;">
-                <el-option label="合规" value="CONFORMING" />
-                <el-option label="严格合规" value="STRICTLY_CONFORMING" />
-              </el-select>
-            </el-form-item>
-
-          </el-form>
-        </div>
-
         <!-- Step 6: Set Admin Password — final commit step -->
         <div v-if="currentStep === 5" class="step-pane fade-in">
           <h3 class="step-title">设置超级管理员密码</h3>
@@ -403,9 +403,9 @@
           />
 
           <el-form
-            ref="formStep5Ref"
+            ref="formStep6Ref"
             :model="pwdForm"
-            :rules="rulesStep5"
+            :rules="rulesStep6"
             label-position="top"
             class="wizard-form"
           >
@@ -590,9 +590,12 @@ const dbFormModified = computed(
   () => dbChoice.value === 'change' && JSON.stringify(dbForm) !== dbFormSnapshot.value
 );
 
+// 表单 ref 与 rules 按 1 起始的步骤序号命名，与步骤语义一一对应：
+// formStep3Ref=注册规范（步骤 3）、formStep5Ref=命名空间（步骤 5）、formStep6Ref=管理员密码（步骤 6）。
+// 注册机构步骤（步骤 4）为手工校验字段，无 el-form ref。
 const formStep3Ref = ref<FormInstance>();
-const formStep4Ref = ref<FormInstance>();
 const formStep5Ref = ref<FormInstance>();
+const formStep6Ref = ref<FormInstance>();
 
 const form = reactive({
   edition: 'PERSONAL',
@@ -616,7 +619,7 @@ const form = reactive({
     ],
   }),
   versionPolicy: 'SEMVER',
-  // ── Step 5 注册规范（ISO/IEC 11179-3 表 28）──
+  // ── Step 3 注册规范（ISO/IEC 11179-3 表 28）──
   registryName: '',
   registryDescription: '',
   registryWebAddress: '',
@@ -654,7 +657,7 @@ const pwdForm = reactive({
   confirmPassword: '',
 });
 
-const rulesStep4 = reactive<FormRules>({
+const rulesStep3 = reactive<FormRules>({
   registryName: [
     { required: true, message: '请输入注册规范名称', trigger: 'blur' },
     { min: 2, max: 100, message: '长度在 2 到 100 个字符', trigger: 'blur' }
@@ -694,7 +697,7 @@ function validateIdentifierTemplate(rule: any, value: any, callback: any) {
   }
 }
 
-const rulesStep3 = reactive<FormRules>({
+const rulesStep5 = reactive<FormRules>({
   namespaceName: [
     { required: true, message: '请输入命名空间名称', trigger: 'blur' },
     { min: 2, max: 100, message: '长度在 2 到 100 个字符', trigger: 'blur' }
@@ -717,7 +720,7 @@ const validateConfirmPassword = (rule: any, value: any, callback: any) => {
   }
 };
 
-const rulesStep5 = reactive<FormRules>({
+const rulesStep6 = reactive<FormRules>({
   newPassword: [
     { required: true, message: '请输入新密码', trigger: 'blur' },
     { min: 8, max: 64, message: '密码长度需在 8-64 个字符之间', trigger: 'blur' }
@@ -731,11 +734,11 @@ const lastStepIndex = computed(() => {
   return 5; // Step 6 (admin password) is always last
 });
 
-// 步骤指示器：两个版本均包含治理配置步骤（注册机构 → 命名空间 → 注册规范），
+// 步骤指示器：两个版本均包含治理配置步骤（注册规范 → 注册机构 → 命名空间），
 // 这三者是开展数据治理工作的先决条件；注册规范由向导配置表 28 属性、系统
 // 以默认值预填，个人版同样以预填默认值保持精简体验。
 const displaySteps = computed(() => {
-  return ['版本选择', '数据库', '注册机构', '命名空间', '注册规范', '管理员密码'];
+  return ['版本选择', '数据库', '注册规范', '注册机构', '命名空间', '管理员密码'];
 });
 
 const displayActive = computed(() => {
@@ -891,7 +894,27 @@ async function nextStep() {
   }
 
   if (currentStep.value === 2) {
-    // 注册机构字段手工校验（与下方注册人员字段保持一致风格，避免 el-form 校验失败时高度抖动）
+    // Step 3 注册规范：el-form 校验（registryName / characterRepertoire / defaultTimeZone）
+    if (!formStep3Ref.value) {
+      ElMessage.error('注册规范表单未就绪，请刷新页面重试');
+      return;
+    }
+    let isValid = false;
+    try {
+      isValid = await formStep3Ref.value.validate();
+    } catch {
+      isValid = false;
+    }
+    if (!isValid) {
+      ElMessage.error('请完成注册规范的所有必填项');
+      return;
+    }
+    currentStep.value = 3;
+    return;
+  }
+
+  if (currentStep.value === 3) {
+    // Step 4 注册机构字段手工校验（与下方注册人员字段保持一致风格，避免 el-form 校验失败时高度抖动）
     if (!form.registrationAuthorityName.trim()) {
       ElMessage.error('请输入注册机构名称');
       return;
@@ -908,51 +931,33 @@ async function nextStep() {
         return;
       }
     }
-    currentStep.value = 3;
-    return;
-  }
-
-  if (currentStep.value === 3) {
-    if (form.createNamespace) {
-      if (!formStep3Ref.value) return;
-      let isValid = false;
-      try {
-        isValid = await formStep3Ref.value.validate();
-      } catch {
-        isValid = false;
-      }
-      if (!isValid) return;
-    }
     currentStep.value = 4;
     return;
   }
 
   if (currentStep.value === 4) {
-    if (!formStep4Ref.value) {
-      ElMessage.error('注册规范表单未就绪，请刷新页面重试');
-      return;
-    }
-    let isValid = false;
-    try {
-      isValid = await formStep4Ref.value.validate();
-    } catch {
-      isValid = false;
-    }
-    if (!isValid) {
-      ElMessage.error('请完成注册规范的所有必填项');
-      return;
+    // Step 5 命名空间（治理配置的最后一步）：校验通过后一次性提交 setup
+    if (form.createNamespace) {
+      if (!formStep5Ref.value) return;
+      let isValid = false;
+      try {
+        isValid = await formStep5Ref.value.validate();
+      } catch {
+        isValid = false;
+      }
+      if (!isValid) return;
     }
     // Submit the entire wizard configuration to the backend. The backend
-    // writes business data (registration authority, namespace, and the
-    // registry specification with the configured attributes) but does NOT
-    // flip system.initialized — that happens only on commit() in the final
-    // step. If anything below fails, the onBeforeRouteLeave /
-    // onBeforeUnmount abort() will roll back the business data.
+    // writes business data (registry specification, registration authority,
+    // and namespace) but does NOT flip system.initialized — that happens
+    // only on commit() in the final step. If anything below fails, the
+    // onBeforeRouteLeave / onBeforeUnmount abort() will roll back the
+    // business data.
     try {
       await callSetup();
       currentStep.value = 5;
     } catch (e) {
-      // Interceptor surfaces the error; stay on step 4 so the user can fix
+      // Interceptor surfaces the error; stay on step 5 so the user can fix
       // the form.
     }
     return;
@@ -1014,10 +1019,10 @@ async function saveDbConfig() {
 }
 
 async function handleCommit() {
-  if (!formStep5Ref.value) return;
+  if (!formStep6Ref.value) return;
   let isValid = false;
   try {
-    isValid = await formStep5Ref.value.validate();
+    isValid = await formStep6Ref.value.validate();
   } catch {
     isValid = false;
   }

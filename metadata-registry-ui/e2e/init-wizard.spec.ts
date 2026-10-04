@@ -3,8 +3,9 @@ import { test, expect, Page } from '@playwright/test';
 /**
  * 版本感知初始化向导 E2E。
  * 覆盖：版本选择卡片、数据库配置步骤（保持当前数据源）、
- * 个人版治理路径（预填默认值）、命名空间步骤、团队版完整治理路径、
+ * 个人版治理路径（预填默认值）、注册规范先行步骤、团队版完整治理路径、
  * commit 后跳转登录页。
+ * 治理步骤顺序：注册规范 → 注册机构 → 命名空间。
  */
 
 function mockWizardApis(page: Page, opts: {
@@ -187,7 +188,14 @@ test('个人版初始化流程（版本 → 数据库 → 治理配置预填默�
   await expect(page.locator('.db-current-card')).toContainText('sqlite');
   await page.click('button:has-text("下一步")');
 
-  // 个人版同样展示治理步骤，治理字段预填默认值
+  // 个人版同样展示治理步骤，治理字段预填默认值；注册规范步骤先行
+  // 注册规范：完整属性表单，系统默认值预填（名称为稳定默认值，时区 +0800）
+  await expect(stepTitle).toContainText('配置注册规范');
+  await expect(page.locator('.wizard-form input').nth(0)).toHaveValue('默认注册规范');
+  await expect(page.locator('.wizard-form input[placeholder*="HHMM"]')).toHaveValue('+0800');
+  await page.click('button:has-text("下一步")');
+
+  // 注册机构：个人版预填默认机构名
   await expect(stepTitle).toContainText('配置默认注册机构');
   await expect(page.locator('input[placeholder*="信息化管理部"]')).toHaveValue('默认注册机构');
   await page.click('button:has-text("下一步")');
@@ -196,12 +204,6 @@ test('个人版初始化流程（版本 → 数据库 → 治理配置预填默�
   await expect(stepTitle).toContainText('配置命名空间');
   await expect(page.locator('.el-radio-button', { hasText: '自动生成（允许手动编辑）' })).toHaveCount(2);
   await expect(page.locator('.el-select', { hasText: '语义化版本' })).toBeVisible();
-  await page.click('button:has-text("下一步")');
-
-  // 注册规范：完整属性表单，系统默认值预填（名称为稳定默认值，时区 +0800）
-  await expect(stepTitle).toContainText('配置注册规范');
-  await expect(page.locator('.wizard-form input').nth(0)).toHaveValue('默认注册规范');
-  await expect(page.locator('.wizard-form input[placeholder*="HHMM"]')).toHaveValue('+0800');
   await page.click('button:has-text("下一步")');
 
   await expect(stepTitle).toContainText('设置超级管理员密码');
@@ -233,6 +235,11 @@ test('团队版完整初始化流程（版本 → 数据库 → 治理配置 →
   await expect(page.locator('.db-current-card')).toContainText('sqlserver');
   await page.click('button:has-text("下一步")');
 
+  // 注册规范（治理配置第一步）：团队版不预填名称，需显式填写
+  await expect(stepTitle).toContainText('配置注册规范');
+  await page.fill('input[placeholder*="主元数据注册表规范"]', 'E2E Team Spec');
+  await page.click('button:has-text("下一步")');
+
   // 注册机构
   await expect(stepTitle).toContainText('配置默认注册机构');
   // ISO/IEC 11179-3:2023 表 24 文档语言（团队版必填，至少 1 个）
@@ -251,10 +258,6 @@ test('团队版完整初始化流程（版本 → 数据库 → 治理配置 →
 
   // 命名空间
   await expect(stepTitle).toContainText('配置命名空间');
-  await page.click('button:has-text("下一步")');
-
-  // 注册规范：默认值预填，直接继续
-  await expect(stepTitle).toContainText('配置注册规范');
   await page.click('button:has-text("下一步")');
 
   // 管理员密码
@@ -283,6 +286,11 @@ test('团队版关闭「设为注册人员」后要素留空仍可完成注册�
   await expect(stepTitle).toContainText('配置数据库');
   await page.click('button:has-text("下一步")');
 
+  // 注册规范步骤（先行）：团队版需显式填写名称
+  await expect(stepTitle).toContainText('配置注册规范');
+  await page.fill('input[placeholder*="主元数据注册表规范"]', 'E2E NoRegistrar Spec');
+  await page.click('button:has-text("下一步")');
+
   // 注册机构步骤
   await expect(stepTitle).toContainText('配置默认注册机构');
   await page.locator('.el-select').filter({ hasText: '至少选择 1 个语言' }).click();
@@ -304,8 +312,6 @@ test('团队版关闭「设为注册人员」后要素留空仍可完成注册�
   await expect(stepTitle).toContainText('配置命名空间');
 
   // 继续走完流程，触发 setup payload 断言：selfAsRegistrar=false 且两个要素均为 null
-  await page.click('button:has-text("下一步")');
-  await expect(stepTitle).toContainText('配置注册规范');
   await page.click('button:has-text("下一步")');
 
   await expect(stepTitle).toContainText('设置超级管理员密码');

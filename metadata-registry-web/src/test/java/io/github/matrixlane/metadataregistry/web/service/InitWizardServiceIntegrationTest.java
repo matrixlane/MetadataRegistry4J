@@ -159,6 +159,8 @@ class InitWizardServiceIntegrationTest {
                 .findFirst()
                 .orElse(null);
         assertThat(createdRa).isNotNull();
+        // 初始化创建的注册机构即 Primary 注册机构
+        assertThat(createdRa.isPrimary()).isTrue();
         assertThat(createdRa.getRegistrationAuthorityIdentifier()).isNotNull();
         assertThat(createdRa.getRegistrationAuthorityIdentifier().getOrganizationIdentifier()).isEqualTo("RA");
         assertThat(createdRa.getName().size()).isEqualTo(2);
@@ -215,6 +217,10 @@ class InitWizardServiceIntegrationTest {
         assertThat(specPage.getContent()).isNotEmpty();
         assertThat(specPage.getContent().get(0).defaultLanguageId()).isEqualTo(zhCnLanguageId);
         assertThat(specPage.getContent().get(0).defaultLanguageIdentifier()).isEqualTo("zh-CN");
+        // 5.1a 注册规范在 setup 阶段先行创建，且不引用注册机构（context 回填仅发生在
+        // commit 之后的 Registry Context 引导流程）
+        var specEntityBeforeCommit = registrySpecificationRepository.findAll().get(0);
+        assertThat(specEntityBeforeCommit.getContext()).isNull();
 
         // 5.2 setup 阶段不创建 Registry Context（其创建需要独立事务，须待 setup 数据提交后
         // 在 commit() 中执行）
