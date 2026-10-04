@@ -1,17 +1,18 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
 import { createPinia } from 'pinia';
-import ElementPlus, { ElMessageBox, ElSelect } from 'element-plus';
+import ElementPlus, { ElMessage, ElMessageBox, ElSelect } from 'element-plus';
 import MyProfile from './MyProfile.vue';
 import type { MyContactResponse } from '@/types/common';
 
 type ProfileVm = InstanceType<typeof MyProfile> & {
-  contactForm: { organizationId: string; roleId?: string };
+  contactForm: { organizationId: string; roleId?: string; kind: string };
   editingContact: MyContactResponse | null;
 };
 
 const authState = vi.hoisted(() => ({
-  user: { id: 'user-1', username: 'test', displayName: 'Test User' },
+  user: { id: 'user-1', username: 'test', displayName: 'Test User' } as Record<string, unknown>,
+  edition: null as string | null,
   fetchMe: vi.fn(),
 }));
 
@@ -103,6 +104,7 @@ describe('MyProfile 联系人身份管理', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     authState.user = { id: 'user-1', username: 'test', displayName: 'Test User' };
+    authState.edition = null;
   });
 
   afterEach(() => {
@@ -229,5 +231,102 @@ describe('MyProfile 联系人身份管理', () => {
     expect(authState.fetchMe).toHaveBeenCalled();
     confirmSpy.mockRestore();
     wrapper.unmount();
+  });
+
+  it('新建弹窗（非管理员）不显示注册人员选项', async () => {
+    const wrapper = mountProfile();
+    await flushPromises();
+    await wrapper.find('[data-testid="contact-add-btn"]').trigger('click');
+    await flushPromises();
+    expect(wrapper.find('[data-testid="contact-kind-radio"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="contact-kind-registrar"]').exists()).toBe(false);
+  });
+
+  it('新建弹窗（超级管理员）显示注册人员选项并可保存', async () => {
+    authState.user = { id: 'user-1', username: 'test', displayName: 'Test User', sysRole: 'SUPER_ADMIN' };
+    const wrapper = mountProfile();
+    await flushPromises();
+    await wrapper.find('[data-testid="contact-add-btn"]').trigger('click');
+    await flushPromises();
+    expect(wrapper.find('[data-testid="contact-kind-registrar"]').exists()).toBe(true);
+
+    const vm = wrapper.vm as unknown as ProfileVm;
+    vm.contactForm.kind = 'REGISTRAR';
+    vm.contactForm.organizationId = 'org-2';
+    vm.contactForm.roleId = 'role-2';
+    await flushPromises();
+
+    await wrapper.find('[data-testid="contact-save-btn"]').trigger('click');
+    await flushPromises();
+
+    expect(myContactApi.create).toHaveBeenCalledWith({ organizationId: 'org-2', roleId: 'role-2', kind: 'REGISTRAR' });
+    expect(myContactApi.list).toHaveBeenCalledTimes(2);
+  });
+
+  it('编辑弹窗中身份类型以文本展示（不可变更）', async () => {
+    const wrapper = mountProfile();
+    await flushPromises();
+    const editBtns = wrapper.findAll('[data-testid="contact-edit-btn"]');
+    await editBtns[0].trigger('click');
+    await flushPromises();
+    expect(wrapper.find('[data-testid="contact-kind-text"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="contact-kind-radio"]').exists()).toBe(false);
+  });
+
+  it('个人版 Registrar 行点击删除仅提示，不弹确认、不调用 delete', async () => {
+    authState.edition = 'PERSONAL';
+    myContactApi.list.mockResolvedValueOnce([
+      {
+        id: 'contact-3',
+        organizationId: 'org-3',
+        organizationName: 'Org Three',
+        individualId: 'ind-1',
+        individualName: '张三',
+        roleId: null,
+        roleName: null,
+        isRegistrar: true,
+        registrationAuthorityId: 'ra-1',
+        registrationAuthorityName: 'RA One',
+        isDefault: true,
+      },
+    ]);
+    const warningSpy = vi.spyOn(ElMessage, 'warning');
+    const confirmSpy = vi.spyOn(ElMessageBox, 'confirm');
+    const wrapper = mountProfile();
+    await flushPromises();
+    await wrapper.find('[data-testid="contact-delete-btn"]').trigger('click');
+    await flushPromises();
+    expect(warningSpy).toHaveBeenCalledWith('contactIdentity.registrarDeleteBlocked');
+    expect(confirmSpy).not.toHaveBeenCalled();
+    expect(myContactApi.delete).not.toHaveBeenCalled();
+    warningSpy.mockRestore();
+    confirmSpy.mockRestore();
+  });
+
+  it('团队版 Registrar 行可删除（现状按钮保留）', async () => {
+    authState.edition = 'TEAM';
+    myContactApi.list.mockResolvedValueOnce([
+      {
+        id: 'contact-3',
+        organizationId: 'org-3',
+        organizationName: 'Org Three',
+        individualId: 'ind-1',
+        individualName: '张三',
+        roleId: null,
+        roleName: null,
+        isRegistrar: true,
+        registrationAuthorityId: 'ra-1',
+        registrationAuthorityName: 'RA One',
+        isDefault: true,
+      },
+    ]);
+    const confirmSpy = vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue('confirm' as unknown as Awaited<ReturnType<typeof ElMessageBox.confirm>>);
+    const wrapper = mountProfile();
+    await flushPromises();
+    await wrapper.find('[data-testid="contact-delete-btn"]').trigger('click');
+    await flushPromises();
+    expect(myContactApi.delete).toHaveBeenCalledWith('contact-3');
+    expect(myContactApi.list).toHaveBeenCalledTimes(2);
+    confirmSpy.mockRestore();
   });
 });

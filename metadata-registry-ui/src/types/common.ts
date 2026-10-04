@@ -439,6 +439,9 @@ export interface MyContactResponse {
   isDefault: boolean;
 }
 
+/** 联系人身份类型：联系人（Contact）或注册人员（Registrar，ISO/IEC 11179-3 中 Registrar 是 Contact 的特化，类型即身份） */
+export type ContactIdentityKind = 'CONTACT' | 'REGISTRAR';
+
 /** 注册请求中携带的提交组织/联系人信息 */
 export interface SubmissionInfo {
   contactId?: string | null;

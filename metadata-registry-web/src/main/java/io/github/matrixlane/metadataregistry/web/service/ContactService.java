@@ -5,14 +5,17 @@ import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basic
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Organization;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Role;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Account;
+import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.SystemRole;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.Registrar;
 import io.github.matrixlane.metadataregistry.ext.basicandcore.ContactAccountBinding;
 import io.github.matrixlane.metadataregistry.web.common.ResourceNotFoundException;
+import io.github.matrixlane.metadataregistry.web.dto.contact.ContactIdentityKind;
 import io.github.matrixlane.metadataregistry.web.dto.contact.ContactRequest;
 import io.github.matrixlane.metadataregistry.web.dto.contact.ContactResponse;
 import io.github.matrixlane.metadataregistry.web.dto.contact.ContactBatchRequest;
 import io.github.matrixlane.metadataregistry.web.dto.contact.MyContactRequest;
 import io.github.matrixlane.metadataregistry.web.dto.contact.MyContactResponse;
+import io.github.matrixlane.metadataregistry.web.edition.DeploymentEdition;
 import io.github.matrixlane.metadataregistry.web.repository.ContactRepository;
 import io.github.matrixlane.metadataregistry.web.repository.IndividualRepository;
 import io.github.matrixlane.metadataregistry.web.repository.OrganizationRepository;
@@ -45,6 +48,7 @@ public class ContactService {
     private final RoleRepository roleRepository;
     private final AccountRepository accountRepository;
     private final ContactAccountBindingService contactAccountBindingService;
+    private final SystemSettingService systemSettingService;
     private final io.github.matrixlane.metadataregistry.web.repository.SubmissionRecordRepository submissionRecordRepository;
     private final io.github.matrixlane.metadataregistry.web.repository.StewardshipRecordRepository stewardshipRecordRepository;
     private final io.github.matrixlane.metadataregistry.web.repository.RegistrationTransitionApprovalRepository registrationTransitionApprovalRepository;
@@ -193,11 +197,22 @@ public class ContactService {
         return result;
     }
 
-    /** 为当前账号自建联系人身份；首个身份自动设为默认。 */
+    /**
+     * 为当前账号自建联系人身份；首个身份自动设为默认。
+     *
+     * <p>kind=REGISTRAR 时创建 Registrar 实体（类型即身份，ISO/IEC 11179-3），两版本一致：
+     * 仅超级管理员可创建注册人员身份，其他账号一律拒绝；kind 缺省按 CONTACT 处理。
+     */
     public MyContactResponse createMyContact(UUID accountId, MyContactRequest request) {
-        Contact entity = new Contact();
         Account account = accountRepository.findById(accountId)
                 .orElseThrow(() -> new ResourceNotFoundException("Account", accountId));
+        if (request.kind() == ContactIdentityKind.REGISTRAR
+                && account.getSysRole() != SystemRole.SUPER_ADMIN) {
+            throw new io.github.matrixlane.metadataregistry.web.common.BusinessException(
+                    io.github.matrixlane.metadataregistry.web.common.ApiCodes.VALIDATION_FAILED,
+                    "仅超级管理员可创建注册人员身份");
+        }
+        Contact entity = request.kind() == ContactIdentityKind.REGISTRAR ? new Registrar() : new Contact();
         applyRequest(entity, request);
         // 未指定 Individual 时回填账号自身的 Individual，便于身份列表展示姓名
         if (entity.getIndividual() == null && account.getIndividual() != null) {
@@ -268,36 +283,39 @@ public class ContactService {
     }
 
     /**
-     * 删除联系人身份（含 Registrar 行，含仅剩的一个）。删除 Registrar 行相当于
-     * 该账号在系统初始化时未作为 Registrar 创建：解绑账号绑定、清除各账号的
-     * activeRegistrarId 指向后删除实体。
+     * 删除联系人身份（含仅剩的一个）。版本分支（SystemSettingService.getEdition）：
      *
-     * <p>引用保护：已被提交记录（SubmissionRecord）引用的身份不可删除；
-     * Registrar 行另受 Stewardship 管理记录与审批记录（外键非空）保护。
-     * 删除默认身份后自动把剩余最早绑定的一条设为默认；删空后账号失去
-     * Submitter 能力。
+     * <ul>
+     *   <li>个人版（PERSONAL，含未初始化 null，按个人版保守处理）：Registrar 行所属注册机构
+     *       仍存在，一律拒绝删除，须先删除其注册机构；CONTACT 行保留提交记录引用守卫。</li>
+     *   <li>团队版（TEAM）：移除 SubmissionRecord / Stewardship / 审批三处引用守卫，任何身份
+     *       可直接删除。</li>
+     * </ul>
+     *
+     * <p>删除 Registrar 行相当于该账号在系统初始化时未作为 Registrar 创建：解绑账号绑定、
+     * 清除各账号的 activeRegistrarId 指向后删除实体。删除默认身份后自动把剩余最早绑定的
+     * 一条设为默认；删空后账号失去 Submitter 能力。
      */
     public void deleteMyContact(UUID accountId, UUID contactId) {
         Contact entity = loadOwnContact(accountId, contactId);
         boolean isRegistrar = entity instanceof Registrar;
-        // 已被 SubmissionRecord 引用时拒绝删除（外键非空，删除必失败；409 提示更友好）
-        if (submissionRecordRepository.existsByContactId(contactId)) {
-            throw new io.github.matrixlane.metadataregistry.web.common.BusinessException(
-                    io.github.matrixlane.metadataregistry.web.common.ApiCodes.CONFLICT,
-                    "该联系人身份已作为提交联系人被提交记录引用，不可删除");
-        }
-        if (isRegistrar) {
-            if (stewardshipRecordRepository.existsByContact_Id(contactId)) {
+        DeploymentEdition edition = systemSettingService.getEdition();
+        if (edition != DeploymentEdition.TEAM) {
+            // 个人版（或未初始化，按个人版保守处理）：注册人员身份随注册机构存在，不可单独删除。
+            // 该守卫位于引用守卫之前：注册机构未删时无需再查引用。
+            if (isRegistrar) {
                 throw new io.github.matrixlane.metadataregistry.web.common.BusinessException(
                         io.github.matrixlane.metadataregistry.web.common.ApiCodes.CONFLICT,
-                        "该注册人员身份已被管理记录（Stewardship）引用，不可删除");
+                        "该注册人员身份所属注册机构仍存在，不可删除；如确需删除请先删除该注册机构");
             }
-            if (registrationTransitionApprovalRepository.existsByRegistrarId(contactId)) {
+            // 个人版 CONTACT 行：已被 SubmissionRecord 引用时拒绝删除（外键非空，删除必失败；409 提示更友好）
+            if (submissionRecordRepository.existsByContactId(contactId)) {
                 throw new io.github.matrixlane.metadataregistry.web.common.BusinessException(
                         io.github.matrixlane.metadataregistry.web.common.ApiCodes.CONFLICT,
-                        "该注册人员身份已有注册审批记录，不可删除");
+                        "该联系人身份已作为提交联系人被提交记录引用，不可删除");
             }
         }
+        // 团队版：不做任何引用守卫，任何身份可直接删除（外键非空时由数据库约束兜底报错）
         boolean wasDefault = contactAccountBindingService.defaultBindingOf(accountId)
                 .map(b -> contactId.equals(b.getContactId()))
                 .orElse(false);

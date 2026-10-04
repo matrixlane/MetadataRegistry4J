@@ -4,13 +4,16 @@ import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basic
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Organization;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Role;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Account;
+import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.SystemRole;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.Registrar;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationAuthority;
 import io.github.matrixlane.metadataregistry.ext.basicandcore.ContactAccountBinding;
 import io.github.matrixlane.metadataregistry.web.common.BusinessException;
 import io.github.matrixlane.metadataregistry.web.common.ResourceNotFoundException;
+import io.github.matrixlane.metadataregistry.web.dto.contact.ContactIdentityKind;
 import io.github.matrixlane.metadataregistry.web.dto.contact.MyContactRequest;
 import io.github.matrixlane.metadataregistry.web.dto.contact.MyContactResponse;
+import io.github.matrixlane.metadataregistry.web.edition.DeploymentEdition;
 import io.github.matrixlane.metadataregistry.web.repository.ContactRepository;
 import io.github.matrixlane.metadataregistry.web.repository.IndividualRepository;
 import io.github.matrixlane.metadataregistry.web.repository.OrganizationRepository;
@@ -41,6 +44,7 @@ class ContactServiceMyContactsTest {
     @Mock private RoleRepository roleRepository;
     @Mock private AccountRepository accountRepository;
     @Mock private ContactAccountBindingService bindingService;
+    @Mock private SystemSettingService systemSettingService;
     @Mock private io.github.matrixlane.metadataregistry.web.repository.SubmissionRecordRepository submissionRecordRepository;
     @Mock private io.github.matrixlane.metadataregistry.web.repository.StewardshipRecordRepository stewardshipRecordRepository;
     @Mock private io.github.matrixlane.metadataregistry.web.repository.RegistrationTransitionApprovalRepository registrationTransitionApprovalRepository;
@@ -85,7 +89,7 @@ class ContactServiceMyContactsTest {
         when(accountRepository.findById(accountId)).thenReturn(Optional.of(new Account()));
 
         MyContactResponse response = contactService.createMyContact(
-                accountId, new MyContactRequest(org.getId(), null, null));
+                accountId, new MyContactRequest(org.getId(), null, null, null));
 
         verify(bindingService).bindAndSave(any(), eq(accountId), eq(true));
         assertThat(response.isDefault()).isTrue();
@@ -102,7 +106,7 @@ class ContactServiceMyContactsTest {
         when(accountRepository.findById(accountId)).thenReturn(Optional.of(new Account()));
 
         MyContactResponse response = contactService.createMyContact(
-                accountId, new MyContactRequest(org.getId(), null, null));
+                accountId, new MyContactRequest(org.getId(), null, null, null));
 
         verify(bindingService).bindAndSave(any(), eq(accountId), eq(false));
         assertThat(response.isDefault()).isFalse();
@@ -123,7 +127,7 @@ class ContactServiceMyContactsTest {
         when(accountRepository.findById(accountId)).thenReturn(Optional.of(new Account()));
 
         MyContactResponse response = contactService.createMyContact(
-                accountId, new MyContactRequest(org.getId(), registrarRole.getId(), null));
+                accountId, new MyContactRequest(org.getId(), registrarRole.getId(), null, null));
 
         assertThat(response.roleName()).isEqualTo("注册管理员");
         assertThat(response.isRegistrar()).isFalse();
@@ -142,11 +146,64 @@ class ContactServiceMyContactsTest {
         when(bindingService.hasAnyContact(accountId)).thenReturn(false);
         when(accountRepository.findById(accountId)).thenReturn(Optional.of(account));
 
-        contactService.createMyContact(accountId, new MyContactRequest(organization.getId(), null, null));
+        contactService.createMyContact(accountId, new MyContactRequest(organization.getId(), null, null, null));
 
         org.mockito.ArgumentCaptor<Contact> captor = org.mockito.ArgumentCaptor.forClass(Contact.class);
         verify(contactRepository).save(captor.capture());
         assertThat(captor.getValue().getIndividual()).isSameAs(individual);
+    }
+
+    @Test
+    void createMyContact_registrarKind_rejectedForNonAdmin() {
+        // 4.1 门控：非超级管理员创建 REGISTRAR 身份被拒（两版本一致，不分版本）
+        when(accountRepository.findById(accountId)).thenReturn(Optional.of(new Account()));
+
+        assertThatThrownBy(() -> contactService.createMyContact(
+                accountId, new MyContactRequest(UUID.randomUUID(), null, null, ContactIdentityKind.REGISTRAR)))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("仅超级管理员可创建注册人员身份");
+        verify(contactRepository, never()).save(any(Contact.class));
+        verifyNoInteractions(organizationRepository, roleRepository);
+    }
+
+    @Test
+    void createMyContact_registrarKind_allowedForSuperAdmin() {
+        // 4.1 门控：超级管理员创建 REGISTRAR 身份成功，落库为 Registrar 实体（类型即身份）
+        Organization organization = new Organization();
+        organization.setId(UUID.randomUUID());
+        Account account = new Account();
+        account.setSysRole(SystemRole.SUPER_ADMIN);
+        when(accountRepository.findById(accountId)).thenReturn(Optional.of(account));
+        when(organizationRepository.findById(organization.getId())).thenReturn(Optional.of(organization));
+        when(contactRepository.save(any(Contact.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(bindingService.hasAnyContact(accountId)).thenReturn(false);
+
+        MyContactResponse response = contactService.createMyContact(
+                accountId, new MyContactRequest(organization.getId(), null, null, ContactIdentityKind.REGISTRAR));
+
+        org.mockito.ArgumentCaptor<Contact> captor = org.mockito.ArgumentCaptor.forClass(Contact.class);
+        verify(contactRepository).save(captor.capture());
+        assertThat(captor.getValue()).isInstanceOf(Registrar.class);
+        assertThat(response.isRegistrar()).isTrue();
+    }
+
+    @Test
+    void createMyContact_contactKind_unaffectedForNonAdmin() {
+        // 4.1 门控：非管理员创建 CONTACT 身份不受影响（kind 显式 CONTACT 与缺省同路径）
+        Organization organization = new Organization();
+        organization.setId(UUID.randomUUID());
+        when(accountRepository.findById(accountId)).thenReturn(Optional.of(new Account()));
+        when(organizationRepository.findById(organization.getId())).thenReturn(Optional.of(organization));
+        when(contactRepository.save(any(Contact.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(bindingService.hasAnyContact(accountId)).thenReturn(false);
+
+        MyContactResponse response = contactService.createMyContact(
+                accountId, new MyContactRequest(organization.getId(), null, null, ContactIdentityKind.CONTACT));
+
+        org.mockito.ArgumentCaptor<Contact> captor = org.mockito.ArgumentCaptor.forClass(Contact.class);
+        verify(contactRepository).save(captor.capture());
+        assertThat(captor.getValue()).isExactlyInstanceOf(Contact.class);
+        assertThat(response.isRegistrar()).isFalse();
     }
 
     @Test
@@ -173,7 +230,7 @@ class ContactServiceMyContactsTest {
         when(bindingService.defaultBindingOf(accountId)).thenReturn(Optional.empty());
 
         MyContactResponse response = contactService.updateMyContact(
-                accountId, registrar.getId(), new MyContactRequest(newOrg.getId(), role.getId(), null));
+                accountId, registrar.getId(), new MyContactRequest(newOrg.getId(), role.getId(), null, null));
 
         assertThat(response.roleId()).isEqualTo(role.getId());
         assertThat(registrar.getOrganization()).isSameAs(newOrg);
@@ -199,7 +256,7 @@ class ContactServiceMyContactsTest {
         when(bindingService.defaultBindingOf(accountId)).thenReturn(Optional.empty());
 
         MyContactResponse response = contactService.updateMyContact(
-                accountId, registrar.getId(), new MyContactRequest(existingOrg.getId(), null, null));
+                accountId, registrar.getId(), new MyContactRequest(existingOrg.getId(), null, null, null));
 
         assertThat(registrar.getRole()).isNull();
         assertThat(response.roleId()).isNull();
@@ -220,7 +277,7 @@ class ContactServiceMyContactsTest {
         when(bindingService.accountIdOfContact(registrar.getId())).thenReturn(Optional.of(accountId));
 
         assertThatThrownBy(() -> contactService.updateMyContact(
-                accountId, registrar.getId(), new MyContactRequest(null, null, null)))
+                accountId, registrar.getId(), new MyContactRequest(null, null, null, null)))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("Registrar");
     }
@@ -232,18 +289,49 @@ class ContactServiceMyContactsTest {
         when(bindingService.accountIdOfContact(foreign)).thenReturn(Optional.of(UUID.randomUUID()));
 
         assertThatThrownBy(() -> contactService.updateMyContact(
-                accountId, foreign, new MyContactRequest(UUID.randomUUID(), null, null)))
+                accountId, foreign, new MyContactRequest(UUID.randomUUID(), null, null, null)))
                 .isInstanceOf(ResourceNotFoundException.class);
     }
 
     @Test
-    void deleteMyContact_registrarAllowedWhenNoReferences() {
+    void deleteMyContact_personalEdition_registrarRejectedEvenWithoutReferences() {
+        // 个人版：Registrar 行随注册机构存在，一律拒绝删除（位于引用守卫之前，不看引用）
         Registrar registrar = new Registrar(new RegistrationAuthority());
         registrar.setId(UUID.randomUUID());
         when(contactRepository.findById(registrar.getId())).thenReturn(Optional.of(registrar));
         when(bindingService.accountIdOfContact(registrar.getId())).thenReturn(Optional.of(accountId));
+        when(systemSettingService.getEdition()).thenReturn(DeploymentEdition.PERSONAL);
+
+        assertThatThrownBy(() -> contactService.deleteMyContact(accountId, registrar.getId()))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("所属注册机构仍存在");
+        verify(contactRepository, never()).delete(any(Contact.class));
+    }
+
+    @Test
+    void deleteMyContact_nullEdition_registrarRejectedConservatively() {
+        // 未初始化（getEdition 返回 null）按个人版保守处理
+        Registrar registrar = new Registrar(new RegistrationAuthority());
+        registrar.setId(UUID.randomUUID());
+        when(contactRepository.findById(registrar.getId())).thenReturn(Optional.of(registrar));
+        when(bindingService.accountIdOfContact(registrar.getId())).thenReturn(Optional.of(accountId));
+
+        assertThatThrownBy(() -> contactService.deleteMyContact(accountId, registrar.getId()))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("所属注册机构仍存在");
+        verify(contactRepository, never()).delete(any(Contact.class));
+    }
+
+    @Test
+    void deleteMyContact_teamEdition_registrarDeletedEvenWithReferences() {
+        // 团队版：移除 SubmissionRecord/Stewardship/审批三处引用守卫，任何身份可直接删除；
+        // 解绑、清 activeRegistrarId、默认递补逻辑保留
+        Registrar registrar = new Registrar(new RegistrationAuthority());
+        registrar.setId(UUID.randomUUID());
+        when(contactRepository.findById(registrar.getId())).thenReturn(Optional.of(registrar));
+        when(bindingService.accountIdOfContact(registrar.getId())).thenReturn(Optional.of(accountId));
+        when(systemSettingService.getEdition()).thenReturn(DeploymentEdition.TEAM);
         when(bindingService.defaultBindingOf(accountId)).thenReturn(Optional.of(binding(registrar.getId(), true)));
-        // 无提交/管理/审批引用 → 允许删除（相当于初始化时未作为 Registrar 创建）
         Account admin = new Account();
         admin.setId(accountId);
         admin.setActiveRegistrarId(registrar.getId());
@@ -255,34 +343,31 @@ class ContactServiceMyContactsTest {
         assertThat(admin.getActiveRegistrarId()).isNull();
         verify(bindingService).unbind(registrar.getId());
         verify(contactRepository).delete(registrar);
+        // 三处引用守卫已移除：团队版不再查询任何引用
+        verifyNoInteractions(submissionRecordRepository, stewardshipRecordRepository,
+                registrationTransitionApprovalRepository);
     }
 
     @Test
-    void deleteMyContact_registrarRejectedWhenStewardshipReferenced() {
-        Registrar registrar = new Registrar(new RegistrationAuthority());
-        registrar.setId(UUID.randomUUID());
-        when(contactRepository.findById(registrar.getId())).thenReturn(Optional.of(registrar));
-        when(bindingService.accountIdOfContact(registrar.getId())).thenReturn(Optional.of(accountId));
-        when(stewardshipRecordRepository.existsByContact_Id(registrar.getId())).thenReturn(true);
+    void deleteMyContact_personalEdition_contactWithoutReferences_deletes() {
+        // 个人版 CONTACT 行：无引用时仍可删除（默认递补逻辑不变）
+        UUID removed = UUID.randomUUID();
+        UUID remaining = UUID.randomUUID();
+        Contact contact = new Contact();
+        contact.setId(removed);
+        when(contactRepository.findById(removed)).thenReturn(Optional.of(contact));
+        when(bindingService.accountIdOfContact(removed)).thenReturn(Optional.of(accountId));
+        when(systemSettingService.getEdition()).thenReturn(DeploymentEdition.PERSONAL);
+        when(bindingService.defaultBindingOf(accountId))
+                .thenReturn(Optional.of(binding(removed, true)));
+        when(bindingService.firstBindingOf(accountId))
+                .thenReturn(Optional.of(binding(remaining, false)));
 
-        assertThatThrownBy(() -> contactService.deleteMyContact(accountId, registrar.getId()))
-                .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("Stewardship");
-        verify(contactRepository, never()).delete(any(Contact.class));
-    }
+        contactService.deleteMyContact(accountId, removed);
 
-    @Test
-    void deleteMyContact_registrarRejectedWhenApprovalReferenced() {
-        Registrar registrar = new Registrar(new RegistrationAuthority());
-        registrar.setId(UUID.randomUUID());
-        when(contactRepository.findById(registrar.getId())).thenReturn(Optional.of(registrar));
-        when(bindingService.accountIdOfContact(registrar.getId())).thenReturn(Optional.of(accountId));
-        when(registrationTransitionApprovalRepository.existsByRegistrarId(registrar.getId())).thenReturn(true);
-
-        assertThatThrownBy(() -> contactService.deleteMyContact(accountId, registrar.getId()))
-                .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("审批记录");
-        verify(contactRepository, never()).delete(any(Contact.class));
+        verify(bindingService).unbind(removed);
+        verify(contactRepository).delete(contact);
+        verify(bindingService).markDefault(accountId, remaining);
     }
 
     @Test
@@ -322,11 +407,13 @@ class ContactServiceMyContactsTest {
 
     @Test
     void deleteMyContact_referencedBySubmissionRecord_conflict() {
+        // 个人版 CONTACT 行：提交记录引用守卫保留
         UUID contactId = UUID.randomUUID();
         Contact contact = new Contact();
         contact.setId(contactId);
         when(contactRepository.findById(contactId)).thenReturn(Optional.of(contact));
         when(bindingService.accountIdOfContact(contactId)).thenReturn(Optional.of(accountId));
+        when(systemSettingService.getEdition()).thenReturn(DeploymentEdition.PERSONAL);
         when(submissionRecordRepository.existsByContactId(contactId)).thenReturn(true);
 
         assertThatThrownBy(() -> contactService.deleteMyContact(accountId, contactId))
@@ -364,7 +451,7 @@ class ContactServiceMyContactsTest {
         when(contactRepository.save(any(Contact.class))).thenAnswer(inv -> inv.getArgument(0));
 
         MyContactResponse response = contactService.updateMyContact(
-                accountId, contact.getId(), new MyContactRequest(org.getId(), role.getId(), null));
+                accountId, contact.getId(), new MyContactRequest(org.getId(), role.getId(), null, null));
 
         assertThat(response.organizationId()).isEqualTo(org.getId());
         assertThat(response.roleId()).isEqualTo(role.getId());

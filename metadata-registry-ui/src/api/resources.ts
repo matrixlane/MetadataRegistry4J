@@ -26,6 +26,7 @@ import type {
   WorkspaceSubmitRequest,
   WorkspaceSubmitResult,
   SubmissionInfo,
+  ContactIdentityKind,
 } from '@/types/common';
 
 function crud<T>(base: string) {
@@ -140,7 +141,7 @@ export const contactApi = {
 /** 当前登录用户的联系人身份（user-profile-individual / contact-identity-management / add-registrar-three-elements） */
 export const myContactApi = {
   list: () => request.get<MyContactResponse[]>('/my/contacts'),
-  create: (data: { organizationId: string; roleId?: string; individualId?: string }) =>
+  create: (data: { organizationId: string; roleId?: string; individualId?: string; kind?: ContactIdentityKind }) =>
     request.post<MyContactResponse>('/my/contacts', data),
   update: (
     id: string,

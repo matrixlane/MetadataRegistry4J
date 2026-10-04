@@ -302,6 +302,23 @@
         :rules="contactRules"
         label-position="top"
       >
+        <el-form-item :label="$t('contactIdentity.kind')">
+          <el-radio-group
+            v-if="!editingContact"
+            v-model="contactForm.kind"
+            data-testid="contact-kind-radio"
+          >
+            <el-radio value="CONTACT">{{ $t('contactIdentity.contact') }}</el-radio>
+            <el-radio
+              v-if="auth.user?.sysRole === 'SUPER_ADMIN'"
+              value="REGISTRAR"
+              data-testid="contact-kind-registrar"
+            >{{ $t('contactIdentity.registrar') }}</el-radio>
+          </el-radio-group>
+          <span v-else data-testid="contact-kind-text">
+            {{ editingContact.isRegistrar ? $t('contactIdentity.registrar') : $t('contactIdentity.contact') }}
+          </span>
+        </el-form-item>
         <el-form-item :label="$t('contactIdentity.organization')" prop="organizationId">
           <el-select
             v-model="contactForm.organizationId"
@@ -385,7 +402,7 @@ import {
   Medal,
 } from '@element-plus/icons-vue';
 import { myContactApi, organizationApi, roleApi } from '@/api/resources';
-import type { MyContactResponse } from '@/types/common';
+import type { MyContactResponse, ContactIdentityKind } from '@/types/common';
 
 const auth = useAuthStore();
 const { t } = useI18n();
@@ -405,6 +422,7 @@ const contactSaving = ref(false);
 const editingContact = ref<MyContactResponse | null>(null);
 const contactFormRef = ref<FormInstance>();
 const contactForm = reactive({
+  kind: 'CONTACT' as ContactIdentityKind,
   organizationId: '',
   roleId: undefined as string | undefined,
 });
@@ -469,6 +487,7 @@ async function loadRoles() {
 
 function openContactDialog(contact?: MyContactResponse) {
   editingContact.value = contact || null;
+  contactForm.kind = 'CONTACT';
   contactForm.organizationId = contact?.organizationId || '';
   contactForm.roleId = contact?.roleId || undefined;
   contactDialogVisible.value = true;
@@ -487,7 +506,10 @@ async function saveContact() {
       if (editingContact.value) {
         await myContactApi.update(editingContact.value.id, payload);
       } else {
-        await myContactApi.create(payload);
+        // kind 仅创建时生效且类型不可变更：仅在选择注册人员（仅超级管理员可见该选项）时携带
+        await myContactApi.create(
+          contactForm.kind === 'REGISTRAR' ? { ...payload, kind: 'REGISTRAR' } : payload,
+        );
       }
       ElMessage.success(t('contactIdentity.saveSuccess'));
       contactDialogVisible.value = false;
@@ -502,6 +524,12 @@ async function saveContact() {
 }
 
 async function deleteContact(contact: MyContactResponse) {
+  // 个人版（含版本未知）：注册人员身份随注册机构存在，后端一律拒绝删除；
+  // UI 仅做体验门控先行提示，团队版全部可删，最终裁决以后端为准
+  if (contact.isRegistrar && auth.edition !== 'TEAM') {
+    ElMessage.warning(t('contactIdentity.registrarDeleteBlocked'));
+    return;
+  }
   try {
     await ElMessageBox.confirm(
       t('contactIdentity.deleteConfirmMessage', {

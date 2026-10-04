@@ -488,7 +488,9 @@
     "setDefaultSuccess": "Set as default identity",
     "organizationRequired": "Please select an organization",
     "deleteConfirmTitle": "Confirm",
-    "deleteConfirmMessage": "Delete the {kind} identity of {org}?"
+    "deleteConfirmMessage": "Delete the {kind} identity of {org}?",
+    "kind": "Identity Type",
+    "registrarDeleteBlocked": "A registrar identity cannot be deleted; please delete its registration authority first"
   },
   "itemForm": {
     "conflictTitle": "{count} conflict(s) / warning(s)",
