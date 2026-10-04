@@ -7,40 +7,53 @@
     @open="onOpen"
     @closed="reset"
   >
-    <el-form
-      ref="formRef"
-      :model="form"
-      :rules="rules"
-      label-position="top"
-    >
-      <el-form-item :label="$t('itemForm.submissionInfo.contact')" prop="contactId">
-        <el-select
-          v-model="form.contactId"
-          :placeholder="$t('itemForm.submissionInfo.contactPlaceholder')"
-          style="width: 100%;"
-          data-testid="submission-contact-select"
-          @change="onContactChange"
-        >
-          <el-option
-            v-for="contact in contacts"
-            :key="contact.id"
-            :label="contactLabel(contact)"
-            :value="contact.id"
+    <template v-if="hasIdentities">
+      <el-form
+        ref="formRef"
+        :model="form"
+        :rules="rules"
+        label-position="top"
+      >
+        <el-form-item :label="$t('itemForm.submissionInfo.organization')" prop="organizationId">
+          <el-select
+            v-model="form.organizationId"
+            :placeholder="$t('itemForm.submissionInfo.organizationPlaceholder')"
+            style="width: 100%;"
+            data-testid="submission-organization-select"
+          >
+            <el-option
+              v-for="org in organizations"
+              :key="org.organizationId"
+              :label="org.organizationName || org.organizationId"
+              :value="org.organizationId"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item :label="$t('itemForm.submissionInfo.contact')">
+          <el-input
+            :model-value="contactDisplay"
+            readonly
+            :placeholder="$t('workspace.organizationAuto')"
+            data-testid="submission-contact-display"
           />
-        </el-select>
-      </el-form-item>
-      <el-form-item :label="$t('itemForm.submissionInfo.organization')">
-        <el-input
-          :model-value="organizationDisplay"
-          readonly
-          :placeholder="$t('workspace.organizationAuto')"
-          data-testid="submission-organization-display"
-        />
-      </el-form-item>
-    </el-form>
+        </el-form-item>
+      </el-form>
+    </template>
+    <template v-else>
+      <div class="no-identity-tip" data-testid="submission-no-identity">
+        <p>{{ $t('workspace.submissionIdentityRequired') }}</p>
+        <p class="no-identity-hint">{{ $t('workspace.submissionIdentityRequiredHint') }}</p>
+      </div>
+    </template>
     <template #footer>
       <el-button @click="visible = false">{{ $t('common.cancel') }}</el-button>
-      <el-button type="primary" :loading="submitting" data-testid="submission-confirm" @click="confirm">
+      <el-button
+        v-if="hasIdentities"
+        type="primary"
+        :loading="submitting"
+        data-testid="submission-confirm"
+        @click="confirm"
+      >
         {{ $t('common.confirm') }}
       </el-button>
     </template>
@@ -71,38 +84,50 @@ const contacts = ref<MyContactResponse[]>([]);
 const contactsLoaded = ref(false);
 const formRef = ref<FormInstance>();
 const form = reactive({
-  contactId: '',
+  organizationId: '',
 });
 
-const organizationDisplay = computed(() => {
-  const contact = (contacts.value || []).find((c) => c.id === form.contactId);
-  return contact?.organizationName || t('workspace.organizationAuto');
+interface OrgOption {
+  organizationId: string;
+  organizationName?: string;
+}
+
+/** 提交组织选项 = 当前账号身份所属组织去重（value=organizationId, label=organizationName） */
+const organizations = computed<OrgOption[]>(() => {
+  const map = new Map<string, string | undefined>();
+  for (const contact of contacts.value || []) {
+    if (contact.organizationId && !map.has(contact.organizationId)) {
+      map.set(contact.organizationId, contact.organizationName);
+    }
+  }
+  return Array.from(map, ([organizationId, organizationName]) => ({ organizationId, organizationName }));
+});
+
+/** 无任何可用身份（或身份均无组织）时不显示表单，显示提示区 */
+const hasIdentities = computed(() => organizations.value.length > 0);
+
+/** 所选组织下当前账号的本人身份（默认身份优先） */
+const selectedIdentity = computed<MyContactResponse | undefined>(() => {
+  const list = (contacts.value || []).filter((c) => c.organizationId === form.organizationId);
+  return list.find((c) => c.isDefault) ?? list[0];
+});
+
+const contactDisplay = computed(() => {
+  const identity = selectedIdentity.value;
+  if (!identity) return '';
+  if (identity.individualName && identity.organizationName) {
+    return `${identity.individualName}（${identity.organizationName}）`;
+  }
+  return identity.individualName || identity.organizationName || '';
 });
 
 const title = computed(() => props.title || t('itemForm.submissionInfo.title'));
 
 const rules = computed<FormRules>(() => ({
-  contactId: [
-    { required: true, message: t('workspace.contactRequired'), trigger: 'change' },
+  organizationId: [
+    { required: true, message: t('workspace.submissionOrganizationRequired'), trigger: 'change' },
   ],
 }));
-
-function contactLabel(contact: MyContactResponse): string {
-  const parts = [
-    contact.individualName || contact.organizationName,
-    contact.organizationName && contact.individualName ? `(${contact.organizationName})` : undefined,
-    contact.roleName,
-  ].filter(Boolean);
-  const label = parts.join(' · ') || contact.id;
-  return contact.isDefault ? `${label} (${t('contactIdentity.default')})` : label;
-}
-
-function onContactChange(contactId: string) {
-  const contact = (contacts.value || []).find((c) => c.id === contactId);
-  if (contact && !contact.isRegistrar) {
-    // 联系人为本账号绑定的非 Registrar 联系人，自动推导其所属组织
-  }
-}
 
 async function loadContacts() {
   if (contactsLoaded.value) return;
@@ -117,21 +142,25 @@ async function loadContacts() {
   }
 }
 
-function prefillDefaultContact() {
+function defaultOrganizationId(): string {
   const list = contacts.value || [];
-  const defaultContact = list.find((c) => c.isDefault);
-  form.contactId = defaultContact?.id || (list[0]?.id ?? '');
+  // 默认选中 = 活动 RA 身份组织（身份中 isRegistrar 且关联注册机构）；
+  // MyContactResponse 不含 RA 所属组织字段，该身份自身的 organizationId 即该组织。
+  const registrarIdentity = list.find((c) => c.isRegistrar && c.registrationAuthorityId && c.organizationId);
+  if (registrarIdentity) return registrarIdentity.organizationId;
+  const defaultIdentity = list.find((c) => c.isDefault && c.organizationId);
+  return (defaultIdentity ?? list.find((c) => c.organizationId))?.organizationId ?? '';
 }
 
 function onOpen() {
   reset();
   loadContacts().then(() => {
-    prefillDefaultContact();
+    form.organizationId = defaultOrganizationId();
   });
 }
 
 function reset() {
-  form.contactId = '';
+  form.organizationId = '';
   contactsLoaded.value = false;
 }
 
@@ -143,17 +172,29 @@ async function confirm() {
   if (!formRef.value) return;
   await formRef.value.validate((valid) => {
     if (!valid) return;
-    const contact = (contacts.value || []).find((c) => c.id === form.contactId);
-    if (!contact) {
+    const identity = selectedIdentity.value;
+    if (!identity) {
       ElMessage.error(t('workspace.selectContact'));
       return;
     }
     emit('confirm', {
-      contactId: contact.id,
-      organizationId: contact.organizationId,
+      contactId: identity.id,
+      organizationId: form.organizationId,
     });
   });
 }
 
 defineExpose({ open });
 </script>
+
+<style scoped>
+.no-identity-tip {
+  padding: 8px 4px;
+  color: var(--el-text-color-regular);
+}
+
+.no-identity-hint {
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
+}
+</style>

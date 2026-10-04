@@ -241,7 +241,7 @@ describe('WorkspaceView', () => {
     await batchBtn.trigger('click');
     await flushPromises();
 
-    expect(wrapper.find('[data-testid="submission-contact-select"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="submission-organization-select"]').exists()).toBe(true);
   });
 
   it('回归：勾选行后表格仍然可见（不被批量条覆盖）', async () => {
@@ -359,5 +359,60 @@ describe('WorkspaceView', () => {
 
     expect(confirmSpy).toHaveBeenCalled();
     expect(mockedRollback).toHaveBeenCalledWith('item-3');
+  });
+
+  // ===== acg-submission：提交入口联系人身份预检 =====
+
+  it('无任何联系人身份时，行级提交被阻止并提示', async () => {
+    const wrapper = mountWorkspace();
+    mounted.push(wrapper);
+    await flushPromises();
+
+    vi.mocked(myContactApi.list).mockResolvedValue([] as any);
+    const alertSpy = vi.spyOn(ElMessageBox, 'alert').mockResolvedValue(undefined as never);
+
+    await wrapper.find('[data-testid="row-submit"]').trigger('click');
+    await flushPromises();
+
+    expect(alertSpy).toHaveBeenCalled();
+    expect(alertSpy.mock.calls[0][0]).toContain('创建联系人身份');
+    expect(wrapper.find('[data-testid="submission-organization-select"]').exists()).toBe(false);
+    alertSpy.mockRestore();
+  });
+
+  it('无任何联系人身份时，批量提交被阻止并提示', async () => {
+    const wrapper = mountWorkspace();
+    mounted.push(wrapper);
+    await flushPromises();
+
+    vi.mocked(myContactApi.list).mockResolvedValue([] as any);
+    const alertSpy = vi.spyOn(ElMessageBox, 'alert').mockResolvedValue(undefined as never);
+
+    selectRows(wrapper, [rowFixtures.draft]);
+    await wrapper.vm.$nextTick();
+    await flushPromises();
+
+    await wrapper.find('[data-testid="batch-submit-btn"]').trigger('click');
+    await flushPromises();
+
+    expect(alertSpy).toHaveBeenCalled();
+    expect(wrapper.find('[data-testid="submission-organization-select"]').exists()).toBe(false);
+    alertSpy.mockRestore();
+  });
+
+  it('无任何联系人身份时，请求成为候选被阻止并提示', async () => {
+    const wrapper = mountWorkspace();
+    mounted.push(wrapper);
+    await flushPromises();
+
+    vi.mocked(myContactApi.list).mockResolvedValue([] as any);
+    const alertSpy = vi.spyOn(ElMessageBox, 'alert').mockResolvedValue(undefined as never);
+
+    await wrapper.find('[data-testid="row-request-candidate"]').trigger('click');
+    await flushPromises();
+
+    expect(alertSpy).toHaveBeenCalled();
+    expect(wrapper.find('[data-testid="submission-organization-select"]').exists()).toBe(false);
+    alertSpy.mockRestore();
   });
 });

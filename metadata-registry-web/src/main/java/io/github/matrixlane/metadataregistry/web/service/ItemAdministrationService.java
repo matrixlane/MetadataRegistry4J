@@ -604,10 +604,39 @@ public class ItemAdministrationService {
     private record ContactOrganizationPair(Contact contact, Organization organization) {
     }
 
+    /**
+     * 提交联系人与所属组织解析（acg-submission）：与
+     * {@link WorkspaceService#validateSubmissionInfo} 保持同一套规则——
+     * organizationId 显式给出时，先存在性校验，再从当前账号绑定的身份中解析
+     * contact.organization.id == organizationId 的身份作为提交联系人；
+     * contactId 同时给出时保留"联系人必须属于当前账号"校验并追加从属校验
+     * （联系人须属于所选组织）。仅给 contactId 时保持历史行为。
+     * {@link ContactService#resolveDefaultSubmissionContext} 不变。
+     */
     private ContactOrganizationPair resolveContactAndOrganization(SubmissionInfo submission, UUID accountId) {
         Contact contact = null;
         Organization organization = null;
-        if (submission != null && submission.contactId() != null) {
+        if (submission != null && submission.organizationId() != null) {
+            organization = organizationRepository.findById(submission.organizationId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Organization", submission.organizationId()));
+            contact = resolveOwnIdentityInOrganization(accountId, submission.organizationId());
+            if (submission.contactId() != null) {
+                Contact explicit = contactRepository.findById(submission.contactId())
+                        .orElseThrow(() -> new ResourceNotFoundException("Contact", submission.contactId()));
+                java.util.Optional<UUID> boundAccount =
+                        contactAccountBindingService.accountIdOfContact(explicit.getId());
+                if (boundAccount.isEmpty() || !accountId.equals(boundAccount.get())) {
+                    throw new BusinessException(ApiCodes.VALIDATION_FAILED,
+                            "提交信息中的联系人必须是当前账号绑定的联系人身份");
+                }
+                if (explicit.getOrganization() == null
+                        || !submission.organizationId().equals(explicit.getOrganization().getId())) {
+                    throw new BusinessException(ApiCodes.VALIDATION_FAILED,
+                            "提交信息中的联系人必须属于所选提交组织");
+                }
+                contact = explicit;
+            }
+        } else if (submission != null && submission.contactId() != null) {
             contact = contactRepository.findById(submission.contactId())
                     .orElseThrow(() -> new ResourceNotFoundException("Contact", submission.contactId()));
             java.util.Optional<UUID> boundAccount = contactAccountBindingService.accountIdOfContact(contact.getId());
@@ -615,12 +644,7 @@ public class ItemAdministrationService {
                 throw new BusinessException(ApiCodes.VALIDATION_FAILED,
                         "提交信息中的联系人必须是当前账号绑定的联系人身份");
             }
-            if (submission.organizationId() != null) {
-                organization = organizationRepository.findById(submission.organizationId())
-                        .orElseThrow(() -> new ResourceNotFoundException("Organization", submission.organizationId()));
-            } else {
-                organization = contact.getOrganization();
-            }
+            organization = contact.getOrganization();
         } else {
             java.util.Optional<ContactService.SubmissionContext> context =
                     contactService.resolveDefaultSubmissionContext(accountId);
@@ -634,6 +658,25 @@ public class ItemAdministrationService {
                     "无法确定提交联系人与所属组织：请先在「我的」中登记联系人身份，或在提交信息中显式选择");
         }
         return new ContactOrganizationPair(contact, organization);
+    }
+
+    /** 当前账号绑定的身份中，organization.id == organizationId 的联系人身份；无则 422。 */
+    private Contact resolveOwnIdentityInOrganization(UUID accountId, UUID organizationId) {
+        List<UUID> contactIds = contactAccountBindingService.bindingsOfAccount(accountId).stream()
+                .map(ContactAccountBinding::getContactId)
+                .toList();
+        if (contactIds.isEmpty()) {
+            throw noIdentityInOrganization();
+        }
+        return contactRepository.findAllById(contactIds).stream()
+                .filter(c -> c.getOrganization() != null && organizationId.equals(c.getOrganization().getId()))
+                .findFirst()
+                .orElseThrow(this::noIdentityInOrganization);
+    }
+
+    private BusinessException noIdentityInOrganization() {
+        return new BusinessException(ApiCodes.VALIDATION_FAILED,
+                "提交组织必须是当前账号具有联系人身份的组织，请先创建为该机构联系人");
     }
 
     private void persistSubmissionRecord(List<AdministeredItem> administeredItems,

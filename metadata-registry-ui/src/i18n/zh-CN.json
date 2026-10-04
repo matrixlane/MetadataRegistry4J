@@ -401,7 +401,32 @@
     "contactRequired": "联系人必选",
     "organization": "所属组织",
     "organizationAuto": "随所选联系人自动推导",
-    "badgeTooltipWithCount": "工作空间（{count} 项未提交）"
+    "badgeTooltipWithCount": "工作空间（{count} 项未提交）",
+    "submissionIdentityRequired": "在提交元数据前，请先创建为当前注册机构的联系人",
+    "submissionIdentityRequiredHint": "请前往「我的」页面创建联系人身份后再提交",
+    "submissionOrganizationRequired": "提交组织必选"
+  },
+  "registrationAuthority": {
+    "title": "注册机构",
+    "columns": {
+      "identifier": "标识符",
+      "name": "名称"
+    },
+    "form": {
+      "identifier": "标识符",
+      "name": "中文名称",
+      "englishName": "英文名称"
+    },
+    "createAutoRegistrarHint": "创建后您将自动成为该机构的注册人员",
+    "deleteConfirmTitle": "删除注册机构",
+    "deleteConfirmMessage": "删除该注册机构将同时删除上述全部数据，且不可恢复",
+    "deleteSuccess": "注册机构已删除",
+    "deletePreview": {
+      "administeredItems": "受管项",
+      "registrars": "注册人员",
+      "namespaces": "命名空间",
+      "submissionRecords": "提交记录"
+    }
   },
   "namespace": {
     "title": "命名空间",

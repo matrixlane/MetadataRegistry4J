@@ -445,6 +445,17 @@ export interface SubmissionInfo {
   organizationId?: string | null;
 }
 
+/** GET /api/v1/registration-authorities/{id}/deletion-preview 返回的删除预览（级联删除计数） */
+export interface RegistrationAuthorityDeletionPreview {
+  registrationAuthorityId: string;
+  administeredItemCount: number;
+  submissionRecordCount: number;
+  registrarCount: number;
+  namespaceCount: number;
+  stewardshipRecordCount: number;
+  transitionRuleCount: number;
+}
+
 /** SubmissionRecord 来源枚举（align-submission-record-to-iso） */
 export type SubmissionRecordSource = 'USER_SUBMISSION' | 'SYSTEM_DRAFT';
 

@@ -17,9 +17,13 @@ import io.github.matrixlane.metadataregistry.commonfacilities.registration.Regis
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationState;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationStatus;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.StewardshipRecord;
+import io.github.matrixlane.metadataregistry.commonfacilities.registration.SubmissionRecord;
+import io.github.matrixlane.metadataregistry.commonfacilities.registration.SubmissionRecordSource;
+import io.github.matrixlane.metadataregistry.ext.basicandcore.ContactAccountBinding;
 import io.github.matrixlane.metadataregistry.web.common.BusinessException;
 import io.github.matrixlane.metadataregistry.web.dto.common.ItemMetaResponse;
 import io.github.matrixlane.metadataregistry.web.dto.common.ItemRegistrationRequest;
+import io.github.matrixlane.metadataregistry.web.dto.common.SubmissionInfo;
 import io.github.matrixlane.metadataregistry.web.dto.common.TextLine;
 import io.github.matrixlane.metadataregistry.web.dto.common.TextLineContextEntry;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.Context;
@@ -38,6 +42,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -1415,5 +1420,118 @@ class ItemAdministrationServiceTest {
         assertThat(meta.stewardshipRecordId()).isEqualTo(recordId);
         assertThat(meta.stewardshipContactId()).isEqualTo(contactId);
         assertThat(meta.stewardshipOrganizationId()).isEqualTo(organizationId);
+    }
+
+    // ===== acg-submission：organizationId 显式给出时的联系人身份解析 =====
+
+    private Item newPersistedItem() {
+        Item persisted = new TestItem();
+        persisted.setId(UUID.randomUUID());
+        AdministeredItem ai = new AdministeredItem(persisted);
+        when(administeredItemRepository.findByItem_Id(persisted.getId())).thenReturn(Optional.of(ai));
+        return persisted;
+    }
+
+    private void stubAccount(UUID accountId) {
+        when(activeRegistrarService.currentAccountIdOrNull()).thenReturn(accountId);
+    }
+
+    @Test
+    void recordSubmissionForBatch_organizationWithoutIdentity_rejectsWithGuidance() {
+        // 提交组织不是当前账号具有联系人身份的组织 → 422 且消息含引导
+        UUID accountId = UUID.randomUUID();
+        UUID orgId = UUID.randomUUID();
+        Item persisted = newPersistedItem();
+        stubAccount(accountId);
+        when(organizationRepository.findById(orgId)).thenReturn(Optional.of(newOrganization(orgId)));
+        when(contactAccountBindingService.bindingsOfAccount(accountId)).thenReturn(List.of());
+
+        SubmissionInfo submission = new SubmissionInfo(null, orgId);
+
+        assertThatThrownBy(() -> itemAdministrationService.recordSubmissionForBatch(
+                List.of(persisted), submission, SubmissionRecordSource.USER_SUBMISSION))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("请先创建为该机构联系人");
+        verify(submissionRecordRepository, never()).save(any(SubmissionRecord.class));
+    }
+
+    @Test
+    void recordSubmissionForBatch_contactNotUnderOrganization_rejects() {
+        // contactId + organizationId 同时给出：联系人属于当前账号但不属于所选组织 → 422
+        UUID accountId = UUID.randomUUID();
+        Organization orgA = newOrganization(UUID.randomUUID());
+        Organization orgB = newOrganization(UUID.randomUUID());
+        Contact identityInA = newContact(UUID.randomUUID(), orgA);
+        Contact contactInB = newContact(UUID.randomUUID(), orgB);
+        Item persisted = newPersistedItem();
+        stubAccount(accountId);
+        when(organizationRepository.findById(orgA.getId())).thenReturn(Optional.of(orgA));
+        when(contactAccountBindingService.bindingsOfAccount(accountId))
+                .thenReturn(List.of(new ContactAccountBinding(identityInA.getId(), accountId)));
+        when(contactRepository.findAllById(List.of(identityInA.getId()))).thenReturn(List.of(identityInA));
+        when(contactRepository.findById(contactInB.getId())).thenReturn(Optional.of(contactInB));
+        when(contactAccountBindingService.accountIdOfContact(contactInB.getId()))
+                .thenReturn(Optional.of(accountId));
+
+        SubmissionInfo submission = new SubmissionInfo(contactInB.getId(), orgA.getId());
+
+        assertThatThrownBy(() -> itemAdministrationService.recordSubmissionForBatch(
+                List.of(persisted), submission, SubmissionRecordSource.USER_SUBMISSION))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("必须属于所选提交组织");
+        verify(submissionRecordRepository, never()).save(any(SubmissionRecord.class));
+    }
+
+    @Test
+    void recordSubmissionForBatch_contactOnly_keepsLegacyBehavior() {
+        // 仅给 contactId（不给 organizationId）：行为与现状一致——联系人须属于当前账号，
+        // 组织取联系人所属组织
+        UUID accountId = UUID.randomUUID();
+        Organization org = newOrganization(UUID.randomUUID());
+        Contact contact = newContact(UUID.randomUUID(), org);
+        Item persisted = newPersistedItem();
+        stubAccount(accountId);
+        when(contactRepository.findById(contact.getId())).thenReturn(Optional.of(contact));
+        when(contactAccountBindingService.accountIdOfContact(contact.getId()))
+                .thenReturn(Optional.of(accountId));
+        when(submissionRecordRepository.save(any(SubmissionRecord.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+
+        SubmissionInfo submission = new SubmissionInfo(contact.getId(), null);
+
+        itemAdministrationService.recordSubmissionForBatch(
+                List.of(persisted), submission, SubmissionRecordSource.USER_SUBMISSION);
+
+        ArgumentCaptor<SubmissionRecord> captor =
+                ArgumentCaptor.forClass(SubmissionRecord.class);
+        verify(submissionRecordRepository).save(captor.capture());
+        assertThat(captor.getValue().getContact()).isSameAs(contact);
+        assertThat(captor.getValue().getOrganization()).isSameAs(org);
+    }
+
+    @Test
+    void recordSubmissionForBatch_organizationGiven_resolvesOwnIdentityAsContact() {        // org 给出时 SR.contact 解析为该组织下的本人身份（而非请求中隐含的其它推导）
+        UUID accountId = UUID.randomUUID();
+        Organization org = newOrganization(UUID.randomUUID());
+        Contact identity = newContact(UUID.randomUUID(), org);
+        Item persisted = newPersistedItem();
+        stubAccount(accountId);
+        when(organizationRepository.findById(org.getId())).thenReturn(Optional.of(org));
+        when(contactAccountBindingService.bindingsOfAccount(accountId))
+                .thenReturn(List.of(new ContactAccountBinding(identity.getId(), accountId)));
+        when(contactRepository.findAllById(List.of(identity.getId()))).thenReturn(List.of(identity));
+        when(submissionRecordRepository.save(any(SubmissionRecord.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+
+        SubmissionInfo submission = new SubmissionInfo(null, org.getId());
+
+        itemAdministrationService.recordSubmissionForBatch(
+                List.of(persisted), submission, SubmissionRecordSource.USER_SUBMISSION);
+
+        ArgumentCaptor<SubmissionRecord> captor =
+                ArgumentCaptor.forClass(SubmissionRecord.class);
+        verify(submissionRecordRepository).save(captor.capture());
+        assertThat(captor.getValue().getContact()).isSameAs(identity);
+        assertThat(captor.getValue().getOrganization()).isSameAs(org);
     }
 }

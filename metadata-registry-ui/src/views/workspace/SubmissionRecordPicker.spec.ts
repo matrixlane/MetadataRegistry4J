@@ -7,11 +7,12 @@ import SubmissionRecordPicker from './SubmissionRecordPicker.vue';
 import { myContactApi } from '@/api/resources';
 import zhCN from '@/i18n/zh-CN.json';
 
-function selectedContactValue(wrapper: VueWrapper): string | undefined {
+function selectedOrganizationValue(wrapper: VueWrapper): string | undefined {
   const select = wrapper.findComponent({ name: 'ElSelect' });
   return select.vm.modelValue;
 }
 
+/** 两个组织各一条身份：contact-1 为 org-1 默认联系人，contact-2 为 org-2 的 Registrar 身份 */
 const contactsFixture = vi.hoisted(() => [
   {
     id: 'contact-1',
@@ -22,8 +23,8 @@ const contactsFixture = vi.hoisted(() => [
     roleId: 'role-1',
     roleName: '提交人',
     isRegistrar: false,
-    registrationAuthorityId: 'ra-1',
-    registrationAuthorityName: 'RA',
+    registrationAuthorityId: null,
+    registrationAuthorityName: null,
     isDefault: true,
   },
   {
@@ -33,10 +34,10 @@ const contactsFixture = vi.hoisted(() => [
     individualId: 'ind-2',
     individualName: '李四',
     roleId: 'role-2',
-    roleName: '主管',
+    roleName: '注册管理员',
     isRegistrar: true,
-    registrationAuthorityId: 'ra-1',
-    registrationAuthorityName: 'RA',
+    registrationAuthorityId: 'ra-2',
+    registrationAuthorityName: '机构 B',
     isDefault: false,
   },
 ] as any[]);
@@ -74,8 +75,8 @@ afterEach(() => {
   document.body.innerHTML = '';
 });
 
-describe('SubmissionRecordPicker', () => {
-  it('打开时加载联系人并默认选中默认联系人', async () => {
+describe('SubmissionRecordPicker（acg-submission 组织下拉）', () => {
+  it('打开时加载身份，组织选项为身份所属组织去重，默认选中活动 RA 身份组织', async () => {
     const wrapper = mountPicker();
     mounted.push(wrapper);
 
@@ -83,11 +84,28 @@ describe('SubmissionRecordPicker', () => {
     await flushPromises();
 
     expect(mockedList).toHaveBeenCalled();
-    expect(selectedContactValue(wrapper)).toBe('contact-1');
-    expect((wrapper.find('[data-testid="submission-organization-display"]').element as HTMLInputElement).value).toBe('组织 A');
+    // 默认选中 = isRegistrar 且关联注册机构的身份所属组织（org-2）
+    expect(selectedOrganizationValue(wrapper)).toBe('org-2');
+    // 联系人为只读展示：该组织下本人身份的 individualName（organizationName）
+    expect((wrapper.find('[data-testid="submission-contact-display"]').element as HTMLInputElement).value)
+      .toBe('李四（组织 B）');
+    expect(wrapper.find('[data-testid="submission-organization-select"]').exists()).toBe(true);
   });
 
-  it('切换联系人后，组织显示随之更新', async () => {
+  it('无 Registrar 身份时默认选中默认身份组织', async () => {
+    mockedList.mockResolvedValue([contactsFixture[0]]);
+    const wrapper = mountPicker();
+    mounted.push(wrapper);
+
+    (wrapper.vm as any).open();
+    await flushPromises();
+
+    expect(selectedOrganizationValue(wrapper)).toBe('org-1');
+    expect((wrapper.find('[data-testid="submission-contact-display"]').element as HTMLInputElement).value)
+      .toBe('张三（组织 A）');
+  });
+
+  it('切换组织后，只读联系人展示随之更新', async () => {
     const wrapper = mountPicker();
     mounted.push(wrapper);
 
@@ -95,14 +113,29 @@ describe('SubmissionRecordPicker', () => {
     await flushPromises();
 
     const select = wrapper.findComponent({ name: 'ElSelect' });
-    select.vm.$emit('update:modelValue', 'contact-2');
-    select.vm.$emit('change', 'contact-2');
+    select.vm.$emit('update:modelValue', 'org-1');
+    select.vm.$emit('change', 'org-1');
     await flushPromises();
 
-    expect((wrapper.find('[data-testid="submission-organization-display"]').element as HTMLInputElement).value).toBe('组织 B');
+    expect((wrapper.find('[data-testid="submission-contact-display"]').element as HTMLInputElement).value)
+      .toBe('张三（组织 A）');
   });
 
-  it('未选择联系人时确认校验失败', async () => {
+  it('身份列表为空时显示提示区，不显示表单与确认按钮', async () => {
+    mockedList.mockResolvedValue([]);
+    const wrapper = mountPicker();
+    mounted.push(wrapper);
+
+    (wrapper.vm as any).open();
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="submission-no-identity"]').exists()).toBe(true);
+    expect(wrapper.text()).toContain('在提交元数据前，请先创建为当前注册机构的联系人');
+    expect(wrapper.find('[data-testid="submission-organization-select"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="submission-confirm"]').exists()).toBe(false);
+  });
+
+  it('未选择组织时确认校验失败', async () => {
     const wrapper = mountPicker();
     mounted.push(wrapper);
 
@@ -120,11 +153,31 @@ describe('SubmissionRecordPicker', () => {
     expect(wrapper.emitted('confirm')).toBeUndefined();
   });
 
-  it('选择有效联系人并确认后抛出 submission 信息', async () => {
+  it('确认时抛出该组织下本人身份 id 与所选组织', async () => {
     const wrapper = mountPicker();
     mounted.push(wrapper);
 
     (wrapper.vm as any).open();
+    await flushPromises();
+
+    await wrapper.find('[data-testid="submission-confirm"]').trigger('click');
+    await flushPromises();
+
+    expect(wrapper.emitted('confirm')?.[0]).toEqual([
+      { contactId: 'contact-2', organizationId: 'org-2' },
+    ]);
+  });
+
+  it('切换组织后确认抛出对应组织下的身份', async () => {
+    const wrapper = mountPicker();
+    mounted.push(wrapper);
+
+    (wrapper.vm as any).open();
+    await flushPromises();
+
+    const select = wrapper.findComponent({ name: 'ElSelect' });
+    select.vm.$emit('update:modelValue', 'org-1');
+    select.vm.$emit('change', 'org-1');
     await flushPromises();
 
     await wrapper.find('[data-testid="submission-confirm"]').trigger('click');
