@@ -49,20 +49,6 @@ This capability defines the core rules and settings that govern how the metadata
 
 ---
 
-### Requirement: Prevent Registration Authority deletion in Single Registry Mode
-当系统运行模式被设置为单注册表模式（SINGLE）时，系统 SHALL 不允许删除已创建的注册机构（Registration Authority）。
-
-#### Scenario: Block delete operation on Backend in SINGLE mode
-- **WHEN** System running mode is "SINGLE"
-- **AND** A user attempts to delete a Registration Authority via the backend delete API
-- **THEN** The backend SHALL reject the request with a business exception (422 Validation Failed)
-
-#### Scenario: Hide or disable delete button in UI in SINGLE mode
-- **WHEN** System running mode is "SINGLE"
-- **THEN** The Registration Authority management page in the UI SHALL hide or disable the "Delete" button, preventing the user from triggering the deletion flow
-
----
-
 ### Requirement: Support English Name for Registration Authority in Initialization Wizard
 在系统初始化引导向导中，系统 SHALL 允许超级管理员输入注册机构的英文名称，并将中英文名称一同保存。
 
@@ -103,18 +89,6 @@ This capability defines the core rules and settings that govern how the metadata
 - **WHEN** 系统执行 any 数据库查询或迁移
 - **THEN** 所有的表（如 `account`, `individual`, `system_setting` 等）都在 `mdr` Schema 下进行读取和写入（如 `mdr.account`）
 
-### Requirement: Limit Registration Authority Creation in Single Registry Mode
-当系统运行模式被设置为单注册表模式（SINGLE），且系统中已经存在一个或多个注册机构（Registration Authority）时，系统 SHALL 不允许再新增任何注册机构。
-
-#### Scenario: Prevent Registration Authority creation in SINGLE mode when one already exists on Backend
-- **WHEN** System running mode is "SINGLE" and at least one Registration Authority already exists in the database
-- **AND** A user attempts to create a new Registration Authority via the backend API
-- **THEN** The backend SHALL reject the request with a business validation exception (422 Validation Failed)
-
-#### Scenario: Hide or disable Registration Authority creation button in SINGLE mode when one already exists in UI
-- **WHEN** System running mode is "SINGLE" and at least one Registration Authority already exists in the database
-- **THEN** The Registration Authority management page in the UI SHALL hide or disable the "Create" button, preventing the user from launching the creation flow
-
 ### Requirement: Registry_Specification class exists
 The system SHALL provide a `Registry_Specification` entity class that is a subclass of `Item`, as specified in ISO/IEC 11179-3:2023, 9.4.10.
 
@@ -148,7 +122,7 @@ The system SHALL provide a `Degree_of_Conformance` enumeration with values `conf
 - **THEN** the `degree_of_conformance` field accepts only `conforming` or `strictly_conforming`
 
 ### Requirement: Registry Specification Configuration Step in Initialization Wizard
-初始化向导 MUST 包含注册规范配置步骤（位于命名空间之后、管理员密码之前），开放编辑 `Registry_Specification`（ISO/IEC 11179-3:2023 表 28）的标量属性：name（必填）、comment、web_address、character_repertoire（必填）、standard、degree_of_conformance（conforming / strictly_conforming）、conformance_level、conformance_label、included_features、excluded_features、default_time_zone（[-+]HHMM）、default_language、alternative_language（0..*）、reference_document_identifier_kind（0..*）、representation_class_scheme_id。各属性 MUST 预填系统默认值；上下文与指称/定义多语言编辑不在向导内提供（初始化后于设置页维护）。
+初始化向导 MUST 包含注册规范配置步骤，位于数据库配置步骤之后、注册机构步骤之前（步骤顺序：版本 → 数据库 → 注册规范 → 注册机构 → 命名空间 → 管理员密码），开放编辑 `Registry_Specification`（ISO/IEC 11179-3:2023 表 28）的标量属性：name（必填）、comment、web_address、character_repertoire（必填）、standard、degree_of_conformance（conforming / strictly_conforming）、conformance_level、conformance_label、included_features、excluded_features、default_time_zone（[-+]HHMM）、default_language、alternative_language（0..*）、reference_document_identifier_kind（0..*）、representation_class_scheme_id。各属性 MUST 预填系统默认值；上下文与指称/定义多语言编辑不在向导内提供（初始化后于设置页维护）。
 
 #### Scenario: 向导中配置注册规范并带入 setup
 - **WHEN** 超级管理员在注册规范步骤修改字符集、标准、合规程度、时区、替代语言等属性并完成后续初始化
@@ -172,3 +146,16 @@ The system SHALL provide a `Degree_of_Conformance` enumeration with values `conf
 #### Scenario: 非法时区格式被拒绝
 - **WHEN** 提交的 default_time_zone 不匹配 [-+]HHMM 格式（如 "800"、"+08:00"）
 - **THEN** 系统返回 400 业务校验错误；前端在失焦时即提示格式错误且不提交
+
+### Requirement: 注册规范独立于注册机构且系统全局
+注册规范（Registry_Specification）描述的是注册系统本身的运行环境（ISO/IEC 11179-3:2023 §9.4.10），SHALL 独立于任何注册机构创建与生效，其作用域为系统全局（每个注册系统一条）。系统 MUST NOT 在注册规范上提供任何注册机构归属或作用域字段；默认上下文、默认语言等全局消费语义 MUST 保持取系统既有注册规范。
+
+#### Scenario: 初始化先建规范后建机构
+
+- **WHEN** 管理员提交初始化 setup
+- **THEN** 系统在创建任何注册机构之前创建注册规范；注册规范不携带注册机构引用
+
+#### Scenario: 注册规范设置页无机构维度
+
+- **WHEN** 注册管理员打开注册规范设置页
+- **THEN** 表单与列表不出现任何注册机构归属/筛选字段
