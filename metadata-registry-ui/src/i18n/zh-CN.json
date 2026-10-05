@@ -416,7 +416,13 @@
       "name": "中文名称",
       "englishName": "英文名称",
       "internationalCodeDesignator": "国际代码标识符",
-      "organizationPartIdentifier": "组织部件标识符"
+      "organizationPartIdentifier": "组织部件标识符",
+      "mailAddress": "通信地址",
+      "emailAddress": "电子邮箱",
+      "emailAddressPlaceholder": "输入后回车添加多个邮箱",
+      "phoneNumber": "电话号码",
+      "phoneNumberPlaceholder": "输入后回车添加多个电话",
+      "webAddress": "网址"
     },
     "createAutoRegistrarHint": "创建后您将自动成为该机构的注册人员",
     "deleteConfirmTitle": "删除注册机构",

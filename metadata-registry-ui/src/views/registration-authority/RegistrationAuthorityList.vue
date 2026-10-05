@@ -77,6 +77,36 @@
         <el-form-item :label="$t('registrationAuthority.form.englishName')">
           <el-input v-model="form.englishName" />
         </el-form-item>
+        <el-form-item :label="$t('registrationAuthority.form.mailAddress')">
+          <el-input v-model="form.mailAddress" data-testid="ra-mail-input" />
+        </el-form-item>
+        <el-form-item :label="$t('registrationAuthority.form.emailAddress')">
+          <el-select
+            v-model="form.emailAddress"
+            multiple
+            filterable
+            allow-create
+            default-first-option
+            :placeholder="$t('registrationAuthority.form.emailAddressPlaceholder')"
+            style="width: 100%;"
+            data-testid="ra-email-input"
+          />
+        </el-form-item>
+        <el-form-item :label="$t('registrationAuthority.form.phoneNumber')">
+          <el-select
+            v-model="form.phoneNumber"
+            multiple
+            filterable
+            allow-create
+            default-first-option
+            :placeholder="$t('registrationAuthority.form.phoneNumberPlaceholder')"
+            style="width: 100%;"
+            data-testid="ra-phone-input"
+          />
+        </el-form-item>
+        <el-form-item :label="$t('registrationAuthority.form.webAddress')">
+          <el-input v-model="form.webAddress" data-testid="ra-web-input" />
+        </el-form-item>
       </template>
     </ResourceFormDialog>
   </div>

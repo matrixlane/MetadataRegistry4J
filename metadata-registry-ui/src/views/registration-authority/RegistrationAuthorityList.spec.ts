@@ -122,6 +122,26 @@ describe('RegistrationAuthorityList（acg-submission）', () => {
     expect(dialogText).toContain('组织部件标识符');
   });
 
+  it('新建对话框陈列组织属性（通信地址/电子邮箱/电话/网址）', async () => {
+    mockedStatusGet.mockResolvedValue({ edition: 'TEAM' } as any);
+    const wrapper = mountList();
+    mounted.push(wrapper);
+    await flushPromises();
+
+    await wrapper.find('[data-testid="data-table-create-btn"]').trigger('click');
+    await flushPromises();
+
+    expect(document.body.querySelector('[data-testid="ra-mail-input"]')).not.toBeNull();
+    expect(document.body.querySelector('[data-testid="ra-email-input"]')).not.toBeNull();
+    expect(document.body.querySelector('[data-testid="ra-phone-input"]')).not.toBeNull();
+    expect(document.body.querySelector('[data-testid="ra-web-input"]')).not.toBeNull();
+    const dialogText = document.body.querySelector('.el-dialog')?.textContent ?? '';
+    expect(dialogText).toContain('通信地址');
+    expect(dialogText).toContain('电子邮箱');
+    expect(dialogText).toContain('电话号码');
+    expect(dialogText).toContain('网址');
+  });
+
   it('团队版已有注册机构时仍显示新建入口（无运行模式数量限制）', async () => {
     mockedStatusGet.mockResolvedValue({ edition: 'TEAM' } as any);
     const wrapper = mountList();

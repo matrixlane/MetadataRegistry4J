@@ -398,7 +398,13 @@
       "name": "Chinese name",
       "englishName": "English name",
       "internationalCodeDesignator": "International Code Designator",
-      "organizationPartIdentifier": "Organization Part Identifier"
+      "organizationPartIdentifier": "Organization Part Identifier",
+      "mailAddress": "Mailing Address",
+      "emailAddress": "Email Addresses",
+      "emailAddressPlaceholder": "Type and press Enter to add",
+      "phoneNumber": "Phone Numbers",
+      "phoneNumberPlaceholder": "Type and press Enter to add",
+      "webAddress": "Website"
     },
     "createAutoRegistrarHint": "After creation, you will automatically become a registrar of this authority",
     "deleteConfirmTitle": "Delete Registration Authority",
