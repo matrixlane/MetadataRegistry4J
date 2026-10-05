@@ -109,7 +109,6 @@ class InitWizardServiceIntegrationTest {
     void setUp() {
         // Ensure system setting initialized is false before test
         systemSettingService.setInitialized(false);
-        systemSettingService.setRunningMode(null);
 
         // Create a test Super Admin user
         Account adminUser = new Account();
@@ -123,9 +122,7 @@ class InitWizardServiceIntegrationTest {
     @Test
     void setup_shouldCreateAllEntitiesAndMarkInitialized() {
         InitWizardSetupRequest request = new InitWizardSetupRequest(
-                "TEAM",
-                null,
-                "Integration Test RA",
+                "TEAM",                 "Integration Test RA",
                 "Integration Test RA English",
                 "ra@integration.com",
                 "0000",                       // registrationAuthorityIcd
@@ -150,7 +147,6 @@ class InitWizardServiceIntegrationTest {
 
         // 1. setup() must NOT flip system.initialized — that happens in commit()
         assertThat(systemSettingService.isInitialized()).isFalse();
-        assertThat(systemSettingService.getRunningMode()).isEqualTo("SINGLE");
 
         // 2. Verify RegistrationAuthority is created
         List<RegistrationAuthority> authorities = registrationAuthorityRepository.findAll();
@@ -269,9 +265,7 @@ class InitWizardServiceIntegrationTest {
                 List.of("URI"),
                 "rcs-1");
         InitWizardSetupRequest request = new InitWizardSetupRequest(
-                "TEAM",
-                null,
-                "Spec Attr RA",
+                "TEAM",                 "Spec Attr RA",
                 null, null,
                 "0000", "RA", List.of("en-US"),  // icd, organizationIdentifier, documentLanguages
                 true, true,
@@ -311,9 +305,7 @@ class InitWizardServiceIntegrationTest {
         accountRepository.save(admin);
 
         InitWizardSetupRequest request = new InitWizardSetupRequest(
-                "PERSONAL",
-                null,
-                "Integration Test RA",
+                "PERSONAL",                 "Integration Test RA",
                 null,
                 null,
                 null, null, null,         // icd, organizationIdentifier, documentLanguages（PERSONAL 取服务默认值）
@@ -339,8 +331,7 @@ class InitWizardServiceIntegrationTest {
         // PERSONAL 版：治理字段全部留空，系统应以默认值自动创建注册机构、
         // 命名空间与注册表规范，并把管理员设为注册员。
         InitWizardSetupRequest request = new InitWizardSetupRequest(
-                "PERSONAL",
-                null, null, null, null,
+                "PERSONAL", null, null, null,
                 null, null, null,         // icd, organizationIdentifier, documentLanguages（全部取服务默认值）
                 null, null, null, null, null, null, null, null, null,
                 null, null, null          // registryName, defaultLanguage, registryDescription
@@ -392,8 +383,7 @@ class InitWizardServiceIntegrationTest {
         // 命名空间必选（设计 D7）：两个版本显式 createNamespace=false 均被拒绝，
         // 且不写入任何业务数据。
         InitWizardSetupRequest personalRequest = new InitWizardSetupRequest(
-                "PERSONAL",
-                null, null, null, null,
+                "PERSONAL", null, null, null,
                 null, null, null,        // icd, organizationIdentifier, documentLanguages
                 null,                    // selfAsRegistrar
                 false, // createNamespace
@@ -408,9 +398,7 @@ class InitWizardServiceIntegrationTest {
         assertThat(registrationAuthorityRepository.count()).isZero();
 
         InitWizardSetupRequest teamRequest = new InitWizardSetupRequest(
-                "TEAM",
-                null,
-                "Team RA",
+                "TEAM",                 "Team RA",
                 null, null,             // englishName, email
                 "0000", "RA", List.of("zh-CN"),  // icd, organizationIdentifier, documentLanguages
                 null,                   // selfAsRegistrar
@@ -431,8 +419,7 @@ class InitWizardServiceIntegrationTest {
         // 注册规范为必选：两个版本显式 createRegistrySpecification=false 均被拒绝，
         // 且不写入任何业务数据。
         InitWizardSetupRequest personalRequest = new InitWizardSetupRequest(
-                "PERSONAL",
-                null, null, null, null,
+                "PERSONAL", null, null, null,
                 null, null, null,        // icd, organizationIdentifier, documentLanguages
                 null, null, null, null, null, null, null, null,
                 false, // createRegistrySpecification
@@ -446,8 +433,7 @@ class InitWizardServiceIntegrationTest {
         assertThat(registrationAuthorityRepository.count()).isZero();
 
         InitWizardSetupRequest teamRequest = new InitWizardSetupRequest(
-                "TEAM",
-                null, "Team RA", null, null,
+                "TEAM", "Team RA", null, null,
                 "0000", "RA", List.of("zh-CN"),  // icd, organizationIdentifier, documentLanguages
                 true, true,
                 null, null, null, null, null, null,
@@ -466,7 +452,7 @@ class InitWizardServiceIntegrationTest {
     void setup_cloudEdition_rejected() {
         InitWizardSetupRequest request = new InitWizardSetupRequest(
                 "CLOUD",
-                null, "Some RA", null, null,
+                "Some RA", null, null,
                 null, null, null,        // icd, organizationIdentifier, documentLanguages（与该用例否定版本无关）
                 true, true,
                 null, null, null, null, null, null,
@@ -485,8 +471,7 @@ class InitWizardServiceIntegrationTest {
     void setup_legacyStrategyValue_rejected() {
         // 策略白名单收敛：UUID/SEQUENCE/TEMPLATE 等旧策略值一律拒绝
         InitWizardSetupRequest request = new InitWizardSetupRequest(
-                "TEAM",
-                null, "Team RA", null, null,
+                "TEAM", "Team RA", null, null,
                 "0000", "RA", List.of("zh-CN"),  // icd, organizationIdentifier, documentLanguages
                 true, true,
                 null,
@@ -515,8 +500,7 @@ class InitWizardServiceIntegrationTest {
                   {"type":"SEQUENCE","name":"seq","params":{"start":1,"increment":1,"pad":5,"overflow":"REJECT"}}
                 ]}""";
         InitWizardSetupRequest request = new InitWizardSetupRequest(
-                "TEAM",
-                null, "Inline Template RA", null, null,
+                "TEAM", "Inline Template RA", null, null,
                 "0000", "RA", List.of("zh-CN"),  // icd, organizationIdentifier, documentLanguages
                 true, true,
                 null,
@@ -550,8 +534,7 @@ class InitWizardServiceIntegrationTest {
                                                     String adminIndividualName,
                                                     String adminRoleName) {
         return new InitWizardSetupRequest(
-                "TEAM",
-                null, "Three Elements RA", null, null,
+                "TEAM", "Three Elements RA", null, null,
                 "0000", "RA", List.of("zh-CN"),
                 selfAsRegistrar, true,
                 null,
@@ -575,7 +558,6 @@ class InitWizardServiceIntegrationTest {
     @Test
     void setup_teamEdition_withoutOrganizationField_succeeds() {
         initWizardService.setup(teamSetupRequest(true, null, "数据治理主管"), appUserId);
-        assertThat(systemSettingService.getRunningMode()).isEqualTo("SINGLE");
         assertThat(findCreatedRa()).isNotNull();
         assertThat(registrarRepository.findAll()).isNotEmpty();
     }

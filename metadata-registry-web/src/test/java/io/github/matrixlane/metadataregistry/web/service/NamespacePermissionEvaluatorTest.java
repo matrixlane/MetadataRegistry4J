@@ -201,7 +201,7 @@ class NamespacePermissionEvaluatorTest {
         ns.setId(namespaceId);
         ns.setRegistrationAuthority(ra);
         when(namespaceRepository.findById(namespaceId)).thenReturn(Optional.of(ns));
-        // 多注册机构（未来多注册表模式）：通道关闭，回落组织授权判定
+        // 系统中存在多个注册机构时：通道关闭，回落组织授权判定
         when(registrationAuthorityRepository.findAll())
                 .thenReturn(List.of(ra, new io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationAuthority()));
         when(contactAccountBindingService.contactsOfAccount(account)).thenReturn(Collections.emptyList());

@@ -54,11 +54,4 @@ public class SystemController {
         systemSettingService.setAllowUserRegistration(allowRegistration);
         return ApiResponse.ok();
     }
-
-    @PutMapping("/settings/registry-policy")
-    @Operation(summary = "切换注册表治理策略（SINGLE/MULTI，仅团队版）")
-    public ApiResponse<Void> setRegistryPolicy(@RequestParam String mode) {
-        systemSettingService.setRegistryPolicy(mode);
-        return ApiResponse.ok();
-    }
 }

@@ -75,7 +75,7 @@ public class RegistrationAuthorityDeletionService {
 
     /**
      * 级联删除注册机构及其名下全部数据。注册机构不存在时抛 404。
-     * 调用方负责版本/治理策略前置校验（同一事务内执行）。
+     * 调用方负责版本判定前置校验（同一事务内执行）。
      */
     @Transactional
     public void delete(UUID registrationAuthorityId) {

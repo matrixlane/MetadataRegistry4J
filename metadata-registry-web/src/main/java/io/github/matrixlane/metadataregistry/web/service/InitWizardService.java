@@ -67,13 +67,13 @@ public class InitWizardService {
     private final NamespaceIdentifierSettingsService namespaceIdentifierSettingsService;
     private final RegistryContextBootstrapService registryContextBootstrapService;
     private final io.github.matrixlane.metadataregistry.web.seed.SystemDefaultNamespaceInitializer systemDefaultNamespaceInitializer;
+    private final jakarta.persistence.EntityManager entityManager;
 
     @Transactional(readOnly = true)
     public InitWizardStatusResponse getStatus() {
         DeploymentEdition edition = systemSettingService.getEdition();
         return new InitWizardStatusResponse(
                 systemSettingService.isInitialized(),
-                systemSettingService.getRunningMode(),
                 edition == null ? null : edition.name()
         );
     }
@@ -460,8 +460,6 @@ public class InitWizardService {
         admin.setLastLoginAt(null); // fresh start
         accountRepository.save(admin);
 
-        // PERSONAL 强制 SINGLE 治理策略；TEAM 默认 SINGLE（可在系统设置中切换 MULTI）。
-        systemSettingService.setRunningMode("SINGLE");
         systemSettingService.setInitialized(true);
     }
 
@@ -535,12 +533,36 @@ public class InitWizardService {
      * {@link #abort} (the user-driven interrupt path).
      */
     private void clearBusinessDataOnly() {
+        // account 是保留表，但其 individual_id 外键指向被清空的 individual 业务表。
+        // 方言策略只对参与清空的表停用约束（SQL Server 的 NOCHECK CONSTRAINT ALL
+        // 按表下发），保留表上的 FK 仍处于启用状态，会在 DELETE FROM individual 时
+        // 冲突——setup 首次成功后 account 已被绑定 Individual（registrar 创建流程），
+        // 因此"下一步→上一步→下一步"的重试与 abort 都会在清空阶段 500。
+        // 先解除保留表对业务表的引用再清空，保证两条路径幂等。
+        detachAccountIndividualReferences();
         // Dialect-portable cleanup: table discovery via JDBC metadata and
         // FK handling via the active vendor's strategy (see DatabaseCleaner).
         // 纯静态预置表（语言代码与名称）不在清理范围内，避免抹掉数据库设置完成后
         // 已就绪的静态预置；其余业务表清空后由 presetAll() 幂等兜底恢复静态行。
         databaseCleaner.clearTables(Set.of("account", "system_setting", "flyway_schema_history",
                 "language_identification", "ext_language_identification"));
+        // 裸 JDBC DELETE 绕开持久化上下文：被清空表中的托管实体不会随之脱离。
+        // 残留实例既可能在同一事务内重复 setup 时以相同 id 阻塞 re-persist
+        // （SQLite rowid 清空后复用，典型如 IdentifierStrategyConfig），也会让
+        // 后续读取拿到已删除的行。清空后统一驱逐，后续代码全部按全新状态加载。
+        entityManager.clear();
+    }
+
+    private void detachAccountIndividualReferences() {
+        accountRepository.findAll().forEach(account -> {
+            if (account.getIndividual() != null) {
+                account.setIndividual(null);
+                accountRepository.save(account);
+            }
+        });
+        // save() 只把实体标脏、并不写库；UPDATE 必须先行落库，
+        // 随后的裸 DELETE 才不会撞上 account.individual_id 上仍启用中的外键。
+        entityManager.flush();
     }
 
     /**

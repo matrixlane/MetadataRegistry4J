@@ -174,8 +174,8 @@ public class ActiveRegistrarService {
                 && active.get().getRegistrationAuthority() != null
                 && owner.getId().equals(active.get().getRegistrationAuthority().getId());
         // Submitter 通道（add-submitter-contact-identity）：无活动 Registrar 但已登记
-        // 为 Contact 的账号，对归属系统唯一注册机构的条目放行写操作；多注册表
-        // 模式下该通道须重新评审。
+        // 为 Contact 的账号，对归属系统唯一注册机构的条目放行写操作（当系统中
+        // 恰好只有一个注册机构时按该唯一机构归属）。
         if (!allowed && contactAccountBindingService.hasAnyContact(accountId)) {
             List<RegistrationAuthority> all = registrationAuthorityRepository.findAll();
             allowed = all.size() == 1 && all.get(0).getId().equals(owner.getId());
@@ -195,7 +195,7 @@ public class ActiveRegistrarService {
     }
 
     /**
-     * 系统唯一的注册机构（单注册表模式）；不存在或不唯一时返回空。
+     * 系统唯一的注册机构（当且仅当系统中恰好存在一个注册机构时）；不存在或不唯一时返回空。
      */
     @Transactional(readOnly = true)
     public Optional<RegistrationAuthority> systemUniqueRegistrationAuthority() {

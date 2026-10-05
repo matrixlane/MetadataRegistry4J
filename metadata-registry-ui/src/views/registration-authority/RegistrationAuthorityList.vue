@@ -85,27 +85,15 @@ const dialog = ref<InstanceType<typeof ResourceFormDialog>>();
 const canCreate = ref(true);
 const edition = ref<string | null>(null);
 
-// 新建入口按部署版本与治理策略门控（acg-submission）：
-//   个人版 — 恢复新增入口（个人版创建后自动成为该机构注册人员，不设数量限制）；
-//   团队版 + SINGLE 策略且已有注册机构 — 隐藏（与后端校验一致）。
+// 新建入口常显：系统不存在"单注册表/多注册表"运行模式概念，任何版本均无数量限制；
+// 个人版创建后自动成为该机构注册人员（提示语见对话框）。
 onMounted(async () => {
   try {
-    const status = await request.get<{ edition?: string | null; runningMode?: string }>(
-      '/init-wizard/status'
-    );
+    const status = await request.get<{ edition?: string | null }>('/init-wizard/status');
     edition.value = status.edition ?? null;
-    if (status.edition === 'PERSONAL') {
-      canCreate.value = true;
-      return;
-    }
-    if ((status.runningMode ?? 'SINGLE') === 'SINGLE') {
-      const page = await registrationAuthorityApi.list({ page: 1, size: 1 });
-      if (page.totalElements >= 1) {
-        canCreate.value = false;
-      }
-    }
+    canCreate.value = true;
   } catch {
-    // 状态获取失败时保持默认（后端仍会做最终校验）
+    // 状态获取失败时保持默认（后端仍会做最终的角色校验）
   }
 });
 

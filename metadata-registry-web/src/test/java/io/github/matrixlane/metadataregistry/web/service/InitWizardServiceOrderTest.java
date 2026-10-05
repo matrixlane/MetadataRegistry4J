@@ -73,6 +73,8 @@ class InitWizardServiceOrderTest {
     private RegistryContextBootstrapService registryContextBootstrapService;
     @Mock
     private SystemDefaultNamespaceInitializer systemDefaultNamespaceInitializer;
+    @Mock
+    private jakarta.persistence.EntityManager entityManager;
 
     @InjectMocks
     private InitWizardService initWizardService;
@@ -92,9 +94,7 @@ class InitWizardServiceOrderTest {
                 .thenAnswer(invocation -> Optional.of(new LanguageIdentification()));
 
         InitWizardSetupRequest request = new InitWizardSetupRequest(
-                "TEAM",
-                null,
-                "Order Test RA",
+                "TEAM",                 "Order Test RA",
                 null, null,
                 "0000", "RA", List.of("zh-CN"),
                 false, // selfAsRegistrar：关闭，本用例只锁定规范/机构创建顺序

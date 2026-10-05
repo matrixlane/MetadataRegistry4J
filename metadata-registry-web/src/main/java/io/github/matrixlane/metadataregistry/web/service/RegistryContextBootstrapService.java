@@ -258,7 +258,7 @@ public class RegistryContextBootstrapService {
      * registration_authority 没有任何 Primary 行时，把 id 字典序最小的既有机构补标
      * Primary。选择口径与 {@code LanguageIdentifierResolver} 一致——UUID 规范文本的
      * 字典序等价于三方言 SQL {@code MIN(id)} 的 128 位无符号字节序。存量库通常只有
-     * 一个机构（个人版历史 SINGLE 限建 1 个），多机构时该口径给出确定结果。
+     * 一个机构，多机构时该口径给出确定结果。
      *
      * <p>幂等：已有 Primary 行即跳过，二次启动不再改动。无机构行时静默跳过。
      * 异常仅记 warn，不阻止启动。须经代理调用以启用事务（REQUIRED，单事务，

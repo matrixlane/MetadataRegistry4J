@@ -86,7 +86,7 @@ afterEach(() => {
 
 describe('RegistrationAuthorityList（acg-submission）', () => {
   it('个人版恢复新增入口，对话框展示自动成为注册人员提示', async () => {
-    mockedStatusGet.mockResolvedValue({ edition: 'PERSONAL', runningMode: 'SINGLE' } as any);
+    mockedStatusGet.mockResolvedValue({ edition: 'PERSONAL' } as any);
     const wrapper = mountList();
     mounted.push(wrapper);
     await flushPromises();
@@ -103,18 +103,18 @@ describe('RegistrationAuthorityList（acg-submission）', () => {
     expect(hint!.textContent).toContain('创建后您将自动成为该机构的注册人员');
   });
 
-  it('团队版 SINGLE 且已有注册机构时隐藏新建入口', async () => {
-    mockedStatusGet.mockResolvedValue({ edition: 'TEAM', runningMode: 'SINGLE' } as any);
+  it('团队版已有注册机构时仍显示新建入口（无运行模式数量限制）', async () => {
+    mockedStatusGet.mockResolvedValue({ edition: 'TEAM' } as any);
     const wrapper = mountList();
     mounted.push(wrapper);
     await flushPromises();
 
     const createBtn = wrapper.find('[data-testid="data-table-create-btn"]');
-    expect(createBtn.exists()).toBe(false);
+    expect(createBtn.exists()).toBe(true);
   });
 
   it('删除：先取删除预览，确认对话框展示 6 项计数与不可恢复警告，确认后才删除', async () => {
-    mockedStatusGet.mockResolvedValue({ edition: 'PERSONAL', runningMode: 'SINGLE' } as any);
+    mockedStatusGet.mockResolvedValue({ edition: 'PERSONAL' } as any);
     const wrapper = mountList();
     mounted.push(wrapper);
     await flushPromises();
@@ -141,7 +141,7 @@ describe('RegistrationAuthorityList（acg-submission）', () => {
   });
 
   it('m6：个人版 Primary 行（deletable=false）删除入口禁用并给出说明', async () => {
-    mockedStatusGet.mockResolvedValue({ edition: 'PERSONAL', runningMode: 'SINGLE' } as any);
+    mockedStatusGet.mockResolvedValue({ edition: 'PERSONAL' } as any);
     mockedList.mockResolvedValue(pageOf([raRow, raPrimaryRow]) as any);
     const wrapper = mountList();
     mounted.push(wrapper);
@@ -159,7 +159,7 @@ describe('RegistrationAuthorityList（acg-submission）', () => {
   });
 
   it('删除：取消确认后不调用删除接口', async () => {
-    mockedStatusGet.mockResolvedValue({ edition: 'PERSONAL', runningMode: 'SINGLE' } as any);
+    mockedStatusGet.mockResolvedValue({ edition: 'PERSONAL' } as any);
     const wrapper = mountList();
     mounted.push(wrapper);
     await flushPromises();

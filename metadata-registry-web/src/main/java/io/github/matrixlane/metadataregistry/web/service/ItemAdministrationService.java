@@ -833,7 +833,7 @@ public class ItemAdministrationService {
      * 新建条目的归属推导：当前账号持有活动 Registrar 身份时归属该身份所在机构
      * （注册机构自有命名空间所属机构必须与活动身份所在机构一致，防止跨机构写入）；
      * 无活动 Registrar 但已登记为 Contact 的 Submitter 归属系统唯一注册机构
-     * （add-submitter-contact-identity，单注册表隐式推导）；两者皆无则拒绝。
+     * （add-submitter-contact-identity，系统唯一机构隐式推导——恰好一个机构时按该机构归属）；两者皆无则拒绝。
      * 无认证（种子/系统路径）时返回 null，维持既有行为。
      */
     private RegistrationAuthority resolveOwnershipForCreate(Namespace ns) {

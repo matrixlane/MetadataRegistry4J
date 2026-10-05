@@ -8,8 +8,8 @@ import java.util.Locale;
 /**
  * 部署版本（产品形态）。
  *
- * <p>PERSONAL — 个人版：单机部署，默认 SQLite，精简向导，强制 SINGLE 治理策略。
- * TEAM — 团队版：局域网单服务器，完整向导，默认 SINGLE、可切换 MULTI。
+ * <p>PERSONAL — 个人版：单机部署，默认 SQLite，精简向导。
+ * TEAM — 团队版：局域网单服务器，完整向导。
  * CLOUD — 云端多租户版：枚举占位，当前交付不可用。
  */
 public enum DeploymentEdition {

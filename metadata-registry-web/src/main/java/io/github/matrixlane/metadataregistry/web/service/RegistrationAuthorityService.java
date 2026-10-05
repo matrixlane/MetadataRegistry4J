@@ -74,9 +74,8 @@ public class RegistrationAuthorityService {
      *
      * <p>PERSONAL 个人版：不设数量限制；创建成功后自动为当前账号建立该机构的
      * Registrar（注册管理员），若为该账号首个身份则标为默认。
-     * TEAM 团队版（或版本未设置，保守按 TEAM）：沿用 runningMode 规则——SINGLE 且
-     * 已存在注册机构时拒绝；runningMode 仅约束 TEAM 创建数量，不影响删除；
-     * 不自动建立注册人员。</p>
+     * TEAM 团队版（或版本未设置，保守按 TEAM）：不限数量，不自动建立注册人员。
+     * 系统不存在"单注册表/多注册表"运行模式概念，任何版本均无数量上限。</p>
      */
     public RegistrationAuthorityResponse create(RegistrationAuthorityRequest request,
                                                 UUID accountId, SystemRole role) {
@@ -85,10 +84,6 @@ public class RegistrationAuthorityService {
         }
         DeploymentEdition edition = systemSettingService.getEdition();
         boolean personal = edition == DeploymentEdition.PERSONAL;
-        if (!personal && "SINGLE".equalsIgnoreCase(systemSettingService.getRunningMode())
-                && repository.count() >= 1) {
-            throw new BusinessException(ApiCodes.VALIDATION_FAILED, "单注册表模式下只能创建一个注册机构");
-        }
         RegistrationAuthority entity = new RegistrationAuthority();
         applyRequest(entity, request);
         RegistrationAuthority saved = repository.save(entity);
@@ -128,7 +123,7 @@ public class RegistrationAuthorityService {
      * 删除注册机构（版本化治理 + 级联删除）。
      *
      * <p>删除保护仅按版本判定（M1）：PERSONAL 个人版主要注册机构（isPrimary）
-     * 不允许删除，其余一律放行——runningMode 只约束 TEAM 创建数量，不约束删除；
+     * 不允许删除，其余一律放行（系统不存在运行模式概念，删除无任何模式门槛）；
      * TEAM 团队版（或版本未设置，保守按 TEAM）无 Primary 保护，任何机构可删。
      * 级联删除经 {@link RegistrationAuthorityDeletionService} 完成。</p>
      *

@@ -97,7 +97,6 @@ class RegistryContextBootstrapServiceTest {
     @BeforeEach
     void setUp() {
         systemSettingService.setInitialized(false);
-        systemSettingService.setRunningMode(null);
 
         Account adminUser = new Account();
         adminUser.setUsername("test-superadmin-" + UUID.randomUUID().toString().substring(0, 8));
@@ -407,9 +406,7 @@ class RegistryContextBootstrapServiceTest {
                                                     String versionInputMode,
                                                     String versionPolicy) {
         InitWizardSetupRequest request = new InitWizardSetupRequest(
-                "PERSONAL",
-                null,
-                "Registry Context Test RA",
+                "PERSONAL",                 "Registry Context Test RA",
                 null,
                 null,
                 null, null, null,

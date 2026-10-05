@@ -220,7 +220,7 @@ class ActiveRegistrarServiceTest {
         doReturn(accountId).when(spy).currentAccountIdOrNull();
         doReturn(Optional.empty()).when(spy).resolveActiveRegistrar(accountId);
         when(contactAccountBindingService.hasAnyContact(accountId)).thenReturn(true);
-        // 多注册机构（未来多注册表模式）：Submitter 通道关闭
+        // 系统中存在多个注册机构时：Submitter 通道关闭
         when(registrationAuthorityRepository.findAll()).thenReturn(List.of(owner, newRa()));
 
         assertThatThrownBy(() -> spy.assertCanModify(ai))

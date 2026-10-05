@@ -15,7 +15,6 @@ interface LoginResult {
 
 interface InitWizardStatus {
   initialized: boolean;
-  runningMode: string;
   edition?: string | null;
 }
 

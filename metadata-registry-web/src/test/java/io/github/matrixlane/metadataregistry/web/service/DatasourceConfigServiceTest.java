@@ -126,4 +126,20 @@ class DatasourceConfigServiceTest {
         assertThat(view.host()).isEqualTo("192.168.1.10");
         assertThat(view.port()).isEqualTo(5237);
     }
+
+    @Test
+    void saveConfigSqliteExpandsHomePrefix() throws IOException {
+        DatasourceConfigRequest request = new DatasourceConfigRequest(
+                "sqlite", null, null, null,
+                "~/.metadata-registry/data/metadata-registry.db",
+                null, null, null, "PERSONAL");
+
+        service.saveConfig(request);
+
+        String written = Files.readString(localConfig);
+        String home = System.getProperty("user.home");
+        assertThat(written)
+                .as("~/ 前缀应展开为用户主目录")
+                .contains("jdbc:sqlite:" + home + "/.metadata-registry/data/metadata-registry.db");
+    }
 }

@@ -58,19 +58,19 @@ class InitWizardControllerTest {
 
     @Test
     void getStatus_shouldReturnStatusFromService() throws Exception {
-        InitWizardStatusResponse response = new InitWizardStatusResponse(false, "SINGLE", null);
+        InitWizardStatusResponse response = new InitWizardStatusResponse(false, null);
         when(initWizardService.getStatus()).thenReturn(response);
 
         mockMvc.perform(get("/api/v1/init-wizard/status"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.initialized").value(false))
-                .andExpect(jsonPath("$.data.runningMode").value("SINGLE"));
+                .andExpect(jsonPath("$.data.edition").doesNotExist());
     }
 
     @Test
     void setup_shouldCallServiceSetup() throws Exception {
         InitWizardSetupRequest request = new InitWizardSetupRequest(
-                "TEAM", null, "Test Authority", "Test Authority English", "test@test.com",
+                "TEAM", "Test Authority", "Test Authority English", "test@test.com",
                 "0000", "RA", List.of("zh-CN"),  // registrationAuthorityIcd, organizationIdentifier, documentLanguages
                 true, true,
                 null, null, null, null, null, null,

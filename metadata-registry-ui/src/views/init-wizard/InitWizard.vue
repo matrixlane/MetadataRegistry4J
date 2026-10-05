@@ -91,7 +91,7 @@
               </el-form-item>
 
               <el-form-item v-if="dbForm.vendor === 'sqlite'" label="数据库文件路径" required>
-                <el-input v-model="dbForm.filePath" placeholder="./data/metadata-registry.db" />
+                <el-input v-model="dbForm.filePath" placeholder="~/.metadata-registry/data/metadata-registry.db" />
               </el-form-item>
 
               <template v-else>
@@ -524,7 +524,7 @@ const dbForm = reactive({
   host: 'localhost',
   port: 1433,
   database: 'metadata_registry',
-  filePath: './data/metadata-registry.db',
+  filePath: '~/.metadata-registry/data/metadata-registry.db',
   username: '',
   password: '',
 });
@@ -599,7 +599,6 @@ const formStep6Ref = ref<FormInstance>();
 
 const form = reactive({
   edition: 'PERSONAL',
-  runningMode: 'SINGLE',
   registrationAuthorityName: '',
   // ISO/IEC 11179-3:2023 表 24 — documentation_language_identifier (1..*)
   registrationAuthorityDocumentLanguages: ['zh-CN'] as string[],

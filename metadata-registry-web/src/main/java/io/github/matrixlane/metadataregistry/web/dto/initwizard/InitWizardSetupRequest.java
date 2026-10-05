@@ -8,8 +8,6 @@ public record InitWizardSetupRequest(
     @NotBlank(message = "部署版本不能为空")
     String edition,
 
-    String runningMode,
-
     String registrationAuthorityName,
 
     String registrationAuthorityEnglishName,

@@ -82,10 +82,8 @@ class RegistrationAuthorityServiceTest {
     }
 
     @Test
-    void create_teamEditionSingleModeWithoutAuthoritySucceeds() {
+    void create_teamEditionSucceeds() {
         when(systemSettingService.getEdition()).thenReturn(DeploymentEdition.TEAM);
-        when(systemSettingService.getRunningMode()).thenReturn("SINGLE");
-        when(repository.count()).thenReturn(0L);
         stubSaveWithId();
 
         RegistrationAuthorityResponse response = service.create(request(), ACCOUNT_ID, SystemRole.SUPER_ADMIN);
@@ -100,41 +98,25 @@ class RegistrationAuthorityServiceTest {
     }
 
     @Test
-    void create_teamEditionSingleModeWithExistingAuthorityRejected() {
+    void create_teamEditionWithExistingAuthoritySucceeds() {
+        // 系统不存在运行模式概念：团队版已存在一个机构时再创建无任何限制
         when(systemSettingService.getEdition()).thenReturn(DeploymentEdition.TEAM);
-        when(systemSettingService.getRunningMode()).thenReturn("SINGLE");
-        when(repository.count()).thenReturn(1L);
-
-        assertThatThrownBy(() -> service.create(request(), ACCOUNT_ID, SystemRole.SUPER_ADMIN))
-                .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("单注册表模式下只能创建一个注册机构");
-
-        verify(repository, never()).save(any(RegistrationAuthority.class));
-    }
-
-    @Test
-    void create_unsetEditionTreatedAsTeam_rejectsInSingleMode() {
-        when(systemSettingService.getEdition()).thenReturn(null);
-        when(systemSettingService.getRunningMode()).thenReturn("SINGLE");
-        when(repository.count()).thenReturn(1L);
-
-        assertThatThrownBy(() -> service.create(request(), ACCOUNT_ID, SystemRole.SUPER_ADMIN))
-                .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("单注册表模式下只能创建一个注册机构");
-
-        verify(repository, never()).save(any(RegistrationAuthority.class));
-    }
-
-    @Test
-    void create_teamEditionMultipleModeSucceedsEvenWhenAuthorityExists() {
-        when(systemSettingService.getEdition()).thenReturn(DeploymentEdition.TEAM);
-        when(systemSettingService.getRunningMode()).thenReturn("MULTIPLE");
         stubSaveWithId();
 
         RegistrationAuthorityResponse response = service.create(request(), ACCOUNT_ID, SystemRole.SUPER_ADMIN);
 
         assertThat(response).isNotNull();
-        assertThat(response.name()).isEqualTo("Test RA");
+        verify(repository).save(any(RegistrationAuthority.class));
+    }
+
+    @Test
+    void create_unsetEditionTreatedAsTeam_succeedsWithExistingAuthority() {
+        when(systemSettingService.getEdition()).thenReturn(null);
+        stubSaveWithId();
+
+        RegistrationAuthorityResponse response = service.create(request(), ACCOUNT_ID, SystemRole.SUPER_ADMIN);
+
+        assertThat(response).isNotNull();
         verify(repository).save(any(RegistrationAuthority.class));
     }
 
@@ -247,7 +229,7 @@ class RegistrationAuthorityServiceTest {
 
     @Test
     void delete_teamEditionSingleModeNonPrimarySucceeds() {
-        // M1：删除保护仅按版本判定——TEAM（含版本未知按 TEAM）不再看 runningMode，
+        // 删除保护仅按版本判定——TEAM（含版本未知按 TEAM）无任何模式门槛，
         // SINGLE 只约束创建数量；非 Primary 机构在 SINGLE 下亦可删除
         UUID id = UUID.randomUUID();
         RegistrationAuthority ra = new RegistrationAuthority();
@@ -262,7 +244,7 @@ class RegistrationAuthorityServiceTest {
 
     @Test
     void delete_unsetEditionTreatedAsTeam_singleModeNonPrimarySucceeds() {
-        // 版本未知保守按 TEAM：删除同样不受 runningMode 约束
+        // 版本未知保守按 TEAM：删除同样不受任何模式约束
         UUID id = UUID.randomUUID();
         RegistrationAuthority ra = new RegistrationAuthority();
         ra.setId(id);

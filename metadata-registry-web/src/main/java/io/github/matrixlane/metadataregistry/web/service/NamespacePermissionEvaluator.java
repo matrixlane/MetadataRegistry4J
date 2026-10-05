@@ -108,9 +108,9 @@ public class NamespacePermissionEvaluator {
             return userPerm.get().getPermissionType() == NamespacePermissionType.READ_WRITE;
         }
 
-        // 3. Submitter 通道（add-submitter-contact-identity）：单注册表模式下，
-        // 已登记联系人的用户可在注册机构自有命名空间提交元数据（条目归属系统唯一
-        // 注册机构，与 resolveOwnershipForCreate 的 Submitter 归属推导一致）。
+        // 3. Submitter 通道（add-submitter-contact-identity）：系统中恰好只有一个
+        // 注册机构时，已登记联系人的用户可在注册机构自有命名空间提交元数据（条目归属
+        // 该系统唯一注册机构，与 resolveOwnershipForCreate 的 Submitter 归属推导一致）。
         if (account != null && contactAccountBindingService.hasAnyContact(accountId)) {
             io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace ns =
                     namespaceRepository.findById(namespaceId).orElse(null);
