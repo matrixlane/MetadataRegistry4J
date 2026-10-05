@@ -412,9 +412,11 @@
       "name": "名称"
     },
     "form": {
-      "identifier": "标识符",
+      "identifier": "组织标识符",
       "name": "中文名称",
-      "englishName": "英文名称"
+      "englishName": "英文名称",
+      "internationalCodeDesignator": "国际代码标识符",
+      "organizationPartIdentifier": "组织部件标识符"
     },
     "createAutoRegistrarHint": "创建后您将自动成为该机构的注册人员",
     "deleteConfirmTitle": "删除注册机构",
@@ -514,14 +516,22 @@
     "deleteHasRefs": "该命名规范已被 {count} 个命名空间引用，确认删除？",
     "deleteLargeRefs": "命名空间数量较多（>200），建议使用搜索确认关联后操作。确认仍要删除？",
     "scopeRule": "作用域规则",
-    "scopeRuleTip": "命名规范生效的范围，正则表达式或自然语言描述",
+    "scopeRuleTip": "规定命名规范生效范围的规则。在元数据注册系统方面，命名规范的范围可宽可窄，由注册机构或其他机构决定为适当的范围。范围应说明该命名规范是描述性的还是规定性的",
     "scopeRuleRequired": "scopeRule 不能为空",
     "authorityRule": "权限规则",
-    "authorityRuleTip": "指定命名机构或命名权",
-    "designationsRequired": "designations 不能为空",
-    "scopeRulePlaceholder": "如 ^[a-z]+$ 或 全部以小写字母命名",
+    "authorityRuleTip": "规定分配名称或执行命名规范（或两者兼而有之）的机构的规则。机构的示例包括信息技术标准委员会或命名标准化机构（如生物学领域）",
+    "scopeRulePlaceholder": "如 本命名空间内全部注册项 / 描述性：仅记录既有命名习惯",
     "authorityRulePlaceholder": "如 由组织 X 命名 / 由管理员审核",
-    "empty": "暂无命名规范，点击「新建命名规范」开始创建"
+    "empty": "暂无命名规范，点击「新建命名规范」开始创建",
+    "semanticRule": "语义规则",
+    "semanticRuleTip": "规定命名规范中名称各部分的含义以及可能分隔这些部分的分隔符含义的规则。该规则应说明名称是否传达含义，若传达，则说明如何传达",
+    "syntacticRule": "句法规则",
+    "syntacticRuleTip": "规定命名规范中名称各部分的排列以及分隔这些部分的分隔符的规则。排列可规定为相对的或绝对的，或两者的某种组合：相对排列依据其他部分规定各部分（如要求限定词总出现在被限定部分之前的规则）；绝对排列规定该部分的固定出现位置（如要求属性术语总为名称最后部分的规则）。句法规则还可规定名称的句法形式（名词短语或动词短语）以及用于构造名称的词类",
+    "lexicalRule": "词法规则",
+    "lexicalRuleTip": "规定名称外观的规则：首选与非首选术语、同义词、缩写、部分长度、拼写、允许使用的字符集、大小写敏感性等。应用词法规则的结果应是：受特定命名规范约束的所有名称具有一致的外观",
+    "semanticRulePlaceholder": "如 名称应表达对象类与特性的含义",
+    "syntacticRulePlaceholder": "如 限定词在被限定部分之前，属性术语为最后部分",
+    "lexicalRulePlaceholder": "如 camelCase 拼接，仅小写字母与数字"
   },
   "multilingual": {
     "languagePlaceholder": "语言",

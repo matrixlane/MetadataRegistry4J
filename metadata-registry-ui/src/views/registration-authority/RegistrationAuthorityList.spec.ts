@@ -103,6 +103,25 @@ describe('RegistrationAuthorityList（acg-submission）', () => {
     expect(hint!.textContent).toContain('创建后您将自动成为该机构的注册人员');
   });
 
+  it('新建对话框暴露标准复合标识三段（国际代码标识符/组织标识符必填，组织部件标识符选填）', async () => {
+    mockedStatusGet.mockResolvedValue({ edition: 'TEAM' } as any);
+    const wrapper = mountList();
+    mounted.push(wrapper);
+    await flushPromises();
+
+    await wrapper.find('[data-testid="data-table-create-btn"]').trigger('click');
+    await flushPromises();
+
+    const icd = document.body.querySelector('[data-testid="ra-icd-input"]');
+    const orgPart = document.body.querySelector('[data-testid="ra-org-part-input"]');
+    expect(icd).not.toBeNull();
+    expect(orgPart).not.toBeNull();
+    const dialogText = document.body.querySelector('.el-dialog')?.textContent ?? '';
+    expect(dialogText).toContain('国际代码标识符');
+    expect(dialogText).toContain('组织标识符');
+    expect(dialogText).toContain('组织部件标识符');
+  });
+
   it('团队版已有注册机构时仍显示新建入口（无运行模式数量限制）', async () => {
     mockedStatusGet.mockResolvedValue({ edition: 'TEAM' } as any);
     const wrapper = mountList();

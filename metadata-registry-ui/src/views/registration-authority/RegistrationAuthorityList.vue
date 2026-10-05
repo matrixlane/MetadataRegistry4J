@@ -54,8 +54,22 @@
           data-testid="create-registrar-hint"
           style="margin-bottom: 12px;"
         />
-        <el-form-item :label="$t('registrationAuthority.form.identifier')" prop="organizationIdentifier" required>
+        <el-form-item
+          :label="$t('registrationAuthority.form.internationalCodeDesignator')"
+          prop="internationalCodeDesignator"
+          required
+        >
+          <el-input v-model="form.internationalCodeDesignator" data-testid="ra-icd-input" />
+        </el-form-item>
+        <el-form-item
+          :label="$t('registrationAuthority.form.identifier')"
+          prop="organizationIdentifier"
+          required
+        >
           <el-input v-model="form.organizationIdentifier" />
+        </el-form-item>
+        <el-form-item :label="$t('registrationAuthority.form.organizationPartIdentifier')">
+          <el-input v-model="form.organizationPartIdentifier" data-testid="ra-org-part-input" />
         </el-form-item>
         <el-form-item :label="$t('registrationAuthority.form.name')">
           <el-input v-model="form.name" />

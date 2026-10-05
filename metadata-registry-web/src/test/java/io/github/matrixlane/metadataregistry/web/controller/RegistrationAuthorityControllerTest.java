@@ -89,7 +89,7 @@ class RegistrationAuthorityControllerTest {
     void create_passesAuthenticatedPrincipalToService() throws Exception {
         RegistrationAuthorityRequest request = new RegistrationAuthorityRequest(
                 "Test RA", "Test RA English", "Address", List.of(), List.of(), "http://test.com",
-                null, null, null, null, null, List.of()
+                "0000", "RA", null, null, null, List.of()
         );
         RegistrationAuthorityResponse response = new RegistrationAuthorityResponse(
                 RA_ID, "Test RA", "Test RA English", "Address", List.of(), List.of(), "http://test.com",
@@ -114,10 +114,30 @@ class RegistrationAuthorityControllerTest {
     }
 
     @Test
+    void create_missingInternationalCodeDesignatorReturns400() throws Exception {
+        RegistrationAuthorityRequest request = new RegistrationAuthorityRequest(
+                "Test RA", "Test RA English", "Address", List.of(), List.of(), "http://test.com",
+                null, "RA", null, null, null, List.of()
+        );
+
+        AuthenticatedUser principal = new AuthenticatedUser(ACCOUNT_ID, "admin", SystemRole.SUPER_ADMIN);
+        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
+                principal, null, List.of(new SimpleGrantedAuthority("ROLE_SUPER_ADMIN"))));
+        try {
+            mockMvc.perform(post(BASE_URL)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isUnprocessableEntity());
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
+    }
+
+    @Test
     void update_passesAuthenticatedPrincipalToService() throws Exception {
         RegistrationAuthorityRequest request = new RegistrationAuthorityRequest(
                 "Test RA", "Test RA English", "Address", List.of(), List.of(), "http://test.com",
-                null, null, null, null, null, List.of()
+                "0000", "RA", null, null, null, List.of()
         );
         RegistrationAuthorityResponse response = new RegistrationAuthorityResponse(
                 RA_ID, "Test RA", "Test RA English", "Address", List.of(), List.of(), "http://test.com",

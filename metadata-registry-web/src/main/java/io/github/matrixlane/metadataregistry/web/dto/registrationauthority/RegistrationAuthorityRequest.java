@@ -13,7 +13,9 @@ public record RegistrationAuthorityRequest(
         List<String> emailAddress,
         List<String> phoneNumber,
         String webAddress,
+        @NotBlank(message = "internationalCodeDesignator 不能为空")
         String internationalCodeDesignator,
+        @NotBlank(message = "organizationIdentifier 不能为空")
         String organizationIdentifier,
         String organizationPartIdentifier,
         String opiSource,
