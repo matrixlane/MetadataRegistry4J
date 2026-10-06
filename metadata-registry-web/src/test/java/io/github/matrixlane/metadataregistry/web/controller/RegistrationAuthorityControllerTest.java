@@ -89,7 +89,8 @@ class RegistrationAuthorityControllerTest {
     void create_passesAuthenticatedPrincipalToService() throws Exception {
         RegistrationAuthorityRequest request = new RegistrationAuthorityRequest(
                 "Test RA", "Test RA English", "Address", List.of(), List.of(), "http://test.com",
-                "0000", "RA", null, null, null, List.of()
+                "0000", "RA", null, null, null, List.of(),
+                null, null, null, null, null, null, null
         );
         RegistrationAuthorityResponse response = new RegistrationAuthorityResponse(
                 RA_ID, "Test RA", "Test RA English", "Address", List.of(), List.of(), "http://test.com",
@@ -117,7 +118,8 @@ class RegistrationAuthorityControllerTest {
     void create_missingInternationalCodeDesignatorReturns400() throws Exception {
         RegistrationAuthorityRequest request = new RegistrationAuthorityRequest(
                 "Test RA", "Test RA English", "Address", List.of(), List.of(), "http://test.com",
-                null, "RA", null, null, null, List.of()
+                null, "RA", null, null, null, List.of(),
+                null, null, null, null, null, null, null
         );
 
         AuthenticatedUser principal = new AuthenticatedUser(ACCOUNT_ID, "admin", SystemRole.SUPER_ADMIN);
@@ -137,7 +139,8 @@ class RegistrationAuthorityControllerTest {
     void update_passesAuthenticatedPrincipalToService() throws Exception {
         RegistrationAuthorityRequest request = new RegistrationAuthorityRequest(
                 "Test RA", "Test RA English", "Address", List.of(), List.of(), "http://test.com",
-                "0000", "RA", null, null, null, List.of()
+                "0000", "RA", null, null, null, List.of(),
+                null, null, null, null, null, null, null
         );
         RegistrationAuthorityResponse response = new RegistrationAuthorityResponse(
                 RA_ID, "Test RA", "Test RA English", "Address", List.of(), List.of(), "http://test.com",

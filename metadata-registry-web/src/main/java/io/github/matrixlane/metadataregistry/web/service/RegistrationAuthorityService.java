@@ -46,6 +46,7 @@ public class RegistrationAuthorityService {
     private final ContactAccountBindingService contactAccountBindingService;
     private final AccountRepository accountRepository;
     private final RegistrationAuthorityDeletionService deletionService;
+    private final NamespaceProvisioningService namespaceProvisioningService;
 
     @Transactional(readOnly = true)
     public Page<RegistrationAuthorityResponse> list(String keyword, Pageable pageable) {
@@ -72,10 +73,17 @@ public class RegistrationAuthorityService {
      * <p>角色门槛（M4）：创建注册机构要求调用者为 SUPER_ADMIN（不分版本）；
      * SUBMITTER/REGISTRAR 业务角色一律拒绝。</p>
      *
-     * <p>PERSONAL 个人版：不设数量限制；创建成功后自动为当前账号建立该机构的
-     * Registrar（注册管理员），若为该账号首个身份则标为默认。
-     * TEAM 团队版（或版本未设置，保守按 TEAM）：不限数量，不自动建立注册人员。
-     * 系统不存在"单注册表/多注册表"运行模式概念，任何版本均无数量上限。</p>
+     * <p>注册人员：PERSONAL 个人版创建成功后自动为当前账号建立该机构的
+     * Registrar（忽略请求中的 selfAsRegistrar 值）；TEAM 团队版（或版本未设置，
+     * 保守按 TEAM）仅当 {@code selfAsRegistrar=true} 时为当前账号建立 Registrar，
+     * false/缺省不建立。两种路径均为当前账号首个身份时标为默认。</p>
+     *
+     * <p>自有命名空间（ra-creation-wizard）：{@code createNamespace=true} 时在同一
+     * 事务内调用 {@link NamespaceProvisioningService#provisionOwnNamespace} 开通命名
+     * 空间并回挂 {@code ra.namespace}。语义与初始化向导一致：名称缺省"默认命名空间"、
+     * 输入模式缺省 AUTO_WITH_OVERRIDE、版本策略缺省 SEMVER、MANUAL_ONLY 不建策略配置。</p>
+     *
+     * <p>系统不存在"单注册表/多注册表"运行模式概念，任何版本均无数量上限。</p>
      */
     public RegistrationAuthorityResponse create(RegistrationAuthorityRequest request,
                                                 UUID accountId, SystemRole role) {
@@ -91,11 +99,30 @@ public class RegistrationAuthorityService {
         registrationProcessService.ensureSeed(saved.getId());
         if (personal) {
             autoCreateRegistrar(saved, accountId);
+        } else if (Boolean.TRUE.equals(request.selfAsRegistrar())) {
+            // TEAM 团队版（含版本未设置，保守按 TEAM）：仅显式 selfAsRegistrar=true 时为
+            // 当前账号建立该机构的 Registrar；false/缺省不建立。
+            autoCreateRegistrar(saved, accountId);
+        }
+        if (Boolean.TRUE.equals(request.createNamespace())) {
+            // ra-creation-wizard：同事务开通自有命名空间并回挂 ra.namespace
+            Namespace ns = namespaceProvisioningService.provisionOwnNamespace(
+                    saved,
+                    request.namespaceName(),
+                    request.versionPolicy(),
+                    NamespaceProvisioningService.normalizeInputMode(request.identifierInputMode()),
+                    NamespaceProvisioningService.normalizeInputMode(request.versionInputMode()),
+                    request.identifierTemplate());
+            saved.setNamespace(ns);
+            repository.save(saved);
         }
         return toResponse(saved);
     }
 
-    /** 个人版：为当前账号自动建立该机构的 Registrar，并确保首个身份为默认身份。 */
+    /**
+     * 为当前账号建立该机构的 Registrar（roleName 固定"注册管理员"），并确保首个身份为默认身份。
+     * PERSONAL 个人版创建后无条件调用；TEAM 团队版（含版本未设置）仅 selfAsRegistrar=true 时调用。
+     */
     private void autoCreateRegistrar(RegistrationAuthority ra, UUID accountId) {
         boolean first = !contactAccountBindingService.hasAnyContact(accountId);
         Account account = accountRepository.findById(accountId)

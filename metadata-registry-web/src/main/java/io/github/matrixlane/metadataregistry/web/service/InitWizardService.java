@@ -2,7 +2,6 @@ package io.github.matrixlane.metadataregistry.web.service;
 
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.Sign;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace;
-import io.github.matrixlane.metadataregistry.ext.identification.IdentifierStrategyConfig;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationAuthority;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrySpecification;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Account;
@@ -12,13 +11,11 @@ import io.github.matrixlane.metadataregistry.web.common.BusinessException;
 import io.github.matrixlane.metadataregistry.web.common.ResourceNotFoundException;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.RegistrationAuthorityIdentifier;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.LanguageIdentification;
-import io.github.matrixlane.metadataregistry.web.config.IdentifierStrategyLoader;
 import io.github.matrixlane.metadataregistry.web.dto.initwizard.InitWizardCommitRequest;
 import io.github.matrixlane.metadataregistry.web.dto.initwizard.InitWizardSetupRequest;
 import io.github.matrixlane.metadataregistry.web.dto.initwizard.InitWizardSpecAttributes;
 import io.github.matrixlane.metadataregistry.web.dto.initwizard.InitWizardStatusResponse;
 import io.github.matrixlane.metadataregistry.web.edition.DeploymentEdition;
-import io.github.matrixlane.metadataregistry.web.repository.IdentifierStrategyConfigRepository;
 import io.github.matrixlane.metadataregistry.web.repository.LanguageIdentificationRepository;
 import io.github.matrixlane.metadataregistry.web.repository.NamespaceRepository;
 import io.github.matrixlane.metadataregistry.web.repository.RegistrationAuthorityRepository;
@@ -56,15 +53,13 @@ public class InitWizardService {
     private final AccountRepository accountRepository;
     private final RegistrationAuthorityRepository registrationAuthorityRepository;
     private final NamespaceRepository namespaceRepository;
-    private final IdentifierStrategyConfigRepository identifierStrategyConfigRepository;
-    private final IdentifierStrategyLoader identifierStrategyLoader;
+    private final NamespaceProvisioningService namespaceProvisioningService;
     private final RegistrySpecificationService registrySpecificationService;
     private final LanguageIdentificationRepository languageRepository;
     private final LanguageIdentifierResolver languageIdentifierResolver;
     private final StaticDataPresetService staticDataPresetService;
     private final PasswordEncoder passwordEncoder;
     private final DatabaseCleaner databaseCleaner;
-    private final NamespaceIdentifierSettingsService namespaceIdentifierSettingsService;
     private final RegistryContextBootstrapService registryContextBootstrapService;
     private final io.github.matrixlane.metadataregistry.web.seed.SystemDefaultNamespaceInitializer systemDefaultNamespaceInitializer;
     private final jakarta.persistence.EntityManager entityManager;
@@ -303,35 +298,16 @@ public class InitWizardService {
 
         // 5. Create default namespace if checked
         if (createNamespace) {
-            Namespace ns = new Namespace();
-
-            String namespaceName = request.namespaceName() != null && !request.namespaceName().isBlank()
-                    ? request.namespaceName() : "默认命名空间";
-            io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.Designation d = new io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.Designation();
-            d.setItem(ns);
-            d.setSign(Sign.of(namespaceName));
-            ns.getDesignations().add(d);
-
-            ns.setRegistrationAuthority(ra);
-            ns.setNamingAuthority(ra);
-            String versioningPolicy = request.versionPolicy() != null && !request.versionPolicy().isBlank()
-                    ? request.versionPolicy() : "SEMVER";
-            String identifierInputMode = normalizeInputMode(request.identifierInputMode());
-            String versionInputMode = normalizeInputMode(request.versionInputMode());
-
-            Namespace nsSaved = namespaceRepository.save(ns);
-            // 标识符治理扩展属性写入卫星实体(标准实体 Namespace 不再持有)
-            namespaceIdentifierSettingsService.mutate(nsSaved.getId(), settings -> {
-                settings.setVersioningPolicy(versioningPolicy);
-                settings.setIdentifierInputMode(identifierInputMode);
-                settings.setVersionInputMode(versionInputMode);
-            });
-
-            // MANUAL_ONLY 命名空间禁用自动生成，不创建策略配置
-            if (!"MANUAL_ONLY".equals(identifierInputMode)) {
-                createNamespaceStrategyConfig(nsSaved, request);
-            }
-
+            // 标识生成策略白名单前置校验：UUID/顺序号/旧模板等旧值在开通命名空间前
+            // 即拒绝，与原块在策略配置创建内拒绝等价（同一事务内回滚）。
+            NamespaceProvisioningService.validateIdentifierStrategy(request.identifierStrategy());
+            Namespace nsSaved = namespaceProvisioningService.provisionOwnNamespace(
+                    ra,
+                    request.namespaceName(),
+                    request.versionPolicy(),
+                    NamespaceProvisioningService.normalizeInputMode(request.identifierInputMode()),
+                    NamespaceProvisioningService.normalizeInputMode(request.versionInputMode()),
+                    request.identifierTemplate());
             ra.setNamespace(nsSaved);
             registrationAuthorityRepository.save(ra);
         }
@@ -342,75 +318,6 @@ public class InitWizardService {
 
         // NOTE: system.initialized stays FALSE; admin password is NOT reset
         // here. Those happen in commit().
-    }
-
-    /**
-    * 为初始化创建的默认命名空间生成命名空间级标识生成策略配置
-     * （PUBLISHED、version=1、即生效），并刷新策略注册表使其立即可用。
-     */
-    private void createNamespaceStrategyConfig(Namespace ns, InitWizardSetupRequest request) {
-        String strategy = request.identifierStrategy() == null || request.identifierStrategy().isBlank()
-                ? "SEGMENT_TEMPLATE" : request.identifierStrategy().trim().toUpperCase();
-        // 标识生成策略收敛为段模板唯一选择；UUID/顺序号/旧模板等旧值一律拒绝
-        if (!"SEGMENT_TEMPLATE".equals(strategy)) {
-            throw new BusinessException(ApiCodes.VALIDATION_FAILED,
-                    "标识生成策略仅支持段模板（SEGMENT_TEMPLATE），不支持的策略值: " + strategy);
-        }
-        String raw = request.identifierTemplate();
-        String configJson = raw == null || raw.isBlank()
-                ? defaultSegmentTemplateJson() : raw.trim();
-        validateSegmentTemplate(configJson);
-        IdentifierStrategyConfig config = new IdentifierStrategyConfig(strategy);
-        config.setNamespace(ns);
-        config.setConfigJson(configJson);
-        config.setVersion(1);
-        config.setIsGlobalDefault(false);
-        config.setCreatedAt(java.time.LocalDateTime.now());
-        config.setCreatedBy("init-wizard");
-        config.publish();
-        identifierStrategyConfigRepository.save(config);
-        identifierStrategyLoader.refreshRegistry();
-    }
-
-    /**
-     * 向导默认段模板：对象缩写 + 分隔符 + 顺序号（示例 DE.00001）；
-     * 顺序号作用域自动按对象类型区分。
-     */
-    private static String defaultSegmentTemplateJson() {
-        return """
-                {"segments":[
-                  {"type":"OBJECT_ABBREVIATION","name":"objectAbbr","params":{}},
-                  {"type":"SEPARATOR","params":{"char":"."}},
-                  {"type":"SEQUENCE","name":"seq","params":{"start":1,"increment":1,"pad":5,"overflow":"REJECT"}}
-                ]}""";
-    }
-
-    private static void validateSegmentTemplate(String templateJson) {
-        try {
-            io.github.matrixlane.metadataregistry.ext.identification.segment.SegmentTemplate template =
-                    io.github.matrixlane.metadataregistry.ext.identification.segment.SegmentTemplate.fromJson(templateJson);
-            java.util.List<String> errors =
-                    new io.github.matrixlane.metadataregistry.ext.identification.segment.SegmentTemplateEngine()
-                            .validate(template);
-            if (!errors.isEmpty()) {
-                throw new BusinessException(ApiCodes.VALIDATION_FAILED,
-                        "段模板校验失败：" + String.join("；", errors));
-            }
-        } catch (io.github.matrixlane.metadataregistry.ext.identification.segment.SegmentTemplateException e) {
-            throw new BusinessException(ApiCodes.VALIDATION_FAILED, "段模板解析失败：" + e.getMessage());
-        }
-    }
-
-    /**
-     * 归一化输入模式值：空白或非法值回退 AUTO_WITH_OVERRIDE（兼容缺省调用方）。
-     */
-    private static String normalizeInputMode(String raw) {
-        if (raw == null || raw.isBlank()) {
-            return "AUTO_WITH_OVERRIDE";
-        }
-        String normalized = raw.trim().toUpperCase();
-        return java.util.Set.of("AUTO_ONLY", "AUTO_WITH_OVERRIDE", "MANUAL_ONLY").contains(normalized)
-                ? normalized : "AUTO_WITH_OVERRIDE";
     }
 
     /**

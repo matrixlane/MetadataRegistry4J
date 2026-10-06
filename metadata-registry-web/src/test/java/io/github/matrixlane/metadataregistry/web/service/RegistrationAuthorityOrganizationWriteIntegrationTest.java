@@ -2,10 +2,15 @@ package io.github.matrixlane.metadataregistry.web.service;
 
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Organization;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.SystemRole;
+import io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace;
+import io.github.matrixlane.metadataregistry.ext.identification.IdentifierStrategyConfig;
 import io.github.matrixlane.metadataregistry.web.dto.registrationauthority.RegistrationAuthorityRequest;
 import io.github.matrixlane.metadataregistry.web.dto.registrationauthority.RegistrationAuthorityResponse;
 import io.github.matrixlane.metadataregistry.web.edition.DeploymentEdition;
+import io.github.matrixlane.metadataregistry.web.repository.IdentifierStrategyConfigRepository;
+import io.github.matrixlane.metadataregistry.web.repository.NamespaceRepository;
 import io.github.matrixlane.metadataregistry.web.repository.OrganizationRepository;
+import io.github.matrixlane.metadataregistry.web.repository.RegistrarRepository;
 import io.github.matrixlane.metadataregistry.web.repository.RegistrationAuthorityRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -47,6 +52,18 @@ class RegistrationAuthorityOrganizationWriteIntegrationTest {
     @Autowired
     private RegistrationAuthorityRepository registrationAuthorityRepository;
 
+    @Autowired
+    private NamespaceRepository namespaceRepository;
+
+    @Autowired
+    private io.github.matrixlane.metadataregistry.web.repository.NamespaceIdentifierSettingsRepository namespaceIdentifierSettingsRepository;
+
+    @Autowired
+    private IdentifierStrategyConfigRepository identifierStrategyConfigRepository;
+
+    @Autowired
+    private RegistrarRepository registrarRepository;
+
     @Test
     void create_persistsOrganizationRowWithContactAttributes() {
         systemSettingService.setEdition(DeploymentEdition.TEAM);
@@ -63,7 +80,8 @@ class RegistrationAuthorityOrganizationWriteIntegrationTest {
                 null,
                 null,
                 null,
-                List.of());
+                List.of(),
+                null, null, null, null, null, null, null);
 
         RegistrationAuthorityResponse response =
                 registrationAuthorityService.create(request, null, SystemRole.SUPER_ADMIN);
@@ -87,5 +105,93 @@ class RegistrationAuthorityOrganizationWriteIntegrationTest {
         assertThat(fetched.emailAddress()).containsExactly("a@example.com", "b@example.com");
         assertThat(fetched.phoneNumber()).containsExactly("010-12345678", "13800000000");
         assertThat(fetched.webAddress()).isEqualTo("https://ra.example.com");
+    }
+
+    @Test
+    void create_teamEditionWithOwnNamespace_provisionsNamespaceAndStrategyConfig() {
+        // ra-creation-wizard：TEAM 创建时 createNamespace=true 同事务开通自有命名空间
+        systemSettingService.setEdition(DeploymentEdition.TEAM);
+
+        RegistrationAuthorityRequest request = new RegistrationAuthorityRequest(
+                "命名空间测试机构",
+                null,
+                null,
+                List.of(),
+                List.of(),
+                null,
+                "0000",
+                "RA-NS-TEST",
+                null,
+                null,
+                null,
+                List.of(),
+                null,        // selfAsRegistrar
+                true,        // createNamespace
+                "测试命名空间",
+                null,        // identifierInputMode（缺省 AUTO_WITH_OVERRIDE）
+                null,        // versionInputMode（缺省 AUTO_WITH_OVERRIDE）
+                null,        // versionPolicy（缺省 SEMVER）
+                null);       // identifierTemplate（缺省系统默认模板）
+
+        RegistrationAuthorityResponse response =
+                registrationAuthorityService.create(request, null, SystemRole.SUPER_ADMIN);
+
+        // 1. ra.namespace 回挂非空，命名空间行存在
+        io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationAuthority ra =
+                registrationAuthorityRepository.findById(response.id()).orElseThrow();
+        assertThat(ra.getNamespace()).isNotNull();
+        Namespace ns = ra.getNamespace();
+        assertThat(namespaceRepository.existsById(ns.getId())).isTrue();
+        assertThat(ns.getDesignations()).isNotEmpty();
+        assertThat(ns.getDesignations().get(0).getSign().getValue()).isEqualTo("测试命名空间");
+
+        // 2. registrationAuthority / namingAuthority 双挂均指向该 RA
+        assertThat(ns.getRegistrationAuthority()).isNotNull();
+        assertThat(ns.getRegistrationAuthority().getId()).isEqualTo(ra.getId());
+        assertThat(ns.getNamingAuthority()).isNotNull();
+        assertThat(ns.getNamingAuthority().getId()).isEqualTo(ra.getId());
+
+        // 3. 标识设置卫星：输入模式缺省 AUTO_WITH_OVERRIDE、版本策略缺省 SEMVER
+        var nsSettings = namespaceIdentifierSettingsRepository.findByNamespaceId(ns.getId()).orElseThrow();
+        assertThat(nsSettings.getIdentifierInputMode()).isEqualTo("AUTO_WITH_OVERRIDE");
+        assertThat(nsSettings.getVersionInputMode()).isEqualTo("AUTO_WITH_OVERRIDE");
+        assertThat(nsSettings.getVersioningPolicy()).isEqualTo("SEMVER");
+
+        // 4. 命名空间级标识策略配置已建（SEGMENT_TEMPLATE、PUBLISHED）
+        List<IdentifierStrategyConfig> nsConfigs = identifierStrategyConfigRepository.findAll().stream()
+                .filter(c -> c.getNamespace() != null && ns.getId().equals(c.getNamespace().getId()))
+                .toList();
+        assertThat(nsConfigs).hasSize(1);
+        assertThat(nsConfigs.get(0).getStrategyType()).isEqualTo("SEGMENT_TEMPLATE");
+        assertThat(nsConfigs.get(0).getStatus().name()).isEqualTo("PUBLISHED");
+    }
+
+    @Test
+    void create_teamEditionSelfAsRegistrarOff_doesNotCreateRegistrar() {
+        // ra-creation-wizard：TEAM 团队版 selfAsRegistrar=false 时不建立注册人员
+        systemSettingService.setEdition(DeploymentEdition.TEAM);
+
+        RegistrationAuthorityRequest request = new RegistrationAuthorityRequest(
+                "注册人员开关测试机构",
+                null,
+                null,
+                List.of(),
+                List.of(),
+                null,
+                "0000",
+                "RA-REG-OFF",
+                null,
+                null,
+                null,
+                List.of(),
+                false,       // selfAsRegistrar
+                null,        // createNamespace
+                null, null, null, null, null);
+
+        RegistrationAuthorityResponse response =
+                registrationAuthorityService.create(request, null, SystemRole.SUPER_ADMIN);
+
+        assertThat(response).isNotNull();
+        assertThat(registrarRepository.findAll()).isEmpty();
     }
 }

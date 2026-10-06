@@ -6,7 +6,7 @@
       :fetch-fn="registrationAuthorityApi.list"
       :can-create="canCreate"
       :can-delete="false"
-      @create="dialog?.open()"
+      @create="wizard?.open()"
       @edit="(r) => dialog?.open(r)"
     >
       <template #columns>
@@ -42,18 +42,10 @@
     <ResourceFormDialog
       ref="dialog"
       :title="$t('registrationAuthority.title')"
-      :submit-fn="submitFn"
+      :submit-fn="updateFn"
       @success="tableRef?.fetchData()"
     >
       <template #fields="{ form }">
-        <el-alert
-          v-if="edition === 'PERSONAL'"
-          type="info"
-          :closable="false"
-          :title="$t('registrationAuthority.createAutoRegistrarHint')"
-          data-testid="create-registrar-hint"
-          style="margin-bottom: 12px;"
-        />
         <el-form-item
           :label="$t('registrationAuthority.form.internationalCodeDesignator')"
           prop="internationalCodeDesignator"
@@ -109,6 +101,12 @@
         </el-form-item>
       </template>
     </ResourceFormDialog>
+
+    <RegistrationAuthorityCreateWizard
+      ref="wizard"
+      :edition="edition"
+      @success="tableRef?.fetchData()"
+    />
   </div>
 </template>
 
@@ -120,17 +118,20 @@ import { registrationAuthorityApi } from '@/api/resources';
 import request from '@/utils/request';
 import DataTablePage from '@/components/DataTablePage.vue';
 import ResourceFormDialog from '@/components/ResourceFormDialog.vue';
+import RegistrationAuthorityCreateWizard from './RegistrationAuthorityCreateWizard.vue';
 import type { RegistrationAuthorityDeletionPreview } from '@/types/common';
 
 const { t } = useI18n();
 
 const tableRef = ref<InstanceType<typeof DataTablePage>>();
 const dialog = ref<InstanceType<typeof ResourceFormDialog>>();
+const wizard = ref<InstanceType<typeof RegistrationAuthorityCreateWizard>>();
 const canCreate = ref(true);
 const edition = ref<string | null>(null);
 
 // 新建入口常显：系统不存在"单注册表/多注册表"运行模式概念，任何版本均无数量限制；
-// 个人版创建后自动成为该机构注册人员（提示语见对话框）。
+// 新建走两步向导（RegistrationAuthorityCreateWizard）：个人版创建后自动成为该机构
+// 注册人员（提示语见向导步骤一），团队版由"将自己设为注册人员"开关控制（缺省开）。
 onMounted(async () => {
   try {
     const status = await request.get<{ edition?: string | null }>('/init-wizard/status');
@@ -141,9 +142,8 @@ onMounted(async () => {
   }
 });
 
-function submitFn(data: Record<string, unknown>) {
-  if (data.id) return registrationAuthorityApi.update(data.id as string, data);
-  return registrationAuthorityApi.create(data);
+function updateFn(data: Record<string, unknown>) {
+  return registrationAuthorityApi.update(data.id as string, data);
 }
 
 /**

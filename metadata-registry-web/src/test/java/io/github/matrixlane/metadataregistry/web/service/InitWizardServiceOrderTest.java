@@ -2,7 +2,6 @@ package io.github.matrixlane.metadataregistry.web.service;
 
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Account;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.LanguageIdentification;
-import io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationAuthority;
 import io.github.matrixlane.metadataregistry.web.auth.AccountRepository;
 import io.github.matrixlane.metadataregistry.web.config.IdentifierStrategyLoader;
@@ -70,6 +69,8 @@ class InitWizardServiceOrderTest {
     @Mock
     private NamespaceIdentifierSettingsService namespaceIdentifierSettingsService;
     @Mock
+    private NamespaceProvisioningService namespaceProvisioningService;
+    @Mock
     private RegistryContextBootstrapService registryContextBootstrapService;
     @Mock
     private SystemDefaultNamespaceInitializer systemDefaultNamespaceInitializer;
@@ -87,8 +88,6 @@ class InitWizardServiceOrderTest {
         account.setUsername("admin");
         when(accountRepository.findById(appUserId)).thenReturn(Optional.of(account));
         when(registrationAuthorityRepository.save(any(RegistrationAuthority.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
-        when(namespaceRepository.save(any(Namespace.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
         when(languageIdentifierResolver.resolve(anyString()))
                 .thenAnswer(invocation -> Optional.of(new LanguageIdentification()));

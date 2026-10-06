@@ -2,6 +2,7 @@ package io.github.matrixlane.metadataregistry.web.service;
 
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Account;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.SystemRole;
+import io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.Registrar;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationAuthority;
 import io.github.matrixlane.metadataregistry.web.auth.AccountRepository;
@@ -61,15 +62,23 @@ class RegistrationAuthorityServiceTest {
     @Mock
     private RegistrationAuthorityDeletionService deletionService;
 
+    @Mock
+    private NamespaceProvisioningService namespaceProvisioningService;
+
     @InjectMocks
     private RegistrationAuthorityService service;
 
     private static final UUID ACCOUNT_ID = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
 
     private RegistrationAuthorityRequest request() {
+        return request(null, null);
+    }
+
+    private RegistrationAuthorityRequest request(Boolean selfAsRegistrar, Boolean createNamespace) {
         return new RegistrationAuthorityRequest(
                 "Test RA", "Test RA English", "Address", List.of(), List.of(), "http://test.com",
-                null, null, null, null, null, List.of()
+                null, null, null, null, null, List.of(),
+                selfAsRegistrar, createNamespace, null, null, null, null, null
         );
     }
 
@@ -162,6 +171,100 @@ class RegistrationAuthorityServiceTest {
         service.create(request(), ACCOUNT_ID, SystemRole.SUPER_ADMIN);
 
         verify(contactAccountBindingService, never()).markDefault(any(), any());
+    }
+
+    @Test
+    void create_teamEditionSelfAsRegistrarTrueCreatesRegistrar() {
+        // ra-creation-wizard：TEAM 团队版显式 selfAsRegistrar=true 时为当前账号建立 Registrar
+        when(systemSettingService.getEdition()).thenReturn(DeploymentEdition.TEAM);
+        stubSaveWithId();
+        Account account = new Account();
+        account.setId(ACCOUNT_ID);
+        account.setUsername("admin");
+        when(accountRepository.findById(ACCOUNT_ID)).thenReturn(Optional.of(account));
+        Registrar registrar = new Registrar();
+        registrar.setId(UUID.randomUUID());
+        when(registrarService.createRegistrarForUser(eq(ACCOUNT_ID), eq("admin"), isNull(), eq("注册管理员"),
+                any(UUID.class), any(RegistrationAuthority.class))).thenReturn(registrar);
+        // 未 stub hasAnyContact：Mockito 默认返回 false，即"首个身份"分支
+
+        service.create(request(true, null), ACCOUNT_ID, SystemRole.SUPER_ADMIN);
+
+        verify(registrarService).createRegistrarForUser(eq(ACCOUNT_ID), eq("admin"), isNull(), eq("注册管理员"),
+                any(UUID.class), any(RegistrationAuthority.class));
+        // 首个身份须标为默认
+        verify(contactAccountBindingService).markDefault(ACCOUNT_ID, registrar.getId());
+    }
+
+    @Test
+    void create_teamEditionSelfAsRegistrarFalseOrUnsetSkipsRegistrar() {
+        // ra-creation-wizard：TEAM 团队版 false/缺省均不建立注册人员，也不触碰账号查询
+        when(systemSettingService.getEdition()).thenReturn(DeploymentEdition.TEAM);
+        stubSaveWithId();
+
+        service.create(request(false, null), ACCOUNT_ID, SystemRole.SUPER_ADMIN);
+        service.create(request(null, null), ACCOUNT_ID, SystemRole.SUPER_ADMIN);
+
+        verify(registrarService, never()).createRegistrarForUser(any(), any(), any(), any(), any(), any());
+        verify(accountRepository, never()).findById(any());
+    }
+
+    @Test
+    void create_personalEditionSelfAsRegistrarFalseStillCreatesRegistrar() {
+        // ra-creation-wizard：PERSONAL 个人版忽略请求值，恒建立注册人员
+        when(systemSettingService.getEdition()).thenReturn(DeploymentEdition.PERSONAL);
+        stubSaveWithId();
+        Account account = new Account();
+        account.setId(ACCOUNT_ID);
+        account.setUsername("admin");
+        when(accountRepository.findById(ACCOUNT_ID)).thenReturn(Optional.of(account));
+        Registrar registrar = new Registrar();
+        registrar.setId(UUID.randomUUID());
+        when(registrarService.createRegistrarForUser(eq(ACCOUNT_ID), eq("admin"), isNull(), eq("注册管理员"),
+                any(UUID.class), any(RegistrationAuthority.class))).thenReturn(registrar);
+
+        service.create(request(false, null), ACCOUNT_ID, SystemRole.SUPER_ADMIN);
+
+        verify(registrarService).createRegistrarForUser(eq(ACCOUNT_ID), eq("admin"), isNull(), eq("注册管理员"),
+                any(UUID.class), any(RegistrationAuthority.class));
+        verify(contactAccountBindingService).markDefault(ACCOUNT_ID, registrar.getId());
+    }
+
+    @Test
+    void create_teamEditionCreateNamespaceProvisionsAndAttachesNamespace() {
+        // ra-creation-wizard：createNamespace=true 时同事务调用 provisioningService，
+        // 并把返回的命名空间回挂到 ra.namespace（响应回显 namespaceId）
+        when(systemSettingService.getEdition()).thenReturn(DeploymentEdition.TEAM);
+        stubSaveWithId();
+        Namespace ns = new Namespace();
+        ns.setId(UUID.randomUUID());
+        when(namespaceProvisioningService.provisionOwnNamespace(any(RegistrationAuthority.class),
+                eq("测试命名空间"), isNull(), eq("AUTO_WITH_OVERRIDE"), eq("AUTO_WITH_OVERRIDE"), isNull()))
+                .thenReturn(ns);
+
+        RegistrationAuthorityResponse response = service.create(
+                new RegistrationAuthorityRequest(
+                        "Test RA", "Test RA English", "Address", List.of(), List.of(), "http://test.com",
+                        null, null, null, null, null, List.of(),
+                        null, true, "测试命名空间", null, null, null, null),
+                ACCOUNT_ID, SystemRole.SUPER_ADMIN);
+
+        // 输入模式缺省 AUTO_WITH_OVERRIDE
+        verify(namespaceProvisioningService).provisionOwnNamespace(any(RegistrationAuthority.class),
+                eq("测试命名空间"), isNull(), eq("AUTO_WITH_OVERRIDE"), eq("AUTO_WITH_OVERRIDE"), isNull());
+        assertThat(response.namespaceId()).isEqualTo(ns.getId());
+    }
+
+    @Test
+    void create_createNamespaceUnsetSkipsProvisioning() {
+        // ra-creation-wizard：createNamespace 缺省（null）不开通命名空间
+        when(systemSettingService.getEdition()).thenReturn(DeploymentEdition.TEAM);
+        stubSaveWithId();
+
+        service.create(request(), ACCOUNT_ID, SystemRole.SUPER_ADMIN);
+
+        verify(namespaceProvisioningService, never())
+                .provisionOwnNamespace(any(), any(), any(), any(), any(), any());
     }
 
     @Test

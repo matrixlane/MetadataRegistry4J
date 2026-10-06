@@ -49,6 +49,16 @@ vi.mock('@/api/resources', () => ({
   },
 }));
 
+// SegmentTemplateDesigner（向导步骤二）挂载时经 identifierStrategyApi 拉预设与缩写表，
+// 这里打桩为空，避免真实 request 被 @/utils/request mock 污染（presets 必须是数组）
+vi.mock('@/api/identifierStrategy', () => ({
+  identifierStrategyApi: {
+    presets: vi.fn().mockResolvedValue([]),
+    objectAbbreviations: vi.fn().mockResolvedValue({}),
+    previewAnonymous: vi.fn().mockResolvedValue({ expression: '', sample: '', parsed: 0, skipped: 0 }),
+  },
+}));
+
 const mockedStatusGet = vi.mocked(request.get);
 const mockedList = vi.mocked(registrationAuthorityApi.list);
 const mockedDelete = vi.mocked(registrationAuthorityApi.delete);
@@ -213,5 +223,153 @@ describe('RegistrationAuthorityList（acg-submission）', () => {
     expect(mockedPreview).toHaveBeenCalledWith('ra-1');
     expect(mockedDelete).not.toHaveBeenCalled();
     confirmSpy.mockRestore();
+  });
+});
+
+describe('RegistrationAuthorityList 新建向导（ra-creation-wizard）', () => {
+  const mockedCreate = vi.mocked(registrationAuthorityApi.create);
+
+  beforeEach(() => {
+    mockedCreate.mockResolvedValue({ id: 'ra-new' } as any);
+  });
+
+  function bodyEl(selector: string): HTMLElement {
+    return document.body.querySelector(selector) as HTMLElement;
+  }
+
+  function clickBody(selector: string) {
+    bodyEl(selector).click();
+  }
+
+  function setInputValue(selector: string, value: string) {
+    const input = document.body.querySelector(selector) as HTMLInputElement;
+    input.value = value;
+    input.dispatchEvent(new Event('input'));
+  }
+
+  async function openWizard(wrapper: VueWrapper) {
+    await wrapper.find('[data-testid="data-table-create-btn"]').trigger('click');
+    await flushPromises();
+  }
+
+  /** 填写步骤一两个必填项（国际代码标识符/组织标识符）并进入步骤二 */
+  async function goToStep2() {
+    setInputValue('[data-testid="ra-icd-input"]', 'ISO 6523');
+    setInputValue('[data-testid="ra-org-input"]', 'RA-NEW');
+    await flushPromises();
+    clickBody('[data-testid="ra-wizard-next"]');
+    await flushPromises();
+  }
+
+  async function submitWizard() {
+    clickBody('[data-testid="ra-wizard-submit"]');
+    await flushPromises();
+  }
+
+  it('新建打开两步向导，步骤标题"注册机构信息"/"命名空间"可见', async () => {
+    mockedStatusGet.mockResolvedValue({ edition: 'TEAM' } as any);
+    const wrapper = mountList();
+    mounted.push(wrapper);
+    await flushPromises();
+
+    await openWizard(wrapper);
+
+    const titles = Array.from(document.body.querySelectorAll('.el-step__title')).map(
+      (el) => el.textContent ?? ''
+    );
+    expect(titles).toContain('注册机构信息');
+    expect(titles).toContain('命名空间');
+  });
+
+  it('团队版注册人员开关缺省开启，关闭后提交 payload selfAsRegistrar=false', async () => {
+    mockedStatusGet.mockResolvedValue({ edition: 'TEAM' } as any);
+    const wrapper = mountList();
+    mounted.push(wrapper);
+    await flushPromises();
+
+    await openWizard(wrapper);
+    expect(bodyEl('[data-testid="ra-wizard-self-registrar-switch"]')).not.toBeNull();
+
+    // 缺省开启：直接提交 → selfAsRegistrar=true
+    await goToStep2();
+    await submitWizard();
+    expect(mockedCreate).toHaveBeenCalledTimes(1);
+    expect(mockedCreate.mock.calls[0][0].selfAsRegistrar).toBe(true);
+
+    // 关闭开关后再提交 → selfAsRegistrar=false
+    mockedCreate.mockClear();
+    await openWizard(wrapper);
+    clickBody('[data-testid="ra-wizard-self-registrar-switch"]');
+    await flushPromises();
+    await goToStep2();
+    await submitWizard();
+    expect(mockedCreate).toHaveBeenCalledTimes(1);
+    expect(mockedCreate.mock.calls[0][0].selfAsRegistrar).toBe(false);
+    expect(mockedCreate.mock.calls[0][0].createNamespace).toBe(false);
+    expect(mockedCreate.mock.calls[0][0]).not.toHaveProperty('namespaceName');
+  });
+
+  it('个人版无注册人员开关，提交 payload selfAsRegistrar=true', async () => {
+    mockedStatusGet.mockResolvedValue({ edition: 'PERSONAL' } as any);
+    const wrapper = mountList();
+    mounted.push(wrapper);
+    await flushPromises();
+
+    await openWizard(wrapper);
+
+    // 个人版固定提示保留，且不提供开关
+    const hint = document.body.querySelector('[data-testid="create-registrar-hint"]');
+    expect(hint).not.toBeNull();
+    expect(hint!.textContent).toContain('创建后您将自动成为该机构的注册人员');
+    expect(document.body.querySelector('[data-testid="ra-wizard-self-registrar-switch"]')).toBeNull();
+
+    await goToStep2();
+    await submitWizard();
+    expect(mockedCreate).toHaveBeenCalledTimes(1);
+    expect(mockedCreate.mock.calls[0][0].selfAsRegistrar).toBe(true);
+  });
+
+  it('命名空间开关关闭时无编辑字段，开启后展现命名空间名称输入框', async () => {
+    mockedStatusGet.mockResolvedValue({ edition: 'TEAM' } as any);
+    const wrapper = mountList();
+    mounted.push(wrapper);
+    await flushPromises();
+
+    await openWizard(wrapper);
+    await goToStep2();
+
+    // 关闭（缺省）时不渲染编辑区
+    expect(document.body.querySelector('[data-testid="ra-wizard-ns-name-input"]')).toBeNull();
+
+    clickBody('[data-testid="ra-wizard-create-ns-switch"]');
+    await flushPromises();
+
+    expect(document.body.querySelector('[data-testid="ra-wizard-ns-name-input"]')).not.toBeNull();
+  });
+
+  it('createNamespace=true 时 payload 携带命名空间字段', async () => {
+    mockedStatusGet.mockResolvedValue({ edition: 'TEAM' } as any);
+    const wrapper = mountList();
+    mounted.push(wrapper);
+    await flushPromises();
+
+    await openWizard(wrapper);
+    await goToStep2();
+
+    clickBody('[data-testid="ra-wizard-create-ns-switch"]');
+    await flushPromises();
+    setInputValue('[data-testid="ra-wizard-ns-name-input"]', '质量数据命名空间');
+    await flushPromises();
+
+    await submitWizard();
+
+    expect(mockedCreate).toHaveBeenCalledTimes(1);
+    const payload = mockedCreate.mock.calls[0][0];
+    expect(payload.createNamespace).toBe(true);
+    expect(payload.namespaceName).toBe('质量数据命名空间');
+    expect(payload.identifierInputMode).toBe('AUTO_WITH_OVERRIDE');
+    expect(payload.versionInputMode).toBe('AUTO_WITH_OVERRIDE');
+    expect(payload.versionPolicy).toBe('SEMVER');
+    expect(JSON.parse(payload.identifierTemplate as string).segments).toHaveLength(3);
   });
 });
