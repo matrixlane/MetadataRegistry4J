@@ -2,8 +2,39 @@
   <div class="app-layout">
     <header class="app-header">
       <div class="header-left">
+        <el-dropdown
+          v-if="activeRegistrar.active && activeRegistrar.identities.length > 1"
+          trigger="click"
+          data-testid="header-active-registrar-menu"
+          @command="switchActiveRegistrar"
+        >
+          <el-tag
+            type="success"
+            effect="light"
+            round
+            style="cursor: pointer;"
+            data-testid="header-active-registrar"
+          >
+            {{ activeRegistrar.active.registrationAuthorityName }}
+          </el-tag>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item
+                v-for="identity in activeRegistrar.identities"
+                :key="identity.registrarId"
+                :command="identity.registrarId"
+                :data-testid="`registrar-option-${identity.registrarId}`"
+              >
+                <el-icon v-if="identity.registrarId === activeRegistrar.active?.registrarId" style="margin-right: 4px;">
+                  <Check />
+                </el-icon>
+                {{ identity.registrationAuthorityName }}
+              </el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
         <el-tag
-          v-if="activeRegistrar.active"
+          v-else-if="activeRegistrar.active"
           type="success"
           effect="light"
           round
@@ -569,7 +600,7 @@ import AiChatWindow from '@/components/assistant/AiChatWindow.vue';
 import { assistantSettingsApi } from '@/api/assistant';
 import { DEFAULT_HOTKEYS, parseHotkey, eventMatchesHotkey } from '@/utils/hotkey';
 import type { ParsedHotkey } from '@/utils/hotkey';
-import { Reading, Briefcase } from '@element-plus/icons-vue';
+import { Reading, Briefcase, Check } from '@element-plus/icons-vue';
 import type { FormInstance } from 'element-plus';
 import { ElMessage } from 'element-plus';
 import request from '@/utils/request';
@@ -612,6 +643,18 @@ async function loadActiveRegistrar() {
     window.dispatchEvent(new CustomEvent('mdregistry:active-registrar-changed'));
   } catch {
     activeRegistrar.value = { active: null, identities: [] };
+  }
+}
+
+/** 点击顶栏机构标签切换激活身份；后端会把所选身份同步为默认绑定（activation-follows-default）。 */
+async function switchActiveRegistrar(registrarId: string) {
+  if (!registrarId || registrarId === activeRegistrar.value.active?.registrarId) return;
+  try {
+    const res = await activeRegistrarApi.select(registrarId);
+    activeRegistrar.value = res;
+    window.dispatchEvent(new CustomEvent('mdregistry:active-registrar-changed'));
+  } catch {
+    // 选择失败保持现状；错误提示由 request 拦截器统一弹出
   }
 }
 

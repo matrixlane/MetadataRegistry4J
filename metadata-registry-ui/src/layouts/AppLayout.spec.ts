@@ -284,23 +284,44 @@ describe('AppLayout 活动 Registrar 只读展示（default-registrar-auto-activ
     mockedActiveCurrent.mockResolvedValue({ active: null, identities: [] });
   });
 
-  it('多身份响应下渲染只读 tag，无下拉切换交互且不调用 select', async () => {
+  it('多身份响应下标签可点击弹出切换菜单，选项仅为本人注册人员身份', async () => {
     mockedActiveCurrent.mockResolvedValue({ active: identityA, identities: [identityA, identityB] });
     const { wrapper } = await mountLayout();
     const tag = wrapper.find('[data-testid="header-active-registrar"]');
     expect(tag.exists()).toBe(true);
     expect(tag.text()).toContain('甲注册机构');
-    expect(wrapper.find('.el-dropdown').exists()).toBe(false);
-    expect(wrapper.find('.el-dropdown-menu').exists()).toBe(false);
-    expect(activeRegistrarApi.select).not.toHaveBeenCalled();
+    const menu = wrapper.find('[data-testid="header-active-registrar-menu"]');
+    expect(menu.exists()).toBe(true);
+    await tag.trigger('click');
+    await flushPromises();
+    const options = document.body.querySelectorAll('[data-testid^="registrar-option-"]');
+    expect(options.length).toBe(2);
+    expect(options[0].textContent).toContain('甲注册机构');
+    expect(options[1].textContent).toContain('乙注册机构');
   });
 
-  it('单身份响应同样渲染只读 tag 展示 registrationAuthorityName', async () => {
+  it('选择菜单项调用 select 切换并刷新展示', async () => {
+    mockedActiveCurrent.mockResolvedValue({ active: identityA, identities: [identityA, identityB] });
+    vi.mocked(activeRegistrarApi.select).mockResolvedValue({ active: identityB, identities: [identityA, identityB] } as any);
+    const { wrapper } = await mountLayout();
+    const tag = wrapper.find('[data-testid="header-active-registrar"]');
+    await tag.trigger('click');
+    await flushPromises();
+    const option = document.body.querySelector('[data-testid="registrar-option-reg-2"]');
+    expect(option).not.toBeNull();
+    (option as HTMLElement).click();
+    await flushPromises();
+    expect(activeRegistrarApi.select).toHaveBeenCalledWith('reg-2');
+    expect(wrapper.find('[data-testid="header-active-registrar"]').text()).toContain('乙注册机构');
+  });
+
+  it('单身份响应渲染纯只读 tag（无切换菜单）', async () => {
     mockedActiveCurrent.mockResolvedValue({ active: identityA, identities: [identityA] });
     const { wrapper } = await mountLayout();
     const tag = wrapper.find('[data-testid="header-active-registrar"]');
     expect(tag.exists()).toBe(true);
     expect(tag.text()).toContain('甲注册机构');
+    expect(wrapper.find('[data-testid="header-active-registrar-menu"]').exists()).toBe(false);
   });
 
   it('active 为 null 时不渲染 tag', async () => {
