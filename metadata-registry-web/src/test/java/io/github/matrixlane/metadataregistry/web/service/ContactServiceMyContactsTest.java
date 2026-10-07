@@ -74,16 +74,16 @@ class ContactServiceMyContactsTest {
         List<MyContactResponse> result = contactService.listMyContacts(accountId);
 
         assertThat(result).hasSize(2);
-        // default-registrar-auto-activation：默认身份置顶，即使它不是首个绑定
-        assertThat(result.get(0).isRegistrar()).isTrue();
-        assertThat(result.get(0).isDefault()).isTrue();
-        assertThat(result.get(1).isRegistrar()).isFalse();
-        assertThat(result.get(1).isDefault()).isFalse();
+        // 按绑定顺序展示（默认身份不置顶）
+        assertThat(result.get(0).isRegistrar()).isFalse();
+        assertThat(result.get(0).isDefault()).isFalse();
+        assertThat(result.get(1).isRegistrar()).isTrue();
+        assertThat(result.get(1).isDefault()).isTrue();
     }
 
     @Test
-    void listMyContacts_defaultBindingSortsFirst_keepsRestInBindingOrder() {
-        // 稳定排序：默认身份排首位，其余保持原绑定顺序
+    void listMyContacts_keepsBindingOrder_defaultNotSortedFirst() {
+        // 默认身份不是首绑定时也按绑定顺序展示，不置顶
         Contact c1 = new Contact();
         c1.setId(UUID.randomUUID());
         Contact c2 = new Contact();
@@ -97,7 +97,7 @@ class ContactServiceMyContactsTest {
 
         List<MyContactResponse> result = contactService.listMyContacts(accountId);
 
-        assertThat(result).extracting(MyContactResponse::id).containsExactly(c2.getId(), c1.getId(), c3.getId());
+        assertThat(result).extracting(MyContactResponse::id).containsExactly(c1.getId(), c2.getId(), c3.getId());
     }
 
     @Test

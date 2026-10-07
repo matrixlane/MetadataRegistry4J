@@ -177,7 +177,7 @@ public class ContactService {
 
     // ===== "我的"联系人身份（add-submitter-contact-identity） =====
 
-    /** 当前账号绑定的全部联系人身份（含 Registrar 行）；默认身份置顶，其余按绑定顺序排列。 */
+    /** 当前账号绑定的全部联系人身份（含 Registrar 行）；按绑定顺序排列。 */
     @Transactional(readOnly = true)
     public List<MyContactResponse> listMyContacts(UUID accountId) {
         List<ContactAccountBinding> bindings = contactAccountBindingService.bindingsOfAccount(accountId);
@@ -186,13 +186,6 @@ public class ContactService {
                 .map(ContactAccountBinding::getContactId)
                 .collect(Collectors.toSet());
         List<UUID> contactIds = bindings.stream().map(ContactAccountBinding::getContactId).toList();
-        if (!defaultIds.isEmpty()) {
-            // default-registrar-auto-activation：默认身份（至多一个）置顶，其余保持原绑定顺序
-            contactIds = java.util.stream.Stream.concat(
-                            contactIds.stream().filter(defaultIds::contains),
-                            contactIds.stream().filter(id -> !defaultIds.contains(id)))
-                    .toList();
-        }
         Map<UUID, Contact> byId = new HashMap<>();
         contactRepository.findAllById(contactIds).forEach(c -> byId.put(c.getId(), c));
         List<MyContactResponse> result = new ArrayList<>();
