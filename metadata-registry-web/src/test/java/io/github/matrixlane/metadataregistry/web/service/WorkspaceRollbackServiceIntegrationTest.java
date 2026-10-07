@@ -96,7 +96,7 @@ class WorkspaceRollbackServiceIntegrationTest {
     private RegistrarRepository registrarRepository;
 
     @Autowired
-    private ContactAccountBindingService contactAccountBindingService;
+    private ContactAccountService contactAccountService;
 
     @Autowired
     private ObjectMapper objectMapper;
@@ -141,7 +141,7 @@ class WorkspaceRollbackServiceIntegrationTest {
 
         Registrar registrar = new Registrar(ra);
         registrar = registrarRepository.save(registrar);
-        contactAccountBindingService.bind(registrar.getId(), account.getId());
+        contactAccountService.bind(registrar.getId(), account.getId());
 
         AuthenticatedUser principal = new AuthenticatedUser(
                 account.getId(), account.getUsername(), SystemRole.SUPER_ADMIN);

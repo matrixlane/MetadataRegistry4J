@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { useActiveRegistrar } from '@/composables/useActiveRegistrar';
 import { mount, flushPromises } from '@vue/test-utils';
 import ElementPlus, { ElTable, ElMessageBox } from 'element-plus';
 import { createPinia } from 'pinia';
@@ -150,9 +151,12 @@ const mounted: VueWrapper[] = [];
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // useActiveRegistrar 为模块级单例：每用例重置并清理浏览器端选择，隔离激活状态
+  useActiveRegistrar().reset();
+  localStorage.removeItem('activeRegistrarId');
   mockedSummary.mockResolvedValue(summaryFixture);
   // 默认无活动身份：预检按"任一身份组织均可"的放宽语义，保持既有用例行为
-  mockedActiveCurrent.mockResolvedValue({ active: null, identities: [] });
+  mockedActiveCurrent.mockResolvedValue({ defaultRegistrarId: null, identities: [] });
   mockedItems.mockImplementation((view) => {
     if (view === 'DRAFTS') return Promise.resolve(pageOf([rowFixtures.draft]));
     if (view === 'PENDING') return Promise.resolve(pageOf([rowFixtures.pending]));
@@ -437,11 +441,7 @@ describe('WorkspaceView', () => {
       },
     ] as any);
     mockedActiveCurrent.mockResolvedValue({
-      active: {
-        registrarId: 'contact-ra-2',
-        registrationAuthorityId: 'ra-2',
-        registrationAuthorityName: '机构 B',
-      },
+      defaultRegistrarId: 'contact-ra-2',
       identities: [
         {
           registrarId: 'contact-ra-2',
@@ -488,11 +488,7 @@ describe('WorkspaceView', () => {
       },
     ] as any);
     mockedActiveCurrent.mockResolvedValue({
-      active: {
-        registrarId: 'contact-2',
-        registrationAuthorityId: 'ra-2',
-        registrationAuthorityName: '机构 B',
-      },
+      defaultRegistrarId: 'contact-2',
       identities: [
         {
           registrarId: 'contact-2',

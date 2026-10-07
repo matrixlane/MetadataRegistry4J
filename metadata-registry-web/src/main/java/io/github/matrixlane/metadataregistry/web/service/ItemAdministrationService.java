@@ -11,7 +11,6 @@ import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefi
 import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.DesignationContext;
 import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.NamingConvention;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifiedItem;
-import io.github.matrixlane.metadataregistry.ext.basicandcore.ContactAccountBinding;
 import io.github.matrixlane.metadataregistry.ext.identification.IdentifierCreationMode;
 import io.github.matrixlane.metadataregistry.ext.identification.ScopedIdentifierLifecycle;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace;
@@ -102,7 +101,7 @@ public class ItemAdministrationService {
     private final ContactRepository contactRepository;
     private final OrganizationRepository organizationRepository;
     private final ContactService contactService;
-    private final ContactAccountBindingService contactAccountBindingService;
+    private final ContactAccountService contactAccountService;
     private final AdministrativeStatusService administrativeStatusService;
 
     /**
@@ -624,7 +623,7 @@ public class ItemAdministrationService {
                 Contact explicit = contactRepository.findById(submission.contactId())
                         .orElseThrow(() -> new ResourceNotFoundException("Contact", submission.contactId()));
                 java.util.Optional<UUID> boundAccount =
-                        contactAccountBindingService.accountIdOfContact(explicit.getId());
+                        contactAccountService.accountIdOfContact(explicit.getId());
                 if (boundAccount.isEmpty() || !accountId.equals(boundAccount.get())) {
                     throw new BusinessException(ApiCodes.VALIDATION_FAILED,
                             "提交信息中的联系人必须是当前账号绑定的联系人身份");
@@ -639,7 +638,7 @@ public class ItemAdministrationService {
         } else if (submission != null && submission.contactId() != null) {
             contact = contactRepository.findById(submission.contactId())
                     .orElseThrow(() -> new ResourceNotFoundException("Contact", submission.contactId()));
-            java.util.Optional<UUID> boundAccount = contactAccountBindingService.accountIdOfContact(contact.getId());
+            java.util.Optional<UUID> boundAccount = contactAccountService.accountIdOfContact(contact.getId());
             if (boundAccount.isEmpty() || !accountId.equals(boundAccount.get())) {
                 throw new BusinessException(ApiCodes.VALIDATION_FAILED,
                         "提交信息中的联系人必须是当前账号绑定的联系人身份");
@@ -662,28 +661,23 @@ public class ItemAdministrationService {
 
     /**
      * 当前账号绑定的身份中，organization.id == organizationId 的联系人身份；无则 422。
-     * 确定性排序（minor-1）：默认绑定优先，其余按绑定顺序（contactId 升序，即最早绑定在前）——
+     * 确定性排序（minor-1）：默认注册人员优先，其余按绑定顺序（contactId 升序，即最早绑定在前）——
      * findAllById 的返回顺序未定义，同一组织多身份时不得直接 findFirst。
      */
     private Contact resolveOwnIdentityInOrganization(UUID accountId, UUID organizationId) {
-        List<ContactAccountBinding> bindings = contactAccountBindingService.bindingsOfAccount(accountId);
-        List<UUID> contactIds = bindings.stream()
-                .map(ContactAccountBinding::getContactId)
-                .toList();
+        List<UUID> contactIds = contactAccountService.boundContactIdsOfAccount(accountId);
         if (contactIds.isEmpty()) {
             throw noIdentityInOrganization();
         }
-        Set<UUID> defaultIds = bindings.stream()
-                .filter(ContactAccountBinding::isDefault)
-                .map(ContactAccountBinding::getContactId)
-                .collect(java.util.stream.Collectors.toSet());
+        java.util.Optional<UUID> defaultRegistrarId = contactAccountService.defaultRegistrarIdOf(accountId);
         Map<UUID, Contact> byId = new HashMap<>();
         contactRepository.findAllById(contactIds).forEach(c -> byId.put(c.getId(), c));
         return contactIds.stream()
                 .map(byId::get)
                 .filter(Objects::nonNull)
                 .filter(c -> c.getOrganization() != null && organizationId.equals(c.getOrganization().getId()))
-                .sorted(java.util.Comparator.comparing(c -> !defaultIds.contains(c.getId())))
+                .sorted(java.util.Comparator.comparing(
+                        c -> defaultRegistrarId.filter(id -> id.equals(c.getId())).isEmpty()))
                 .findFirst()
                 .orElseThrow(this::noIdentityInOrganization);
     }
@@ -733,7 +727,7 @@ public class ItemAdministrationService {
         }
         Contact contact = contactRepository.findById(req.stewardship().contactId())
                 .orElseThrow(() -> new ResourceNotFoundException("Contact", req.stewardship().contactId()));
-        java.util.Optional<UUID> boundAccount = contactAccountBindingService.accountIdOfContact(contact.getId());
+        java.util.Optional<UUID> boundAccount = contactAccountService.accountIdOfContact(contact.getId());
         if (boundAccount.isEmpty() || !accountId.equals(boundAccount.get())) {
             throw new BusinessException(ApiCodes.VALIDATION_FAILED,
                     "主管信息中的联系人必须是当前账号绑定的联系人身份");
@@ -771,9 +765,7 @@ public class ItemAdministrationService {
         if (item == null || accountId == null) {
             return false;
         }
-        Set<UUID> accountContactIds = contactAccountBindingService.bindingsOfAccount(accountId).stream()
-                .map(ContactAccountBinding::getContactId)
-                .collect(java.util.stream.Collectors.toSet());
+        Set<UUID> accountContactIds = new java.util.HashSet<>(contactAccountService.boundContactIdsOfAccount(accountId));
         if (accountContactIds.isEmpty()) {
             return false;
         }
@@ -800,8 +792,7 @@ public class ItemAdministrationService {
         if (steward == null || steward.getId() == null) {
             return false;
         }
-        return contactAccountBindingService.bindingsOfAccount(accountId).stream()
-                .map(ContactAccountBinding::getContactId)
+        return contactAccountService.boundContactIdsOfAccount(accountId).stream()
                 .anyMatch(steward.getId()::equals);
     }
 

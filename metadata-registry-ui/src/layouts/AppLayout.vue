@@ -50,7 +50,8 @@
           <el-icon><UserFilled /></el-icon>
           {{ auth.user.displayName || auth.user.username }}
         </el-tag>
-        <el-button text type="primary" @click="handleLogout" data-testid="header-logout-btn">
+        <!-- 个人版免登录：无登出概念 -->
+        <el-button v-if="!auth.bypassLogin" text type="primary" @click="handleLogout" data-testid="header-logout-btn">
           <el-icon><SwitchButton /></el-icon>
           {{ $t('auth.logout') }}
         </el-button>
@@ -604,8 +605,7 @@ import { Reading, Briefcase, Check } from '@element-plus/icons-vue';
 import type { FormInstance } from 'element-plus';
 import { ElMessage } from 'element-plus';
 import request from '@/utils/request';
-import { activeRegistrarApi } from '@/api/resources';
-import type { ActiveRegistrarResponse } from '@/types/common';
+import { useActiveRegistrar } from '@/composables/useActiveRegistrar';
 import { useRegistryDefaultLanguage } from '@/composables/useRegistryDefaultLanguage';
 
 const route = useRoute();
@@ -631,31 +631,25 @@ const defaultLanguageAlertText = computed(() => {
 
 const collapsed = ref(false);
 
-// ── Active Registrar 身份（default-registrar-auto-activation，仅只读展示）──
-const activeRegistrar = ref<ActiveRegistrarResponse>({ active: null, identities: [] });
+// ── Active Registrar 身份（浏览器端激活状态，useActiveRegistrar 单例；
+//    切换 = 纯客户端动作：写 localStorage 并由请求头随请求传递）──
+const activeRegistrar = useActiveRegistrar();
 
 async function loadActiveRegistrar() {
-  if (!auth.user) return;
+  // 个人版 fetchMe 失败降级场景下 auth.user 为 null 也加载（bypass 免登录）
+  if (!auth.user && !auth.bypassLogin) return;
   try {
-    const res = await activeRegistrarApi.current();
-    activeRegistrar.value = res;
-    // 通知依赖活动 Registrar 身份的对话框/页面重新拉取（default-namespace-by-active-registrar）
-    window.dispatchEvent(new CustomEvent('mdregistry:active-registrar-changed'));
+    await activeRegistrar.load();
   } catch {
-    activeRegistrar.value = { active: null, identities: [] };
+    // 加载失败保持空身份；错误展示由各消费方自行处理
   }
+  // 通知依赖活动 Registrar 身份的对话框/页面重新拉取（default-namespace-by-active-registrar）
+  window.dispatchEvent(new CustomEvent('mdregistry:active-registrar-changed'));
 }
 
-/** 点击顶栏机构标签切换激活身份；后端会把所选身份同步为默认绑定（activation-follows-default）。 */
-async function switchActiveRegistrar(registrarId: string) {
-  if (!registrarId || registrarId === activeRegistrar.value.active?.registrarId) return;
-  try {
-    const res = await activeRegistrarApi.select(registrarId);
-    activeRegistrar.value = res;
-    window.dispatchEvent(new CustomEvent('mdregistry:active-registrar-changed'));
-  } catch {
-    // 选择失败保持现状；错误提示由 request 拦截器统一弹出
-  }
+/** 点击顶栏机构标签切换激活身份；纯客户端动作，不发任何服务端请求。 */
+function switchActiveRegistrar(registrarId: string) {
+  activeRegistrar.switchRegistrar(registrarId);
 }
 
 onMounted(loadActiveRegistrar);
@@ -769,6 +763,8 @@ const activeMenu = computed(() => {
 });
 
 function handleLogout() {
+  // 重置模块级单例，避免下一账号脏读上一账号的身份/激活选择
+  activeRegistrar.reset();
   auth.logout();
   // Use replace to prevent browser back from showing cached authenticated pages
   router.replace('/login');

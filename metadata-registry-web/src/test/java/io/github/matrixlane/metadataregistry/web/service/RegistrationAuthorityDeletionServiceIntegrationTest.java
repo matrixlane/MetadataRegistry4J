@@ -110,7 +110,7 @@ class RegistrationAuthorityDeletionServiceIntegrationTest {
     @Autowired
     private RegistrarService registrarService;
     @Autowired
-    private ContactAccountBindingService bindingService;
+    private ContactAccountService bindingService;
     @Autowired
     private ContactRepository contactRepository;
     @Autowired
@@ -223,14 +223,15 @@ class RegistrationAuthorityDeletionServiceIntegrationTest {
         ra2 = raRepository.save(ra2);
         ra2Id = ra2.getId();
 
-        // ---- 账号 + Registrar（含绑定与激活指向） ----
+        // ---- 账号 + Registrar（含绑定与默认注册人员标志） ----
         Account admin = newAccount("del-admin");
         adminAccountId = admin.getId();
         var registrar = registrarService.createRegistrarForUser(
                 admin.getId(), admin.getUsername(), null, "注册管理员", ra.getId(), ra);
         registrarId = registrar.getId();
-        admin.setActiveRegistrarId(registrar.getId());
-        accountRepository.save(admin);
+        // 激活状态已浏览器化：服务端持久化的是默认注册人员标志（ext.registrar.is_default），
+        // 级联删除须随 Registrar 一并清理
+        bindingService.markDefaultRegistrar(admin.getId(), registrar.getId());
 
         Account admin2 = newAccount("del-admin-2");
         var registrar2 = registrarService.createRegistrarForUser(
@@ -477,7 +478,7 @@ class RegistrationAuthorityDeletionServiceIntegrationTest {
         deletedIds.put("naming_authority_id", List.of(raId));
         deletedIds.put("contact_id", List.of(registrarId, plainContactId));
         deletedIds.put("registrar_id", List.of(registrarId));
-        deletedIds.put("active_registrar_id", List.of(registrarId));
+        deletedIds.put("ext_registrar_id", List.of(registrarId));
         deletedIds.put("namespace_id", List.of(raNsId));
         deletedIds.put("scoped_identifier_id", List.of(si1.getId(), si2.getId(), nsSi.getId()));
         deletedIds.put("designation_id", designationIds);
@@ -622,9 +623,9 @@ class RegistrationAuthorityDeletionServiceIntegrationTest {
         assertThat(submissionRecordRepository.findById(sharedSrId)).isPresent();
         assertThat(submissionRecordRepository.findById(orphanSrId)).isPresent();
         assertThat(submissionRecordRepository.findAllByRegisteredItemId(otherItemAiId)).hasSize(1);
-        // 账号激活指向已清理、Registrar 绑定已解绑
+        // 默认注册人员标志已随级联清理、Registrar 绑定已解绑
         Account admin = accountRepository.findById(adminAccountId).orElseThrow();
-        assertThat(admin.getActiveRegistrarId()).isNull();
+        assertThat(bindingService.defaultRegistrarIdOf(adminAccountId)).isEmpty();
         assertThat(bindingService.registrarsOfAccount(adminAccountId)).isEmpty();
         // 幸存机构及其管理项不受影响（用 JDBC 计数断言，避免 JOINED 多态大 join 触碰 SQLite 64 表上限）
         assertThat(raRepository.findById(ra2Id)).isPresent();
@@ -642,6 +643,9 @@ class RegistrationAuthorityDeletionServiceIntegrationTest {
         assertZeroRows("contact", "id", deletedIds.get("contact_id"));
         // Primary 标志卫星表（ext 卫星行按 RA id 1:1，级联末段补删）
         assertZeroRows("ext_registration_authority", "id", deletedIds.get("registration_authority_id"));
+        // 账号绑定卫星与默认注册人员标志卫星（personal-no-login-registrar-default）
+        assertZeroRows("ext_contact", "id", deletedIds.get("contact_id"));
+        assertZeroRows("ext_registrar", "id", deletedIds.get("ext_registrar_id"));
 
         // 通用零残留扫描：sqlite schema 中所有含 item 指向列、context 指向列或 RA 指向列的表
         Map<String, String> columnToIdSet = Map.ofEntries(
@@ -659,7 +663,6 @@ class RegistrationAuthorityDeletionServiceIntegrationTest {
                 Map.entry("naming_authority_id", "naming_authority_id"),
                 Map.entry("contact_id", "contact_id"),
                 Map.entry("registrar_id", "registrar_id"),
-                Map.entry("active_registrar_id", "active_registrar_id"),
                 Map.entry("namespace_id", "namespace_id"),
                 Map.entry("scoped_identifier_id", "scoped_identifier_id"),
                 Map.entry("designation_id", "designation_id"),

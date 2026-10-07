@@ -61,7 +61,7 @@ class AuthServiceTest {
     private io.github.matrixlane.metadataregistry.web.repository.RegistrarRepository registrarRepository;
 
     @Mock
-    private io.github.matrixlane.metadataregistry.web.service.ContactAccountBindingService contactAccountBindingService;
+    private io.github.matrixlane.metadataregistry.web.service.ContactAccountService contactAccountService;
 
     @Mock
     private SystemSettingService systemSettingService;
@@ -92,7 +92,7 @@ class AuthServiceTest {
         admin.setEnabled(true);
 
         when(userRepository.findByUsername("admin")).thenReturn(Optional.of(admin));
-        lenient().when(contactAccountBindingService.contactsOfAccount(org.mockito.ArgumentMatchers.any())).thenReturn(java.util.List.of());
+        lenient().when(contactAccountService.contactsOfAccount(org.mockito.ArgumentMatchers.any())).thenReturn(java.util.List.of());
         when(jwtService.generateToken(eq(admin), eq(true), eq(false), eq(false), eq(false), eq(false))).thenReturn("mock-token");
 
         LoginRequest request = new LoginRequest("admin", "");
@@ -114,7 +114,7 @@ class AuthServiceTest {
         admin.setEnabled(true);
 
         when(userRepository.findByUsername("admin")).thenReturn(Optional.of(admin));
-        lenient().when(contactAccountBindingService.contactsOfAccount(org.mockito.ArgumentMatchers.any())).thenReturn(java.util.List.of());
+        lenient().when(contactAccountService.contactsOfAccount(org.mockito.ArgumentMatchers.any())).thenReturn(java.util.List.of());
         when(jwtService.generateToken(eq(admin), eq(true), eq(true), eq(false), eq(false), eq(false))).thenReturn("mock-token");
 
         LoginRequest request = new LoginRequest("admin", "emergency123");
@@ -140,7 +140,7 @@ class AuthServiceTest {
 
         when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("temp123", "$2a$10$hashedTempPassword")).thenReturn(true);
-        lenient().when(contactAccountBindingService.contactsOfAccount(org.mockito.ArgumentMatchers.any())).thenReturn(java.util.List.of());
+        lenient().when(contactAccountService.contactsOfAccount(org.mockito.ArgumentMatchers.any())).thenReturn(java.util.List.of());
         when(jwtService.generateToken(eq(user), eq(true), eq(false), eq(true), eq(false), eq(false))).thenReturn("mock-token");
 
         LoginRequest request = new LoginRequest("testuser", "temp123");
@@ -250,9 +250,9 @@ class AuthServiceTest {
 
         when(userRepository.findById(userId)).thenReturn(Optional.of(user));
         when(individualRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
-        when(contactAccountBindingService.contactsOfAccount(user)).thenReturn(java.util.List.of(registrar));
-        when(contactAccountBindingService.registrarsOfAccount(org.mockito.ArgumentMatchers.any())).thenReturn(java.util.List.of());
-        when(contactAccountBindingService.registrarsOfAccount(userId)).thenReturn(java.util.List.of(registrar));
+        when(contactAccountService.contactsOfAccount(user)).thenReturn(java.util.List.of(registrar));
+        when(contactAccountService.registrarsOfAccount(org.mockito.ArgumentMatchers.any())).thenReturn(java.util.List.of());
+        when(contactAccountService.registrarsOfAccount(userId)).thenReturn(java.util.List.of(registrar));
 
         IndividualRequest request = new IndividualRequest("汪汇", null, null, null, null);
         authService.updateMyIndividual(userId, request);
@@ -277,9 +277,9 @@ class AuthServiceTest {
 
         when(userRepository.findById(userId)).thenReturn(Optional.of(user));
         when(individualRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
-        when(contactAccountBindingService.contactsOfAccount(user)).thenReturn(java.util.List.of(registrar));
-        when(contactAccountBindingService.registrarsOfAccount(org.mockito.ArgumentMatchers.any())).thenReturn(java.util.List.of());
-        when(contactAccountBindingService.registrarsOfAccount(userId)).thenReturn(java.util.List.of(registrar));
+        when(contactAccountService.contactsOfAccount(user)).thenReturn(java.util.List.of(registrar));
+        when(contactAccountService.registrarsOfAccount(org.mockito.ArgumentMatchers.any())).thenReturn(java.util.List.of());
+        when(contactAccountService.registrarsOfAccount(userId)).thenReturn(java.util.List.of(registrar));
 
         IndividualRequest request = new IndividualRequest("张三", null, null, null, null);
         authService.updateMyIndividual(userId, request);
@@ -301,8 +301,8 @@ class AuthServiceTest {
 
         when(userRepository.findByUsername("submitter1")).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("pass123", "$2a$10$hashedPassword")).thenReturn(true);
-        when(contactAccountBindingService.registrarsOfAccount(org.mockito.ArgumentMatchers.any())).thenReturn(java.util.List.of());
-        when(contactAccountBindingService.hasAnyContact(user.getId())).thenReturn(true);
+        when(contactAccountService.registrarsOfAccount(org.mockito.ArgumentMatchers.any())).thenReturn(java.util.List.of());
+        when(contactAccountService.hasAnyContact(user.getId())).thenReturn(true);
         when(jwtService.generateToken(eq(user), eq(false), eq(false), eq(false), eq(false), eq(true)))
                 .thenReturn("mock-token");
 
@@ -325,8 +325,8 @@ class AuthServiceTest {
 
         when(userRepository.findByUsername("plain1")).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("pass123", "$2a$10$hashedPassword")).thenReturn(true);
-        when(contactAccountBindingService.registrarsOfAccount(org.mockito.ArgumentMatchers.any())).thenReturn(java.util.List.of());
-        when(contactAccountBindingService.hasAnyContact(user.getId())).thenReturn(false);
+        when(contactAccountService.registrarsOfAccount(org.mockito.ArgumentMatchers.any())).thenReturn(java.util.List.of());
+        when(contactAccountService.hasAnyContact(user.getId())).thenReturn(false);
         when(jwtService.generateToken(eq(user), eq(false), eq(false), eq(false), eq(false), eq(false)))
                 .thenReturn("mock-token");
 

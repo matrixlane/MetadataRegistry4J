@@ -20,7 +20,7 @@ import java.util.UUID;
  * 与 {@code mdr.registration_authority} 按 id 一一对应。
  *
  * <p>有意不建立到 RegistrationAuthority 的 JPA 关联：避免卫星加载反向触发
- * 标准实体对象图，读写一律经值键（同 {@code ContactAccountBinding} 范式）。
+ * 标准实体对象图，读写一律经值键（同 {@code ContactExtension} 范式）。
  * 缺失行语义：无卫星行按 {@code isPrimary=false} 处理（新建机构默认无标志）。
  */
 @jakarta.persistence.Entity

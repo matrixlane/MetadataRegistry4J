@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { useActiveRegistrar } from '@/composables/useActiveRegistrar';
 import { mount, flushPromises } from '@vue/test-utils';
 import ElementPlus from 'element-plus';
 import { createI18n } from 'vue-i18n';
@@ -71,9 +72,12 @@ const mounted: VueWrapper[] = [];
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // useActiveRegistrar 为模块级单例：每用例重置并清理浏览器端选择，隔离激活状态
+  useActiveRegistrar().reset();
+  localStorage.removeItem('activeRegistrarId');
   mockedList.mockResolvedValue(contactsFixture);
   // 默认无活动身份：默认选中走"第一条 Registrar 身份组织"回退
-  mockedActiveCurrent.mockResolvedValue({ active: null, identities: [] });
+  mockedActiveCurrent.mockResolvedValue({ defaultRegistrarId: null, identities: [] });
 });
 
 afterEach(() => {
@@ -84,11 +88,7 @@ afterEach(() => {
 describe('SubmissionRecordPicker（acg-submission 组织下拉）', () => {
   it('打开时加载身份，组织选项为身份所属组织去重，默认选中活动 RA 身份组织', async () => {
     mockedActiveCurrent.mockResolvedValue({
-      active: {
-        registrarId: 'contact-2',
-        registrationAuthorityId: 'ra-2',
-        registrationAuthorityName: '机构 B',
-      },
+      defaultRegistrarId: 'contact-2',
       identities: [
         { registrarId: 'contact-2', registrationAuthorityId: 'ra-2', registrationAuthorityName: '机构 B' },
       ],
@@ -152,11 +152,7 @@ describe('SubmissionRecordPicker（acg-submission 组织下拉）', () => {
       },
     ] as any[]);
     mockedActiveCurrent.mockResolvedValue({
-      active: {
-        registrarId: 'contact-ra-2',
-        registrationAuthorityId: 'ra-2',
-        registrationAuthorityName: '机构 B',
-      },
+      defaultRegistrarId: 'contact-ra-2',
       identities: [
         { registrarId: 'contact-ra-1', registrationAuthorityId: 'ra-1', registrationAuthorityName: '机构 A' },
         { registrarId: 'contact-ra-2', registrationAuthorityId: 'ra-2', registrationAuthorityName: '机构 B' },

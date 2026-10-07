@@ -169,10 +169,11 @@ import DataTablePage from '@/components/DataTablePage.vue';
 import ItemFormDialog from '@/components/ItemFormDialog.vue';
 import SubmissionRecordPicker from './SubmissionRecordPicker.vue';
 import { useWorkspaceBadge } from '@/composables/useWorkspaceBadge';
+import { useActiveRegistrar } from '@/composables/useActiveRegistrar';
+const activeRegistrarState = useActiveRegistrar();
 import {
   workspaceApi,
   myContactApi,
-  activeRegistrarApi,
   registrationProcessApi,
   administeredItemApi,
   dataElementApi,
@@ -332,8 +333,8 @@ async function ensureSubmissionIdentity(): Promise<boolean> {
   // undefined = 无活动身份/查询失败（放宽），string = 活动身份组织，null = 有活动身份但身份不在列表中
   let activeOrgId: string | null | undefined;
   try {
-    const ar = await activeRegistrarApi.current();
-    const activeRegistrarId = ar?.active?.registrarId;
+    await activeRegistrarState.load();
+    const activeRegistrarId = activeRegistrarState.active?.registrarId;
     if (activeRegistrarId) {
       activeOrgId = bound.find((i) => i.id === activeRegistrarId)?.organizationId ?? null;
     }

@@ -9,7 +9,6 @@ import io.github.matrixlane.metadataregistry.commonfacilities.registration.Regis
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationStatus;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.StewardshipRecord;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.SubmissionRecordSource;
-import io.github.matrixlane.metadataregistry.ext.basicandcore.ContactAccountBinding;
 import io.github.matrixlane.metadataregistry.web.common.BusinessException;
 import io.github.matrixlane.metadataregistry.web.dto.common.SubmissionInfo;
 import io.github.matrixlane.metadataregistry.web.dto.workspace.WorkspaceSubmitRequest;
@@ -54,7 +53,7 @@ class WorkspaceServiceTest {
     @Mock private AdministrativeStatusService administrativeStatusService;
     @Mock private RegistrationProcessService registrationProcessService;
     @Mock private WorkspaceRollbackService workspaceRollbackService;
-    @Mock private ContactAccountBindingService contactAccountBindingService;
+    @Mock private ContactAccountService contactAccountService;
     @Mock private ContactRepository contactRepository;
     @Mock private OrganizationRepository organizationRepository;
     @Mock private DesignationRepository designationRepository;
@@ -103,7 +102,7 @@ class WorkspaceServiceTest {
     void submit_organizationWithoutIdentity_rejectsWithGuidance() {
         UUID orgId = UUID.randomUUID();
         when(organizationRepository.findById(orgId)).thenReturn(Optional.of(newOrganization(orgId)));
-        when(contactAccountBindingService.bindingsOfAccount(accountId)).thenReturn(List.of());
+        when(contactAccountService.boundContactIdsOfAccount(accountId)).thenReturn(List.of());
 
         WorkspaceSubmitRequest request = new WorkspaceSubmitRequest(
                 List.of(itemId), new SubmissionInfo(null, orgId));
@@ -121,11 +120,11 @@ class WorkspaceServiceTest {
         Contact identityInA = newContact(UUID.randomUUID(), orgA);
         Contact contactInB = newContact(UUID.randomUUID(), orgB);
         when(organizationRepository.findById(orgA.getId())).thenReturn(Optional.of(orgA));
-        when(contactAccountBindingService.bindingsOfAccount(accountId))
-                .thenReturn(List.of(new ContactAccountBinding(identityInA.getId(), accountId)));
+        when(contactAccountService.boundContactIdsOfAccount(accountId))
+                .thenReturn(List.of(identityInA.getId()));
         when(contactRepository.findAllById(List.of(identityInA.getId()))).thenReturn(List.of(identityInA));
         when(contactRepository.findById(contactInB.getId())).thenReturn(Optional.of(contactInB));
-        when(contactAccountBindingService.accountIdOfContact(contactInB.getId()))
+        when(contactAccountService.accountIdOfContact(contactInB.getId()))
                 .thenReturn(Optional.of(accountId));
 
         WorkspaceSubmitRequest request = new WorkspaceSubmitRequest(
@@ -144,11 +143,11 @@ class WorkspaceServiceTest {
         Contact identity = newContact(UUID.randomUUID(), org);
         newDraftItem();
         when(organizationRepository.findById(org.getId())).thenReturn(Optional.of(org));
-        when(contactAccountBindingService.bindingsOfAccount(accountId))
-                .thenReturn(List.of(new ContactAccountBinding(identity.getId(), accountId)));
+        when(contactAccountService.boundContactIdsOfAccount(accountId))
+                .thenReturn(List.of(identity.getId()));
         when(contactRepository.findAllById(List.of(identity.getId()))).thenReturn(List.of(identity));
         when(contactRepository.findById(identity.getId())).thenReturn(Optional.of(identity));
-        when(contactAccountBindingService.accountIdOfContact(identity.getId()))
+        when(contactAccountService.accountIdOfContact(identity.getId()))
                 .thenReturn(Optional.of(accountId));
 
         WorkspaceSubmitRequest request = new WorkspaceSubmitRequest(
@@ -167,7 +166,7 @@ class WorkspaceServiceTest {
         Contact contact = newContact(UUID.randomUUID(), org);
         newDraftItem();
         when(contactRepository.findById(contact.getId())).thenReturn(Optional.of(contact));
-        when(contactAccountBindingService.accountIdOfContact(contact.getId()))
+        when(contactAccountService.accountIdOfContact(contact.getId()))
                 .thenReturn(Optional.of(accountId));
 
         WorkspaceSubmitRequest request = new WorkspaceSubmitRequest(
@@ -185,7 +184,7 @@ class WorkspaceServiceTest {
         Organization org = newOrganization(UUID.randomUUID());
         Contact contact = newContact(UUID.randomUUID(), org);
         when(contactRepository.findById(contact.getId())).thenReturn(Optional.of(contact));
-        when(contactAccountBindingService.accountIdOfContact(contact.getId())).thenReturn(Optional.empty());
+        when(contactAccountService.accountIdOfContact(contact.getId())).thenReturn(Optional.empty());
 
         WorkspaceSubmitRequest request = new WorkspaceSubmitRequest(
                 List.of(itemId), new SubmissionInfo(contact.getId(), null));
@@ -202,7 +201,7 @@ class WorkspaceServiceTest {
         AdministeredItem ai = newDraftItem();
         ai.setStewardshipRecord(new StewardshipRecord());
         when(organizationRepository.findById(orgId)).thenReturn(Optional.of(newOrganization(orgId)));
-        when(contactAccountBindingService.bindingsOfAccount(accountId)).thenReturn(List.of());
+        when(contactAccountService.boundContactIdsOfAccount(accountId)).thenReturn(List.of());
 
         assertThatThrownBy(() -> workspaceService.requestCandidate(
                 itemId, new SubmissionInfo(null, orgId), accountId))

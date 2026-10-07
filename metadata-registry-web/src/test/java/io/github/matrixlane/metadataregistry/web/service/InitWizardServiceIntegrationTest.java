@@ -74,7 +74,7 @@ class InitWizardServiceIntegrationTest {
     @Autowired
     private io.github.matrixlane.metadataregistry.web.repository.IndividualRepository individualRepository;
     @Autowired
-    private ContactAccountBindingService contactAccountBindingService;
+    private ContactAccountService contactAccountService;
 
     @Autowired
     private RegistrySpecificationService registrySpecificationService;
@@ -200,7 +200,7 @@ class InitWizardServiceIntegrationTest {
         //    确定；Role 按提交的 adminRoleName 创建并关联，所属组织恒为本次创建的 RA）
         List<Registrar> registrars = registrarRepository.findAll();
         boolean registrarAssigned = registrars.stream()
-                .anyMatch(r -> contactAccountBindingService.accountIdOfContact(r.getId()).map(appUserId::equals).orElse(false) &&
+                .anyMatch(r -> contactAccountService.accountIdOfContact(r.getId()).map(appUserId::equals).orElse(false) &&
                         r.getRole() != null && "注册管理员".equals(r.getRole().getRoleName()) &&
                         r.getOrganization() != null && createdRa.getId().equals(r.getOrganization().getId()) &&
                         r.getRegistrationAuthority() != null && createdRa.getId().equals(r.getRegistrationAuthority().getId()));
@@ -357,13 +357,13 @@ class InitWizardServiceIntegrationTest {
         // 管理员自动成为注册员
         List<Registrar> registrars = registrarRepository.findAll();
         boolean hasRegistrar = registrars.stream()
-                .anyMatch(r -> contactAccountBindingService.accountIdOfContact(r.getId()).map(appUserId::equals).orElse(false));
+                .anyMatch(r -> contactAccountService.accountIdOfContact(r.getId()).map(appUserId::equals).orElse(false));
         assertThat(hasRegistrar).isTrue();
 
         // 姓名留空：不得创建任何 Individual（含"注册管理员"兜底个体），Registrar 无 Individual 关联
         assertThat(individualRepository.count()).isZero();
         Registrar adminRegistrar = registrars.stream()
-                .filter(r -> contactAccountBindingService.accountIdOfContact(r.getId()).map(appUserId::equals).orElse(false))
+                .filter(r -> contactAccountService.accountIdOfContact(r.getId()).map(appUserId::equals).orElse(false))
                 .findFirst().orElseThrow();
         assertThat(adminRegistrar.getIndividual()).isNull();
         // 角色兜底"注册管理员"仍生效

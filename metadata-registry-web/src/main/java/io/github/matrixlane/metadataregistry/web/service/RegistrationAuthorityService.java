@@ -45,7 +45,7 @@ public class RegistrationAuthorityService {
     private final SystemSettingService systemSettingService;
     private final RegistrationProcessService registrationProcessService;
     private final RegistrarService registrarService;
-    private final ContactAccountBindingService contactAccountBindingService;
+    private final ContactAccountService contactAccountService;
     private final AccountRepository accountRepository;
     private final RegistrationAuthorityDeletionService deletionService;
     private final NamespaceProvisioningService namespaceProvisioningService;
@@ -123,18 +123,16 @@ public class RegistrationAuthorityService {
     }
 
     /**
-     * 为当前账号建立该机构的 Registrar（roleName 固定"注册管理员"），并确保首个身份为默认身份。
+     * 为当前账号建立该机构的 Registrar（roleName 固定"注册管理员"）；账号尚无默认
+     * 注册人员时，该 Registrar 自动成为默认（首个身份自动默认语义）。
      * PERSONAL 个人版创建后无条件调用；TEAM 团队版（含版本未设置）仅 selfAsRegistrar=true 时调用。
      */
     private void autoCreateRegistrar(RegistrationAuthority ra, UUID accountId) {
-        boolean first = !contactAccountBindingService.hasAnyContact(accountId);
         Account account = accountRepository.findById(accountId)
                 .orElseThrow(() -> new ResourceNotFoundException("Account", accountId));
         Registrar registrar = registrarService.createRegistrarForUser(
                 accountId, account.getUsername(), null, "注册管理员", ra.getId(), ra);
-        if (first) {
-            contactAccountBindingService.markDefault(accountId, registrar.getId());
-        }
+        contactAccountService.ensureDefaultRegistrarWhenFirst(accountId, registrar.getId());
     }
 
     /**

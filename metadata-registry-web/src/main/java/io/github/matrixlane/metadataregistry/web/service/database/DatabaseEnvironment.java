@@ -30,13 +30,17 @@ public class DatabaseEnvironment {
             "classification_scheme", "classification_node",
             "identifier_strategy_config", "identifier_sequence_registry", "identifier_version_history",
             "scoped_identifier_lifecycle", "namespace_identifier_settings",
-            "contact_account_binding", "language_governance", "naming_convention_rules",
+            "language_governance", "naming_convention_rules",
             // V20260919001 语言名称扩展:团队库与标准表同名(language_identification,schema 区分);
             // SQLite 无 schema,物理名加 ext_ 前缀(ext_language_identification)。
             "language_identification", "ext_language_identification",
             // V20261008001 RA Primary 标志卫星:团队库与标准表同名(registration_authority,schema 区分);
             // SQLite 物理名加 ext_ 前缀(ext_registration_authority)。标准表禁止走 qualifyAuto。
             "ext_registration_authority",
+            // V20261009001/0002 账号绑定卫星与默认注册人员标志卫星:团队库与标准表同名
+            // (contact / registrar,schema 区分);SQLite 物理名加 ext_ 前缀。
+            // 标准表 mdr.contact / mdr.registrar 必须走 qualify,禁止走 qualifyAuto。
+            "ext_contact", "ext_registrar",
             "ai_generation_record",
             "account",
             "fhir_element_mapping", "interop_mapping",

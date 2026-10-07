@@ -184,7 +184,7 @@ public class RegistrationLifecycleService {
     private final AdministeredItemRepository administeredItemRepository;
     private final AccountRepository accountRepository;
     private final ContactRepository contactRepository;
-    private final ContactAccountBindingService contactAccountBindingService;
+    private final ContactAccountService contactAccountService;
     private final RegistrationTransitionRuleRepository transitionRuleRepository;
     private final AdministrativeStatusService administrativeStatusService;
 
@@ -557,7 +557,7 @@ public class RegistrationLifecycleService {
                 return AppUserRole.ADMIN;
             }
             // Registrar 身份由 Contact 子类 Registrar 实例确定（类型即身份，与 Role 无关）
-            if (!contactAccountBindingService.registrarsOfAccount(user.id()).isEmpty()) {
+            if (!contactAccountService.registrarsOfAccount(user.id()).isEmpty()) {
                 return AppUserRole.REGISTRAR;
             }
             return AppUserRole.VIEWER;

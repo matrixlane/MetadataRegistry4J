@@ -30,6 +30,11 @@ request.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+  // 活动 Registrar 身份：浏览器端保存的选择随请求头传递（personal-no-login-registrar-default）
+  const activeRegistrarId = localStorage.getItem('activeRegistrarId');
+  if (activeRegistrarId) {
+    config.headers['X-Active-Registrar-Id'] = activeRegistrarId;
+  }
   return config;
 });
 
@@ -68,7 +73,12 @@ request.interceptors.response.use(
       }
       ElMessage.warning('当前会话需要先修改密码才能继续操作');
     } else if (error.response?.status === 401) {
-      useAuthStore().logout();
+      const auth = useAuthStore();
+      if (auth.bypassLogin) {
+        // 个人版免登录：无登录页可去，直接拒绝由调用方降级
+        return Promise.reject(error);
+      }
+      auth.logout();
       if (window.location.pathname === '/login') {
         // Let the Login page display the message itself to avoid duplicates.
         return Promise.reject(error);

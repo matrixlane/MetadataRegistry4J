@@ -57,16 +57,23 @@ public class InitWizardController {
     public ApiResponse<LoginResponse> setup(@Valid @RequestBody InitWizardSetupRequest request) {
         UUID adminId = authService.findAdminId();
         initWizardService.setup(request, adminId);
+        // 个人版免登录（personal-no-login-registrar-default）：不签发向导会话令牌，
+        // 前端直接进入应用；团队版沿用"免登录+强制改密"的向导会话。
+        String edition = initWizardService.getStatus().edition();
+        if ("PERSONAL".equals(edition)) {
+            return ApiResponse.ok(null);
+        }
         return ApiResponse.ok(authService.establishSessionAfterInitialization(adminId));
     }
 
     /**
      * Step 5: commit. The only operation that flips
-     * {@code system.initialized=true} and stores the admin's real password.
+     * {@code system.initialized=true} and — TEAM 版 — stores the admin's
+     * real password. PERSONAL 版无密码概念，请求体可省略。
      */
     @PostMapping("/commit")
-    @Operation(summary = "提交第 5 步：设置管理员密码并启用系统")
-    public ApiResponse<Void> commit(@Valid @RequestBody InitWizardCommitRequest request) {
+    @Operation(summary = "提交第 5 步：设置管理员密码（团队版）并启用系统")
+    public ApiResponse<Void> commit(@RequestBody(required = false) InitWizardCommitRequest request) {
         initWizardService.commit(request);
         // commit 事务已提交、连接已释放后创建 Registry Context（独立事务，失败不阻断）
         initWizardService.createRegistryContextAfterInitialization();

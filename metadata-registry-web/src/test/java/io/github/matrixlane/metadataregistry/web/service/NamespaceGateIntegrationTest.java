@@ -73,7 +73,7 @@ class NamespaceGateIntegrationTest {
     @Autowired
     private RegistrarRepository registrarRepository;
     @Autowired
-    private ContactAccountBindingService contactAccountBindingService;
+    private ContactAccountService contactAccountService;
 
     private UUID languageId;
     private RegistrationAuthority registrationAuthority;
@@ -103,7 +103,7 @@ class NamespaceGateIntegrationTest {
 
         Registrar registrar = new Registrar(registrationAuthority);
         registrar = registrarRepository.save(registrar);
-        contactAccountBindingService.bind(registrar.getId(), account.getId());
+        contactAccountService.bind(registrar.getId(), account.getId());
 
         AuthenticatedUser principal = new AuthenticatedUser(
                 account.getId(), account.getUsername(), SystemRole.SUPER_ADMIN);

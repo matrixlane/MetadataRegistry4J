@@ -17,4 +17,14 @@
         <table name="ext_registration_authority"/>
     </entity>
 
+    <!-- V20261009001 账号绑定卫星:与标准表 contact 同名,SQLite 物理名 ext_contact。 -->
+    <entity class="io.github.matrixlane.metadataregistry.ext.basicandcore.ContactExtension">
+        <table name="ext_contact"/>
+    </entity>
+
+    <!-- V20261009002 默认注册人员标志卫星:与标准表 registrar 同名,SQLite 物理名 ext_registrar。 -->
+    <entity class="io.github.matrixlane.metadataregistry.ext.registration.RegistrarExtension">
+        <table name="ext_registrar"/>
+    </entity>
+
 </entity-mappings>

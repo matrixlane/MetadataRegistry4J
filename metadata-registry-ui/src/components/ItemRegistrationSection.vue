@@ -99,7 +99,9 @@ import { onBeforeUnmount } from 'vue';
 import { useRouter } from 'vue-router';
 import { Loading } from '@element-plus/icons-vue';
 import { identifierStrategyApi } from '@/api/identifierStrategy';
-import { activeRegistrarApi, namespaceApi, readinessApi } from '@/api/resources';
+import { namespaceApi, readinessApi } from '@/api/resources';
+import { useActiveRegistrar } from '@/composables/useActiveRegistrar';
+const activeRegistrarState = useActiveRegistrar();
 
 export interface RegistrationModel {
   namespaceId?: string;
@@ -423,9 +425,9 @@ async function loadOptions() {
   }
   // 活动 Registrar 身份决定条目归属（active-registrar-ownership）
   try {
-    const ar = await activeRegistrarApi.current();
-    activeRaName.value = ar.active?.registrationAuthorityName || null;
-    activeRaRegistrationAuthorityId.value = ar.active?.registrationAuthorityId || null;
+    await activeRegistrarState.load();
+    activeRaName.value = activeRegistrarState.active?.registrationAuthorityName || null;
+    activeRaRegistrationAuthorityId.value = activeRegistrarState.active?.registrationAuthorityId || null;
   } catch {
     activeRaName.value = null;
     activeRaRegistrationAuthorityId.value = null;
@@ -480,9 +482,9 @@ function handleActiveRegistrarChanged() {
   if (props.isEditing) return;
   void (async () => {
     try {
-      const ar = await activeRegistrarApi.current();
-      activeRaName.value = ar.active?.registrationAuthorityName || null;
-      activeRaRegistrationAuthorityId.value = ar.active?.registrationAuthorityId || null;
+      await activeRegistrarState.load();
+      activeRaName.value = activeRegistrarState.active?.registrationAuthorityName || null;
+      activeRaRegistrationAuthorityId.value = activeRegistrarState.active?.registrationAuthorityId || null;
       activeRegistrarQueryFailed.value = false;
       // 身份切换后清理用户已选的命名空间，重新推导默认
       model.value.namespaceId = undefined;

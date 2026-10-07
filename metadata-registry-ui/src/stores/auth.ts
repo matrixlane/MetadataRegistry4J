@@ -37,7 +37,9 @@ export const useAuthStore = defineStore('auth', () => {
   const initialized = ref<boolean | null>(null);
   const edition = ref<string | null>(null);
 
-  const isLoggedIn = computed(() => !!token.value);
+  const isLoggedIn = computed(() => !!token.value || bypassLogin.value);
+  /** 个人版免登录（personal-no-login-registrar-default）：PERSONAL 已初始化时无需任何凭证。 */
+  const bypassLogin = computed(() => edition.value === 'PERSONAL' && initialized.value === true);
   const isAdmin = computed(() => user.value?.sysRole === 'SUPER_ADMIN');
   const isRegistrar = computed(() => user.value?.sysRole === 'SUPER_ADMIN' || !!user.value?.isRegistrar);
   /** 是否具备 Registrar 业务角色（不含 SUPER_ADMIN）。AI 使用类入口一律以此门控：
@@ -63,6 +65,11 @@ export const useAuthStore = defineStore('auth', () => {
 
   function setInitialized(value: boolean | null) {
     initialized.value = value;
+  }
+
+  /** 写入当前部署版本（如初始化向导所选 edition）——bypassLogin 依赖该值。 */
+  function setEdition(value: string | null) {
+    edition.value = value;
   }
 
   /**
@@ -108,6 +115,8 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = null;
     initialized.value = null;
     localStorage.removeItem('token');
+    // 活动 Registrar 选择随登录态一并清理（重新进入时按默认注册人员回退）
+    localStorage.removeItem('activeRegistrarId');
   }
 
   /**
@@ -123,8 +132,8 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   return {
-    token, user, isLoggedIn, isAdmin, isRegistrar, isRegistrarUser, initialized,
-    hasRole, setInitialized, checkInitialized, login, fetchMe, logout, adoptSession,
+    token, user, isLoggedIn, bypassLogin, isAdmin, isRegistrar, isRegistrarUser, initialized,
+    hasRole, setInitialized, setEdition, checkInitialized, login, fetchMe, logout, adoptSession,
     edition,
   };
 });

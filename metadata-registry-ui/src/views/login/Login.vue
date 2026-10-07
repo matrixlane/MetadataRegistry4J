@@ -118,6 +118,7 @@ import { useI18n } from 'vue-i18n';
 import type { FormInstance, FormRules } from 'element-plus';
 import { ElMessage } from 'element-plus';
 import { useAuthStore } from '@/stores/auth';
+import { useActiveRegistrar } from '@/composables/useActiveRegistrar';
 import { User, Lock } from '@element-plus/icons-vue';
 import LoginLayout from '@/layouts/LoginLayout.vue';
 import request from '@/utils/request';
@@ -220,6 +221,8 @@ async function handleSubmit() {
     loading.value = true;
     try {
       await auth.login(form);
+      // 换账号登录：重置活动 Registrar 单例，避免脏读上一账号的身份/激活选择
+      useActiveRegistrar().reset();
 
       // Explicitly store/update credentials in the browser password manager.
       // This is the standard way for SPAs to make sure the username is saved

@@ -75,7 +75,7 @@ class RegistrationLifecycleServiceTest {
 
     @Mock
     private ContactRepository contactRepository;
-    @Mock private ContactAccountBindingService contactAccountBindingService;
+    @Mock private ContactAccountService contactAccountService;
     @Mock private io.github.matrixlane.metadataregistry.web.repository.RegistrationTransitionRuleRepository transitionRuleRepository;
     @Spy private AdministrativeStatusService administrativeStatusService;
 
@@ -761,15 +761,15 @@ class RegistrationLifecycleServiceTest {
             org.mockito.Mockito.lenient().when(accountRepository.findById(userId)).thenReturn(Optional.of(account));
             Registrar registrar = new Registrar();
             registrar.setId(UUID.randomUUID());
-            org.mockito.Mockito.lenient().when(contactAccountBindingService.registrarsOfAccount(userId))
+            org.mockito.Mockito.lenient().when(contactAccountService.registrarsOfAccount(userId))
                     .thenReturn(List.of(registrar));
-            org.mockito.Mockito.lenient().when(contactAccountBindingService.contactsOfAccount(account)).thenReturn(List.of());
+            org.mockito.Mockito.lenient().when(contactAccountService.contactsOfAccount(account)).thenReturn(List.of());
         } else if (role == AppUserRole.VIEWER) {
             Account account = new Account();
             account.setId(userId);
             org.mockito.Mockito.lenient().when(accountRepository.findById(userId)).thenReturn(Optional.of(account));
-            org.mockito.Mockito.lenient().when(contactAccountBindingService.contactsOfAccount(account)).thenReturn(List.of());
-            org.mockito.Mockito.lenient().when(contactAccountBindingService.registrarsOfAccount(userId)).thenReturn(List.of());
+            org.mockito.Mockito.lenient().when(contactAccountService.contactsOfAccount(account)).thenReturn(List.of());
+            org.mockito.Mockito.lenient().when(contactAccountService.registrarsOfAccount(userId)).thenReturn(List.of());
         }
     }
 

@@ -375,8 +375,24 @@
           </el-form>
         </div>
 
-        <!-- Step 6: Set Admin Password — final commit step -->
+        <!-- Step 6: final commit step — 团队版设置管理员密码；个人版免登录仅确认 -->
         <div v-if="currentStep === 5" class="step-pane fade-in">
+          <template v-if="form.edition === 'PERSONAL'">
+            <h3 class="step-title">完成初始化</h3>
+            <p class="step-desc">
+              个人版无需设置密码：系统仅本地访问，无登录概念。提交后系统将正式启用并直接进入应用。
+            </p>
+            <el-alert type="info" :closable="false" show-icon class="mb-4">
+              <template #title>
+                <strong>当前管理员账户：</strong>admin
+                <br />
+                <span style="font-size: 13px;">
+                  个人版不签发任何登录令牌，访问将以管理员身份直接进行（激活的注册机构等状态保存在本浏览器）。
+                </span>
+              </template>
+            </el-alert>
+          </template>
+          <template v-else>
           <h3 class="step-title">设置超级管理员密码</h3>
           <p class="step-desc">
             这是初始化的最后一步。提交后系统将正式启用，请妥善保管新密码。
@@ -433,6 +449,7 @@
               />
             </el-form-item>
           </el-form>
+          </template>
         </div>
       </div>
 
@@ -832,11 +849,20 @@ async function callSetup(): Promise<void> {
       token: string;
       user: any;
       expiresInSeconds?: number;
-    }>('/init-wizard/setup', payload);
-    auth.adoptSession({
-      token: loginResponse.token,
-      user: loginResponse.user,
-    });
+    } | null>('/init-wizard/setup', payload);
+    if (loginResponse?.token) {
+      // 团队版：采用向导会话（强制改密令牌）
+      auth.adoptSession({
+        token: loginResponse.token,
+        user: loginResponse.user,
+      });
+    } else {
+      // 个人版免登录：后端不签发令牌，前端直接进入已初始化态。
+      // 必须同步写入 edition——bypassLogin（免登录判定/登出按钮隐藏）依赖该值，
+      // 否则路由守卫会因 edition 为空把用户弹回登录页。
+      auth.setInitialized(true);
+      auth.setEdition(form.edition);
+    }
   } finally {
     loading.value = false;
   }
@@ -1018,6 +1044,27 @@ async function saveDbConfig() {
 }
 
 async function handleCommit() {
+  // 个人版免登录：无密码步骤，直接提交
+  if (form.edition === 'PERSONAL') {
+    loading.value = true;
+    commitError.value = '';
+    try {
+      await request.post('/init-wizard/commit');
+      setupCommitted.value = true;
+      auth.setInitialized(true);
+      auth.setEdition(form.edition);
+      ElMessage.success('系统初始化成功！');
+      router.push('/dashboard');
+    } catch (e) {
+      const err = e as any;
+      commitError.value =
+        err?.response?.data?.message || err?.message || '提交失败，请稍后重试';
+    } finally {
+      loading.value = false;
+    }
+    return;
+  }
+
   if (!formStep6Ref.value) return;
   let isValid = false;
   try {

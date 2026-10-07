@@ -6,7 +6,7 @@ import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basic
 import io.github.matrixlane.metadataregistry.web.common.BusinessException;
 import io.github.matrixlane.metadataregistry.web.repository.ContactRepository;
 import io.github.matrixlane.metadataregistry.web.repository.IndividualRepository;
-import io.github.matrixlane.metadataregistry.web.service.ContactAccountBindingService;
+import io.github.matrixlane.metadataregistry.web.service.ContactAccountService;
 import io.github.matrixlane.metadataregistry.web.service.SystemSettingService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -55,7 +55,7 @@ class AuthServiceAvatarTest {
     private ContactRepository contactRepository;
 
     @Mock
-    private ContactAccountBindingService contactAccountBindingService;
+    private ContactAccountService contactAccountService;
 
     @Mock
     private SystemSettingService systemSettingService;

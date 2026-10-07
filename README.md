@@ -105,6 +105,9 @@ npm run dev
 | registrar | Registrar@123 | REGISTRAR |
 | viewer | Viewer@123 | VIEWER |
 
+> 以上账号仅适用于**团队版（TEAM）**——个人版（PERSONAL）无登录概念：
+> 本地访问直接进入应用（以唯一管理员身份运行），不存在登录页/注册入口。
+
 ---
 
 ## API 文档

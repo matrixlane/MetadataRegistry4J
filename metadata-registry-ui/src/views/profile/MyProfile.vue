@@ -264,8 +264,9 @@
                   >
                     {{ $t('common.delete') }}
                   </el-button>
+                  <!-- 默认身份概念已收窄至注册人员：普通 Contact 不提供"设为默认" -->
                   <el-button
-                    v-if="!contact.isDefault"
+                    v-if="contact.isRegistrar && !contact.isDefault"
                     link
                     type="success"
                     size="small"

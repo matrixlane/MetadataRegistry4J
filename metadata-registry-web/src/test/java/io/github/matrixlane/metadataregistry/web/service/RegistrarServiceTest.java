@@ -53,7 +53,7 @@ class RegistrarServiceTest {
     @Mock private OrganizationRepository organizationRepository;
     @Mock private IndividualRepository individualRepository;
     @Mock private RoleRepository roleRepository;
-    @Mock private ContactAccountBindingService bindingService;
+    @Mock private ContactAccountService bindingService;
 
     @InjectMocks
     private RegistrarService service;

@@ -169,12 +169,11 @@ public class RegistrationAuthorityDeletionService {
         List<UUID> registrarIds = registrarIdsOf(registrationAuthorityId);
         deleteByIds(t("registration_transition_rule_approver"), "registrar_id", registrarIds);
         deleteByIds(t("registration_transition_approval"), "registrar_id", registrarIds);
-        // 解绑 ContactAccountBinding、清理所有 account.active_registrar_id 指向（EXT）
-        deleteByIds(t("contact_account_binding"), "contact_id", registrarIds);
-        for (List<UUID> chunk : chunks(registrarIds)) {
-            jdbcTemplate.update("UPDATE " + t("account") + " SET active_registrar_id = NULL"
-                    + " WHERE active_registrar_id IN (" + inClause(chunk.size()) + ")", uuidParams(chunk));
-        }
+        // 解绑 ext.contact 账号绑定卫星、清理 ext.registrar 默认注册人员标志卫星
+        // （personal-no-login-registrar-default；account.active_registrar_id 列已随
+        // V20261009003 删除，不再有置空动作）
+        deleteByIds(tContactExtension(), "id", registrarIds);
+        deleteByIds(tRegistrarExtension(), "id", registrarIds);
         // 删 Registrar / Contact（JOINED 两行）；Registrar 的组织即 RA 本体，无需置空
         deleteByIds(t("registrar"), "id", registrarIds);
         deleteByIds(t("contact"), "id", registrarIds);
@@ -182,7 +181,7 @@ public class RegistrationAuthorityDeletionService {
         List<UUID> orgContactIds = queryUuids(
                 "SELECT id FROM " + t("contact") + " WHERE organization_id = ?",
                 uuidArg(registrationAuthorityId));
-        deleteByIds(t("contact_account_binding"), "contact_id", orgContactIds);
+        deleteByIds(tContactExtension(), "id", orgContactIds);
         deleteByIds(t("contact"), "id", orgContactIds);
         deleteWhereEq(t("namespace_permission"), "organization_id", registrationAuthorityId);
 
@@ -454,6 +453,26 @@ public class RegistrationAuthorityDeletionService {
         return databaseEnvironment.vendor() == DatabaseVendor.SQLITE
                 ? databaseEnvironment.qualify("ext_registration_authority")
                 : databaseEnvironment.qualifyExt("registration_authority");
+    }
+
+    /**
+     * 账号绑定卫星表限定名（V20261009001）：团队库与标准表同名（ext.contact），
+     * SQLite 物理名 ext_contact。同 tRaExtension 的同名表路由约束。
+     */
+    private String tContactExtension() {
+        return databaseEnvironment.vendor() == DatabaseVendor.SQLITE
+                ? databaseEnvironment.qualify("ext_contact")
+                : databaseEnvironment.qualifyExt("contact");
+    }
+
+    /**
+     * 默认注册人员标志卫星表限定名（V20261009002）：团队库与标准表同名
+     * （ext.registrar），SQLite 物理名 ext_registrar。
+     */
+    private String tRegistrarExtension() {
+        return databaseEnvironment.vendor() == DatabaseVendor.SQLITE
+                ? databaseEnvironment.qualify("ext_registrar")
+                : databaseEnvironment.qualifyExt("registrar");
     }
 
     private Object uuidArg(UUID id) {

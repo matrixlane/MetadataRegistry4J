@@ -1,48 +1,50 @@
 package io.github.matrixlane.metadataregistry.web.service;
 
-import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Account;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.AdministeredItem;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.Registrar;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationAuthority;
-import io.github.matrixlane.metadataregistry.web.auth.AccountRepository;
 import io.github.matrixlane.metadataregistry.web.auth.AuthenticatedUser;
-import io.github.matrixlane.metadataregistry.web.common.ApiCodes;
-import io.github.matrixlane.metadataregistry.web.common.BusinessException;
-import io.github.matrixlane.metadataregistry.web.common.ResourceNotFoundException;
 import io.github.matrixlane.metadataregistry.web.repository.AdministeredItemRepository;
 import io.github.matrixlane.metadataregistry.web.repository.RegistrarRepository;
+import io.github.matrixlane.metadataregistry.web.repository.RegistrationAuthorityRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 /**
- * 活动 Registrar 身份解析（active-registrar-ownership）。
+ * 活动 Registrar 身份解析（active-registrar-ownership，personal-no-login-registrar-default 重写）。
  *
- * <p>Registrar 是注册工作的执行身份：注册 Administered_Item 必须持有活动
- * Registrar 身份，所注册条目一定关联该身份所在的 Registration_Authority；
- * 修改/删除已归属条目时，当前用户必须以归属机构的 Registrar 身份为活动身份。
- * 用户可同时持有多个 Registrar 身份，但同一时刻只有一个活动身份；激活恒随账号的
- * 默认注册人员身份（activation-follows-default），{@code active_registrar_id} 仅为
- * 同步缓存，默认身份变更后下一次解析自动跟随（默认绑定缺失或非 Registrar 时回退
- * 首个有效身份）。
+ * <p>激活状态保存在浏览器端：前端将选择写入本地存储并随请求以
+ * {@code X-Active-Registrar-Id} 头传递。服务端解析链（纯读，MUST NOT 写回任何
+ * 持久化状态）：
+ * <ol>
+ *   <li>请求头所选身份（属于当前账号且关联注册机构，否则忽略）；</li>
+ *   <li>账号默认注册人员身份（{@code ext.registrar.is_default}）；</li>
+ *   <li>首个有效身份。</li>
+ * </ol>
+ * 无任何身份时返回空。注册工作、变更权限约束、归属推导均消费本解析结果。
  */
 @Service
 @RequiredArgsConstructor
 @Transactional
 public class ActiveRegistrarService {
 
+    /** 浏览器端激活 Registrar 选择的传递头。 */
+    public static final String ACTIVE_REGISTRAR_HEADER = "X-Active-Registrar-Id";
+
     private final RegistrarRepository registrarRepository;
-    private final ContactAccountBindingService contactAccountBindingService;
-    private final AccountRepository accountRepository;
+    private final ContactAccountService contactAccountService;
     private final AdministeredItemRepository administeredItemRepository;
-    private final io.github.matrixlane.metadataregistry.web.repository.RegistrationAuthorityRepository registrationAuthorityRepository;
+    private final RegistrationAuthorityRepository registrationAuthorityRepository;
 
     public record RegistrarIdentity(UUID registrarId, UUID registrationAuthorityId,
                                     String registrationAuthorityName) {
@@ -65,81 +67,94 @@ public class ActiveRegistrarService {
      */
     @Transactional(readOnly = true)
     public List<RegistrarIdentity> listIdentities(UUID accountId) {
-        return contactAccountBindingService.registrarsOfAccount(accountId).stream()
+        return contactAccountService.registrarsOfAccount(accountId).stream()
                 .filter(r -> r.getRegistrationAuthority() != null)
                 .map(ActiveRegistrarService::toIdentity)
                 .toList();
     }
 
     /**
-     * 解析账号的活动 Registrar 身份（activation-follows-default：激活恒随默认注册人员身份）。
-     * 目标身份 = 账号默认绑定对应的有效 Registrar 身份（默认绑定缺失或非 Registrar 时回退
-     * 首个有效身份）；{@code active_registrar_id} 仅作同步缓存——与目标不一致时写回。
+     * 解析账号的活动 Registrar 身份（纯读）：请求头 → 默认注册人员 → 首个有效身份。
      * 无任何身份时返回空。
      */
+    @Transactional(readOnly = true)
     public Optional<Registrar> resolveActiveRegistrar(UUID accountId) {
-        List<Registrar> identities = contactAccountBindingService.registrarsOfAccount(accountId).stream()
+        List<Registrar> identities = contactAccountService.registrarsOfAccount(accountId).stream()
                 .filter(r -> r.getRegistrationAuthority() != null)
                 .toList();
         if (identities.isEmpty()) {
             return Optional.empty();
         }
-        Registrar active = contactAccountBindingService.defaultBindingOf(accountId)
-                .map(io.github.matrixlane.metadataregistry.ext.basicandcore.ContactAccountBinding::getContactId)
-                .flatMap(contactId -> identities.stream()
-                        .filter(r -> r.getId().equals(contactId))
-                        .findFirst())
-                .orElseGet(() -> identities.get(0));
-        Account account = accountRepository.findById(accountId).orElse(null);
-        if (account != null && !active.getId().equals(account.getActiveRegistrarId())) {
-            account.setActiveRegistrarId(active.getId());
-            accountRepository.save(account);
+        Optional<Registrar> headerSelected = selectedViaHeader(identities);
+        if (headerSelected.isPresent()) {
+            return headerSelected;
         }
-        return Optional.of(active);
+        Optional<UUID> defaultId = contactAccountService.defaultRegistrarIdOf(accountId);
+        if (defaultId.isPresent()) {
+            Optional<Registrar> hit = identities.stream()
+                    .filter(r -> r.getId().equals(defaultId.get()))
+                    .findFirst();
+            if (hit.isPresent()) {
+                return hit;
+            }
+        }
+        return Optional.of(identities.get(0));
+    }
+
+    /**
+     * 浏览器端激活选择：读取 {@code X-Active-Registrar-Id} 头，校验其属于当前账号的
+     * 有效身份列表；无请求上下文（非 Web 线程）、头缺失/非法/不属于该账号时返回空。
+     */
+    private Optional<Registrar> selectedViaHeader(List<Registrar> identities) {
+        UUID selectedId = currentHeaderRegistrarId();
+        if (selectedId == null) {
+            return Optional.empty();
+        }
+        return identities.stream()
+                .filter(r -> r.getId().equals(selectedId))
+                .findFirst();
+    }
+
+    private UUID currentHeaderRegistrarId() {
+        if (!(RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes attrs)) {
+            return null;
+        }
+        String header = attrs.getRequest().getHeader(ACTIVE_REGISTRAR_HEADER);
+        if (header == null || header.isBlank()) {
+            return null;
+        }
+        try {
+            return UUID.fromString(header.trim());
+        } catch (IllegalArgumentException ex) {
+            return null;
+        }
+    }
+
+    /**
+     * 账号默认注册人员的 id（供控制器组装响应）；未设置时返回空。
+     */
+    @Transactional(readOnly = true)
+    public Optional<UUID> defaultRegistrarIdOf(UUID accountId) {
+        return contactAccountService.defaultRegistrarIdOf(accountId);
     }
 
     /**
      * 解析活动 Registrar 身份并在事务内映射为视图对象。供控制器使用：
      * {@link #toIdentity(Registrar)} 需要访问注册机构的名称集合（懒加载），
      * 必须在会话存活期间完成映射，否则控制器层会抛 LazyInitializationException。
-     * 不能声明 readOnly：解析链在派生时会写回 {@code active_registrar_id}。
      */
+    @Transactional(readOnly = true)
     public Optional<RegistrarIdentity> resolveActiveIdentity(UUID accountId) {
         return resolveActiveRegistrar(accountId).map(ActiveRegistrarService::toIdentity);
     }
 
     /**
      * 当前登录用户的活动 Registrar；无认证或无身份时返回空。
-     * 不能声明 readOnly：解析链在派生时会写回 {@code active_registrar_id}。
      */
+    @Transactional(readOnly = true)
     public Optional<Registrar> resolveForCurrentUser() {
         UUID accountId = currentAccountIdOrNull();
         return accountId == null ? Optional.empty() : resolveActiveRegistrar(accountId);
-    }
-
-    /**
-     * 切换活动 Registrar 身份并持久化。目标身份必须属于该账号且关联注册机构。
-     */
-    public RegistrarIdentity selectActiveRegistrar(UUID accountId, UUID registrarId) {
-        Registrar registrar = registrarRepository.findById(registrarId)
-                .orElseThrow(() -> new ResourceNotFoundException("Registrar", registrarId));
-        java.util.Optional<java.util.UUID> boundAccountId = contactAccountBindingService.accountIdOfContact(registrar.getId());
-        if (boundAccountId.isEmpty() || !accountId.equals(boundAccountId.get())) {
-            throw new BusinessException(ApiCodes.VALIDATION_FAILED,
-                    "所选 Registrar 身份不属于当前账号");
-        }
-        if (registrar.getRegistrationAuthority() == null) {
-            throw new BusinessException(ApiCodes.VALIDATION_FAILED,
-                    "所选 Registrar 身份未关联注册机构，无法激活");
-        }
-        Account account = accountRepository.findById(accountId)
-                .orElseThrow(() -> new ResourceNotFoundException("Account", accountId));
-        account.setActiveRegistrarId(registrarId);
-        accountRepository.save(account);
-        // 激活恒随默认注册人员身份：显式激活同步把该身份设为默认绑定，
-        // 使下一次解析（含其他会话）仍落回该身份。
-        contactAccountBindingService.markDefault(accountId, registrar.getId());
-        return toIdentity(registrar);
     }
 
     /**
@@ -183,7 +198,7 @@ public class ActiveRegistrarService {
         // Submitter 通道（add-submitter-contact-identity）：无活动 Registrar 但已登记
         // 为 Contact 的账号，对归属系统唯一注册机构的条目放行写操作（当系统中
         // 恰好只有一个注册机构时按该唯一机构归属）。
-        if (!allowed && contactAccountBindingService.hasAnyContact(accountId)) {
+        if (!allowed && contactAccountService.hasAnyContact(accountId)) {
             List<RegistrationAuthority> all = registrationAuthorityRepository.findAll();
             allowed = all.size() == 1 && all.get(0).getId().equals(owner.getId());
         }
@@ -198,7 +213,7 @@ public class ActiveRegistrarService {
      */
     @Transactional(readOnly = true)
     public boolean isSubmitter(UUID accountId) {
-        return accountId != null && contactAccountBindingService.hasAnyContact(accountId);
+        return accountId != null && contactAccountService.hasAnyContact(accountId);
     }
 
     /**

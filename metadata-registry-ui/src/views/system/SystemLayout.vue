@@ -8,7 +8,12 @@
         <el-menu-item index="/system/general" data-testid="system-nav-general">
           {{ $t('systemSettings.nav.general') }}
         </el-menu-item>
-        <el-menu-item index="/system/users" data-testid="system-nav-users">
+        <!-- 用户管理仅团队版有意义：个人版单用户免登录，不存在多账号管理 -->
+        <el-menu-item
+          v-if="auth.edition !== 'PERSONAL'"
+          index="/system/users"
+          data-testid="system-nav-users"
+        >
           {{ $t('nav.userManagement') }}
         </el-menu-item>
         <el-menu-item index="/system/datasource" data-testid="system-nav-datasource">
@@ -28,8 +33,10 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useRoute } from 'vue-router';
+import { useAuthStore } from '@/stores/auth';
 
 const route = useRoute();
+const auth = useAuthStore();
 
 const activeMenu = computed(() => route.path);
 const isUsersView = computed(() => route.path.startsWith('/system/users'));

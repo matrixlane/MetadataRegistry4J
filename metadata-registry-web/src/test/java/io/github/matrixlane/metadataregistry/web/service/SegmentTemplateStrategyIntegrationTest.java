@@ -98,7 +98,7 @@ class SegmentTemplateStrategyIntegrationTest {
     @Autowired
     private RegistrarRepository registrarRepository;
     @Autowired
-    private ContactAccountBindingService contactAccountBindingService;
+    private ContactAccountService contactAccountService;
     @Autowired
     private AccountRepository accountRepository;
     @Autowired
@@ -141,7 +141,7 @@ class SegmentTemplateStrategyIntegrationTest {
 
         registrar = new Registrar(registrationAuthority);
         registrar = registrarRepository.save(registrar);
-        contactAccountBindingService.bind(registrar.getId(), account.getId());
+        contactAccountService.bind(registrar.getId(), account.getId());
 
         ownNamespace = new Namespace();
         ownNamespace.setRegistrationAuthority(registrationAuthority);

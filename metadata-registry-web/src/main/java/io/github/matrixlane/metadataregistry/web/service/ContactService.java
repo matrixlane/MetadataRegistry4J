@@ -7,7 +7,6 @@ import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basic
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Account;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.SystemRole;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.Registrar;
-import io.github.matrixlane.metadataregistry.ext.basicandcore.ContactAccountBinding;
 import io.github.matrixlane.metadataregistry.web.common.ResourceNotFoundException;
 import io.github.matrixlane.metadataregistry.web.dto.contact.ContactIdentityKind;
 import io.github.matrixlane.metadataregistry.web.dto.contact.ContactRequest;
@@ -33,9 +32,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -47,7 +44,7 @@ public class ContactService {
     private final IndividualRepository individualRepository;
     private final RoleRepository roleRepository;
     private final AccountRepository accountRepository;
-    private final ContactAccountBindingService contactAccountBindingService;
+    private final ContactAccountService contactAccountService;
     private final SystemSettingService systemSettingService;
     private final io.github.matrixlane.metadataregistry.web.repository.RegistrationAuthorityRepository registrationAuthorityRepository;
     private final io.github.matrixlane.metadataregistry.web.repository.SubmissionRecordRepository submissionRecordRepository;
@@ -153,22 +150,25 @@ public class ContactService {
     }
 
     /**
-     * 提交信息默认上下文（add-submitter-contact-identity）：账号默认联系人及其
-     * 所属组织；未设默认时回退到绑定列表中最早绑定（contactId 最小）的一条；
-     * 无任何绑定时返回空。
+     * 提交信息默认上下文（personal-no-login-registrar-default）：优先取账号默认
+     * 注册人员的联系人身份及其注册机构；无默认注册人员时回退到绑定列表中最早绑定
+     * （contactId 最小）的联系人及其所属组织；无任何绑定时返回空。
      */
     @Transactional(readOnly = true)
     public Optional<SubmissionContext> resolveDefaultSubmissionContext(UUID accountId) {
         if (accountId == null) {
             return Optional.empty();
         }
-        Optional<Contact> contact = contactAccountBindingService.defaultBindingOf(accountId)
-                .map(b -> contactRepository.findById(b.getContactId()))
-                .orElseGet(() -> contactAccountBindingService.bindingsOfAccount(accountId).stream()
-                        .findFirst()
-                        .map(b -> contactRepository.findById(b.getContactId()))
-                        .orElse(Optional.empty()));
-        return contact.map(c -> new SubmissionContext(c, c.getOrganization()));
+        Optional<Registrar> defaultRegistrar = contactAccountService.defaultRegistrarOf(accountId)
+                .filter(r -> r.getRegistrationAuthority() != null);
+        if (defaultRegistrar.isPresent()) {
+            Registrar registrar = defaultRegistrar.get();
+            return Optional.of(new SubmissionContext(registrar, registrar.getRegistrationAuthority()));
+        }
+        return contactAccountService.boundContactIdsOfAccount(accountId).stream()
+                .findFirst()
+                .flatMap(contactRepository::findById)
+                .map(c -> new SubmissionContext(c, c.getOrganization()));
     }
 
     /** 提交信息默认上下文：默认联系人 + 其所属组织（组织可为空）。 */
@@ -177,29 +177,27 @@ public class ContactService {
 
     // ===== "我的"联系人身份（add-submitter-contact-identity） =====
 
-    /** 当前账号绑定的全部联系人身份（含 Registrar 行）；按绑定顺序排列。 */
+    /** 当前账号绑定的全部联系人身份（含 Registrar 行）；按绑定顺序（contact_id 升序）排列。 */
     @Transactional(readOnly = true)
     public List<MyContactResponse> listMyContacts(UUID accountId) {
-        List<ContactAccountBinding> bindings = contactAccountBindingService.bindingsOfAccount(accountId);
-        Set<UUID> defaultIds = bindings.stream()
-                .filter(ContactAccountBinding::isDefault)
-                .map(ContactAccountBinding::getContactId)
-                .collect(Collectors.toSet());
-        List<UUID> contactIds = bindings.stream().map(ContactAccountBinding::getContactId).toList();
+        List<UUID> contactIds = contactAccountService.boundContactIdsOfAccount(accountId);
         Map<UUID, Contact> byId = new HashMap<>();
         contactRepository.findAllById(contactIds).forEach(c -> byId.put(c.getId(), c));
+        // 一次性取默认注册人员 id，避免逐行 isDefaultRegistrar 查询（N+1）
+        Optional<UUID> defaultRegistrarId = contactAccountService.defaultRegistrarIdOf(accountId);
         List<MyContactResponse> result = new ArrayList<>();
         for (UUID contactId : contactIds) {
             Contact c = byId.get(contactId);
             if (c != null) {
-                result.add(toMyResponse(c, defaultIds.contains(contactId)));
+                result.add(toMyResponse(c,
+                        defaultRegistrarId.map(id -> id.equals(contactId)).orElse(false)));
             }
         }
         return result;
     }
 
     /**
-     * 为当前账号自建联系人身份；首个身份自动设为默认。
+     * 为当前账号自建联系人身份；账号的首个 Registrar 身份自动设为默认注册人员。
      *
      * <p>kind=REGISTRAR 时创建 Registrar 实体（类型即身份，ISO/IEC 11179-3），两版本一致：
      * 仅超级管理员可创建注册人员身份，其他账号一律拒绝；kind 缺省按 CONTACT 处理。
@@ -228,9 +226,12 @@ public class ContactService {
             entity.setIndividual(account.getIndividual());
         }
         Contact saved = contactRepository.save(entity);
-        boolean first = !contactAccountBindingService.hasAnyContact(accountId);
-        contactAccountBindingService.bindAndSave(saved.getId(), accountId, first);
-        return toMyResponse(saved, first);
+        contactAccountService.bind(saved.getId(), accountId);
+        if (saved instanceof Registrar) {
+            // 首个 Registrar 自动默认（已有默认时 ensure 内部 no-op）
+            contactAccountService.ensureDefaultRegistrarWhenFirst(accountId, saved.getId());
+        }
+        return toMyResponse(saved, contactAccountService.isDefaultRegistrar(saved.getId()));
     }
 
     /**
@@ -245,15 +246,11 @@ public class ContactService {
         if (entity instanceof Registrar registrar) {
             applyRegistrarThreeElements(registrar, request);
             return toMyResponse(contactRepository.save(registrar),
-                    contactAccountBindingService.defaultBindingOf(accountId)
-                            .map(b -> contactId.equals(b.getContactId()))
-                            .orElse(false));
+                    contactAccountService.isDefaultRegistrar(contactId));
         }
         applyRequest(entity, request);
         return toMyResponse(contactRepository.save(entity),
-                contactAccountBindingService.defaultBindingOf(accountId)
-                        .map(b -> contactId.equals(b.getContactId()))
-                        .orElse(false));
+                contactAccountService.isDefaultRegistrar(contactId));
     }
 
     /**
@@ -304,8 +301,8 @@ public class ContactService {
      * </ul>
      *
      * <p>删除 Registrar 行相当于该账号在系统初始化时未作为 Registrar 创建：解绑账号绑定、
-     * 清除各账号的 activeRegistrarId 指向后删除实体。删除默认身份后自动把剩余最早绑定的
-     * 一条设为默认；删空后账号失去 Submitter 能力。
+     * 清理 registrar 卫星行后删除实体。被删者为默认注册人员时，自动把剩余 Registrar 中的
+     * 首个设为默认；删空后账号失去 Submitter 能力。
      */
     public void deleteMyContact(UUID accountId, UUID contactId) {
         Contact entity = loadOwnContact(accountId, contactId);
@@ -330,36 +327,37 @@ public class ContactService {
         }
         // 团队版：不做任何引用守卫，任何身份可直接删除（三方言基线无引用外键约束，
         // 引用列随之悬挂，由对应业务视图按活数据口径过滤）
-        boolean wasDefault = contactAccountBindingService.defaultBindingOf(accountId)
-                .map(b -> contactId.equals(b.getContactId()))
-                .orElse(false);
-        contactAccountBindingService.unbind(contactId);
+        boolean wasDefaultRegistrar = isRegistrar && contactAccountService.isDefaultRegistrar(contactId);
+        contactAccountService.unbind(contactId);
         if (isRegistrar) {
-            // 解除各账号对该注册人员身份的激活指向，避免 activeRegistrarId 悬挂
-            accountRepository.findByActiveRegistrarId(contactId)
-                    .forEach(a -> {
-                        a.setActiveRegistrarId(null);
-                        accountRepository.save(a);
-                    });
+            // 卫星行随实体删除，默认标志一并清理（被删者即默认时本行 is_default=true）
+            contactAccountService.deleteRegistrarExtension(contactId);
         }
         contactRepository.delete(entity);
-        if (wasDefault) {
-            contactAccountBindingService.firstBindingOf(accountId)
-                    .ifPresent(b -> contactAccountBindingService.markDefault(accountId, b.getContactId()));
+        if (wasDefaultRegistrar) {
+            contactAccountService.promoteFirstRegistrarToDefault(accountId);
         }
     }
 
-    /** 将指定身份设为当前账号的默认联系人。 */
+    /**
+     * 将指定 Registrar 身份设为当前账号的默认注册人员；普通联系人身份 MUST NOT
+     * 被设为默认（默认身份概念已收窄至注册人员）。
+     */
     public void setDefaultMyContact(UUID accountId, UUID contactId) {
-        loadOwnContact(accountId, contactId);
-        contactAccountBindingService.markDefault(accountId, contactId);
+        Contact entity = loadOwnContact(accountId, contactId);
+        if (!(entity instanceof Registrar)) {
+            throw new io.github.matrixlane.metadataregistry.web.common.BusinessException(
+                    io.github.matrixlane.metadataregistry.web.common.ApiCodes.VALIDATION_FAILED,
+                    "默认身份仅可设为注册人员身份");
+        }
+        contactAccountService.markDefaultRegistrar(accountId, contactId);
     }
 
     /** 加载必须属于当前账号的联系人身份；不存在或属于他人时按 404 处理。 */
     private Contact loadOwnContact(UUID accountId, UUID contactId) {
         Contact entity = contactRepository.findById(contactId)
                 .orElseThrow(() -> new ResourceNotFoundException("Contact", contactId));
-        java.util.Optional<UUID> boundAccount = contactAccountBindingService.accountIdOfContact(contactId);
+        java.util.Optional<UUID> boundAccount = contactAccountService.accountIdOfContact(contactId);
         if (boundAccount.isEmpty() || !boundAccount.get().equals(accountId)) {
             throw new ResourceNotFoundException("Contact", contactId);
         }
@@ -417,7 +415,7 @@ public class ContactService {
             contact.setOrganization(org);
             contact.setRole(role);
             Contact saved = contactRepository.save(contact);
-            contactAccountBindingService.bind(saved.getId(), account.getId());
+            contactAccountService.bind(saved.getId(), account.getId());
         }
     }
 }

@@ -6,6 +6,7 @@ import type { VueWrapper } from '@vue/test-utils';
 import AppLayout from './AppLayout.vue';
 import { useAiChatStore } from '@/stores/aiChat';
 import { activeRegistrarApi } from '@/api/resources';
+import { useActiveRegistrar } from '@/composables/useActiveRegistrar';
 
 const state = vi.hoisted(() => ({
   isRegistrarUser: true,
@@ -36,8 +37,7 @@ vi.mock('@/utils/request', () => ({
 
 vi.mock('@/api/resources', () => ({
   activeRegistrarApi: {
-    current: vi.fn().mockResolvedValue({ active: null, identities: [] }),
-    select: vi.fn(),
+    current: vi.fn().mockResolvedValue({ defaultRegistrarId: null, identities: [] }),
   },
 }));
 
@@ -67,6 +67,12 @@ vi.mock('vue-i18n', () => ({
 }));
 
 const mounted: VueWrapper[] = [];
+
+beforeEach(() => {
+  // useActiveRegistrar 为模块级单例：任何挂载 AppLayout 的用例前都重置，防顺序依赖
+  useActiveRegistrar().reset();
+  localStorage.removeItem('activeRegistrarId');
+});
 
 afterEach(() => {
   while (mounted.length) {
@@ -276,16 +282,22 @@ describe('AppLayout 首登完善联系人提示', () => {
 
 const mockedActiveCurrent = vi.mocked(activeRegistrarApi.current);
 
-describe('AppLayout 活动 Registrar 只读展示（default-registrar-auto-activation）', () => {
+describe('AppLayout 活动 Registrar（浏览器端激活，personal-no-login-registrar-default）', () => {
   const identityA = { registrarId: 'reg-1', registrationAuthorityId: 'ra-1', registrationAuthorityName: '甲注册机构' };
   const identityB = { registrarId: 'reg-2', registrationAuthorityId: 'ra-2', registrationAuthorityName: '乙注册机构' };
 
-  afterEach(() => {
-    mockedActiveCurrent.mockResolvedValue({ active: null, identities: [] });
+  beforeEach(() => {
+    // useActiveRegistrar 为模块级单例：每个用例前重置并清掉浏览器端选择
+    useActiveRegistrar().reset();
+    localStorage.removeItem('activeRegistrarId');
   });
 
-  it('多身份响应下标签可点击弹出切换菜单，选项仅为本人注册人员身份', async () => {
-    mockedActiveCurrent.mockResolvedValue({ active: identityA, identities: [identityA, identityB] });
+  afterEach(() => {
+    mockedActiveCurrent.mockResolvedValue({ defaultRegistrarId: null, identities: [] });
+  });
+
+  it('多身份响应下标签可点击弹出切换菜单，默认注册人员自动激活', async () => {
+    mockedActiveCurrent.mockResolvedValue({ defaultRegistrarId: 'reg-1', identities: [identityA, identityB] });
     const { wrapper } = await mountLayout();
     const tag = wrapper.find('[data-testid="header-active-registrar"]');
     expect(tag.exists()).toBe(true);
@@ -300,9 +312,8 @@ describe('AppLayout 活动 Registrar 只读展示（default-registrar-auto-activ
     expect(options[1].textContent).toContain('乙注册机构');
   });
 
-  it('选择菜单项调用 select 切换并刷新展示', async () => {
-    mockedActiveCurrent.mockResolvedValue({ active: identityA, identities: [identityA, identityB] });
-    vi.mocked(activeRegistrarApi.select).mockResolvedValue({ active: identityB, identities: [identityA, identityB] } as any);
+  it('选择菜单项仅写浏览器端状态（不发任何服务端请求），标签随之更新', async () => {
+    mockedActiveCurrent.mockResolvedValue({ defaultRegistrarId: 'reg-1', identities: [identityA, identityB] });
     const { wrapper } = await mountLayout();
     const tag = wrapper.find('[data-testid="header-active-registrar"]');
     await tag.trigger('click');
@@ -311,12 +322,14 @@ describe('AppLayout 活动 Registrar 只读展示（default-registrar-auto-activ
     expect(option).not.toBeNull();
     (option as HTMLElement).click();
     await flushPromises();
-    expect(activeRegistrarApi.select).toHaveBeenCalledWith('reg-2');
+    // 切换 = 纯客户端动作：PUT 端点已删除，写 localStorage 并即时生效
+    expect(mockedActiveCurrent).toHaveBeenCalledTimes(1);
+    expect(localStorage.getItem('activeRegistrarId')).toBe('reg-2');
     expect(wrapper.find('[data-testid="header-active-registrar"]').text()).toContain('乙注册机构');
   });
 
   it('单身份响应渲染纯只读 tag（无切换菜单）', async () => {
-    mockedActiveCurrent.mockResolvedValue({ active: identityA, identities: [identityA] });
+    mockedActiveCurrent.mockResolvedValue({ defaultRegistrarId: 'reg-1', identities: [identityA] });
     const { wrapper } = await mountLayout();
     const tag = wrapper.find('[data-testid="header-active-registrar"]');
     expect(tag.exists()).toBe(true);
@@ -324,8 +337,8 @@ describe('AppLayout 活动 Registrar 只读展示（default-registrar-auto-activ
     expect(wrapper.find('[data-testid="header-active-registrar-menu"]').exists()).toBe(false);
   });
 
-  it('active 为 null 时不渲染 tag', async () => {
-    mockedActiveCurrent.mockResolvedValue({ active: null, identities: [identityA, identityB] });
+  it('无身份响应不渲染 tag', async () => {
+    mockedActiveCurrent.mockResolvedValue({ defaultRegistrarId: null, identities: [] });
     const { wrapper } = await mountLayout();
     expect(wrapper.find('[data-testid="header-active-registrar"]').exists()).toBe(false);
   });

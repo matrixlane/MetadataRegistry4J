@@ -11,6 +11,7 @@ import io.github.matrixlane.metadataregistry.web.common.BusinessException;
 import io.github.matrixlane.metadataregistry.web.common.ResourceNotFoundException;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.RegistrationAuthorityIdentifier;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.LanguageIdentification;
+import io.github.matrixlane.metadataregistry.commonfacilities.registration.Registrar;
 import io.github.matrixlane.metadataregistry.ext.registration.RegistrationAuthorityExtension;
 import io.github.matrixlane.metadataregistry.web.dto.initwizard.InitWizardCommitRequest;
 import io.github.matrixlane.metadataregistry.web.dto.initwizard.InitWizardSetupRequest;
@@ -61,6 +62,7 @@ public class InitWizardService {
     private final LanguageIdentificationRepository languageRepository;
     private final LanguageIdentifierResolver languageIdentifierResolver;
     private final StaticDataPresetService staticDataPresetService;
+    private final ContactAccountService contactAccountService;
     private final PasswordEncoder passwordEncoder;
     private final DatabaseCleaner databaseCleaner;
     private final RegistryContextBootstrapService registryContextBootstrapService;
@@ -279,7 +281,7 @@ public class InitWizardService {
         if (selfAsRegistrar) {
             // Registrar 的组织恒为本次创建的 RA：RegistrationAuthority extends Organization
             // 且 JOINED 共表，注册机构本身即组织；初始化阶段无其他组织可选。
-            registrarService.createRegistrarForUser(
+            Registrar adminRegistrar = registrarService.createRegistrarForUser(
                     account.getId(),
                     account.getUsername(),
                     adminIndividualName,
@@ -287,6 +289,8 @@ public class InitWizardService {
                     ra.getId(),
                     ra
             );
+            // 首个 Registrar 身份自动标记为默认注册人员（ext.registrar.is_default）
+            contactAccountService.ensureDefaultRegistrarWhenFirst(account.getId(), adminRegistrar.getId());
         }
 
         // 4. 表 24:documentation_language_identifier (1..*)。静态预置已保证内置 G20 语言
@@ -326,9 +330,12 @@ public class InitWizardService {
     }
 
     /**
-     * Step 5: the final commit. Sets {@code system.initialized=true} and
-     * persists the admin's real password. This is the only operation that
-     * can take the system out of "un-initialised" state.
+     * Step 5: the final commit. Sets {@code system.initialized=true} and —
+     * 仅 TEAM 版 — persists the admin's real password. This is the only
+     * operation that can take the system out of "un-initialised" state.
+     *
+     * <p>PERSONAL 版无登录概念（personal-no-login-registrar-default）：不接收、
+     * 不校验、不持久化任何密码，admin 保持 NO_PASSWORD 占位；仅翻转初始化标志。
      */
     @Transactional
     public void commit(InitWizardCommitRequest request) {
@@ -339,6 +346,12 @@ public class InitWizardService {
         if (edition == null) {
             throw new BusinessException(ApiCodes.VALIDATION_FAILED, "请先完成初始化向导配置（setup）");
         }
+        if (edition == DeploymentEdition.PERSONAL) {
+            // 个人版：密码概念不存在——忽略请求体中的密码字段（即便携带也不落库）。
+            systemSettingService.setInitialized(true);
+            return;
+        }
+
         if (request == null || request.newPassword() == null || request.newPassword().isBlank()) {
             throw new BusinessException(ApiCodes.VALIDATION_FAILED, "新密码不能为空");
         }

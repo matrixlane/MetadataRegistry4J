@@ -26,6 +26,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final PersonalEditionAuthenticationFilter personalEditionAuthenticationFilter;
     private final UrlBasedCorsConfigurationSource corsConfigurationSource;
     private final ObjectMapper objectMapper;
 
@@ -114,6 +115,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.PATCH, "/api/v1/**").hasAnyRole("SUPER_ADMIN", "REGISTRAR", "SUBMITTER")
                         .requestMatchers(HttpMethod.DELETE, "/api/v1/**").hasAnyRole("SUPER_ADMIN", "REGISTRAR", "SUBMITTER")
                         .anyRequest().authenticated())
+                .addFilterBefore(personalEditionAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }

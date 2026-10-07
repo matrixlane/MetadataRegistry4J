@@ -412,13 +412,17 @@ router.beforeEach(async (to) => {
     return { path: '/login', query: { redirect: to.fullPath } };
   }
 
-  // Fetch user profile if needed (silent auth check)
+  // Fetch user profile if needed (silent auth check).
+  // 个人版免登录：fetchMe 失败（如后端暂不可达）时不踢向登录页——
+  // 个人版没有登录页可去，保持匿名主体继续渲染即可。
   if (!auth.user) {
     try {
       await auth.fetchMe();
     } catch {
-      auth.logout();
-      return '/login';
+      if (!auth.bypassLogin) {
+        auth.logout();
+        return '/login';
+      }
     }
   }
 

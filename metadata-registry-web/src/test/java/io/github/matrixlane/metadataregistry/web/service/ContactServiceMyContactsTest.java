@@ -7,7 +7,6 @@ import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basic
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.SystemRole;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.Registrar;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationAuthority;
-import io.github.matrixlane.metadataregistry.ext.basicandcore.ContactAccountBinding;
 import io.github.matrixlane.metadataregistry.web.common.BusinessException;
 import io.github.matrixlane.metadataregistry.web.common.ResourceNotFoundException;
 import io.github.matrixlane.metadataregistry.web.dto.contact.ContactIdentityKind;
@@ -43,7 +42,7 @@ class ContactServiceMyContactsTest {
     @Mock private IndividualRepository individualRepository;
     @Mock private RoleRepository roleRepository;
     @Mock private AccountRepository accountRepository;
-    @Mock private ContactAccountBindingService bindingService;
+    @Mock private ContactAccountService bindingService;
     @Mock private SystemSettingService systemSettingService;
     @Mock private io.github.matrixlane.metadataregistry.web.repository.RegistrationAuthorityRepository registrationAuthorityRepository;
     @Mock private io.github.matrixlane.metadataregistry.web.repository.SubmissionRecordRepository submissionRecordRepository;
@@ -55,21 +54,16 @@ class ContactServiceMyContactsTest {
 
     private UUID accountId = UUID.randomUUID();
 
-    private ContactAccountBinding binding(UUID contactId, boolean isDefault) {
-        ContactAccountBinding b = new ContactAccountBinding(contactId, accountId, isDefault);
-        b.setId(UUID.randomUUID());
-        return b;
-    }
-
     @Test
     void listMyContacts_marksRegistrarAndDefault() {
         Contact plain = new Contact();
         plain.setId(UUID.randomUUID());
         Registrar registrar = new Registrar(new RegistrationAuthority());
         registrar.setId(UUID.randomUUID());
-        when(bindingService.bindingsOfAccount(accountId))
-                .thenReturn(List.of(binding(plain.getId(), false), binding(registrar.getId(), true)));
+        when(bindingService.boundContactIdsOfAccount(accountId))
+                .thenReturn(List.of(plain.getId(), registrar.getId()));
         when(contactRepository.findAllById(any())).thenReturn(List.of(plain, registrar));
+        when(bindingService.defaultRegistrarIdOf(accountId)).thenReturn(java.util.Optional.of(registrar.getId()));
 
         List<MyContactResponse> result = contactService.listMyContacts(accountId);
 
@@ -90,9 +84,8 @@ class ContactServiceMyContactsTest {
         c2.setId(UUID.randomUUID());
         Contact c3 = new Contact();
         c3.setId(UUID.randomUUID());
-        when(bindingService.bindingsOfAccount(accountId))
-                .thenReturn(List.of(binding(c1.getId(), false), binding(c2.getId(), true),
-                        binding(c3.getId(), false)));
+        when(bindingService.boundContactIdsOfAccount(accountId))
+                .thenReturn(List.of(c1.getId(), c2.getId(), c3.getId()));
         when(contactRepository.findAllById(any())).thenReturn(List.of(c1, c2, c3));
 
         List<MyContactResponse> result = contactService.listMyContacts(accountId);
@@ -101,35 +94,36 @@ class ContactServiceMyContactsTest {
     }
 
     @Test
-    void createMyContact_firstIdentityBecomesDefault() {
+    void createMyContact_firstContactIdentity_noDefaultConcept() {
+        // 默认概念已收窄至注册人员：首个普通 Contact 身份不设默认
         Organization org = new Organization();
         org.setId(UUID.randomUUID());
         when(organizationRepository.findById(org.getId())).thenReturn(Optional.of(org));
         when(contactRepository.save(any(Contact.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(bindingService.hasAnyContact(accountId)).thenReturn(false);
         when(accountRepository.findById(accountId)).thenReturn(Optional.of(new Account()));
 
         MyContactResponse response = contactService.createMyContact(
                 accountId, new MyContactRequest(org.getId(), null, null, null));
 
-        verify(bindingService).bindAndSave(any(), eq(accountId), eq(true));
-        assertThat(response.isDefault()).isTrue();
+        verify(bindingService).bind(any(), eq(accountId));
+        verify(bindingService, never()).ensureDefaultRegistrarWhenFirst(any(), any());
+        assertThat(response.isDefault()).isFalse();
         assertThat(response.organizationId()).isEqualTo(org.getId());
     }
 
     @Test
-    void createMyContact_secondIdentityNotDefault() {
+    void createMyContact_secondContactIdentity_stillNoDefault() {
         Organization org = new Organization();
         org.setId(UUID.randomUUID());
         when(organizationRepository.findById(org.getId())).thenReturn(Optional.of(org));
         when(contactRepository.save(any(Contact.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(bindingService.hasAnyContact(accountId)).thenReturn(true);
         when(accountRepository.findById(accountId)).thenReturn(Optional.of(new Account()));
 
         MyContactResponse response = contactService.createMyContact(
                 accountId, new MyContactRequest(org.getId(), null, null, null));
 
-        verify(bindingService).bindAndSave(any(), eq(accountId), eq(false));
+        verify(bindingService).bind(any(), eq(accountId));
+        verify(bindingService, never()).ensureDefaultRegistrarWhenFirst(any(), any());
         assertThat(response.isDefault()).isFalse();
     }
 
@@ -144,7 +138,6 @@ class ContactServiceMyContactsTest {
         when(organizationRepository.findById(org.getId())).thenReturn(Optional.of(org));
         when(roleRepository.findById(registrarRole.getId())).thenReturn(Optional.of(registrarRole));
         when(contactRepository.save(any(Contact.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(bindingService.hasAnyContact(accountId)).thenReturn(false);
         when(accountRepository.findById(accountId)).thenReturn(Optional.of(new Account()));
 
         MyContactResponse response = contactService.createMyContact(
@@ -164,7 +157,6 @@ class ContactServiceMyContactsTest {
         account.setIndividual(individual);
         when(organizationRepository.findById(organization.getId())).thenReturn(Optional.of(organization));
         when(contactRepository.save(any(Contact.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(bindingService.hasAnyContact(accountId)).thenReturn(false);
         when(accountRepository.findById(accountId)).thenReturn(Optional.of(account));
 
         contactService.createMyContact(accountId, new MyContactRequest(organization.getId(), null, null, null));
@@ -197,7 +189,6 @@ class ContactServiceMyContactsTest {
         when(accountRepository.findById(accountId)).thenReturn(Optional.of(account));
         when(organizationRepository.findById(organization.getId())).thenReturn(Optional.of(organization));
         when(contactRepository.save(any(Contact.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(bindingService.hasAnyContact(accountId)).thenReturn(false);
 
         MyContactResponse response = contactService.createMyContact(
                 accountId, new MyContactRequest(organization.getId(), null, null, ContactIdentityKind.REGISTRAR));
@@ -220,7 +211,6 @@ class ContactServiceMyContactsTest {
         when(organizationRepository.findById(ra.getId())).thenReturn(Optional.of(ra));
         when(registrationAuthorityRepository.findById(ra.getId())).thenReturn(Optional.of(ra));
         when(contactRepository.save(any(Contact.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(bindingService.hasAnyContact(accountId)).thenReturn(false);
 
         MyContactResponse response = contactService.createMyContact(
                 accountId, new MyContactRequest(ra.getId(), null, null, ContactIdentityKind.REGISTRAR));
@@ -244,7 +234,6 @@ class ContactServiceMyContactsTest {
         when(organizationRepository.findById(plainOrg.getId())).thenReturn(Optional.of(plainOrg));
         when(registrationAuthorityRepository.findById(plainOrg.getId())).thenReturn(Optional.empty());
         when(contactRepository.save(any(Contact.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(bindingService.hasAnyContact(accountId)).thenReturn(false);
 
         MyContactResponse response = contactService.createMyContact(
                 accountId, new MyContactRequest(plainOrg.getId(), null, null, ContactIdentityKind.REGISTRAR));
@@ -264,7 +253,6 @@ class ContactServiceMyContactsTest {
         when(accountRepository.findById(accountId)).thenReturn(Optional.of(new Account()));
         when(organizationRepository.findById(organization.getId())).thenReturn(Optional.of(organization));
         when(contactRepository.save(any(Contact.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(bindingService.hasAnyContact(accountId)).thenReturn(false);
 
         MyContactResponse response = contactService.createMyContact(
                 accountId, new MyContactRequest(organization.getId(), null, null, ContactIdentityKind.CONTACT));
@@ -296,7 +284,6 @@ class ContactServiceMyContactsTest {
         when(roleRepository.findById(role.getId())).thenReturn(Optional.of(role));
         when(organizationRepository.findById(newOrg.getId())).thenReturn(Optional.of(newOrg));
         when(contactRepository.save(any(Contact.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(bindingService.defaultBindingOf(accountId)).thenReturn(Optional.empty());
 
         MyContactResponse response = contactService.updateMyContact(
                 accountId, registrar.getId(), new MyContactRequest(newOrg.getId(), role.getId(), null, null));
@@ -322,7 +309,6 @@ class ContactServiceMyContactsTest {
         when(bindingService.accountIdOfContact(registrar.getId())).thenReturn(Optional.of(accountId));
         when(organizationRepository.findById(existingOrg.getId())).thenReturn(Optional.of(existingOrg));
         when(contactRepository.save(any(Contact.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(bindingService.defaultBindingOf(accountId)).thenReturn(Optional.empty());
 
         MyContactResponse response = contactService.updateMyContact(
                 accountId, registrar.getId(), new MyContactRequest(existingOrg.getId(), null, null, null));
@@ -400,36 +386,31 @@ class ContactServiceMyContactsTest {
         when(contactRepository.findById(registrar.getId())).thenReturn(Optional.of(registrar));
         when(bindingService.accountIdOfContact(registrar.getId())).thenReturn(Optional.of(accountId));
         when(systemSettingService.getEdition()).thenReturn(DeploymentEdition.PERSONAL);
-        when(bindingService.defaultBindingOf(accountId))
-                .thenReturn(Optional.of(binding(UUID.randomUUID(), true)));
 
         contactService.deleteMyContact(accountId, registrar.getId());
 
         verify(bindingService).unbind(registrar.getId());
+        verify(bindingService).deleteRegistrarExtension(registrar.getId());
         verify(contactRepository).delete(registrar);
     }
 
     @Test
     void deleteMyContact_teamEdition_registrarDeletedEvenWithReferences() {
         // 团队版：移除 SubmissionRecord/Stewardship/审批三处引用守卫，任何身份可直接删除；
-        // 解绑、清 activeRegistrarId、默认递补逻辑保留
+        // 解绑、清 默认注册人员递补逻辑保留
         Registrar registrar = new Registrar(new RegistrationAuthority());
         registrar.setId(UUID.randomUUID());
         when(contactRepository.findById(registrar.getId())).thenReturn(Optional.of(registrar));
         when(bindingService.accountIdOfContact(registrar.getId())).thenReturn(Optional.of(accountId));
         when(systemSettingService.getEdition()).thenReturn(DeploymentEdition.TEAM);
-        when(bindingService.defaultBindingOf(accountId)).thenReturn(Optional.of(binding(registrar.getId(), true)));
-        Account admin = new Account();
-        admin.setId(accountId);
-        admin.setActiveRegistrarId(registrar.getId());
-        when(accountRepository.findByActiveRegistrarId(registrar.getId())).thenReturn(List.of(admin));
-        when(accountRepository.save(any(Account.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(bindingService.isDefaultRegistrar(registrar.getId())).thenReturn(true);
 
         contactService.deleteMyContact(accountId, registrar.getId());
 
-        assertThat(admin.getActiveRegistrarId()).isNull();
         verify(bindingService).unbind(registrar.getId());
+        verify(bindingService).deleteRegistrarExtension(registrar.getId());
         verify(contactRepository).delete(registrar);
+        verify(bindingService).promoteFirstRegistrarToDefault(accountId);
         // 三处引用守卫已移除：团队版不再查询任何引用
         verifyNoInteractions(submissionRecordRepository, stewardshipRecordRepository,
                 registrationTransitionApprovalRepository);
@@ -445,51 +426,42 @@ class ContactServiceMyContactsTest {
         when(contactRepository.findById(removed)).thenReturn(Optional.of(contact));
         when(bindingService.accountIdOfContact(removed)).thenReturn(Optional.of(accountId));
         when(systemSettingService.getEdition()).thenReturn(DeploymentEdition.PERSONAL);
-        when(bindingService.defaultBindingOf(accountId))
-                .thenReturn(Optional.of(binding(removed, true)));
-        when(bindingService.firstBindingOf(accountId))
-                .thenReturn(Optional.of(binding(remaining, false)));
 
         contactService.deleteMyContact(accountId, removed);
 
         verify(bindingService).unbind(removed);
         verify(contactRepository).delete(contact);
-        verify(bindingService).markDefault(accountId, remaining);
+        verify(bindingService, never()).promoteFirstRegistrarToDefault(any());
     }
 
     @Test
-    void deleteMyContact_defaultPromotesRemaining() {
+    void deleteMyContact_defaultRegistrarDeleted_promotesRemaining() {
         UUID removed = UUID.randomUUID();
-        UUID remaining = UUID.randomUUID();
-        Contact contact = new Contact();
-        contact.setId(removed);
-        when(contactRepository.findById(removed)).thenReturn(Optional.of(contact));
+        Registrar registrar = new Registrar();
+        registrar.setId(removed);
+        when(contactRepository.findById(removed)).thenReturn(Optional.of(registrar));
         when(bindingService.accountIdOfContact(removed)).thenReturn(Optional.of(accountId));
-        when(bindingService.defaultBindingOf(accountId))
-                .thenReturn(Optional.of(binding(removed, true)));
-        when(bindingService.firstBindingOf(accountId))
-                .thenReturn(Optional.of(binding(remaining, false)));
+        when(bindingService.isDefaultRegistrar(removed)).thenReturn(true);
 
         contactService.deleteMyContact(accountId, removed);
 
         verify(bindingService).unbind(removed);
-        verify(contactRepository).delete(contact);
-        verify(bindingService).markDefault(accountId, remaining);
+        verify(bindingService).deleteRegistrarExtension(removed);
+        verify(contactRepository).delete(registrar);
+        verify(bindingService).promoteFirstRegistrarToDefault(accountId);
     }
 
     @Test
-    void deleteMyContact_nonDefaultLeavesDefaultAlone() {
+    void deleteMyContact_nonDefaultRegistrarLeavesDefaultAlone() {
         UUID removed = UUID.randomUUID();
-        Contact contact = new Contact();
-        contact.setId(removed);
-        when(contactRepository.findById(removed)).thenReturn(Optional.of(contact));
+        Registrar registrar = new Registrar();
+        registrar.setId(removed);
+        when(contactRepository.findById(removed)).thenReturn(Optional.of(registrar));
         when(bindingService.accountIdOfContact(removed)).thenReturn(Optional.of(accountId));
-        when(bindingService.defaultBindingOf(accountId))
-                .thenReturn(Optional.of(binding(UUID.randomUUID(), true)));
 
         contactService.deleteMyContact(accountId, removed);
 
-        verify(bindingService, never()).markDefault(any(), any());
+        verify(bindingService, never()).promoteFirstRegistrarToDefault(any());
     }
 
     @Test
@@ -510,16 +482,31 @@ class ContactServiceMyContactsTest {
     }
 
     @Test
-    void setDefaultMyContact_delegatesToBindingService() {
+    void setDefaultMyContact_registrarDelegatesToContactAccountService() {
+        UUID registrarId = UUID.randomUUID();
+        Registrar registrar = new Registrar();
+        registrar.setId(registrarId);
+        when(contactRepository.findById(registrarId)).thenReturn(Optional.of(registrar));
+        when(bindingService.accountIdOfContact(registrarId)).thenReturn(Optional.of(accountId));
+
+        contactService.setDefaultMyContact(accountId, registrarId);
+
+        verify(bindingService).markDefaultRegistrar(accountId, registrarId);
+    }
+
+    @Test
+    void setDefaultMyContact_plainContactRejected() {
+        // 默认身份概念收窄：普通联系人身份 MUST NOT 被设为默认
         UUID contactId = UUID.randomUUID();
         Contact contact = new Contact();
         contact.setId(contactId);
         when(contactRepository.findById(contactId)).thenReturn(Optional.of(contact));
         when(bindingService.accountIdOfContact(contactId)).thenReturn(Optional.of(accountId));
 
-        contactService.setDefaultMyContact(accountId, contactId);
-
-        verify(bindingService).markDefault(accountId, contactId);
+        assertThatThrownBy(() -> contactService.setDefaultMyContact(accountId, contactId))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("默认身份仅可设为注册人员身份");
+        verify(bindingService, never()).markDefaultRegistrar(any(), any());
     }
 
     @Test

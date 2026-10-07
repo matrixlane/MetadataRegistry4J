@@ -56,7 +56,7 @@ class RegistrationAuthorityServiceTest {
     private RegistrarService registrarService;
 
     @Mock
-    private ContactAccountBindingService contactAccountBindingService;
+    private ContactAccountService contactAccountService;
 
     @Mock
     private AccountRepository accountRepository;
@@ -146,7 +146,7 @@ class RegistrationAuthorityServiceTest {
         registrar.setId(UUID.randomUUID());
         when(registrarService.createRegistrarForUser(eq(ACCOUNT_ID), eq("admin"), isNull(), eq("注册管理员"),
                 any(UUID.class), any(RegistrationAuthority.class))).thenReturn(registrar);
-        // 未 stub hasAnyContact：Mockito 默认返回 false，即"首个身份"分支
+        // ensureDefaultRegistrarWhenFirst 内部按需标默认（无条件调用）
 
         RegistrationAuthorityResponse response = service.create(request(), ACCOUNT_ID, SystemRole.SUPER_ADMIN);
 
@@ -156,11 +156,13 @@ class RegistrationAuthorityServiceTest {
         verify(registrarService).createRegistrarForUser(eq(ACCOUNT_ID), eq("admin"), isNull(), eq("注册管理员"),
                 any(UUID.class), any(RegistrationAuthority.class));
         // 首个身份须标为默认
-        verify(contactAccountBindingService).markDefault(ACCOUNT_ID, registrar.getId());
+        verify(contactAccountService).ensureDefaultRegistrarWhenFirst(ACCOUNT_ID, registrar.getId());
     }
 
     @Test
-    void create_personalEditionSuperAdminNotFirstIdentityDoesNotMarkDefault() {
+    void create_personalEditionSuperAdminNotFirstIdentityStillDelegatesEnsureDefault() {
+        // 标默认逻辑收敛到 ensureDefaultRegistrarWhenFirst 内部（已有默认时 no-op），
+        // 创建路径无条件委托——"非首个身份不标默认"的判定由 ContactAccountServiceTest 覆盖
         when(systemSettingService.getEdition()).thenReturn(DeploymentEdition.PERSONAL);
         stubSaveWithId();
         Account account = new Account();
@@ -171,11 +173,10 @@ class RegistrationAuthorityServiceTest {
         registrar.setId(UUID.randomUUID());
         when(registrarService.createRegistrarForUser(eq(ACCOUNT_ID), anyString(), isNull(), eq("注册管理员"),
                 any(UUID.class), any(RegistrationAuthority.class))).thenReturn(registrar);
-        when(contactAccountBindingService.hasAnyContact(ACCOUNT_ID)).thenReturn(true);
 
         service.create(request(), ACCOUNT_ID, SystemRole.SUPER_ADMIN);
 
-        verify(contactAccountBindingService, never()).markDefault(any(), any());
+        verify(contactAccountService).ensureDefaultRegistrarWhenFirst(ACCOUNT_ID, registrar.getId());
     }
 
     @Test
@@ -191,14 +192,14 @@ class RegistrationAuthorityServiceTest {
         registrar.setId(UUID.randomUUID());
         when(registrarService.createRegistrarForUser(eq(ACCOUNT_ID), eq("admin"), isNull(), eq("注册管理员"),
                 any(UUID.class), any(RegistrationAuthority.class))).thenReturn(registrar);
-        // 未 stub hasAnyContact：Mockito 默认返回 false，即"首个身份"分支
+        // ensureDefaultRegistrarWhenFirst 内部按需标默认（无条件调用）
 
         service.create(request(true, null), ACCOUNT_ID, SystemRole.SUPER_ADMIN);
 
         verify(registrarService).createRegistrarForUser(eq(ACCOUNT_ID), eq("admin"), isNull(), eq("注册管理员"),
                 any(UUID.class), any(RegistrationAuthority.class));
         // 首个身份须标为默认
-        verify(contactAccountBindingService).markDefault(ACCOUNT_ID, registrar.getId());
+        verify(contactAccountService).ensureDefaultRegistrarWhenFirst(ACCOUNT_ID, registrar.getId());
     }
 
     @Test
@@ -232,7 +233,7 @@ class RegistrationAuthorityServiceTest {
 
         verify(registrarService).createRegistrarForUser(eq(ACCOUNT_ID), eq("admin"), isNull(), eq("注册管理员"),
                 any(UUID.class), any(RegistrationAuthority.class));
-        verify(contactAccountBindingService).markDefault(ACCOUNT_ID, registrar.getId());
+        verify(contactAccountService).ensureDefaultRegistrarWhenFirst(ACCOUNT_ID, registrar.getId());
     }
 
     @Test

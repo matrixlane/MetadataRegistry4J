@@ -19,7 +19,6 @@ import io.github.matrixlane.metadataregistry.commonfacilities.registration.Regis
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.StewardshipRecord;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.SubmissionRecord;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.SubmissionRecordSource;
-import io.github.matrixlane.metadataregistry.ext.basicandcore.ContactAccountBinding;
 import io.github.matrixlane.metadataregistry.web.common.BusinessException;
 import io.github.matrixlane.metadataregistry.web.dto.common.ItemMetaResponse;
 import io.github.matrixlane.metadataregistry.web.dto.common.ItemRegistrationRequest;
@@ -78,7 +77,7 @@ class ItemAdministrationServiceTest {
     @Mock private io.github.matrixlane.metadataregistry.web.repository.ContactRepository contactRepository;
     @Mock private io.github.matrixlane.metadataregistry.web.repository.OrganizationRepository organizationRepository;
     @Mock private ContactService contactService;
-    @Mock private ContactAccountBindingService contactAccountBindingService;
+    @Mock private ContactAccountService contactAccountService;
     @Spy private AdministrativeStatusService administrativeStatusService;
 
     @InjectMocks
@@ -1265,7 +1264,7 @@ class ItemAdministrationServiceTest {
         when(activeRegistrarService.currentAccountIdOrNull()).thenReturn(accountId);
         when(activeRegistrarService.resolveForCurrentUser()).thenReturn(Optional.of(new Registrar(ra)));
         when(contactRepository.findById(contactId)).thenReturn(Optional.of(contact));
-        when(contactAccountBindingService.accountIdOfContact(contactId)).thenReturn(Optional.of(accountId));
+        when(contactAccountService.accountIdOfContact(contactId)).thenReturn(Optional.of(accountId));
         when(organizationRepository.findById(organizationId)).thenReturn(Optional.of(organization));
         when(stewardshipRecordRepository.findFirstByContact_IdAndOrganization_Id(contactId, organizationId))
                 .thenReturn(Optional.empty());
@@ -1303,7 +1302,7 @@ class ItemAdministrationServiceTest {
         when(activeRegistrarService.currentAccountIdOrNull()).thenReturn(accountId);
         when(activeRegistrarService.resolveForCurrentUser()).thenReturn(Optional.of(new Registrar(ra)));
         when(contactRepository.findById(contactId)).thenReturn(Optional.of(contact));
-        when(contactAccountBindingService.accountIdOfContact(contactId)).thenReturn(Optional.of(accountId));
+        when(contactAccountService.accountIdOfContact(contactId)).thenReturn(Optional.of(accountId));
         when(organizationRepository.findById(organizationId)).thenReturn(Optional.of(organization));
         when(stewardshipRecordRepository.findFirstByContact_IdAndOrganization_Id(contactId, organizationId))
                 .thenReturn(Optional.of(existing));
@@ -1335,7 +1334,7 @@ class ItemAdministrationServiceTest {
         when(activeRegistrarService.currentAccountIdOrNull()).thenReturn(accountId);
         when(activeRegistrarService.resolveForCurrentUser()).thenReturn(Optional.of(new Registrar(ra)));
         when(contactRepository.findById(contactId)).thenReturn(Optional.of(contact));
-        when(contactAccountBindingService.accountIdOfContact(contactId)).thenReturn(Optional.of(accountId));
+        when(contactAccountService.accountIdOfContact(contactId)).thenReturn(Optional.of(accountId));
         when(stewardshipRecordRepository.findFirstByContact_IdAndOrganization_Id(contactId, organizationId))
                 .thenReturn(Optional.empty());
         when(stewardshipRecordRepository.save(any(StewardshipRecord.class)))
@@ -1367,7 +1366,7 @@ class ItemAdministrationServiceTest {
         when(activeRegistrarService.currentAccountIdOrNull()).thenReturn(accountId);
         when(activeRegistrarService.resolveForCurrentUser()).thenReturn(Optional.of(new Registrar(ra)));
         when(contactRepository.findById(contactId)).thenReturn(Optional.of(contact));
-        when(contactAccountBindingService.accountIdOfContact(contactId)).thenReturn(Optional.empty());
+        when(contactAccountService.accountIdOfContact(contactId)).thenReturn(Optional.empty());
 
         ItemRegistrationRequest req = new ItemRegistrationRequest(
                 ns.getId(), "STEW-4", "1.0.0", List.of(), List.of(), null, null, null,
@@ -1444,7 +1443,7 @@ class ItemAdministrationServiceTest {
         Item persisted = newPersistedItem();
         stubAccount(accountId);
         when(organizationRepository.findById(orgId)).thenReturn(Optional.of(newOrganization(orgId)));
-        when(contactAccountBindingService.bindingsOfAccount(accountId)).thenReturn(List.of());
+        when(contactAccountService.boundContactIdsOfAccount(accountId)).thenReturn(List.of());
 
         SubmissionInfo submission = new SubmissionInfo(null, orgId);
 
@@ -1466,11 +1465,11 @@ class ItemAdministrationServiceTest {
         Item persisted = newPersistedItem();
         stubAccount(accountId);
         when(organizationRepository.findById(orgA.getId())).thenReturn(Optional.of(orgA));
-        when(contactAccountBindingService.bindingsOfAccount(accountId))
-                .thenReturn(List.of(new ContactAccountBinding(identityInA.getId(), accountId)));
+        when(contactAccountService.boundContactIdsOfAccount(accountId))
+                .thenReturn(List.of(identityInA.getId()));
         when(contactRepository.findAllById(List.of(identityInA.getId()))).thenReturn(List.of(identityInA));
         when(contactRepository.findById(contactInB.getId())).thenReturn(Optional.of(contactInB));
-        when(contactAccountBindingService.accountIdOfContact(contactInB.getId()))
+        when(contactAccountService.accountIdOfContact(contactInB.getId()))
                 .thenReturn(Optional.of(accountId));
 
         SubmissionInfo submission = new SubmissionInfo(contactInB.getId(), orgA.getId());
@@ -1492,7 +1491,7 @@ class ItemAdministrationServiceTest {
         Item persisted = newPersistedItem();
         stubAccount(accountId);
         when(contactRepository.findById(contact.getId())).thenReturn(Optional.of(contact));
-        when(contactAccountBindingService.accountIdOfContact(contact.getId()))
+        when(contactAccountService.accountIdOfContact(contact.getId()))
                 .thenReturn(Optional.of(accountId));
         when(submissionRecordRepository.save(any(SubmissionRecord.class)))
                 .thenAnswer(inv -> inv.getArgument(0));
@@ -1517,8 +1516,8 @@ class ItemAdministrationServiceTest {
         Item persisted = newPersistedItem();
         stubAccount(accountId);
         when(organizationRepository.findById(org.getId())).thenReturn(Optional.of(org));
-        when(contactAccountBindingService.bindingsOfAccount(accountId))
-                .thenReturn(List.of(new ContactAccountBinding(identity.getId(), accountId)));
+        when(contactAccountService.boundContactIdsOfAccount(accountId))
+                .thenReturn(List.of(identity.getId()));
         when(contactRepository.findAllById(List.of(identity.getId()))).thenReturn(List.of(identity));
         when(submissionRecordRepository.save(any(SubmissionRecord.class)))
                 .thenAnswer(inv -> inv.getArgument(0));
@@ -1536,8 +1535,8 @@ class ItemAdministrationServiceTest {
     }
 
     @Test
-    void recordSubmissionForBatch_multipleIdentitiesInOrganization_defaultBindingWins() {
-        // minor-1：同一组织多身份时按"默认绑定优先、其次最早绑定"确定性排序；
+    void recordSubmissionForBatch_multipleIdentitiesInOrganization_defaultRegistrarWins() {
+        // minor-1：同一组织多身份时按"默认注册人员优先、其次最早绑定"确定性排序；
         // findAllById 返回顺序未定义——故意逆序返回，验证解析结果不依赖其顺序
         UUID accountId = UUID.randomUUID();
         Organization org = newOrganization(UUID.randomUUID());
@@ -1546,9 +1545,10 @@ class ItemAdministrationServiceTest {
         Item persisted = newPersistedItem();
         stubAccount(accountId);
         when(organizationRepository.findById(org.getId())).thenReturn(Optional.of(org));
-        when(contactAccountBindingService.bindingsOfAccount(accountId)).thenReturn(List.of(
-                new ContactAccountBinding(earliest.getId(), accountId),
-                new ContactAccountBinding(defaultIdentity.getId(), accountId, true)));
+        when(contactAccountService.boundContactIdsOfAccount(accountId)).thenReturn(List.of(
+                earliest.getId(), defaultIdentity.getId()));
+        when(contactAccountService.defaultRegistrarIdOf(accountId))
+                .thenReturn(java.util.Optional.of(defaultIdentity.getId()));
         when(contactRepository.findAllById(any())).thenReturn(List.of(defaultIdentity, earliest));
         when(submissionRecordRepository.save(any(SubmissionRecord.class)))
                 .thenAnswer(inv -> inv.getArgument(0));
@@ -1574,9 +1574,8 @@ class ItemAdministrationServiceTest {
         Item persisted = newPersistedItem();
         stubAccount(accountId);
         when(organizationRepository.findById(org.getId())).thenReturn(Optional.of(org));
-        when(contactAccountBindingService.bindingsOfAccount(accountId)).thenReturn(List.of(
-                new ContactAccountBinding(earliest.getId(), accountId),
-                new ContactAccountBinding(later.getId(), accountId)));
+        when(contactAccountService.boundContactIdsOfAccount(accountId)).thenReturn(List.of(
+                earliest.getId(), later.getId()));
         when(contactRepository.findAllById(any())).thenReturn(List.of(later, earliest));
         when(submissionRecordRepository.save(any(SubmissionRecord.class)))
                 .thenAnswer(inv -> inv.getArgument(0));

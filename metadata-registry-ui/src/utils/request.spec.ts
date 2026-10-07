@@ -59,3 +59,46 @@ describe('utils/request 徽标联动', () => {
     expect(summaryMock.value).not.toHaveBeenCalled();
   });
 });
+
+describe('utils/request 活动 Registrar 请求头', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia());
+    useAuthStore().token = '';
+    localStorage.removeItem('activeRegistrarId');
+  });
+
+  it('localStorage 有选择时附加 X-Active-Registrar-Id 头', async () => {
+    localStorage.setItem('activeRegistrarId', 'reg-42');
+    let seen: unknown = null;
+    await request.get('/data-elements', {
+      adapter: (config) => {
+        seen = config.headers['X-Active-Registrar-Id'];
+        return Promise.resolve({
+          data: { code: 0, data: {} },
+          status: 200,
+          statusText: 'OK',
+          headers: {},
+          config: config as InternalAxiosRequestConfig,
+        } as AxiosResponse);
+      },
+    });
+    expect(seen).toBe('reg-42');
+  });
+
+  it('无选择时不附加该头', async () => {
+    let seen: unknown = 'unset';
+    await request.get('/data-elements', {
+      adapter: (config) => {
+        seen = config.headers['X-Active-Registrar-Id'];
+        return Promise.resolve({
+          data: { code: 0, data: {} },
+          status: 200,
+          statusText: 'OK',
+          headers: {},
+          config: config as InternalAxiosRequestConfig,
+        } as AxiosResponse);
+      },
+    });
+    expect(seen).toBeUndefined();
+  });
+});

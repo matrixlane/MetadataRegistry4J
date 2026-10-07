@@ -298,7 +298,8 @@ export interface RegistrarIdentity {
 }
 
 export interface ActiveRegistrarResponse {
-  active?: RegistrarIdentity | null;
+  /** 默认注册人员（服务端持久化的唯一默认）；激活状态本身保存在浏览器端 */
+  defaultRegistrarId?: string | null;
   identities: RegistrarIdentity[];
 }
 

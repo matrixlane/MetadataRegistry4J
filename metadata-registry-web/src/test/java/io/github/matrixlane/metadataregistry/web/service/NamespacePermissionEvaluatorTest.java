@@ -35,7 +35,7 @@ class NamespacePermissionEvaluatorTest {
 
     @Mock
     private ContactRepository contactRepository;
-    @Mock private ContactAccountBindingService contactAccountBindingService;
+    @Mock private ContactAccountService contactAccountService;
     @Mock private io.github.matrixlane.metadataregistry.web.repository.NamespaceRepository namespaceRepository;
     @Mock private io.github.matrixlane.metadataregistry.web.repository.RegistrationAuthorityRepository registrationAuthorityRepository;
 
@@ -119,7 +119,7 @@ class NamespacePermissionEvaluatorTest {
         Contact contact = new Contact();
         contact.setOrganization(org);
 
-        when(contactAccountBindingService.contactsOfAccount(account)).thenReturn(List.of(contact));
+        when(contactAccountService.contactsOfAccount(account)).thenReturn(List.of(contact));
         NamespacePermission orgPerm = new NamespacePermission(namespaceId, null, org.getId(), NamespacePermissionType.READ_WRITE);
         when(namespacePermissionRepository.findByNamespaceIdAndOrganizationId(namespaceId, org.getId()))
                 .thenReturn(Optional.of(orgPerm));
@@ -142,7 +142,7 @@ class NamespacePermissionEvaluatorTest {
         Contact contact = new Contact();
         contact.setOrganization(org);
 
-        when(contactAccountBindingService.contactsOfAccount(account)).thenReturn(List.of(contact));
+        when(contactAccountService.contactsOfAccount(account)).thenReturn(List.of(contact));
         NamespacePermission orgPerm = new NamespacePermission(namespaceId, null, org.getId(), NamespacePermissionType.NONE);
         when(namespacePermissionRepository.findByNamespaceIdAndOrganizationId(namespaceId, org.getId()))
                 .thenReturn(Optional.of(orgPerm));
@@ -159,7 +159,7 @@ class NamespacePermissionEvaluatorTest {
         when(accountRepository.findById(accountId)).thenReturn(Optional.of(account));
         when(namespacePermissionRepository.findByNamespaceIdAndAccountId(namespaceId, accountId))
                 .thenReturn(Optional.empty());
-        when(contactAccountBindingService.contactsOfAccount(account)).thenReturn(Collections.emptyList());
+        when(contactAccountService.contactsOfAccount(account)).thenReturn(Collections.emptyList());
 
         boolean hasRead = evaluator.hasReadPermission(namespaceId, accountId);
         boolean hasWrite = evaluator.hasWritePermission(namespaceId, accountId);
@@ -175,7 +175,7 @@ class NamespacePermissionEvaluatorTest {
         when(accountRepository.findById(accountId)).thenReturn(Optional.of(account));
         when(namespacePermissionRepository.findByNamespaceIdAndAccountId(namespaceId, accountId))
                 .thenReturn(Optional.empty());
-        when(contactAccountBindingService.hasAnyContact(accountId)).thenReturn(true);
+        when(contactAccountService.hasAnyContact(accountId)).thenReturn(true);
 
         var ra = new io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationAuthority();
         ra.setId(UUID.randomUUID());
@@ -193,7 +193,7 @@ class NamespacePermissionEvaluatorTest {
         when(accountRepository.findById(accountId)).thenReturn(Optional.of(account));
         when(namespacePermissionRepository.findByNamespaceIdAndAccountId(namespaceId, accountId))
                 .thenReturn(Optional.empty());
-        when(contactAccountBindingService.hasAnyContact(accountId)).thenReturn(true);
+        when(contactAccountService.hasAnyContact(accountId)).thenReturn(true);
 
         var ra = new io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationAuthority();
         ra.setId(UUID.randomUUID());
@@ -204,7 +204,7 @@ class NamespacePermissionEvaluatorTest {
         // 系统中存在多个注册机构时：通道关闭，回落组织授权判定
         when(registrationAuthorityRepository.findAll())
                 .thenReturn(List.of(ra, new io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationAuthority()));
-        when(contactAccountBindingService.contactsOfAccount(account)).thenReturn(Collections.emptyList());
+        when(contactAccountService.contactsOfAccount(account)).thenReturn(Collections.emptyList());
 
         assertThat(evaluator.hasWritePermission(namespaceId, accountId)).isFalse();
     }
@@ -214,13 +214,13 @@ class NamespacePermissionEvaluatorTest {
         when(accountRepository.findById(accountId)).thenReturn(Optional.of(account));
         when(namespacePermissionRepository.findByNamespaceIdAndAccountId(namespaceId, accountId))
                 .thenReturn(Optional.empty());
-        when(contactAccountBindingService.hasAnyContact(accountId)).thenReturn(true);
+        when(contactAccountService.hasAnyContact(accountId)).thenReturn(true);
 
         var ns = new io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace();
         ns.setId(namespaceId);
         ns.setRegistrationAuthority(null);
         when(namespaceRepository.findById(namespaceId)).thenReturn(Optional.of(ns));
-        when(contactAccountBindingService.contactsOfAccount(account)).thenReturn(Collections.emptyList());
+        when(contactAccountService.contactsOfAccount(account)).thenReturn(Collections.emptyList());
 
         assertThat(evaluator.hasWritePermission(namespaceId, accountId)).isFalse();
     }

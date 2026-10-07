@@ -40,7 +40,7 @@ public class RegistrarService {
     private final OrganizationRepository organizationRepository;
     private final IndividualRepository individualRepository;
     private final RoleRepository roleRepository;
-    private final ContactAccountBindingService contactAccountBindingService;
+    private final ContactAccountService contactAccountService;
 
     @Transactional(readOnly = true)
     public Page<RegistrarResponse> list(String keyword, Pageable pageable) {
@@ -159,9 +159,9 @@ public class RegistrarService {
         if (userId != null) {
             Account account = accountRepository.findById(userId)
                     .orElseThrow(() -> new ResourceNotFoundException("Account", userId));
-            contactAccountBindingService.bind(registrarId, account.getId());
+            contactAccountService.bind(registrarId, account.getId());
         } else {
-            contactAccountBindingService.unbind(registrarId);
+            contactAccountService.unbind(registrarId);
         }
     }
 
@@ -172,7 +172,7 @@ public class RegistrarService {
                 entity.getRegistrationAuthority() != null
                         ? entity.getRegistrationAuthority().getName().stream().findFirst().map(n -> n.getValue()).orElse(null)
                         : null,
-                contactAccountBindingService.accountIdOfContact(entity.getId()).orElse(null),
+                contactAccountService.accountIdOfContact(entity.getId()).orElse(null),
                 entity.getOrganization() != null ? entity.getOrganization().getId() : null,
                 entity.getOrganization() != null
                         ? entity.getOrganization().getName().stream().findFirst().map(n -> n.getValue()).orElse(null)
@@ -236,7 +236,7 @@ public class RegistrarService {
         registrar.setOrganization(organization);
         Registrar saved = registrarRepository.save(registrar);
         // 账号绑定写入卫星实体(扩展关联已剥离出标准实体 Contact)
-        contactAccountBindingService.bind(saved.getId(), account.getId());
+        contactAccountService.bind(saved.getId(), account.getId());
         return saved;
     }
 }

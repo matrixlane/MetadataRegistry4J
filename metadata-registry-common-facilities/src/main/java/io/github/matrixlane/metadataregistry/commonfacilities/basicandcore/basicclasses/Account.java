@@ -62,12 +62,8 @@ public class Account {
     @Column(name = "temp_password_used", nullable = false)
     private boolean tempPasswordUsed = false;
 
-    /**
-     * 当前激活的 Registrar 身份（active-registrar-ownership）。
-     * 为空时按 ActiveRegistrarService 的回退规则解析（首个有效绑定）。
-     */
-    @Column(name = "active_registrar_id", length = 36)
-    private UUID activeRegistrarId;
+    /** 当前激活的 Registrar 身份已随 personal-no-login-registrar-default 迁至
+     *  ext.registrar.is_default（默认注册人员标志），本表不再持有激活/默认列。 */
 
     /** 账号级头像（data URL）；Account 是应用扩展实体，头像不属 ISO/IEC 11179-3 标准属性。 */
     @Lob

@@ -56,9 +56,8 @@ export const readinessApi = {
 };
 
 export const activeRegistrarApi = {
+  /** 身份列表 + 默认注册人员；激活选择为浏览器端状态（localStorage + 请求头传递） */
   current: () => request.get<ActiveRegistrarResponse>('/active-registrar'),
-  select: (registrarId: string) =>
-    request.put<ActiveRegistrarResponse>('/active-registrar', { registrarId }),
 };
 
 export const namespaceApi = {

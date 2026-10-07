@@ -51,7 +51,7 @@ public class AuthService {
     private final IndividualRepository individualRepository;
     private final ContactRepository contactRepository;
     private final RegistrarRepository registrarRepository;
-    private final io.github.matrixlane.metadataregistry.web.service.ContactAccountBindingService contactAccountBindingService;
+    private final io.github.matrixlane.metadataregistry.web.service.ContactAccountService contactAccountService;
     private final SystemSettingService systemSettingService;
 
     private static final String EMERGENCY_CODE_FILE = "emergency-code.txt";
@@ -356,7 +356,7 @@ public class AuthService {
             // 优先复用该账号已绑定 Contact/Registrar 上已有的 Individual（如初始化向导
             // 按管理员姓名创建并关联到 Registrar 的那个）——同一人全程只应有一个
             // Individual，同时代表账户本人与注册人员；无任何可复用对象时才新建。
-            entity = contactAccountBindingService.contactsOfAccount(user).stream()
+            entity = contactAccountService.contactsOfAccount(user).stream()
                     .map(Contact::getIndividual)
                     .filter(java.util.Objects::nonNull)
                     .findFirst()
@@ -373,7 +373,7 @@ public class AuthService {
 
         if (isFirstTime) {
             // Task 4.3: Find contacts associated with this Account and update their Individual
-            List<Contact> contacts = contactAccountBindingService.contactsOfAccount(user);
+            List<Contact> contacts = contactAccountService.contactsOfAccount(user);
             for (Contact contact : contacts) {
                 if (contact.getIndividual() == null) {
                     contact.setIndividual(entity);
@@ -384,7 +384,7 @@ public class AuthService {
 
         // 账号绑定的 Registrar 未关联 Individual 时回填(如 createRegistrarForUser 创建的
         // registrar 初始 individual 为空),使注册人员列表能展示姓名。
-        for (Registrar registrar : contactAccountBindingService.registrarsOfAccount(user.getId())) {
+        for (Registrar registrar : contactAccountService.registrarsOfAccount(user.getId())) {
             if (registrar.getIndividual() == null) {
                 registrar.setIndividual(entity);
                 registrarRepository.save(registrar);
@@ -507,7 +507,7 @@ public class AuthService {
      * Submitter（add-submitter-contact-identity），装配为 ROLE_SUBMITTER。
      */
     private boolean isSubmitter(Account user) {
-        return user.getId() != null && contactAccountBindingService.hasAnyContact(user.getId());
+        return user.getId() != null && contactAccountService.hasAnyContact(user.getId());
     }
 
     /**
@@ -520,7 +520,7 @@ public class AuthService {
         if (user.getSysRole() == SystemRole.SUPER_ADMIN) {
             return true;
         }
-        return user.getId() != null && !contactAccountBindingService.registrarsOfAccount(user.getId()).isEmpty();
+        return user.getId() != null && !contactAccountService.registrarsOfAccount(user.getId()).isEmpty();
     }
 
     private AccountProfileResponse toProfile(Account user) {

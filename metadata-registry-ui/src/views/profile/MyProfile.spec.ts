@@ -38,9 +38,9 @@ const contactsState = vi.hoisted(() => ([
     individualName: '张三',
     roleId: 'role-2',
     roleName: '提交人',
-    isRegistrar: false,
-    registrationAuthorityId: undefined,
-    registrationAuthorityName: undefined,
+    isRegistrar: true,
+    registrationAuthorityId: 'ra-2',
+    registrationAuthorityName: 'RA Two',
     isDefault: false,
   },
 ]));
@@ -179,6 +179,28 @@ describe('MyProfile 联系人身份管理', () => {
     expect(myContactApi.list).toHaveBeenCalledTimes(2);
   });
 
+  it('普通联系人身份不显示「设为默认」按钮（默认身份仅注册人员可设）', async () => {
+    // 全部为普通 CONTACT 身份时：无任何"设为默认"按钮
+    myContactApi.list.mockResolvedValueOnce([
+      {
+        id: 'contact-1',
+        organizationId: 'org-1',
+        organizationName: 'Org One',
+        individualId: 'ind-1',
+        individualName: '张三',
+        roleId: 'role-1',
+        roleName: '管理员',
+        isRegistrar: false,
+        registrationAuthorityId: undefined,
+        registrationAuthorityName: undefined,
+        isDefault: false,
+      },
+    ]);
+    const wrapper = mountProfile();
+    await flushPromises();
+    expect(wrapper.findAll('[data-testid="contact-set-default-btn"]').length).toBe(0);
+  });
+
   it('打开新建弹窗并保存', async () => {
     const wrapper = mountProfile();
     await flushPromises();
@@ -219,6 +241,8 @@ describe('MyProfile 联系人身份管理', () => {
   });
 
   it('删除联系人身份：确认后调用 delete 并刷新列表', async () => {
+    // contact-2 现为 Registrar 身份：注册人员删除仅团队版放行
+    authState.edition = 'TEAM';
     const confirmSpy = vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue('confirm' as unknown as Awaited<ReturnType<typeof ElMessageBox.confirm>>);
     const wrapper = mountProfile();
     await flushPromises();

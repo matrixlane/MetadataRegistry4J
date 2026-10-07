@@ -36,7 +36,7 @@
 - 实现范式：
   - 扩展实体放 `metadata-registry-ext` 模块，`@Table(name=...)` 不写 schema；team profile 经 `metadata-registry-web/src/main/resources/orm/orm-team.xml` 登记 `<table schema="ext"/>`；sqlite 同名冲突时物理表名加 `ext_` 前缀并经 `orm/orm-sqlite.xml` 登记。
   - 迁移三方言同版本号：SQL Server 全限定 `ext.<table>`（schema 兜底 + COL_LENGTH 守卫）；SQLite 裸表名（`ext_` 前缀）；达梦全限定 `EXT.<TABLE>`。
-- 判据：字段能在 ISO/IEC 11179 标准条款中找到定义 → 才可进 mdr；否则一律 ext。（既有判例：`ext.account.avatar`、`ext_language_identification`、`ext.contact_account_binding`；反例教训：2026-10 `mdr.registration_authority.is_primary` 后迁出，见 DECISIONS.md）
+- 判据：字段能在 ISO/IEC 11179 标准条款中找到定义 → 才可进 mdr；否则一律 ext。（既有判例：`ext.account.avatar`、`ext_language_identification`、`ext.contact`（账号绑定卫星，原 contact_account_binding 迁入）、`ext.registrar`（默认注册人员标志）；反例教训：2026-10 `mdr.registration_authority.is_primary` 后迁出，见 DECISIONS.md）
 
 # 文档同步规则
 

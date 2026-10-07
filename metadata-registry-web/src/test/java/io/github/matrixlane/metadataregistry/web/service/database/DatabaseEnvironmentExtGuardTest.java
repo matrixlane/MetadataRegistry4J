@@ -26,8 +26,10 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class DatabaseEnvironmentExtGuardTest {
 
-    /** 同名卫星表裸键保留给标准表的路由锁定(V20261008001 RegistrationAuthorityExtension)。 */
-    private static final java.util.Set<String> SAME_NAME_SATELLITES = java.util.Set.of("registration_authority");
+    /** 同名卫星表裸键保留给标准表的路由锁定(V20261008001 RegistrationAuthorityExtension;
+     *  V20261009001 ContactExtension / V20261009002 RegistrarExtension 同理)。 */
+    private static final java.util.Set<String> SAME_NAME_SATELLITES = java.util.Set.of(
+            "registration_authority", "contact", "registrar");
 
     @Test
     void everyOrmTeamTableIsRecognizedAsExt() throws Exception {
@@ -106,6 +108,17 @@ class DatabaseEnvironmentExtGuardTest {
         assertThat(env.schemaOf("ext_registration_authority")).isEqualTo(env.extSchema());
         assertThat(sqlite.qualifyStandard("registration_authority")).isEqualTo("\"registration_authority\"");
         assertThat(sqlite.qualify("ext_registration_authority")).isEqualTo("\"ext_registration_authority\"");
+
+        // V20261009001/0002 账号绑定卫星(contact)与默认注册人员标志卫星(registrar):
+        // 裸键保留给标准表(级联删除等以 qualifyAuto 引用标准表),EXT 侧经 qualifyExt 限定
+        assertThat(env.schemaOf("contact")).isEqualTo(env.schema());
+        assertThat(env.qualify("contact")).isEqualTo("\"mdr\".\"contact\"");
+        assertThat(env.qualifyExt("contact")).isEqualTo("\"ext\".\"contact\"");
+        assertThat(env.schemaOf("ext_contact")).isEqualTo(env.extSchema());
+        assertThat(env.schemaOf("registrar")).isEqualTo(env.schema());
+        assertThat(env.qualify("registrar")).isEqualTo("\"mdr\".\"registrar\"");
+        assertThat(env.qualifyExt("registrar")).isEqualTo("\"ext\".\"registrar\"");
+        assertThat(env.schemaOf("ext_registrar")).isEqualTo(env.extSchema());
     }
 
     private static String resolveTableName(Class<?> type) {

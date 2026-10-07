@@ -4,6 +4,7 @@ import { defineComponent, reactive } from 'vue';
 import ElementPlus from 'element-plus';
 import ItemRegistrationSection from './ItemRegistrationSection.vue';
 import { activeRegistrarApi } from '@/api/resources';
+import { useActiveRegistrar } from '@/composables/useActiveRegistrar';
 
 const namespaces = vi.hoisted(() => [
   {
@@ -50,7 +51,10 @@ vi.mock('@/api/resources', () => ({
     detail: vi.fn().mockResolvedValue({ namingConventionIds: [] }),
   },
   activeRegistrarApi: {
-    current: vi.fn().mockResolvedValue({ active: { registrationAuthorityName: '测试注册机构', registrationAuthorityId: 'ra-awo' } }),
+    current: vi.fn().mockResolvedValue({
+      defaultRegistrarId: 'reg-awo',
+      identities: [{ registrarId: 'reg-awo', registrationAuthorityName: '测试注册机构', registrationAuthorityId: 'ra-awo' }],
+    }),
   },
   readinessApi: { raNamespaceExists: vi.fn().mockResolvedValue({ exists: true }) },
 }));
@@ -117,6 +121,12 @@ function inputs(wrapper: any) {
 function inlineModeControls(wrapper: any) {
   return wrapper.findAllComponents({ name: 'ElSegmented' });
 }
+
+// useActiveRegistrar 为模块级单例：每用例重置并清理浏览器端选择
+beforeEach(() => {
+  useActiveRegistrar().reset();
+  localStorage.removeItem('activeRegistrarId');
+});
 
 describe('ItemRegistrationSection 命名空间输入模式', () => {
   beforeEach(() => {
@@ -398,7 +408,8 @@ describe('ItemRegistrationSection 默认命名空间按活动 Registrar 预选',
     strategyView.value = null;
     // 默认 activeRegistrarApi.current：名称与 id 都设 ra-awo，使原有测试不受影响
     (activeRegistrarApi.current as any).mockResolvedValue({
-      active: { registrationAuthorityName: '测试注册机构', registrationAuthorityId: 'ra-awo' },
+      defaultRegistrarId: 'reg-awo',
+      identities: [{ registrarId: 'reg-awo', registrationAuthorityName: '测试注册机构', registrationAuthorityId: 'ra-awo' }],
     });
   });
 
@@ -467,7 +478,8 @@ describe('ItemRegistrationSection 默认命名空间按活动 Registrar 预选',
 
   it('活动 RA 不存在自有命名空间时不预选', async () => {
     (activeRegistrarApi.current as any).mockResolvedValueOnce({
-      active: { registrationAuthorityName: '未知机构', registrationAuthorityId: 'ra-unknown' },
+      defaultRegistrarId: 'reg-unknown',
+      identities: [{ registrarId: 'reg-unknown', registrationAuthorityName: '未知机构', registrationAuthorityId: 'ra-unknown' }],
     });
     const wrapper = mount(Host, {
       props: { isEditing: false },
@@ -483,7 +495,7 @@ describe('ItemRegistrationSection 默认命名空间按活动 Registrar 预选',
   });
 
   it('无活动 Registrar 身份时不预选', async () => {
-    (activeRegistrarApi.current as any).mockResolvedValueOnce({ active: null });
+    (activeRegistrarApi.current as any).mockResolvedValueOnce({ defaultRegistrarId: null, identities: [] });
     const wrapper = mount(Host, {
       props: { isEditing: false },
       global: { plugins: [ElementPlus] },

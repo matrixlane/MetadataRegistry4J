@@ -24,7 +24,7 @@ public class NamespacePermissionEvaluator {
     private final NamespacePermissionRepository namespacePermissionRepository;
     private final AccountRepository accountRepository;
     private final ContactRepository contactRepository;
-    private final ContactAccountBindingService contactAccountBindingService;
+    private final ContactAccountService contactAccountService;
     private final io.github.matrixlane.metadataregistry.web.repository.NamespaceRepository namespaceRepository;
     private final io.github.matrixlane.metadataregistry.web.repository.RegistrationAuthorityRepository registrationAuthorityRepository;
 
@@ -52,7 +52,7 @@ public class NamespacePermissionEvaluator {
 
         // 3. Resolve standard Contact and Organizations
         if (account != null) {
-            List<Contact> contacts = contactAccountBindingService.contactsOfAccount(account);
+            List<Contact> contacts = contactAccountService.contactsOfAccount(account);
             if (!contacts.isEmpty()) {
                 boolean hasExplicitDeny = false;
                 boolean hasExplicitAllow = false;
@@ -111,7 +111,7 @@ public class NamespacePermissionEvaluator {
         // 3. Submitter 通道（add-submitter-contact-identity）：系统中恰好只有一个
         // 注册机构时，已登记联系人的用户可在注册机构自有命名空间提交元数据（条目归属
         // 该系统唯一注册机构，与 resolveOwnershipForCreate 的 Submitter 归属推导一致）。
-        if (account != null && contactAccountBindingService.hasAnyContact(accountId)) {
+        if (account != null && contactAccountService.hasAnyContact(accountId)) {
             io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace ns =
                     namespaceRepository.findById(namespaceId).orElse(null);
             if (ns != null && ns.getRegistrationAuthority() != null) {
@@ -125,7 +125,7 @@ public class NamespacePermissionEvaluator {
 
         // 4. Resolve standard Contact and Organizations
         if (account != null) {
-            List<Contact> contacts = contactAccountBindingService.contactsOfAccount(account);
+            List<Contact> contacts = contactAccountService.contactsOfAccount(account);
             if (!contacts.isEmpty()) {
                 for (Contact contact : contacts) {
                     if (contact.getOrganization() != null) {
@@ -156,7 +156,7 @@ public class NamespacePermissionEvaluator {
         if (account == null) return false;
         if (account.getSysRole() == SystemRole.SUPER_ADMIN) return true;
 
-        return contactAccountBindingService.registrarsOfAccount(accountId).stream()
+        return contactAccountService.registrarsOfAccount(accountId).stream()
                 .anyMatch(r -> r.getOrganization() != null && registryId.equals(r.getOrganization().getId()));
     }
 
@@ -169,6 +169,6 @@ public class NamespacePermissionEvaluator {
         if (account == null) return false;
         if (account.getSysRole() == SystemRole.SUPER_ADMIN) return true;
 
-        return !contactAccountBindingService.registrarsOfAccount(accountId).isEmpty();
+        return !contactAccountService.registrarsOfAccount(accountId).isEmpty();
     }
 }

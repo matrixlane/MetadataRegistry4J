@@ -50,6 +50,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         io.github.matrixlane.metadataregistry.web.auth.SecurityConfig.class,
         io.github.matrixlane.metadataregistry.web.config.CorsConfig.class,
         JwtAuthenticationFilter.class,
+        // 个人版自动认证过滤器：ObjectProvider 依赖在本最小上下文不可用时安全 no-op
+        io.github.matrixlane.metadataregistry.web.auth.PersonalEditionAuthenticationFilter.class,
         TraceIdFilter.class,
         DummyActuatorController.class
 })

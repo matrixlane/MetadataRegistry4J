@@ -120,7 +120,7 @@ class WorkspaceServiceIntegrationTest {
     private AccountRepository accountRepository;
 
     @Autowired
-    private ContactAccountBindingService contactAccountBindingService;
+    private ContactAccountService contactAccountService;
 
     private UUID languageId;
     private UUID contextId;
@@ -176,9 +176,9 @@ class WorkspaceServiceIntegrationTest {
         registrar = new Registrar(authority);
         registrar.setOrganization(org);
         registrar = registrarRepository.save(registrar);
-        contactAccountBindingService.bind(registrar.getId(), registrarAccount.getId());
-        registrarAccount.setActiveRegistrarId(registrar.getId());
-        registrarAccount = accountRepository.save(registrarAccount);
+        contactAccountService.bind(registrar.getId(), registrarAccount.getId());
+        // 激活状态已浏览器化：服务端持久化的是"默认注册人员"标志（ext.registrar.is_default）
+        contactAccountService.markDefaultRegistrar(registrarAccount.getId(), registrar.getId());
     }
 
     @AfterEach

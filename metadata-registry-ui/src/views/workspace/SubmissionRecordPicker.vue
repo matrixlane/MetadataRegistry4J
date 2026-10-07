@@ -61,11 +61,13 @@
 </template>
 
 <script setup lang="ts">
+import { myContactApi } from '@/api/resources';
 import { ref, computed, reactive } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus';
-import { myContactApi, activeRegistrarApi } from '@/api/resources';
-import type { ActiveRegistrarResponse, MyContactResponse, SubmissionInfo } from '@/types/common';
+import { useActiveRegistrar } from '@/composables/useActiveRegistrar';
+const activeRegistrarState = useActiveRegistrar();
+import type { RegistrarIdentity, MyContactResponse, SubmissionInfo } from '@/types/common';
 
 const { t } = useI18n();
 
@@ -83,7 +85,7 @@ const submitting = ref(false);
 const contacts = ref<MyContactResponse[]>([]);
 const contactsLoaded = ref(false);
 /** 活动 Registrar 身份（active-registrar-ownership）；每次打开时重新拉取 */
-const activeRegistrar = ref<ActiveRegistrarResponse | null>(null);
+const activeRegistrar = ref<RegistrarIdentity | null>(null);
 const formRef = ref<FormInstance>();
 const form = reactive({
   organizationId: '',
@@ -146,7 +148,8 @@ async function loadContacts() {
 
 async function loadActiveRegistrar() {
   try {
-    activeRegistrar.value = await activeRegistrarApi.current();
+    await activeRegistrarState.load();
+    activeRegistrar.value = activeRegistrarState.active;
   } catch {
     activeRegistrar.value = null;
   }
@@ -157,7 +160,7 @@ async function loadActiveRegistrar() {
  */
 function defaultOrganizationId(): string {
   const list = contacts.value || [];
-  const activeRegistrarId = activeRegistrar.value?.active?.registrarId;
+  const activeRegistrarId = activeRegistrar.value?.registrarId;
   if (activeRegistrarId) {
     const activeIdentity = list.find((c) => c.id === activeRegistrarId && c.organizationId);
     if (activeIdentity) return activeIdentity.organizationId as string;
