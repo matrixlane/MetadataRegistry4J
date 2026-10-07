@@ -31,7 +31,7 @@
       @success="tableRef?.fetchData()"
     >
       <template #fields="{ form }">
-        <!-- 计量类 unit_of_measure_measure_class(1..*) -->
+        <!-- 计量类 unit_of_measure_class(1..*) -->
         <el-form-item label="计量类">
           <SmartItemPicker
             v-model="form.measureClassIds"

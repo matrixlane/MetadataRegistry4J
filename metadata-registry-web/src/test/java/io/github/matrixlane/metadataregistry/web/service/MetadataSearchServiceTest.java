@@ -1,5 +1,6 @@
 package io.github.matrixlane.metadataregistry.web.service;
 
+import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.Acceptability;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationStatus;
 import io.github.matrixlane.metadataregistry.web.dto.administereditem.AdministeredItemResponse;
 import io.github.matrixlane.metadataregistry.web.service.database.DatabaseEnvironment;
@@ -168,7 +169,7 @@ class MetadataSearchServiceTest {
     private static final java.util.Set<String> KNOWN_TABLES = java.util.Set.of(
             "administered_item", "identified_item", "item", "scoped_identifier", "namespace",
             "registration_authority", "registration_state", "registered_item", "designation", "definition",
-            "designation_context_relation", "definition_context_relation", "organization_name", "constraint_set",
+            "designation_context", "definition_context", "organization_name", "constraint_set",
             "registry_specification", "reference_document", "data_element", "data_element_concept",
             "conceptual_domain", "value_domain", "object_class", "property", "data_type",
             "data_type_scheme", "unit_of_measure", "measure_class", "dimensionality",
@@ -189,6 +190,34 @@ class MetadataSearchServiceTest {
         assertThat(placeholders)
                 .as("SQL 占位符数与参数数不一致：%d 个占位符 vs %d 个参数%n%s", placeholders, params.length, sql)
                 .isEqualTo(params.length);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void search_withAcceptabilityList_placeholderCountMatchesParamCountAndLowercaseBinding() {
+        // mdr-standard-compliance-cleanup：acceptability 过滤改走 designation_context/definition_context，
+        // IN 占位符 ×2 分支、参数落库为小写（AcceptabilityConverter）。占位符配平与大小写回归保护。
+        stubCountAndRows(1L, List.of(sampleResponse));
+
+        searchService.search(null, "ValueDomain", null, null,
+                List.of(Acceptability.PREFERRED, Acceptability.ADMITTED),
+                null, true, "VD.00001", null, PageRequest.of(0, 20));
+
+        ArgumentCaptor<String> countSql = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<Object[]> countParams = ArgumentCaptor.forClass(Object[].class);
+        verify(jdbcTemplate).queryForObject(countSql.capture(), eq(Long.class), countParams.capture());
+        assertPlaceholderParamMatch(countSql.getValue(), countParams.getValue());
+        assertThat(countSql.getValue())
+                .contains("LOWER(dc_acc.acceptability) IN")
+                .contains("LOWER(dfc_acc.acceptability) IN");
+        assertThat(java.util.Arrays.asList(countParams.getValue()))
+                .contains("preferred", "admitted");
+
+        ArgumentCaptor<String> selectSql = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<Object[]> selectParams = ArgumentCaptor.forClass(Object[].class);
+        verify(jdbcTemplate).query(selectSql.capture(), any(RowMapper.class), selectParams.capture());
+        assertPlaceholderParamMatch(selectSql.getValue(), selectParams.getValue());
+        assertThat(selectSql.getValue()).contains("LOWER(dc_pref.acceptability) = 'preferred'");
     }
 
     @Test

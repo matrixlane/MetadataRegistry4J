@@ -115,10 +115,10 @@ public class RegistrationAuthorityDeletionService {
         List<UUID> definitionIds = queryUuidsByIds(
                 "SELECT id FROM " + t("definition") + " WHERE item_id IN (", itemIds);
         deleteDesignationDefinitionPairings(designationIds, definitionIds);
-        deleteByIds(t("designation_context_relation"), "designation_id", designationIds);
-        deleteByIds(t("definition_context_relation"), "definition_id", definitionIds);
+        deleteByIds(t("designation_context"), "designation_id", designationIds);
+        deleteByIds(t("definition_context"), "definition_id", definitionIds);
         deleteByIds(t("designation_namespace"), "designation_id", designationIds);
-        deleteByIds(t("designation_naming_convention"), "designation_id", designationIds);
+        deleteByIds(t("naming_convention_conformance"), "designation_id", designationIds);
         deleteByIds(t("slot"), "item_id", itemIds);
         deleteByIds(t("designation"), "item_id", itemIds);
         deleteByIds(t("definition"), "item_id", itemIds);
@@ -131,8 +131,8 @@ public class RegistrationAuthorityDeletionService {
         List<UUID> contextIds = queryUuidsByIds(
                 "SELECT id FROM " + t("context") + " WHERE id IN (", itemIds);
         if (!contextIds.isEmpty()) {
-            deleteByIds(t("designation_context_relation"), "context_id", contextIds);
-            deleteByIds(t("definition_context_relation"), "context_id", contextIds);
+            deleteByIds(t("designation_context"), "context_id", contextIds);
+            deleteByIds(t("definition_context"), "context_id", contextIds);
             deleteByIds(t("designation_definition_pairing"), "context_id", contextIds);
             for (List<UUID> chunk : chunks(contextIds)) {
                 jdbcTemplate.update("UPDATE " + t("registry_specification") + " SET context_id = NULL"
@@ -143,7 +143,7 @@ public class RegistrationAuthorityDeletionService {
 
         // 1d. 提交关联 + 注册流程审批记录
         Set<UUID> submissionRecordIds = submissionRecordIdsToDelete(allRegIds);
-        deleteByIds(t("submission_record_registered_item"), "registered_item_id", allRegIds);
+        deleteByIds(t("registered_item_submission_record"), "registered_item_id", allRegIds);
         deleteByIds(t("registration_transition_approval"), "administered_item_id", aiIds);
 
         // 1e. 候选集中已无剩余关联的 SubmissionRecord（M3：候选集 = join 行中
@@ -249,17 +249,17 @@ public class RegistrationAuthorityDeletionService {
         List<UUID> nsDefinitionIds = queryUuidsByIds(
                 "SELECT id FROM " + t("definition") + " WHERE item_id IN (", namespaceIds);
         deleteDesignationDefinitionPairings(nsDesignationIds, nsDefinitionIds);
-        deleteByIds(t("designation_context_relation"), "designation_id", nsDesignationIds);
-        deleteByIds(t("definition_context_relation"), "definition_id", nsDefinitionIds);
+        deleteByIds(t("designation_context"), "designation_id", nsDesignationIds);
+        deleteByIds(t("definition_context"), "definition_id", nsDefinitionIds);
         deleteByIds(t("designation_namespace"), "designation_id", nsDesignationIds);
-        deleteByIds(t("designation_naming_convention"), "designation_id", nsDesignationIds);
+        deleteByIds(t("naming_convention_conformance"), "designation_id", nsDesignationIds);
         deleteByIds(t("slot"), "item_id", namespaceIds);
         deleteByIds(t("designation"), "item_id", namespaceIds);
         deleteByIds(t("definition"), "item_id", namespaceIds);
 
         // 任意 Item 的指称引用该命名空间（其余 RA 的项也可能引用）
         deleteByIds(t("designation_namespace"), "namespace_id", namespaceIds);
-        deleteByIds(t("namespace_naming_convention"), "namespace_id", namespaceIds);
+        deleteByIds(t("naming_convention_utilization"), "namespace_id", namespaceIds);
         // 命名空间标识策略卫星配置（EXT）
         deleteByIds(t("namespace_identifier_settings"), "namespace_id", namespaceIds);
         deleteByIds(t("identifier_strategy_config"), "namespace_id", namespaceIds);
@@ -285,14 +285,14 @@ public class RegistrationAuthorityDeletionService {
             return Set.of();
         }
         Set<UUID> candidates = new LinkedHashSet<>(queryUuidsByIds(
-                "SELECT DISTINCT submission_record_id FROM " + t("submission_record_registered_item")
+                "SELECT DISTINCT submission_record_id FROM " + t("registered_item_submission_record")
                         + " WHERE registered_item_id IN (", allRegIds));
         if (candidates.isEmpty()) {
             return Set.of();
         }
         // 与幸存 item 仍有共享关联的候选 SR 保留
         Set<UUID> surviving = new LinkedHashSet<>(queryUuidsByIds(
-                "SELECT DISTINCT submission_record_id FROM " + t("submission_record_registered_item")
+                "SELECT DISTINCT submission_record_id FROM " + t("registered_item_submission_record")
                         + " WHERE registered_item_id NOT IN (", allRegIds));
         candidates.removeAll(surviving);
         return candidates;
@@ -306,7 +306,7 @@ public class RegistrationAuthorityDeletionService {
         for (List<UUID> chunk : chunks(List.copyOf(candidates))) {
             jdbcTemplate.update("DELETE FROM " + t("submission_record") + " WHERE id IN ("
                     + inClause(chunk.size()) + ") AND NOT EXISTS (SELECT 1 FROM "
-                    + t("submission_record_registered_item") + " WHERE submission_record_id = "
+                    + t("registered_item_submission_record") + " WHERE submission_record_id = "
                     + t("submission_record") + ".id)", uuidParams(chunk));
         }
     }
@@ -370,8 +370,8 @@ public class RegistrationAuthorityDeletionService {
     }
 
     private void deleteItemMappings(List<UUID> itemIds) {
-        deleteByIds(t("item_mapping_subject"), "item_id", itemIds);
-        deleteByIds(t("item_mapping_object"), "item_id", itemIds);
+        deleteByIds(t("subject_mapping"), "item_id", itemIds);
+        deleteByIds(t("object_mapping"), "item_id", itemIds);
     }
 
     private List<UUID> administeredItemIds(UUID registrationAuthorityId) {

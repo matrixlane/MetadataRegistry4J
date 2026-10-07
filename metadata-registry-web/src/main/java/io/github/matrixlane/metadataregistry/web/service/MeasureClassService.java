@@ -27,7 +27,7 @@ import java.util.UUID;
 /**
  * MeasureClass(Concept 子类)管理服务。
  * dimensionality_measure_class：计量类侧 0..*，关联按 id 整体替换，
- * null/空集清空；删除时被 unit_of_measure_measure_class 引用则拒绝。
+ * null/空集清空；删除时被 unit_of_measure_class 引用则拒绝。
  */
 @Service
 @RequiredArgsConstructor

@@ -48,8 +48,7 @@ public final class SnapshotMappingSupport {
                 response.sourceId(),
                 mapContexts(response.contexts()),
                 null,
-                null,
-                response.acceptability()
+                null
         );
     }
 

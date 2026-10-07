@@ -19,7 +19,7 @@ public class UnitOfMeasure extends Concept {
 
     @ManyToMany
     @JoinTable(
-            name = "unit_of_measure_measure_class",
+            name = "unit_of_measure_class",
             joinColumns = @JoinColumn(name = "unit_of_measure_id"),
             inverseJoinColumns = @JoinColumn(name = "measure_class_id")
     )

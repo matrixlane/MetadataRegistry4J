@@ -16,11 +16,11 @@ public interface SubmissionRecordRepository extends JpaRepository<SubmissionReco
     /**
      * 取指定 RegisteredItem 关联的全部 SubmissionRecord（按 id 降序），调用方自行取第一条。
      *
-     * <p>历史上同一管理项可被多次提交（提交→回退→再提交），因此 {@code submission_record_registered_item}
+     * <p>历史上同一管理项可被多次提交（提交→回退→再提交），因此 {@code registered_item_submission_record}
      * 对同一 {@code registered_item_id} 通常含多条不同的 {@code submission_record_id}，不能简单用
      * {@code Optional} 承载——必须返回 {@code List} 由调用方取最新一条（{@code ORDER BY sr.id DESC}）。
      * 同时 {@code sr.registeredItems} 为 {@code @ManyToMany}，{@code DISTINCT} 是必需的，
-     * 否则 JOIN 会因 {@code submission_record_registered_item} 无 UNIQUE 约束出现重复 sr 行。</p>
+     * 否则 JOIN 会因 {@code registered_item_submission_record} 无 UNIQUE 约束出现重复 sr 行。</p>
      */
     @Query("""
             SELECT DISTINCT sr FROM SubmissionRecord sr

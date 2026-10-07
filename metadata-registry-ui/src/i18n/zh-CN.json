@@ -721,11 +721,7 @@
       "empty": "暂无提交记录。条目需通过工作空间提交才会生成提交记录。",
       "contact": "联系人",
       "organization": "所属组织",
-      "itemCount": "关联条目数",
-      "source": {
-        "USER_SUBMISSION": "用户提交",
-        "SYSTEM_DRAFT": "草稿自动生成"
-      }
+      "itemCount": "关联条目数"
     },
     "stewardshipInfo": {
       "title": "主管记录",

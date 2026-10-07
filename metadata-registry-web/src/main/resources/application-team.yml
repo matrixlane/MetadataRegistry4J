@@ -12,7 +12,7 @@ spring:
       maximum-pool-size: 20
       minimum-idle: 5
   jpa:
-    # EXT 实体(28 个物理表名,27 实体类;口径见 orm-team.xml 头注)的 schema="ext" 覆盖;SQLite profile 不加载(实体注解无 schema,见 orm-team.xml 头注)
+    # EXT 实体(31 个物理表名,30 实体类;口径见 orm-team.xml 头注)的 schema="ext" 覆盖;SQLite profile 不加载(实体注解无 schema,见 orm-team.xml 头注)
     # 注意: mapping-resources 不可用 classpath: 前缀(Hibernate 6.6.11 只剥 classpath://),须用裸路径
     mapping-resources: orm/orm-team.xml
     properties:

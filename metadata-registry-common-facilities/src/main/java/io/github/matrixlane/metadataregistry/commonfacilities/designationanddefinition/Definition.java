@@ -49,9 +49,6 @@ public class Definition extends Entity {
     @OneToMany(mappedBy = "definition", cascade = jakarta.persistence.CascadeType.ALL, orphanRemoval = true)
     private List<DefinitionContext> definitionContexts = new ArrayList<>();
 
-    @jakarta.persistence.Column(name = "acceptability")
-    private Acceptability acceptability;
-
     @OneToMany(mappedBy = "definition")
     private List<DesignationDefinitionPairing> designationDefinitionPairings = new ArrayList<>();
 

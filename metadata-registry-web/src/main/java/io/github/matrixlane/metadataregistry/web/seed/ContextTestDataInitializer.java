@@ -98,9 +98,9 @@ public class ContextTestDataInitializer implements CommandLineRunner {
         String identifiedIn = identifiedItemIds.isEmpty() ? null : inClause(identifiedItemIds.size());
 
         // 子表 -> 父表，遵循 FK 约束顺序
-        deleteWhereIn(t("submission_record_registered_item"), "registered_item_id", identifiedItemIds, identifiedIn);
-        deleteWhereIn(t("designation_context_relation"), "context_id", itemIds, itemIn);
-        deleteWhereIn(t("definition_context_relation"), "context_id", itemIds, itemIn);
+        deleteWhereIn(t("registered_item_submission_record"), "registered_item_id", identifiedItemIds, identifiedIn);
+        deleteWhereIn(t("designation_context"), "context_id", itemIds, itemIn);
+        deleteWhereIn(t("definition_context"), "context_id", itemIds, itemIn);
         deleteWhereIn(t("designation"), "item_id", itemIds, itemIn);
         deleteWhereIn(t("definition"), "item_id", itemIds, itemIn);
         deleteWhereIn(t("scoped_identifier"), "identified_item_id", identifiedItemIds, identifiedIn);

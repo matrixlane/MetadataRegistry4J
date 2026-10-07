@@ -25,7 +25,7 @@ import java.util.UUID;
  * 每个客体一行本关联类实例。
  */
 @Entity
-@Table(name = "item_mapping_object")
+@Table(name = "object_mapping")
 @Getter
 @Setter
 @NoArgsConstructor

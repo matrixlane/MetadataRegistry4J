@@ -2,7 +2,7 @@
 <!--
   team profile 专属:扩展(EXT)实体的 schema 覆盖(合并模式,仅覆盖 <table> 的 schema,
   其余映射继承注解)。SQLite profile 不加载本文件,实体注解保持无 schema。
-  清单依据 openspec/changes/2026-09-01-mdr-ext-schema-split/design.md 第 3 节(29 个物理表名,含 V20260901015 补迁、ai-governance-assistant 新增、V20260919001 语言名称扩展与 V20261008001 RA Primary 标志卫星;其中 LanguageIdentificationExtension 与标准表同名,SQLite 下物理名为 ext_language_identification,故按物理表名计 29);
+  清单依据 openspec/changes/2026-09-01-mdr-ext-schema-split/design.md 第 3 节(31 个物理表名,含 V20260901015 补迁、ai-governance-assistant 新增、V20260919001 语言名称扩展与 V20261008001 RA Primary 标志卫星;其中 LanguageIdentificationExtension 与标准表同名,SQLite 下物理名为 ext_language_identification,故按物理表名计 31);
   漂移由 OrmTeamXmlTest 校验。
 -->
 <entity-mappings xmlns="https://jakarta.ee/xml/ns/persistence/orm" version="3.1">
@@ -36,6 +36,10 @@
 
     <!-- common-facilities(1):IAM 扩展,类不迁模块 -->
     <entity class="io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Account"><table schema="ext"/></entity>
+
+    <!-- common-facilities(3):注册状态流转审批工作流——非 ISO/IEC 11179 概念,mdr-standard-compliance-cleanup 迁 ext,类不迁模块 -->
+    <entity class="io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationTransitionRule"><table schema="ext" name="registration_transition_rule"/></entity>
+    <entity class="io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationTransitionApproval"><table schema="ext" name="registration_transition_approval"/></entity>
 
     <!-- item-mapping(4):ItemMapping/ItemMappingSubject/ItemMappingObject 归 MDR(用户 2026-09-01 决策),不在此列 -->
     <entity class="io.github.matrixlane.metadataregistry.itemmapping.entity.FhirElementMapping"><table schema="ext"/></entity>

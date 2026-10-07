@@ -10,6 +10,7 @@ import { useActiveRegistrar } from '@/composables/useActiveRegistrar';
 
 const state = vi.hoisted(() => ({
   isRegistrarUser: true,
+  bypassLogin: false,
   user: { id: 'user-1', username: 'registrar-1', displayName: '注册员' } as any,
 }));
 
@@ -27,6 +28,9 @@ vi.mock('@/stores/auth', () => ({
     user: state.user,
     isRegistrarUser: state.isRegistrarUser,
     isAdmin: false,
+    get bypassLogin() {
+      return state.bypassLogin;
+    },
     logout: vi.fn(),
   }),
 }));
@@ -281,6 +285,27 @@ describe('AppLayout 首登完善联系人提示', () => {
 });
 
 const mockedActiveCurrent = vi.mocked(activeRegistrarApi.current);
+
+describe('AppLayout 退出按钮（个人版免登录隐藏）', () => {
+  beforeEach(() => {
+    state.bypassLogin = false;
+  });
+
+  afterEach(() => {
+    state.bypassLogin = false;
+  });
+
+  it('团队版（bypassLogin=false）渲染退出按钮', async () => {
+    const { wrapper } = await mountLayout();
+    expect(wrapper.find('[data-testid="header-logout-btn"]').exists()).toBe(true);
+  });
+
+  it('个人版（bypassLogin=true）不渲染退出按钮', async () => {
+    state.bypassLogin = true;
+    const { wrapper } = await mountLayout();
+    expect(wrapper.find('[data-testid="header-logout-btn"]').exists()).toBe(false);
+  });
+});
 
 describe('AppLayout 活动 Registrar（浏览器端激活，personal-no-login-registrar-default）', () => {
   const identityA = { registrarId: 'reg-1', registrationAuthorityId: 'ra-1', registrationAuthorityName: '甲注册机构' };

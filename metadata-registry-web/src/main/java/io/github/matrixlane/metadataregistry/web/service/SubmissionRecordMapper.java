@@ -35,7 +35,6 @@ final class SubmissionRecordMapper {
         int count = registeredItemIds.size();
         return new SubmissionRecordSummary(
                 sr.getId(),
-                sr.getSource(),
                 contactLabel,
                 organizationLabel,
                 count,

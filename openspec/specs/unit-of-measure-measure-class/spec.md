@@ -31,7 +31,7 @@
 
 ### Requirement: 计量类删除保护
 
-删除计量类时，若其被任一计量单位引用（`unit_of_measure_measure_class` 存在关联行），系统 MUST 拒绝删除并返回含引用数的 409 语义业务错误；未被计量单位引用时 MUST 删除成功。维度对计量类的引用清理行为不属于本需求范围，维持既有行为。
+删除计量类时，若其被任一计量单位引用（`unit_of_measure_class` 存在关联行），系统 MUST 拒绝删除并返回含引用数的 409 语义业务错误；未被计量单位引用时 MUST 删除成功。维度对计量类的引用清理行为不属于本需求范围，维持既有行为。（关联表物理名随标准对齐由 `unit_of_measure_measure_class` 更名为 `unit_of_measure_class`，ISO/IEC 11179-31:2023 §7.5.3.2；API 行为不变。）
 
 #### Scenario: 被计量单位引用
 

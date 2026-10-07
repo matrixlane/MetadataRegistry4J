@@ -8,7 +8,6 @@ import io.github.matrixlane.metadataregistry.commonfacilities.registration.Admin
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationState;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationStatus;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.StewardshipRecord;
-import io.github.matrixlane.metadataregistry.commonfacilities.registration.SubmissionRecordSource;
 import io.github.matrixlane.metadataregistry.web.common.BusinessException;
 import io.github.matrixlane.metadataregistry.web.dto.common.SubmissionInfo;
 import io.github.matrixlane.metadataregistry.web.dto.workspace.WorkspaceSubmitRequest;
@@ -110,7 +109,7 @@ class WorkspaceServiceTest {
         assertThatThrownBy(() -> workspaceService.submit(request, accountId))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("请先创建为该机构联系人");
-        verify(itemAdministrationService, never()).recordSubmissionForBatch(any(), any(), any());
+        verify(itemAdministrationService, never()).recordSubmissionForBatch(any(), any());
     }
 
     @Test
@@ -133,7 +132,7 @@ class WorkspaceServiceTest {
         assertThatThrownBy(() -> workspaceService.submit(request, accountId))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("必须属于所选提交组织");
-        verify(itemAdministrationService, never()).recordSubmissionForBatch(any(), any(), any());
+        verify(itemAdministrationService, never()).recordSubmissionForBatch(any(), any());
     }
 
     @Test
@@ -156,7 +155,7 @@ class WorkspaceServiceTest {
         workspaceService.submit(request, accountId);
 
         verify(itemAdministrationService).recordSubmissionForBatch(
-                any(), any(), any(SubmissionRecordSource.class));
+                any(), any());
     }
 
     @Test
@@ -175,7 +174,7 @@ class WorkspaceServiceTest {
         workspaceService.submit(request, accountId);
 
         verify(itemAdministrationService).recordSubmissionForBatch(
-                any(), any(), any(SubmissionRecordSource.class));
+                any(), any());
     }
 
     @Test
@@ -207,6 +206,6 @@ class WorkspaceServiceTest {
                 itemId, new SubmissionInfo(null, orgId), accountId))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("请先创建为该机构联系人");
-        verify(itemAdministrationService, never()).recordSubmission(any(), any(), any());
+        verify(itemAdministrationService, never()).recordSubmission(any(), any());
     }
 }

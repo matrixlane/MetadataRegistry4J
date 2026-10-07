@@ -33,7 +33,7 @@ import static org.mockito.Mockito.when;
  * MeasureClass(ISO/IEC 11179-31:2023 §7.5.2.2)管理服务的单元测试:
  * dimensionality_measure_class(§7.5.3.1)关联维护(计量类侧 0..* 弱约束:
  * null/空允许并清空)、关联按 id 整体替换、删除保护——被
- * unit_of_measure_measure_class(§7.5.3.2)引用时拒绝删除。
+ * unit_of_measure_class(§7.5.3.2)引用时拒绝删除。
  */
 @ExtendWith(MockitoExtension.class)
 class MeasureClassServiceTest {

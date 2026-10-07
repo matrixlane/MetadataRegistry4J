@@ -6,7 +6,6 @@ import io.github.matrixlane.metadataregistry.commonfacilities.registration.Admin
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.AdministrativeStatus;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.Registrar;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationStatus;
-import io.github.matrixlane.metadataregistry.commonfacilities.registration.SubmissionRecordSource;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationTransitionApproval;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationTransitionRule;
 import io.github.matrixlane.metadataregistry.web.common.ApiCodes;
@@ -171,7 +170,7 @@ public class WorkspaceService {
         }
         if (!succeededItems.isEmpty()) {
             itemAdministrationService.recordSubmissionForBatch(
-                    succeededItems, request.submission(), SubmissionRecordSource.USER_SUBMISSION);
+                    succeededItems, request.submission());
         }
         return results;
     }
@@ -221,8 +220,7 @@ public class WorkspaceService {
                     "该管理项不属于当前用户");
         }
         validateSubmissionInfo(submission, accountId);
-        itemAdministrationService.recordSubmission(ai.getItem(), syntheticRequest(submission),
-                SubmissionRecordSource.USER_SUBMISSION);
+        itemAdministrationService.recordSubmission(ai.getItem(), syntheticRequest(submission));
         registrationProcessService.execute(ai.getId(), RegistrationStatus.CANDIDATE, "提交人请求成为候选", accountId);
     }
 
