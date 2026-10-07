@@ -46,7 +46,9 @@ public class FlywayAfterJpaConfig {
                     return;
                 }
                 String[] filtered = Arrays.stream(dependsOn)
-                        .filter(name -> !name.equals("flyway") && !name.equals("flywayMigrationInitializer"))
+                        .filter(name -> !name.equals("flyway")
+                                && !name.equals("flywayInitializer")
+                                && !name.equals("flywayMigrationInitializer"))
                         .toArray(String[]::new);
                 entityManagerFactory.setDependsOn(filtered);
             }
