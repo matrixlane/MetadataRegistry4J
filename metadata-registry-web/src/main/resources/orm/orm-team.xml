@@ -23,8 +23,10 @@
     <entity class="io.github.matrixlane.metadataregistry.ext.basicandcore.LanguageGovernance"><table schema="ext"/></entity>
     <!-- V20260919001 语言名称扩展:与标准表 mdr.language_identification 同名,仅以 ext schema 区分 -->
     <entity class="io.github.matrixlane.metadataregistry.ext.basicandcore.LanguageIdentificationExtension"><table name="language_identification" schema="ext"/></entity>
-    <!-- V20261008001 RA Primary 标志卫星:与标准表 mdr.registration_authority 同名,仅以 ext schema 区分 -->
-    <entity class="io.github.matrixlane.metadataregistry.ext.registration.RegistrationAuthorityExtension"><table schema="ext"/></entity>
+    <!-- V20261008001 RA Primary 标志卫星:与标准表 mdr.registration_authority 同名,仅以 ext schema 区分。
+         name 必须显式给出——XML 覆盖会丢注解表名,缺省时 Hibernate 按实体名隐式建出
+         ext.registration_authority_extension 空表(真实库实测,2026-10-08 修复)。 -->
+    <entity class="io.github.matrixlane.metadataregistry.ext.registration.RegistrationAuthorityExtension"><table schema="ext" name="registration_authority"/></entity>
     <entity class="io.github.matrixlane.metadataregistry.ext.designationanddefinition.NamingConventionRules"><table schema="ext"/></entity>
     <entity class="io.github.matrixlane.metadataregistry.ext.generation.AiGenerationRecord"><table schema="ext"/></entity>
 

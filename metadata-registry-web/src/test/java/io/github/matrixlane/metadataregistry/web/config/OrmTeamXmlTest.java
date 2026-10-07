@@ -67,8 +67,30 @@ class OrmTeamXmlTest {
 
         for (String className : classes) {
             Class<?> type = Class.forName(className);
-            assertThat(resolveTableName(type)).isEqualTo(EXPECTED.get(className));
+            // 有效表名 = XML name 属性优先（Hibernate 覆盖语义：XML <table> 会整体覆盖注解，
+            // 缺 name 时回退隐式实体名——2026-10-08 ext.registration_authority_extension 误表事故），
+            // 缺省时取注解名。无论哪条路径都必须落在 ext 卫星表约定名上。
+            String effectiveName = tableNameFromOrmXml(className)
+                    .filter(name -> !name.isBlank())
+                    .orElseGet(() -> resolveTableName(type));
+            assertThat(effectiveName).isEqualTo(EXPECTED.get(className));
         }
+    }
+
+    /** 从 orm-team.xml 读取该实体 <table> 的 name 属性（无则空）。 */
+    private static java.util.Optional<String> tableNameFromOrmXml(String className) throws Exception {
+        try (InputStream in = OrmTeamXmlTest.class.getResourceAsStream("/orm/orm-team.xml")) {
+            Document doc = DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(in);
+            NodeList entities = doc.getDocumentElement().getElementsByTagName("entity");
+            for (int i = 0; i < entities.getLength(); i++) {
+                Element entity = (Element) entities.item(i);
+                if (className.equals(entity.getAttribute("class"))) {
+                    Element table = (Element) entity.getElementsByTagName("table").item(0);
+                    return java.util.Optional.ofNullable(table.getAttribute("name"));
+                }
+            }
+        }
+        return java.util.Optional.empty();
     }
 
     private static String resolveTableName(Class<?> type) {
