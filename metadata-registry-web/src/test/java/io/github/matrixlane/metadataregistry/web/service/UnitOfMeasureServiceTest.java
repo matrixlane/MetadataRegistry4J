@@ -31,7 +31,7 @@ import static org.mockito.Mockito.when;
 
 /**
  * UnitOfMeasure(ISO/IEC 11179-31:2023 §7.5.2.4)管理服务的单元测试:
- * §7.5.3.2 unit_of_measure_measure_class 关联维护(计量单位侧 1..* 强约束:
+ * §7.5.3.2 unit_of_measure_class 关联维护(计量单位侧 1..* 强约束:
  * null/空拒绝)、关联按 id 整体替换。
  */
 @ExtendWith(MockitoExtension.class)

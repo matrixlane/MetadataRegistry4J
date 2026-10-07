@@ -469,16 +469,11 @@ export interface RegistrationAuthorityDeletionPreview {
   transitionRuleCount: number;
 }
 
-/** SubmissionRecord 来源枚举（align-submission-record-to-iso） */
-export type SubmissionRecordSource = 'USER_SUBMISSION' | 'SYSTEM_DRAFT';
-
 /**
  * 提交记录概要（ItemMetaResponse.submissionRecordSummaries 行项）：只读展示历史提交。
- * USER_SUBMISSION 工作空间提交产生；SYSTEM_DRAFT 历史脏数据迁移标注。
  */
 export interface SubmissionRecordSummary {
   id: string;
-  source: SubmissionRecordSource;
   contactLabel: string | null;
   organizationLabel: string | null;
   registeredItemCount: number;

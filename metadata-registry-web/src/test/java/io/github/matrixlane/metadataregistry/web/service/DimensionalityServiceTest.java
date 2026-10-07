@@ -157,8 +157,8 @@ class DimensionalityServiceTest {
         UUID id = UUID.randomUUID();
         when(repository.existsById(id)).thenReturn(true);
         when(conceptualDomainRepository.countByDimensionality_Id(id)).thenReturn(0L);
-        lenient().when(databaseEnvironment.qualify("submission_record_registered_item"))
-                .thenReturn("submission_record_registered_item");
+        lenient().when(databaseEnvironment.qualify("registered_item_submission_record"))
+                .thenReturn("registered_item_submission_record");
         lenient().when(databaseEnvironment.qualify("identified_item"))
                 .thenReturn("identified_item");
         lenient().when(databaseEnvironment.toJdbcUuid(id)).thenReturn(id);
@@ -166,7 +166,7 @@ class DimensionalityServiceTest {
         service.delete(id);
 
         verify(jdbcTemplate).update(
-                "DELETE FROM submission_record_registered_item "
+                "DELETE FROM registered_item_submission_record "
                         + "WHERE registered_item_id IN (SELECT id FROM identified_item WHERE item_id = ?)",
                 id);
         verify(repository).deleteById(id);

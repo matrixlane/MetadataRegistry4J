@@ -27,7 +27,7 @@ import java.util.UUID;
  * 个主体，每个主体一行本关联类实例。
  */
 @Entity
-@Table(name = "item_mapping_subject")
+@Table(name = "subject_mapping")
 @Getter
 @Setter
 @NoArgsConstructor

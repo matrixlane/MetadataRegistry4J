@@ -133,8 +133,7 @@ class DataElementServiceTest {
         service.create(request);
         verify(itemAdministrationService, never())
                 .recordSubmission(any(io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.Item.class),
-                        any(io.github.matrixlane.metadataregistry.web.dto.common.ItemRegistrationRequest.class),
-                        any(io.github.matrixlane.metadataregistry.commonfacilities.registration.SubmissionRecordSource.class));
+                        any(io.github.matrixlane.metadataregistry.web.dto.common.ItemRegistrationRequest.class));
 
         UUID id = UUID.randomUUID();
         DataElement existing = new DataElement();
@@ -142,7 +141,6 @@ class DataElementServiceTest {
         service.update(id, request);
         verify(itemAdministrationService, never())
                 .recordSubmission(any(io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.Item.class),
-                        any(io.github.matrixlane.metadataregistry.web.dto.common.ItemRegistrationRequest.class),
-                        any(io.github.matrixlane.metadataregistry.commonfacilities.registration.SubmissionRecordSource.class));
+                        any(io.github.matrixlane.metadataregistry.web.dto.common.ItemRegistrationRequest.class));
     }
 }

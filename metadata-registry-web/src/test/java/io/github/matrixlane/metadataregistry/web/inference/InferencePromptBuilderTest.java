@@ -4,7 +4,6 @@ import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basic
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.Context;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.Slot;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.Sign;
-import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.Acceptability;
 import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.Designation;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationStatus;
 import io.github.matrixlane.metadataregistry.dataspecification.DataElement;
@@ -68,7 +67,7 @@ class InferencePromptBuilderTest {
         assertThat(prompt).contains("条目类型：DataElement");
         assertThat(prompt).contains("首选指称：患者标识");
         assertThat(prompt).contains("标识：MDR:DE0001@1.0");
-        assertThat(prompt).contains("患者标识符（语种: zh-CN；来源文档: 数据元字典；首选；上下文: 临床文档（首选））");
+        assertThat(prompt).contains("患者标识符（语种: zh-CN；来源文档: 数据元字典；上下文: 临床文档（首选））");
         assertThat(prompt).contains("数据元概念（DEC）首选指称：患者");
         assertThat(prompt).contains("值域（VD）首选指称：标识符类型");
         assertThat(prompt).contains("扩展槽（slot）：");
@@ -104,12 +103,12 @@ class InferencePromptBuilderTest {
         when(itemAdministrationService.mapDesignations(any())).thenReturn(List.of());
         when(itemAdministrationService.mapDefinitions(any())).thenReturn(List.of(
                 new TextLineResponse(UUID.randomUUID(), null, "zh-CN", "用于唯一标识患者的代码。",
-                        UUID.randomUUID(), "术语表", List.of(), Acceptability.PREFERRED)));
+                        UUID.randomUUID(), "术语表", List.of())));
 
         String prompt = promptBuilder.build(itemId, List.of("definition"), "zh-CN", null, 3);
 
         assertThat(prompt).contains("定义（definition）：");
-        assertThat(prompt).contains("用于唯一标识患者的代码。（语种: zh-CN；来源文档: 术语表；首选）");
+        assertThat(prompt).contains("用于唯一标识患者的代码。（语种: zh-CN；来源文档: 术语表）");
     }
 
     @Test
@@ -119,7 +118,7 @@ class InferencePromptBuilderTest {
         when(itemAdministrationService.buildItemMeta(any())).thenReturn(meta(null, null));
         when(itemAdministrationService.mapDesignations(any())).thenReturn(List.of(
                 new TextLineResponse(UUID.randomUUID(), null, "zh-CN", longDefinition,
-                        null, null, List.of(), null)));
+                        null, null, List.of())));
         when(itemAdministrationService.mapDefinitions(any())).thenReturn(List.of());
 
         String prompt = promptBuilder.build(itemId, List.of("definition"), "zh-CN", null, 3);
@@ -213,8 +212,7 @@ class InferencePromptBuilderTest {
                 "患者标识符",
                 UUID.randomUUID(),
                 "数据元字典",
-                List.of(new TextLineContextResponse(UUID.randomUUID(), "临床文档", "PREFERRED")),
-                Acceptability.PREFERRED);
+                List.of(new TextLineContextResponse(UUID.randomUUID(), "临床文档", "PREFERRED")));
     }
 
     private DataElementConcept decWithName(String name) {

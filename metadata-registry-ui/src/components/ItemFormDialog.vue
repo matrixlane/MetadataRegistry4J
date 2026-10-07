@@ -215,15 +215,6 @@
                   class="submission-record-row"
                   data-testid="submission-record-row"
                 >
-                  <div class="submission-record-source">
-                    <el-tag
-                      :type="sr.source === 'USER_SUBMISSION' ? 'success' : 'info'"
-                      size="small"
-                      data-testid="submission-record-source-tag"
-                    >
-                      {{ $t('itemForm.submissionRecords.source.' + sr.source) }}
-                    </el-tag>
-                  </div>
                   <el-descriptions :column="1" size="small" border>
                     <el-descriptions-item :label="$t('itemForm.submissionRecords.contact')">
                       {{ sr.contactLabel || '—' }}
@@ -1387,10 +1378,6 @@ defineExpose({ open, form });
 
 .submission-record-row {
   padding: 8px 0;
-}
-
-.submission-record-source {
-  margin-bottom: 6px;
 }
 </style>
 

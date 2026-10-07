@@ -25,7 +25,6 @@ import io.github.matrixlane.metadataregistry.commonfacilities.registration.Regis
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegisteredItem;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.StewardshipRecord;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.SubmissionRecord;
-import io.github.matrixlane.metadataregistry.commonfacilities.registration.SubmissionRecordSource;
 import io.github.matrixlane.metadataregistry.web.dto.common.SubmissionRecordSummary;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Contact;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Organization;
@@ -176,7 +175,6 @@ public class ItemAdministrationService {
             d.setSource(loadSourceOrNull(line.sourceId()));
             d.getNamingConventions().clear();
             applyNamingConventions(d, line.namingConventionIds());
-            d.setAcceptability(line.acceptability());
             d.getDesignationContexts().clear();
             if (line.contexts() != null) {
                 for (var ce : line.contexts()) {
@@ -307,7 +305,6 @@ public class ItemAdministrationService {
             d.setText(Text.of(line.value()));
             d.setLanguage(resolveLanguage(line.languageId()));
             d.setSource(loadSourceOrNull(line.sourceId()));
-            d.setAcceptability(line.acceptability());
             d.getDefinitionContexts().clear();
             if (line.contexts() != null) {
                 for (var ce : line.contexts()) {
@@ -530,7 +527,7 @@ public class ItemAdministrationService {
     /**
      * 提交记录（Submission_Record，add-submitter-contact-identity / align-submission-record-to-iso）：
      * 工作空间提交（单条 / request-candidate）调用本方法创建一条 SubmissionRecord 并关联单个
-     * AdministeredItem。{@code source} 必传：工作空间提交固定为 {@link SubmissionRecordSource#USER_SUBMISSION}。
+     * AdministeredItem。
      *
      * <p>编辑保存路径不再调用本方法（参见 add-submitter-contact-identity 旧版历史与
      * align-submission-record-to-iso 重构）。批量提交应使用 {@link #recordSubmissionForBatch}。</p>
@@ -538,11 +535,7 @@ public class ItemAdministrationService {
      * <p>联系人与所属组织取 {@code submission} 块；未显式提供时按提交者默认联系人及其所属组织预填。
      * 显式给出的联系人 MUST 属于当前账号绑定的 Contact。无 AdministeredItem 或无认证（系统路径）时跳过。</p>
      */
-    public void recordSubmission(Item item, ItemRegistrationRequest req, SubmissionRecordSource source) {
-        if (source == null) {
-            throw new BusinessException(ApiCodes.VALIDATION_FAILED,
-                    "recordSubmission 必须显式指定 SubmissionRecordSource");
-        }
+    public void recordSubmission(Item item, ItemRegistrationRequest req) {
         if (req == null || item == null || item.getId() == null || isRestoreInProgress()) {
             return;
         }
@@ -559,21 +552,16 @@ public class ItemAdministrationService {
         if (pair == null) {
             return;
         }
-        persistSubmissionRecord(List.of(administeredItem), pair.contact(), pair.organization(), source);
+        persistSubmissionRecord(List.of(administeredItem), pair.contact(), pair.organization());
     }
 
     /**
      * 批量提交记录（align-submission-record-to-iso）：工作空间批量提交一次调用本方法，
      * 创建一条 SubmissionRecord 关联所有传入 Item；按 ISO/IEC 11179-3:2023 表 27"一次提交动作"语义。
-     * 源固定 {@link SubmissionRecordSource#USER_SUBMISSION}。
      *
      * @param items 至少一条 Item；空集合抛错
      */
-    public void recordSubmissionForBatch(List<Item> items, SubmissionInfo submission, SubmissionRecordSource source) {
-        if (source == null) {
-            throw new BusinessException(ApiCodes.VALIDATION_FAILED,
-                    "recordSubmissionForBatch 必须显式指定 SubmissionRecordSource");
-        }
+    public void recordSubmissionForBatch(List<Item> items, SubmissionInfo submission) {
         if (items == null || items.isEmpty()) {
             throw new BusinessException(ApiCodes.VALIDATION_FAILED, "批量提交至少包含一条管理项");
         }
@@ -598,7 +586,7 @@ public class ItemAdministrationService {
         if (pair == null) {
             return;
         }
-        persistSubmissionRecord(administeredItems, pair.contact(), pair.organization(), source);
+        persistSubmissionRecord(administeredItems, pair.contact(), pair.organization());
     }
 
     private record ContactOrganizationPair(Contact contact, Organization organization) {
@@ -694,12 +682,10 @@ public class ItemAdministrationService {
     }
 
     private void persistSubmissionRecord(List<AdministeredItem> administeredItems,
-                                        Contact contact, Organization organization,
-                                        SubmissionRecordSource source) {
+                                        Contact contact, Organization organization) {
         SubmissionRecord record = new SubmissionRecord();
         record.setContact(contact);
         record.setOrganization(organization);
-        record.setSource(source);
         // SubmissionRecord.registeredItems 是 @ManyToMany 关联到 RegisteredItem；
         // AdministeredItem 继承 RegisteredItem，可直接放入。
         List<RegisteredItem> itemsAsRegistered = new ArrayList<>(administeredItems.size());
@@ -1057,8 +1043,7 @@ public class ItemAdministrationService {
                     d.getSource() == null ? null : d.getSource().getId(),
                     d.getSource() == null || d.getSource().getTitle() == null
                             ? null : d.getSource().getTitle().getValue(),
-                    mapDesignationContexts(d),
-                    d.getAcceptability()));
+                    mapDesignationContexts(d)));
         }
         return out;
     }
@@ -1077,8 +1062,7 @@ public class ItemAdministrationService {
                     d.getSource() == null ? null : d.getSource().getId(),
                     d.getSource() == null || d.getSource().getTitle() == null
                             ? null : d.getSource().getTitle().getValue(),
-                    mapDefinitionContexts(d),
-                    d.getAcceptability()));
+                    mapDefinitionContexts(d)));
         }
         return out;
     }

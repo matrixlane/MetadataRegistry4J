@@ -1,9 +1,6 @@
 package io.github.matrixlane.metadataregistry.dataspecification;
 
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.Concept;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.JoinTable;
-import jakarta.persistence.ManyToMany;
 import jakarta.persistence.OneToMany;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -22,13 +19,9 @@ public class ValueMeaning extends Concept {
     private List<ValueMeaningSet> valueMeaningSets = new ArrayList<>();
 
     /**
-     * 只允许存在一个当前有效的允许值含义。
+     * 经 Permissible_Value_Meaning 关联类（ISO/IEC 11179-31:2023 7.4.3.2）反向关联：
+     * PVM 表上的 value_meaning_id 外键即绑定关系，不再使用冗余连接表。
      */
-    @ManyToMany
-    @JoinTable(
-            name = "value_meaning_permissible_value_meaning",
-            joinColumns = @JoinColumn(name = "value_meaning_id"),
-            inverseJoinColumns = @JoinColumn(name = "permissible_value_meaning_id")
-    )
+    @OneToMany(mappedBy = "valueMeaning")
     private List<PermissibleValueMeaning> permissibleValueMeanings = new ArrayList<>();
 }

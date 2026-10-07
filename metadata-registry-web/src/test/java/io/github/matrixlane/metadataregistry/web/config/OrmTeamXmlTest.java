@@ -14,7 +14,7 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * orm-team.xml 漂移守卫:28 个 EXT 实体全限定名可达、表名与实体解析一致、
+ * orm-team.xml 漂移守卫:30 个 EXT 实体全限定名可达、表名与实体解析一致、
  * 全部落在 ext schema。清单依据 design.md 第 3 节(含 V20260901015 补迁的 interop 两表
  * 与 V20261008001 RA Primary 标志卫星)。
  */
@@ -35,6 +35,8 @@ class OrmTeamXmlTest {
             Map.entry("io.github.matrixlane.metadataregistry.ext.designationanddefinition.NamingConventionRules", "naming_convention_rules"),
             Map.entry("io.github.matrixlane.metadataregistry.ext.generation.AiGenerationRecord", "ai_generation_record"),
             Map.entry("io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Account", "account"),
+            Map.entry("io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationTransitionRule", "registration_transition_rule"),
+            Map.entry("io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationTransitionApproval", "registration_transition_approval"),
             Map.entry("io.github.matrixlane.metadataregistry.itemmapping.entity.FhirElementMapping", "fhir_element_mapping"),
             Map.entry("io.github.matrixlane.metadataregistry.itemmapping.entity.InteropMapping", "interop_mapping"),
             Map.entry("io.github.matrixlane.metadataregistry.datasetregistration.entity.InteropDataSet", "interop_data_set"),

@@ -111,17 +111,17 @@ public class RegistryContextBootstrapService {
 
         List<TextLine> designations = List.of(
                 new TextLine(null, en.getId(), "Registry Context", null,
-                        selfContext(), null, null, Acceptability.PREFERRED),
+                        selfContext(), null, null),
                 new TextLine(null, zh.getId(), REGISTRY_CONTEXT_ZH_DESIGNATION, null,
-                        selfContext(), null, null, Acceptability.PREFERRED)
+                        selfContext(), null, null)
         );
         List<TextLine> definitions = List.of(
                 new TextLine(null, en.getId(),
                         "The default context for this registry: the setting in which designations are used to designate and definitions are used to define registry items.",
-                        null, selfContext(), null, null, Acceptability.PREFERRED),
+                        null, selfContext(), null, null),
                 new TextLine(null, zh.getId(),
                         "本注册表的上下文：指称用于指称注册项、定义用于定义注册项的语境。",
-                        null, selfContext(), null, null, Acceptability.PREFERRED)
+                        null, selfContext(), null, null)
         );
 
         itemAdministrationService.applyDesignations(managed, designations, ns.getId());

@@ -59,15 +59,12 @@ public class Designation extends Entity {
     private List<Namespace> namespaces = new ArrayList<>();
 
     // cascade + orphanRemoval：DesignationContext 的持久化由本侧驱动（inverse 集合
-    // 无级联时 flush 从不落库，designation_context_relation 恒为空表）。
+    // 无级联时 flush 从不落库，designation_context 恒为空表）。
     @OneToMany(mappedBy = "designation", cascade = jakarta.persistence.CascadeType.ALL, orphanRemoval = true)
     private List<DesignationContext> designationContexts = new ArrayList<>();
 
     @OneToMany(mappedBy = "designation")
     private List<DesignationDefinitionPairing> designationDefinitionPairings = new ArrayList<>();
-
-    @jakarta.persistence.Column(name = "acceptability")
-    private Acceptability acceptability;
 
     /**
      * ISO/IEC 11179-3:2023, 8.6.5 — naming_convention_conformance association.
@@ -75,7 +72,7 @@ public class Designation extends Entity {
      */
     @ManyToMany
     @JoinTable(
-            name = "designation_naming_convention",
+            name = "naming_convention_conformance",
             joinColumns = @JoinColumn(name = "designation_id"),
             inverseJoinColumns = @JoinColumn(name = "naming_convention_id")
     )

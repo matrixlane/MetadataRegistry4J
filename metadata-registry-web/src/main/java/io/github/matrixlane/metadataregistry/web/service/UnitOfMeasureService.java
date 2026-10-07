@@ -23,7 +23,7 @@ import java.util.UUID;
 
 /**
  * UnitOfMeasure(Concept 子类)管理服务。
- * unit_of_measure_measure_class：UoM 侧 1..*，关联按 id 整体替换，
+ * unit_of_measure_class：UoM 侧 1..*，关联按 id 整体替换，
  * null/空按业务校验拒绝(422)。
  */
 @Service

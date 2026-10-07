@@ -15,6 +15,6 @@ public record UnitOfMeasureRequest(
         List<TextLine> definitions,
         @Valid
         ItemRegistrationRequest registration,
-        /** unit_of_measure_measure_class：UoM 侧 1..*，必须至少归属一个计量类。 */
+        /** unit_of_measure_class：UoM 侧 1..*，必须至少归属一个计量类。 */
         List<UUID> measureClassIds) {
 }

@@ -7,7 +7,7 @@ import type { MyContactResponse } from '@/types/common';
 
 type DialogVm = InstanceType<typeof ItemFormDialog> & {
   contacts: MyContactResponse[];
-  form: { registration: { stewardship: { contactId: string | null; organizationId: string | null }; submissionRecordSummaries?: Array<{ id: string; source: string; contactLabel?: string | null; organizationLabel?: string | null; registeredItemCount: number; registeredItemIds: string[] }> } };
+  form: { registration: { stewardship: { contactId: string | null; organizationId: string | null }; submissionRecordSummaries?: Array<{ id: string; contactLabel?: string | null; organizationLabel?: string | null; registeredItemCount: number; registeredItemIds: string[] }> } };
   onContactChange: (id: string) => void;
   onStewardshipContactChange: (id: string) => void;
   handleSubmit: () => Promise<void>;
@@ -661,7 +661,6 @@ describe('ItemFormDialog 提交信息预填', () => {
         submissionRecordSummaries: [
           {
             id: 'sr-1',
-            source: 'USER_SUBMISSION',
             contactLabel: '张三',
             organizationLabel: '示例组织',
             registeredItemCount: 1,

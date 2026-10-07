@@ -17,9 +17,9 @@ import java.util.UUID;
 
 @StandardReference("ISO/IEC 11179-3:2023, 8.5.1")
 @jakarta.persistence.Entity
-@Table(name = "definition_context_relation", indexes = {
-        @jakarta.persistence.Index(name = "idx_definition_context_relation_definition_id", columnList = "definition_id"),
-        @jakarta.persistence.Index(name = "idx_definition_context_relation_context_id", columnList = "context_id")
+@Table(name = "definition_context", indexes = {
+        @jakarta.persistence.Index(name = "idx_definition_context_definition_id", columnList = "definition_id"),
+        @jakarta.persistence.Index(name = "idx_definition_context_context_id", columnList = "context_id")
 })
 @Getter
 @Setter

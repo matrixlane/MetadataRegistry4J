@@ -229,10 +229,10 @@ public class MetadataSearchService {
 
         if (contextId != null) {
             String contextFilter = " AND (EXISTS (SELECT 1 FROM " + t("designation") + " d_ctx " +
-                    "JOIN " + t("designation_context_relation") + " dc ON dc.designation_id = d_ctx.id " +
+                    "JOIN " + t("designation_context") + " dc ON dc.designation_id = d_ctx.id " +
                     "WHERE d_ctx.item_id = i.id AND dc.context_id = ?)" +
                     " OR EXISTS (SELECT 1 FROM " + t("definition") + " df_ctx " +
-                    "JOIN " + t("definition_context_relation") + " dfc ON dfc.definition_id = df_ctx.id " +
+                    "JOIN " + t("definition_context") + " dfc ON dfc.definition_id = df_ctx.id " +
                     "WHERE df_ctx.item_id = i.id AND dfc.context_id = ?))";
             where.append(contextFilter);
             countParams.add(contextId);
@@ -247,10 +247,14 @@ public class MetadataSearchService {
                 if (i > 0) placeholders.append(",");
                 placeholders.append("?");
             }
+            // 可接受性仅存在于上下文关系（ISO/IEC 11179-3:2023 8.5）：经 Designation_Context/
+            // Definition_Context 过滤（mdr-standard-compliance-cleanup 后主表无 acceptability 列）。
             String acceptabilityFilter = " AND (EXISTS (SELECT 1 FROM " + t("designation") + " d_acc " +
-                    "WHERE d_acc.item_id = i.id AND d_acc.acceptability IN (" + placeholders + "))" +
+                    "JOIN " + t("designation_context") + " dc_acc ON dc_acc.designation_id = d_acc.id " +
+                    "WHERE d_acc.item_id = i.id AND dc_acc.acceptability IN (" + placeholders + "))" +
                     " OR EXISTS (SELECT 1 FROM " + t("definition") + " df_acc " +
-                    "WHERE df_acc.item_id = i.id AND df_acc.acceptability IN (" + placeholders + ")))";
+                    "JOIN " + t("definition_context") + " dfc_acc ON dfc_acc.definition_id = df_acc.id " +
+                    "WHERE df_acc.item_id = i.id AND dfc_acc.acceptability IN (" + placeholders + ")))";
             where.append(acceptabilityFilter);
             for (Acceptability acc : acceptabilities) {
                 countParams.add(acc.name());
@@ -288,9 +292,11 @@ public class MetadataSearchService {
 
         // EXISTS 不能直接作 SELECT 列表标量表达式(SQL Server 报 156),包一层 CASE WHEN
         String hasPreferred = "CASE WHEN EXISTS (SELECT 1 FROM " + t("designation") + " d_pref " +
-                "WHERE d_pref.item_id = i.id AND d_pref.acceptability = 'PREFERRED')" +
+                "JOIN " + t("designation_context") + " dc_pref ON dc_pref.designation_id = d_pref.id " +
+                "WHERE d_pref.item_id = i.id AND dc_pref.acceptability = 'PREFERRED')" +
                 " OR EXISTS (SELECT 1 FROM " + t("definition") + " df_pref " +
-                "WHERE df_pref.item_id = i.id AND df_pref.acceptability = 'PREFERRED') THEN 1 ELSE 0 END";
+                "JOIN " + t("definition_context") + " dfc_pref ON dfc_pref.definition_id = df_pref.id " +
+                "WHERE df_pref.item_id = i.id AND dfc_pref.acceptability = 'PREFERRED') THEN 1 ELSE 0 END";
 
         String itemTypeExpr = itemTypeExprFor(typeFilter);
         String matchTypeLiteral = exactMatch ? "'EXACT'" : "'PARTIAL'";

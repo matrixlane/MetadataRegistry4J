@@ -251,7 +251,6 @@ public class VersionHistoryService {
                 node.put("id", d.getId() == null ? null : d.getId().toString());
                 node.put("value", d.getSign() == null ? null : d.getSign().getValue());
                 node.put("language", d.getLanguage() == null ? null : d.getLanguage().getLanguageIdentifier());
-                node.put("acceptability", d.getAcceptability() == null ? null : d.getAcceptability().name());
                 ArrayNode contexts = node.putArray("contexts");
                 if (d.getDesignationContexts() != null) {
                     for (DesignationContext dc : d.getDesignationContexts()) {
@@ -271,7 +270,6 @@ public class VersionHistoryService {
                 node.put("id", d.getId() == null ? null : d.getId().toString());
                 node.put("value", d.getText() == null ? null : d.getText().getValue());
                 node.put("language", d.getLanguage() == null ? null : d.getLanguage().getLanguageIdentifier());
-                node.put("acceptability", d.getAcceptability() == null ? null : d.getAcceptability().name());
                 ArrayNode contexts = node.putArray("contexts");
                 if (d.getDefinitionContexts() != null) {
                     for (DefinitionContext dc : d.getDefinitionContexts()) {

@@ -376,15 +376,15 @@ class RegistrationAuthorityDeletionServiceIntegrationTest {
                 ctx1.getId(), ctx2.getId(), attachedCtx.getId(), raNs.getId());
         UUID contextRef = ctxB.getId();
         for (UUID designationId : designationIds) {
-            insert("INSERT INTO designation_context_relation (id, acceptability, context_id, designation_id) VALUES (?, 'PREFERRED', ?, ?)",
+            insert("INSERT INTO designation_context (id, acceptability, context_id, designation_id) VALUES (?, 'PREFERRED', ?, ?)",
                     UUID.randomUUID(), contextRef, designationId);
             insert("INSERT INTO designation_namespace (designation_id, namespace_id) VALUES (?, ?)",
                     designationId, raNsId);
-            insert("INSERT INTO designation_naming_convention (designation_id, naming_convention_id) VALUES (?, ?)",
+            insert("INSERT INTO naming_convention_conformance (designation_id, naming_convention_id) VALUES (?, ?)",
                     designationId, UUID.randomUUID());
         }
         for (UUID definitionId : definitionIds) {
-            insert("INSERT INTO definition_context_relation (id, acceptability, context_id, definition_id) VALUES (?, 'PREFERRED', ?, ?)",
+            insert("INSERT INTO definition_context (id, acceptability, context_id, definition_id) VALUES (?, 'PREFERRED', ?, ?)",
                     UUID.randomUUID(), contextRef, definitionId);
         }
         if (!designationIds.isEmpty() && !definitionIds.isEmpty()) {
@@ -399,11 +399,11 @@ class RegistrationAuthorityDeletionServiceIntegrationTest {
         List<UUID> survivingDefinitionIds = queryUuidList(
                 "SELECT id FROM definition WHERE item_id = ?", ctxB.getId());
         for (UUID designationId : survivingDesignationIds) {
-            insert("INSERT INTO designation_context_relation (id, acceptability, context_id, designation_id) VALUES (?, 'PREFERRED', ?, ?)",
+            insert("INSERT INTO designation_context (id, acceptability, context_id, designation_id) VALUES (?, 'PREFERRED', ?, ?)",
                     UUID.randomUUID(), ctx1.getId(), designationId);
         }
         for (UUID definitionId : survivingDefinitionIds) {
-            insert("INSERT INTO definition_context_relation (id, acceptability, context_id, definition_id) VALUES (?, 'PREFERRED', ?, ?)",
+            insert("INSERT INTO definition_context (id, acceptability, context_id, definition_id) VALUES (?, 'PREFERRED', ?, ?)",
                     UUID.randomUUID(), ctx1.getId(), definitionId);
         }
         if (!survivingDesignationIds.isEmpty() && !survivingDefinitionIds.isEmpty()) {
@@ -456,9 +456,9 @@ class RegistrationAuthorityDeletionServiceIntegrationTest {
                 UUID.randomUUID(), mrId, ctx1.getId());
         UUID mappingId = UUID.randomUUID();
         insert("INSERT INTO item_mapping (id, degree) VALUES (?, 'same as')", mappingId);
-        insert("INSERT INTO item_mapping_subject (id, item_mapping_id, item_id) VALUES (?, ?, ?)",
+        insert("INSERT INTO subject_mapping (id, item_mapping_id, item_id) VALUES (?, ?, ?)",
                 UUID.randomUUID(), mappingId, ctx1.getId());
-        insert("INSERT INTO item_mapping_object (id, item_mapping_id, item_id) VALUES (?, ?, ?)",
+        insert("INSERT INTO object_mapping (id, item_mapping_id, item_id) VALUES (?, ?, ?)",
                 UUID.randomUUID(), mappingId, ctx1.getId());
 
         // ---- 汇总"被删 id 集合"供零残留扫描 ----

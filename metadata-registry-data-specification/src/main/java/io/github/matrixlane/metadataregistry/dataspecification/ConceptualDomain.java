@@ -43,7 +43,7 @@ public abstract class ConceptualDomain extends Concept {
 
     @ManyToMany
     @JoinTable(
-            name = "conceptual_domain_dec",
+            name = "data_element_concept_domain",
             joinColumns = @JoinColumn(name = "conceptual_domain_id"),
             inverseJoinColumns = @JoinColumn(name = "data_element_concept_id")
     )

@@ -3,7 +3,6 @@ package io.github.matrixlane.metadataregistry.web.inference;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.Context;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.Item;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.Slot;
-import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.Acceptability;
 import io.github.matrixlane.metadataregistry.dataspecification.DataElement;
 import io.github.matrixlane.metadataregistry.web.common.ResourceNotFoundException;
 import io.github.matrixlane.metadataregistry.web.dto.common.ItemMetaResponse;
@@ -186,9 +185,6 @@ public class InferencePromptBuilder {
                 if (notBlank(line.sourceTitle())) {
                     prompt.append("；来源文档: ").append(truncate(line.sourceTitle()));
                 }
-                if (line.acceptability() == Acceptability.PREFERRED) {
-                    prompt.append("；首选");
-                }
                 appendContexts(prompt, line.contexts());
                 prompt.append("）\n");
             }
@@ -202,9 +198,6 @@ public class InferencePromptBuilder {
                         .append("（语种: ").append(line.languageCode() == null ? "未知" : line.languageCode());
                 if (notBlank(line.sourceTitle())) {
                     prompt.append("；来源文档: ").append(truncate(line.sourceTitle()));
-                }
-                if (line.acceptability() == Acceptability.PREFERRED) {
-                    prompt.append("；首选");
                 }
                 appendContexts(prompt, line.contexts());
                 prompt.append("）\n");

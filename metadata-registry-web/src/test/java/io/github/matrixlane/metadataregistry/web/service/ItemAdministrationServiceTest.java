@@ -18,7 +18,6 @@ import io.github.matrixlane.metadataregistry.commonfacilities.registration.Regis
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationStatus;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.StewardshipRecord;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.SubmissionRecord;
-import io.github.matrixlane.metadataregistry.commonfacilities.registration.SubmissionRecordSource;
 import io.github.matrixlane.metadataregistry.ext.basicandcore.ContactAccountBinding;
 import io.github.matrixlane.metadataregistry.web.common.BusinessException;
 import io.github.matrixlane.metadataregistry.web.dto.common.ItemMetaResponse;
@@ -134,7 +133,7 @@ class ItemAdministrationServiceTest {
         when(namingConventionEngine.validate(any())).thenReturn(List.of());
         when(languageRepository.findById(languageId)).thenReturn(Optional.of(lang));
 
-        TextLine line = new TextLine(existing.getId(), languageId, "新指称", null, null, null, true, null);
+        TextLine line = new TextLine(existing.getId(), languageId, "新指称", null, null, null, true);
 
         itemAdministrationService.applyDesignations(item, List.of(line));
 
@@ -156,7 +155,7 @@ class ItemAdministrationServiceTest {
         when(namingConventionEngine.validate(any())).thenReturn(List.of());
         when(languageRepository.findById(languageId)).thenReturn(Optional.of(lang));
 
-        TextLine line = new TextLine(null, languageId, "保留指称", null, null, null, true, null);
+        TextLine line = new TextLine(null, languageId, "保留指称", null, null, null, true);
 
         itemAdministrationService.applyDesignations(item, List.of(line));
 
@@ -178,7 +177,7 @@ class ItemAdministrationServiceTest {
         when(namingConventionEngine.validate(any())).thenReturn(List.of());
         when(languageRepository.findById(languageId)).thenReturn(Optional.of(lang));
 
-        TextLine line = new TextLine(null, languageId, "另一个指称", null, null, null, true, null);
+        TextLine line = new TextLine(null, languageId, "另一个指称", null, null, null, true);
 
         assertThatThrownBy(() -> itemAdministrationService.applyDesignations(item, List.of(line)))
                 .isInstanceOf(BusinessException.class)
@@ -197,7 +196,7 @@ class ItemAdministrationServiceTest {
 
         when(languageRepository.findById(languageId)).thenReturn(Optional.of(lang));
 
-        TextLine line = new TextLine(existing.getId(), languageId, "新定义", null, null, null, true, null);
+        TextLine line = new TextLine(existing.getId(), languageId, "新定义", null, null, null, true);
 
         itemAdministrationService.applyDefinitions(item, List.of(line));
 
@@ -218,7 +217,7 @@ class ItemAdministrationServiceTest {
 
         when(languageRepository.findById(languageId)).thenReturn(Optional.of(lang));
 
-        TextLine line = new TextLine(null, languageId, "另一个定义", null, null, null, true, null);
+        TextLine line = new TextLine(null, languageId, "另一个定义", null, null, null, true);
 
         assertThatThrownBy(() -> itemAdministrationService.applyDefinitions(item, List.of(line)))
                 .isInstanceOf(BusinessException.class)
@@ -1449,7 +1448,7 @@ class ItemAdministrationServiceTest {
         SubmissionInfo submission = new SubmissionInfo(null, orgId);
 
         assertThatThrownBy(() -> itemAdministrationService.recordSubmissionForBatch(
-                List.of(persisted), submission, SubmissionRecordSource.USER_SUBMISSION))
+                List.of(persisted), submission))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("请先创建为该机构联系人");
         verify(submissionRecordRepository, never()).save(any(SubmissionRecord.class));
@@ -1476,7 +1475,7 @@ class ItemAdministrationServiceTest {
         SubmissionInfo submission = new SubmissionInfo(contactInB.getId(), orgA.getId());
 
         assertThatThrownBy(() -> itemAdministrationService.recordSubmissionForBatch(
-                List.of(persisted), submission, SubmissionRecordSource.USER_SUBMISSION))
+                List.of(persisted), submission))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("必须属于所选提交组织");
         verify(submissionRecordRepository, never()).save(any(SubmissionRecord.class));
@@ -1500,7 +1499,7 @@ class ItemAdministrationServiceTest {
         SubmissionInfo submission = new SubmissionInfo(contact.getId(), null);
 
         itemAdministrationService.recordSubmissionForBatch(
-                List.of(persisted), submission, SubmissionRecordSource.USER_SUBMISSION);
+                List.of(persisted), submission);
 
         ArgumentCaptor<SubmissionRecord> captor =
                 ArgumentCaptor.forClass(SubmissionRecord.class);
@@ -1526,7 +1525,7 @@ class ItemAdministrationServiceTest {
         SubmissionInfo submission = new SubmissionInfo(null, org.getId());
 
         itemAdministrationService.recordSubmissionForBatch(
-                List.of(persisted), submission, SubmissionRecordSource.USER_SUBMISSION);
+                List.of(persisted), submission);
 
         ArgumentCaptor<SubmissionRecord> captor =
                 ArgumentCaptor.forClass(SubmissionRecord.class);
@@ -1556,7 +1555,7 @@ class ItemAdministrationServiceTest {
         SubmissionInfo submission = new SubmissionInfo(null, org.getId());
 
         itemAdministrationService.recordSubmissionForBatch(
-                List.of(persisted), submission, SubmissionRecordSource.USER_SUBMISSION);
+                List.of(persisted), submission);
 
         ArgumentCaptor<SubmissionRecord> captor =
                 ArgumentCaptor.forClass(SubmissionRecord.class);
@@ -1584,7 +1583,7 @@ class ItemAdministrationServiceTest {
         SubmissionInfo submission = new SubmissionInfo(null, org.getId());
 
         itemAdministrationService.recordSubmissionForBatch(
-                List.of(persisted), submission, SubmissionRecordSource.USER_SUBMISSION);
+                List.of(persisted), submission);
 
         ArgumentCaptor<SubmissionRecord> captor =
                 ArgumentCaptor.forClass(SubmissionRecord.class);

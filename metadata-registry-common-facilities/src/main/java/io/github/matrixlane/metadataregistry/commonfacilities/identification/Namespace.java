@@ -105,7 +105,7 @@ public class Namespace extends Item {
      */
     @ManyToMany
     @JoinTable(
-            name = "namespace_naming_convention",
+            name = "naming_convention_utilization",
             joinColumns = @JoinColumn(name = "namespace_id"),
             inverseJoinColumns = @JoinColumn(name = "naming_convention_id")
     )

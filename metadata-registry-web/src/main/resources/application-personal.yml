@@ -38,6 +38,9 @@ spring:
     # Flyway 检查 mdr.flyway_schema_history 会报 no such table: mdr.sqlite_master 启动失败。
     # 此处显式清空 schema 列表（profile 特定配置优先于导入配置）。
     schemas: []
+    # 外部导入配置为 SQL Server 设定了 default-schema: ext；SQLite 无 schema 概念，
+    # 显式置空避免 Flyway 把 SQLite 历史表指向不存在的 ext schema。
+    default-schema: ${FLYWAY_DEFAULT_SCHEMA:}
     # 基线版本继承 application.yml 的 20260918002(既有库经 baseline-on-migrate 基线化,
     # 只应用两个带幂等守卫的新迁移;既有 personal 库由此获得预置名称)。
     # 已知限制:全新 personal 空库无核心表,而全量重放老迁移在 V20260727001 即失败
