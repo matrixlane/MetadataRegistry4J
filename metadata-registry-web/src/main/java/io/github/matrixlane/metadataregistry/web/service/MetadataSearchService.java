@@ -247,22 +247,24 @@ public class MetadataSearchService {
                 if (i > 0) placeholders.append(",");
                 placeholders.append("?");
             }
-            // 可接受性仅存在于上下文关系（ISO/IEC 11179-3:2023 8.5）：经 Designation_Context/
+            // 可接受性仅存在于上下文关系（ISO/IEC 11179-3:2023 8.5），经 Designation_Context/
             // Definition_Context 过滤（mdr-standard-compliance-cleanup 后主表无 acceptability 列）。
+            // AcceptabilityConverter 落库为小写（ISO 表 20），此处统一 lower 比对——
+            // SQLite/达梦默认大小写敏感，大写字面量会恒不匹配。
             String acceptabilityFilter = " AND (EXISTS (SELECT 1 FROM " + t("designation") + " d_acc " +
                     "JOIN " + t("designation_context") + " dc_acc ON dc_acc.designation_id = d_acc.id " +
-                    "WHERE d_acc.item_id = i.id AND dc_acc.acceptability IN (" + placeholders + "))" +
+                    "WHERE d_acc.item_id = i.id AND LOWER(dc_acc.acceptability) IN (" + placeholders + "))" +
                     " OR EXISTS (SELECT 1 FROM " + t("definition") + " df_acc " +
                     "JOIN " + t("definition_context") + " dfc_acc ON dfc_acc.definition_id = df_acc.id " +
-                    "WHERE df_acc.item_id = i.id AND dfc_acc.acceptability IN (" + placeholders + ")))";
+                    "WHERE df_acc.item_id = i.id AND LOWER(dfc_acc.acceptability) IN (" + placeholders + ")))";
             where.append(acceptabilityFilter);
             for (Acceptability acc : acceptabilities) {
-                countParams.add(acc.name());
-                selectParams.add(acc.name());
+                countParams.add(acc.name().toLowerCase(java.util.Locale.ROOT));
+                selectParams.add(acc.name().toLowerCase(java.util.Locale.ROOT));
             }
             for (Acceptability acc : acceptabilities) {
-                countParams.add(acc.name());
-                selectParams.add(acc.name());
+                countParams.add(acc.name().toLowerCase(java.util.Locale.ROOT));
+                selectParams.add(acc.name().toLowerCase(java.util.Locale.ROOT));
             }
         }
 
@@ -293,10 +295,10 @@ public class MetadataSearchService {
         // EXISTS 不能直接作 SELECT 列表标量表达式(SQL Server 报 156),包一层 CASE WHEN
         String hasPreferred = "CASE WHEN EXISTS (SELECT 1 FROM " + t("designation") + " d_pref " +
                 "JOIN " + t("designation_context") + " dc_pref ON dc_pref.designation_id = d_pref.id " +
-                "WHERE d_pref.item_id = i.id AND dc_pref.acceptability = 'PREFERRED')" +
+                "WHERE d_pref.item_id = i.id AND LOWER(dc_pref.acceptability) = 'preferred')" +
                 " OR EXISTS (SELECT 1 FROM " + t("definition") + " df_pref " +
                 "JOIN " + t("definition_context") + " dfc_pref ON dfc_pref.definition_id = df_pref.id " +
-                "WHERE df_pref.item_id = i.id AND dfc_pref.acceptability = 'PREFERRED') THEN 1 ELSE 0 END";
+                "WHERE df_pref.item_id = i.id AND LOWER(dfc_pref.acceptability) = 'preferred') THEN 1 ELSE 0 END";
 
         String itemTypeExpr = itemTypeExprFor(typeFilter);
         String matchTypeLiteral = exactMatch ? "'EXACT'" : "'PARTIAL'";

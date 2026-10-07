@@ -71,6 +71,10 @@ public class V20261009001__MdrStandardComplianceCleanup extends BaseJavaMigratio
         for (Map.Entry<String, String> e : RENAMES.entrySet()) {
             mergeOrRename(conn, e.getKey(), e.getValue());
         }
+        // 子表回填：内联值先入子表再删列（幂等去重；本库审计为空、老快照库非空）
+        backfillChild(conn, "slot", "value", "slot_value");
+        backfillChild(conn, "role", "email_address", "role_email");
+        backfillChild(conn, "role", "phone_number", "role_phone");
         for (Map.Entry<String, String[]> e : DROPPED_COLUMNS.entrySet()) {
             for (String col : e.getValue()) {
                 if (tableExists(conn, e.getKey()) && columnExists(conn, e.getKey(), col)) {
@@ -93,7 +97,9 @@ public class V20261009001__MdrStandardComplianceCleanup extends BaseJavaMigratio
             return;
         }
         java.util.List<String> cols = commonColumns(conn, oldName, newName);
-        assert !cols.isEmpty() : "旧表 " + oldName + " 与新表 " + newName + " 无公共列";
+        if (cols.isEmpty()) {
+            throw new SQLException("旧表 " + oldName + " 与新表 " + newName + " 无公共列,无法合并");
+        }
         String colList = String.join(", ", cols);
         String mergeSql;
         if (cols.contains("id")) {
@@ -120,6 +126,19 @@ public class V20261009001__MdrStandardComplianceCleanup extends BaseJavaMigratio
         java.util.List<String> cols = new java.util.ArrayList<>(java.util.Arrays.asList(columns(conn, a)));
         cols.retainAll(java.util.Arrays.asList(columns(conn, b)));
         return cols;
+    }
+
+    /** 把主表内联列的非空值回填进多值子表（幂等去重），随后由统一流程删列。 */
+    private static void backfillChild(Connection conn, String table, String column, String childTable)
+            throws SQLException {
+        if (!tableExists(conn, table) || !tableExists(conn, childTable) || !columnExists(conn, table, column)) {
+            return;
+        }
+        execute(conn, "INSERT INTO " + childTable + " (" + table + "_id, value)"
+                + " SELECT o.id, o." + column + " FROM " + table + " o"
+                + " WHERE o." + column + " IS NOT NULL"
+                + " AND NOT EXISTS (SELECT 1 FROM " + childTable + " v"
+                + " WHERE v." + table + "_id = o.id AND v.value = o." + column + ")");
     }
 
     private static boolean tableExists(Connection conn, String name) throws SQLException {

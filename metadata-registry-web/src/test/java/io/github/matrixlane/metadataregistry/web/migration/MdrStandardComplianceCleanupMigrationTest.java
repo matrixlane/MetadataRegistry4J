@@ -184,6 +184,55 @@ class MdrStandardComplianceCleanupMigrationTest {
     }
 
     @Test
+    @DisplayName("V20261009001(sqlite): 新旧名并存（ddl-auto 预建）→ 按 id/全行去重合并后删旧表")
+    void flywayReplayMergesWhenBothNamesExist() throws Exception {
+        Path dbFile = tempDir.resolve("both-names-exist.db");
+        String jdbcUrl = "jdbc:sqlite:" + dbFile;
+
+        try (Connection conn = DriverManager.getConnection(jdbcUrl);
+             Statement st = conn.createStatement()) {
+            // 新名表已由 ddl-auto 按实体建出并含既有数据
+            st.execute("CREATE TABLE designation_context (id blob, acceptability varchar(16), context_id blob, designation_id blob)");
+            st.execute("INSERT INTO designation_context (id) VALUES (X'01')");
+            st.execute("CREATE TABLE subject_mapping (id blob, item_mapping_id blob, item_id blob, mapping_variable_name varchar(255))");
+            st.execute("INSERT INTO subject_mapping (id, item_mapping_id, item_id) VALUES (X'0A', X'01', X'01')");
+            // 旧名表残留数据：designation 按 id 去重（id=01 已存在跳过、id=02 并入）；
+            // subject_mapping 旧行 id=0A 与新表同 id 跳过、id=0C 新行并入
+            st.execute("CREATE TABLE designation_context_relation (id blob, acceptability varchar(16), context_id blob, designation_id blob)");
+            st.execute("INSERT INTO designation_context_relation (id) VALUES (X'01')");
+            st.execute("INSERT INTO designation_context_relation (id) VALUES (X'02')");
+            st.execute("CREATE TABLE item_mapping_subject (id blob, item_mapping_id blob, item_id blob, mapping_variable_name varchar(255))");
+            st.execute("INSERT INTO item_mapping_subject (id, item_mapping_id, item_id) VALUES (X'0A', X'01', X'01')");
+            st.execute("INSERT INTO item_mapping_subject (id, item_mapping_id, item_id) VALUES (X'0C', X'02', X'02')");
+        }
+
+        Flyway flyway = Flyway.configure()
+                .dataSource(jdbcUrl, "", "")
+                .locations("classpath:db/migration/sqlite")
+                .baselineOnMigrate(true)
+                .baselineVersion(MigrationVersion.fromVersion(BASELINE))
+                .target(MigrationVersion.fromVersion(FLYWAY_VERSION))
+                .load();
+        flyway.migrate();
+
+        try (Connection conn = DriverManager.getConnection(jdbcUrl);
+             Statement st = conn.createStatement()) {
+            // 按 id 去重：id=01 已存在不重复插；id=02 并入 → 2 行
+            try (ResultSet rs = st.executeQuery("SELECT COUNT(*) FROM designation_context")) {
+                rs.next();
+                assertThat(rs.getInt(1)).isEqualTo(2);
+            }
+            // 按 id 去重：id=0A 已存在不重复插；id=0C 并入 → 2 行
+            try (ResultSet rs = st.executeQuery("SELECT COUNT(*) FROM subject_mapping")) {
+                rs.next();
+                assertThat(rs.getInt(1)).isEqualTo(2);
+            }
+            List<String> tables = tables(st);
+            assertThat(tables).doesNotContain("designation_context_relation", "item_mapping_subject");
+        }
+    }
+
+    @Test
     @DisplayName("V20261009001(sqlite): 二次启动 Flyway 不再重复应用（一次语义）")
     void secondFlywayRunIsNoOp() throws Exception {
         Path dbFile = tempDir.resolve("existing-restart.db");

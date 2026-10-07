@@ -44,7 +44,10 @@ public class DatabaseEnvironment {
             "item_link", "merge_request", "merge_request_item",
             "namespace_permission", "registry_node", "sync_watermark", "system_setting", "version_history",
             // V20261009001 注册状态流转审批工作流（非标准表）迁 ext：orm-team.xml 登记 schema="ext"
-            "registration_transition_rule", "registration_transition_approval");
+            // （仅实体类）；registration_transition_rule_approver 为 @ElementCollection 集合表、
+            // 无法经 orm.xml 登记，由本清单兜底——RegistrationAuthorityDeletionService 经 qualifyAuto 访问。
+            "registration_transition_rule", "registration_transition_approval",
+            "registration_transition_rule_approver");
 
     private final DatabaseVendor vendor;
     private final String schema;

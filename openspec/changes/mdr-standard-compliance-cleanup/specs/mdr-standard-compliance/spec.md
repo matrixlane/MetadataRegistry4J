@@ -18,7 +18,7 @@
 
 ### Requirement: mdr 标准表不得包含非标准列
 
-`mdr` schema 中标准类对应的表 MUST 只包含标准定义的属性列（含关系映射所需的技术列：主键 id、关联外键 `<关联端>_id`、多值属性子表），MUST NOT 残留应用扩展列。本批次删除的列：`namespace.identifier_input_mode/manual_identifier_pattern/version_input_mode/versioning_policy`、`scoped_identifier.identifier_creation_mode/version_creation_mode/version_status/created_at/published_at/deprecated_at/obsolete_at`、`naming_convention.rules_json`、`language_identification.enabled`、`contact.account_id`、`data_type_scheme.reference`、`slot.value/value_datatype`、`role.email_address/phone_number`（内联）、`designation.acceptability`、`definition.acceptability`、`submission_record.source`。扩展语义 MUST 经 `ext` schema 卫星表承载。
+`mdr` schema 中标准类对应的表 MUST 只包含标准定义的属性列（含关系映射所需的技术列：主键 id、关联外键 `<关联端>_id`、多值属性子表），MUST NOT 残留应用扩展列。本批次删除的 22 个 (表,列) 对：`namespace.identifier_input_mode/manual_identifier_pattern/version_input_mode/versioning_policy`、`scoped_identifier.identifier_creation_mode/version_creation_mode/version_status/created_at/published_at/deprecated_at/obsolete_at`、`naming_convention.rules_json`、`language_identification.enabled`、`contact.account_id`、`data_type_scheme.reference`、`slot.value/value_datatype`、`role.email_address/phone_number`（内联）、`designation.acceptability`、`definition.acceptability`、`submission_record.source`。扩展语义 MUST 经 `ext` schema 卫星表承载。
 
 #### Scenario: 存量库残留列被清除
 
