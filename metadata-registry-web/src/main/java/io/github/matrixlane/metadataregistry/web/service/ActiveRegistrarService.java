@@ -28,8 +28,10 @@ import java.util.UUID;
  * <p>Registrar 是注册工作的执行身份：注册 Administered_Item 必须持有活动
  * Registrar 身份，所注册条目一定关联该身份所在的 Registration_Authority；
  * 修改/删除已归属条目时，当前用户必须以归属机构的 Registrar 身份为活动身份。
- * 用户可同时持有多个 Registrar 身份，但同一时刻只有一个活动身份；选择持久化
- * 在账号的 {@code active_registrar_id}，失效（身份被撤销）时回退到首个有效身份。
+ * 用户可同时持有多个 Registrar 身份，但同一时刻只有一个活动身份；激活恒随账号的
+ * 默认注册人员身份（activation-follows-default），{@code active_registrar_id} 仅为
+ * 同步缓存，默认身份变更后下一次解析自动跟随（默认绑定缺失或非 Registrar 时回退
+ * 首个有效身份）。
  */
 @Service
 @RequiredArgsConstructor
@@ -70,13 +72,9 @@ public class ActiveRegistrarService {
     }
 
     /**
-     * 解析账号的活动 Registrar 身份（default-registrar-auto-activation 三段链）：
-     * <ol>
-     *   <li>账号上持久化的选择仍命中有效身份 → 直接返回（只读）；</li>
-     *   <li>否则取账号默认绑定的联系人，其本身是有效 Registrar 身份 → 激活并写回
-     *       {@code active_registrar_id} 后返回；</li>
-     *   <li>否则兜底首个有效身份并同样写回持久化后返回。</li>
-     * </ol>
+     * 解析账号的活动 Registrar 身份（activation-follows-default：激活恒随默认注册人员身份）。
+     * 目标身份 = 账号默认绑定对应的有效 Registrar 身份（默认绑定缺失或非 Registrar 时回退
+     * 首个有效身份）；{@code active_registrar_id} 仅作同步缓存——与目标不一致时写回。
      * 无任何身份时返回空。
      */
     public Optional<Registrar> resolveActiveRegistrar(UUID accountId) {
@@ -86,23 +84,14 @@ public class ActiveRegistrarService {
         if (identities.isEmpty()) {
             return Optional.empty();
         }
-        Account account = accountRepository.findById(accountId).orElse(null);
-        UUID activeId = account != null ? account.getActiveRegistrarId() : null;
-        if (activeId != null) {
-            Optional<Registrar> selected = identities.stream()
-                    .filter(r -> r.getId().equals(activeId))
-                    .findFirst();
-            if (selected.isPresent()) {
-                return selected;
-            }
-        }
         Registrar active = contactAccountBindingService.defaultBindingOf(accountId)
                 .map(io.github.matrixlane.metadataregistry.ext.basicandcore.ContactAccountBinding::getContactId)
                 .flatMap(contactId -> identities.stream()
                         .filter(r -> r.getId().equals(contactId))
                         .findFirst())
                 .orElseGet(() -> identities.get(0));
-        if (account != null) {
+        Account account = accountRepository.findById(accountId).orElse(null);
+        if (account != null && !active.getId().equals(account.getActiveRegistrarId())) {
             account.setActiveRegistrarId(active.getId());
             accountRepository.save(account);
         }
@@ -147,6 +136,9 @@ public class ActiveRegistrarService {
                 .orElseThrow(() -> new ResourceNotFoundException("Account", accountId));
         account.setActiveRegistrarId(registrarId);
         accountRepository.save(account);
+        // 激活恒随默认注册人员身份：显式激活同步把该身份设为默认绑定，
+        // 使下一次解析（含其他会话）仍落回该身份。
+        contactAccountBindingService.markDefault(accountId, registrar.getId());
         return toIdentity(registrar);
     }
 

@@ -61,7 +61,28 @@ class ActiveRegistrarServiceTest {
     }
 
     @Test
-    void resolve_honorsPersistedSelection() {
+    void resolve_persistedDiffersFromDefault_followsDefaultAndSaves() {
+        // activation-follows-default：持久化身份与默认注册人员身份不一致时，跟随默认并写回
+        UUID accountId = UUID.randomUUID();
+        Registrar first = newRegistrar(newRa());
+        Registrar second = newRegistrar(newRa());
+        when(contactAccountBindingService.registrarsOfAccount(accountId)).thenReturn(List.of(first, second));
+        Account account = new Account();
+        account.setActiveRegistrarId(first.getId()); // 旧的持久化激活（默认已改到 second）
+        when(accountRepository.findById(accountId)).thenReturn(Optional.of(account));
+        when(contactAccountBindingService.defaultBindingOf(accountId))
+                .thenReturn(Optional.of(new ContactAccountBinding(second.getId(), accountId, true)));
+
+        Optional<Registrar> active = service.resolveActiveRegistrar(accountId);
+
+        assertThat(active).contains(second);
+        assertThat(account.getActiveRegistrarId()).isEqualTo(second.getId());
+        verify(accountRepository).save(account);
+    }
+
+    @Test
+    void resolve_persistedEqualsDefault_doesNotSave() {
+        // 持久化已等于默认身份 → 零写库
         UUID accountId = UUID.randomUUID();
         Registrar first = newRegistrar(newRa());
         Registrar second = newRegistrar(newRa());
@@ -69,10 +90,13 @@ class ActiveRegistrarServiceTest {
         Account account = new Account();
         account.setActiveRegistrarId(second.getId());
         when(accountRepository.findById(accountId)).thenReturn(Optional.of(account));
+        when(contactAccountBindingService.defaultBindingOf(accountId))
+                .thenReturn(Optional.of(new ContactAccountBinding(second.getId(), accountId, true)));
 
         Optional<Registrar> active = service.resolveActiveRegistrar(accountId);
 
         assertThat(active).contains(second);
+        verify(accountRepository, never()).save(any(Account.class));
     }
 
     @Test
@@ -93,7 +117,7 @@ class ActiveRegistrarServiceTest {
 
     @Test
     void resolve_persistedValidSelection_doesNotSave() {
-        // 链 1：持久化身份仍有效 → 直接返回，零写库、不查询默认绑定
+        // 持久化身份仍有效且恰为默认注册人员身份 → 直接返回，零写库
         UUID accountId = UUID.randomUUID();
         Registrar first = newRegistrar(newRa());
         Registrar second = newRegistrar(newRa());
@@ -101,12 +125,13 @@ class ActiveRegistrarServiceTest {
         Account account = new Account();
         account.setActiveRegistrarId(second.getId());
         when(accountRepository.findById(accountId)).thenReturn(Optional.of(account));
+        when(contactAccountBindingService.defaultBindingOf(accountId))
+                .thenReturn(Optional.of(new ContactAccountBinding(second.getId(), accountId, true)));
 
         Optional<Registrar> active = service.resolveActiveRegistrar(accountId);
 
         assertThat(active).contains(second);
         verify(accountRepository, never()).save(any(Account.class));
-        verify(contactAccountBindingService, never()).defaultBindingOf(any());
     }
 
     @Test
