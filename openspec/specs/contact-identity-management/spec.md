@@ -50,7 +50,7 @@ Registrar 行 SHALL 同时允许修改 Role、Individual、Organization 三要�
 
 ### Requirement: 身份列表可见性
 
-"我的"入口 SHALL 展示当前账号的全部联系人身份与 Registrar 身份：包括每个身份的名称、所属组织、角色、是否为 Registrar、Registrar 所属注册机构（如适用）及是否默认。用户 SHALL 能区分自建联系人身份与 Registrar 身份。默认身份 MUST 始终展示在列表首位，其余身份保持绑定顺序。
+"我的"入口 SHALL 展示当前账号的全部联系人身份与 Registrar 身份：包括每个身份的名称、所属组织、角色、是否为 Registrar、Registrar 所属注册机构（如适用）及是否默认。用户 SHALL 能区分自建联系人身份与 Registrar 身份。列表 SHALL 按绑定顺序展示，默认身份 MUST NOT 因默认标记而改变展示位置。
 
 #### Scenario: 多身份同列展示
 
@@ -60,7 +60,7 @@ Registrar 行 SHALL 同时允许修改 Role、Individual、Organization 三要�
 #### Scenario: 默认身份置顶
 
 - **WHEN** 用户的默认联系人身份不是最早绑定的一条
-- **THEN** 列表将默认身份展示在首位，其余身份保持原绑定顺序
+- **THEN** 列表仍按绑定顺序展示，默认身份不置顶（仅以默认标记区分）
 
 ### Requirement: 首登完善联系人提示
 
