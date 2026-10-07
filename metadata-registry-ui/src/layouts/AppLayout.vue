@@ -2,30 +2,8 @@
   <div class="app-layout">
     <header class="app-header">
       <div class="header-left">
-        <el-dropdown
-          v-if="activeRegistrar.identities.length > 1"
-          trigger="click"
-          @command="switchActiveRegistrar"
-        >
-          <el-tag type="success" effect="light" round style="cursor: pointer;" data-testid="header-active-registrar">
-            {{ activeRegistrar.active?.registrationAuthorityName || '选择 Registrar 身份' }}
-            <el-icon style="margin-left: 4px;"><ArrowDown /></el-icon>
-          </el-tag>
-          <template #dropdown>
-            <el-dropdown-menu>
-              <el-dropdown-item
-                v-for="identity in activeRegistrar.identities"
-                :key="identity.registrarId"
-                :command="identity.registrarId"
-              >
-                <el-icon v-if="identity.registrarId === activeRegistrar.active?.registrarId" style="margin-right: 4px;"><Check /></el-icon>
-                {{ identity.registrationAuthorityName || $t('common.unknownRegistrar') }}
-              </el-dropdown-item>
-            </el-dropdown-menu>
-          </template>
-        </el-dropdown>
         <el-tag
-          v-else-if="activeRegistrar.active"
+          v-if="activeRegistrar.active"
           type="success"
           effect="light"
           round
@@ -452,33 +430,6 @@
         <router-view />
       </main>
 
-    <!-- 活动 Registrar 身份选择（多身份用户登录后必选） -->
-    <el-dialog
-      v-model="showIdentityDialog"
-      title="选择活动 Registrar 身份"
-      :show-close="true"
-      :close-on-click-modal="false"
-      width="420px"
-    >
-      <p style="margin: 0 0 12px; font-size: 14px; line-height: 1.6;">
-        您持有多个注册机构的 Registrar 身份。注册工作将以所选活动身份进行，所注册条目将归属该身份所在的注册机构。
-      </p>
-      <el-radio-group v-model="identitySelection" style="display: flex; flex-direction: column; gap: 8px;">
-        <el-radio
-          v-for="identity in activeRegistrar.identities"
-          :key="identity.registrarId"
-          :value="identity.registrarId"
-        >
-          {{ identity.registrationAuthorityName || $t('common.unknownRegistrar') }}
-        </el-radio>
-      </el-radio-group>
-      <template #footer>
-        <el-button type="primary" :disabled="!identitySelection" @click="confirmIdentitySelection">
-          确认
-        </el-button>
-      </template>
-    </el-dialog>
-
     <!-- 首登完善联系人信息提示（改密弹窗优先级更高） -->
     <el-dialog
       :model-value="showProfilePromptDialog"
@@ -618,7 +569,7 @@ import AiChatWindow from '@/components/assistant/AiChatWindow.vue';
 import { assistantSettingsApi } from '@/api/assistant';
 import { DEFAULT_HOTKEYS, parseHotkey, eventMatchesHotkey } from '@/utils/hotkey';
 import type { ParsedHotkey } from '@/utils/hotkey';
-import { Reading, ArrowDown, Check, Briefcase } from '@element-plus/icons-vue';
+import { Reading, Briefcase } from '@element-plus/icons-vue';
 import type { FormInstance } from 'element-plus';
 import { ElMessage } from 'element-plus';
 import request from '@/utils/request';
@@ -649,45 +600,19 @@ const defaultLanguageAlertText = computed(() => {
 
 const collapsed = ref(false);
 
-// ── Active Registrar 身份（active-registrar-ownership）──────────────────
+// ── Active Registrar 身份（default-registrar-auto-activation，仅只读展示）──
 const activeRegistrar = ref<ActiveRegistrarResponse>({ active: null, identities: [] });
-const showIdentityDialog = ref(false);
-const identitySelection = ref<string>('');
 
 async function loadActiveRegistrar() {
   if (!auth.user) return;
   try {
     const res = await activeRegistrarApi.current();
     activeRegistrar.value = res;
-    identitySelection.value = res.active?.registrarId || '';
     // 通知依赖活动 Registrar 身份的对话框/页面重新拉取（default-namespace-by-active-registrar）
     window.dispatchEvent(new CustomEvent('mdregistry:active-registrar-changed'));
-    // 多身份用户登录后需选择一个活动身份方可进行注册工作
-    if (res.identities.length > 1) {
-      showIdentityDialog.value = true;
-    }
   } catch {
     activeRegistrar.value = { active: null, identities: [] };
   }
-}
-
-async function switchActiveRegistrar(registrarId: string) {
-  try {
-    const res = await activeRegistrarApi.select(registrarId);
-    activeRegistrar.value = res;
-    identitySelection.value = res.active?.registrarId || '';
-    // 通知依赖活动 Registrar 身份的对话框/页面重新拉取（default-namespace-by-active-registrar）
-    window.dispatchEvent(new CustomEvent('mdregistry:active-registrar-changed'));
-    ElMessage.success('已切换活动 Registrar 身份');
-  } catch (err: any) {
-    ElMessage.error(err?.response?.data?.message || '切换失败');
-  }
-}
-
-async function confirmIdentitySelection() {
-  if (!identitySelection.value) return;
-  await switchActiveRegistrar(identitySelection.value);
-  showIdentityDialog.value = false;
 }
 
 onMounted(loadActiveRegistrar);

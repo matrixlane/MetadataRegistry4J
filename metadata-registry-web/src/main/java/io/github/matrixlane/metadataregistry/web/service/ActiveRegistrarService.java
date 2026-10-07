@@ -70,10 +70,15 @@ public class ActiveRegistrarService {
     }
 
     /**
-     * 解析账号的活动 Registrar 身份：优先账号上持久化的选择；未选择或已选身份
-     * 失效（绑定被撤销）时回退到首个有效身份。无任何身份时返回空。
+     * 解析账号的活动 Registrar 身份（default-registrar-auto-activation 三段链）：
+     * <ol>
+     *   <li>账号上持久化的选择仍命中有效身份 → 直接返回（只读）；</li>
+     *   <li>否则取账号默认绑定的联系人，其本身是有效 Registrar 身份 → 激活并写回
+     *       {@code active_registrar_id} 后返回；</li>
+     *   <li>否则兜底首个有效身份并同样写回持久化后返回。</li>
+     * </ol>
+     * 无任何身份时返回空。
      */
-    @Transactional(readOnly = true)
     public Optional<Registrar> resolveActiveRegistrar(UUID accountId) {
         List<Registrar> identities = contactAccountBindingService.registrarsOfAccount(accountId).stream()
                 .filter(r -> r.getRegistrationAuthority() != null)
@@ -91,23 +96,33 @@ public class ActiveRegistrarService {
                 return selected;
             }
         }
-        return Optional.of(identities.get(0));
+        Registrar active = contactAccountBindingService.defaultBindingOf(accountId)
+                .map(io.github.matrixlane.metadataregistry.ext.basicandcore.ContactAccountBinding::getContactId)
+                .flatMap(contactId -> identities.stream()
+                        .filter(r -> r.getId().equals(contactId))
+                        .findFirst())
+                .orElseGet(() -> identities.get(0));
+        if (account != null) {
+            account.setActiveRegistrarId(active.getId());
+            accountRepository.save(account);
+        }
+        return Optional.of(active);
     }
 
     /**
      * 解析活动 Registrar 身份并在事务内映射为视图对象。供控制器使用：
      * {@link #toIdentity(Registrar)} 需要访问注册机构的名称集合（懒加载），
      * 必须在会话存活期间完成映射，否则控制器层会抛 LazyInitializationException。
+     * 不能声明 readOnly：解析链在派生时会写回 {@code active_registrar_id}。
      */
-    @Transactional(readOnly = true)
     public Optional<RegistrarIdentity> resolveActiveIdentity(UUID accountId) {
         return resolveActiveRegistrar(accountId).map(ActiveRegistrarService::toIdentity);
     }
 
     /**
      * 当前登录用户的活动 Registrar；无认证或无身份时返回空。
+     * 不能声明 readOnly：解析链在派生时会写回 {@code active_registrar_id}。
      */
-    @Transactional(readOnly = true)
     public Optional<Registrar> resolveForCurrentUser() {
         UUID accountId = currentAccountIdOrNull();
         return accountId == null ? Optional.empty() : resolveActiveRegistrar(accountId);

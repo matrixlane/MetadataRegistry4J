@@ -5,6 +5,7 @@ import ElementPlus from 'element-plus';
 import type { VueWrapper } from '@vue/test-utils';
 import AppLayout from './AppLayout.vue';
 import { useAiChatStore } from '@/stores/aiChat';
+import { activeRegistrarApi } from '@/api/resources';
 
 const state = vi.hoisted(() => ({
   isRegistrarUser: true,
@@ -270,5 +271,41 @@ describe('AppLayout 首登完善联系人提示', () => {
     state.user = { id: 'user-1', username: 'registrar-1', displayName: '注册员', profilePrompt: true, forceChangePassword: true };
     await mountLayout();
     expect(body().querySelector('[data-testid="profile-prompt-dialog"]')).toBeNull();
+  });
+});
+
+const mockedActiveCurrent = vi.mocked(activeRegistrarApi.current);
+
+describe('AppLayout 活动 Registrar 只读展示（default-registrar-auto-activation）', () => {
+  const identityA = { registrarId: 'reg-1', registrationAuthorityId: 'ra-1', registrationAuthorityName: '甲注册机构' };
+  const identityB = { registrarId: 'reg-2', registrationAuthorityId: 'ra-2', registrationAuthorityName: '乙注册机构' };
+
+  afterEach(() => {
+    mockedActiveCurrent.mockResolvedValue({ active: null, identities: [] });
+  });
+
+  it('多身份响应下渲染只读 tag，无下拉切换交互且不调用 select', async () => {
+    mockedActiveCurrent.mockResolvedValue({ active: identityA, identities: [identityA, identityB] });
+    const { wrapper } = await mountLayout();
+    const tag = wrapper.find('[data-testid="header-active-registrar"]');
+    expect(tag.exists()).toBe(true);
+    expect(tag.text()).toContain('甲注册机构');
+    expect(wrapper.find('.el-dropdown').exists()).toBe(false);
+    expect(wrapper.find('.el-dropdown-menu').exists()).toBe(false);
+    expect(activeRegistrarApi.select).not.toHaveBeenCalled();
+  });
+
+  it('单身份响应同样渲染只读 tag 展示 registrationAuthorityName', async () => {
+    mockedActiveCurrent.mockResolvedValue({ active: identityA, identities: [identityA] });
+    const { wrapper } = await mountLayout();
+    const tag = wrapper.find('[data-testid="header-active-registrar"]');
+    expect(tag.exists()).toBe(true);
+    expect(tag.text()).toContain('甲注册机构');
+  });
+
+  it('active 为 null 时不渲染 tag', async () => {
+    mockedActiveCurrent.mockResolvedValue({ active: null, identities: [identityA, identityB] });
+    const { wrapper } = await mountLayout();
+    expect(wrapper.find('[data-testid="header-active-registrar"]').exists()).toBe(false);
   });
 });

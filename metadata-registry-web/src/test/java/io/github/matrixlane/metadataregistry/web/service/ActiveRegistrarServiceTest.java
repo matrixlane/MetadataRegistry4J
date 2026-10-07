@@ -4,6 +4,7 @@ import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basic
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.AdministeredItem;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.Registrar;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationAuthority;
+import io.github.matrixlane.metadataregistry.ext.basicandcore.ContactAccountBinding;
 import io.github.matrixlane.metadataregistry.web.auth.AccountRepository;
 import io.github.matrixlane.metadataregistry.web.common.BusinessException;
 import io.github.matrixlane.metadataregistry.web.repository.AdministeredItemRepository;
@@ -86,6 +87,84 @@ class ActiveRegistrarServiceTest {
         Optional<Registrar> active = service.resolveActiveRegistrar(accountId);
 
         assertThat(active).contains(first);
+    }
+
+    // ---- default-registrar-auto-activation：默认绑定驱动解析链 ----
+
+    @Test
+    void resolve_persistedValidSelection_doesNotSave() {
+        // 链 1：持久化身份仍有效 → 直接返回，零写库、不查询默认绑定
+        UUID accountId = UUID.randomUUID();
+        Registrar first = newRegistrar(newRa());
+        Registrar second = newRegistrar(newRa());
+        when(contactAccountBindingService.registrarsOfAccount(accountId)).thenReturn(List.of(first, second));
+        Account account = new Account();
+        account.setActiveRegistrarId(second.getId());
+        when(accountRepository.findById(accountId)).thenReturn(Optional.of(account));
+
+        Optional<Registrar> active = service.resolveActiveRegistrar(accountId);
+
+        assertThat(active).contains(second);
+        verify(accountRepository, never()).save(any(Account.class));
+        verify(contactAccountBindingService, never()).defaultBindingOf(any());
+    }
+
+    @Test
+    void resolve_defaultBindingIsRegistrar_activatesAndSaves() {
+        // 链 2：默认绑定的联系人即有效 Registrar 身份 → 激活并写回持久化
+        UUID accountId = UUID.randomUUID();
+        Registrar first = newRegistrar(newRa());
+        Registrar second = newRegistrar(newRa());
+        when(contactAccountBindingService.registrarsOfAccount(accountId)).thenReturn(List.of(first, second));
+        Account account = new Account();
+        when(accountRepository.findById(accountId)).thenReturn(Optional.of(account));
+        when(contactAccountBindingService.defaultBindingOf(accountId))
+                .thenReturn(Optional.of(new ContactAccountBinding(second.getId(), accountId, true)));
+
+        Optional<Registrar> active = service.resolveActiveRegistrar(accountId);
+
+        assertThat(active).contains(second);
+        assertThat(account.getActiveRegistrarId()).isEqualTo(second.getId());
+        verify(accountRepository).save(account);
+    }
+
+    @Test
+    void resolve_defaultBindingIsPlainContact_fallsBackToFirstAndSaves() {
+        // 链 2 不命中（默认绑定是普通 Contact 而非 Registrar 身份）→ 链 3 兜底首个并写回
+        UUID accountId = UUID.randomUUID();
+        Registrar first = newRegistrar(newRa());
+        Registrar second = newRegistrar(newRa());
+        when(contactAccountBindingService.registrarsOfAccount(accountId)).thenReturn(List.of(first, second));
+        Account account = new Account();
+        when(accountRepository.findById(accountId)).thenReturn(Optional.of(account));
+        when(contactAccountBindingService.defaultBindingOf(accountId))
+                .thenReturn(Optional.of(new ContactAccountBinding(UUID.randomUUID(), accountId, true)));
+
+        Optional<Registrar> active = service.resolveActiveRegistrar(accountId);
+
+        assertThat(active).contains(first);
+        assertThat(account.getActiveRegistrarId()).isEqualTo(first.getId());
+        verify(accountRepository).save(account);
+    }
+
+    @Test
+    void resolve_persistedIdRevoked_rederivesViaDefaultBindingAndSaves() {
+        // 链 1 失效（持久化 id 已被撤销）→ 重派生：默认绑定为 Registrar 时激活它
+        UUID accountId = UUID.randomUUID();
+        Registrar first = newRegistrar(newRa());
+        Registrar second = newRegistrar(newRa());
+        when(contactAccountBindingService.registrarsOfAccount(accountId)).thenReturn(List.of(first, second));
+        Account account = new Account();
+        account.setActiveRegistrarId(UUID.randomUUID()); // 已撤销的身份
+        when(accountRepository.findById(accountId)).thenReturn(Optional.of(account));
+        when(contactAccountBindingService.defaultBindingOf(accountId))
+                .thenReturn(Optional.of(new ContactAccountBinding(second.getId(), accountId, true)));
+
+        Optional<Registrar> active = service.resolveActiveRegistrar(accountId);
+
+        assertThat(active).contains(second);
+        assertThat(account.getActiveRegistrarId()).isEqualTo(second.getId());
+        verify(accountRepository).save(account);
     }
 
     @Test

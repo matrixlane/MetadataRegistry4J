@@ -74,10 +74,30 @@ class ContactServiceMyContactsTest {
         List<MyContactResponse> result = contactService.listMyContacts(accountId);
 
         assertThat(result).hasSize(2);
-        assertThat(result.get(0).isRegistrar()).isFalse();
-        assertThat(result.get(0).isDefault()).isFalse();
-        assertThat(result.get(1).isRegistrar()).isTrue();
-        assertThat(result.get(1).isDefault()).isTrue();
+        // default-registrar-auto-activation：默认身份置顶，即使它不是首个绑定
+        assertThat(result.get(0).isRegistrar()).isTrue();
+        assertThat(result.get(0).isDefault()).isTrue();
+        assertThat(result.get(1).isRegistrar()).isFalse();
+        assertThat(result.get(1).isDefault()).isFalse();
+    }
+
+    @Test
+    void listMyContacts_defaultBindingSortsFirst_keepsRestInBindingOrder() {
+        // 稳定排序：默认身份排首位，其余保持原绑定顺序
+        Contact c1 = new Contact();
+        c1.setId(UUID.randomUUID());
+        Contact c2 = new Contact();
+        c2.setId(UUID.randomUUID());
+        Contact c3 = new Contact();
+        c3.setId(UUID.randomUUID());
+        when(bindingService.bindingsOfAccount(accountId))
+                .thenReturn(List.of(binding(c1.getId(), false), binding(c2.getId(), true),
+                        binding(c3.getId(), false)));
+        when(contactRepository.findAllById(any())).thenReturn(List.of(c1, c2, c3));
+
+        List<MyContactResponse> result = contactService.listMyContacts(accountId);
+
+        assertThat(result).extracting(MyContactResponse::id).containsExactly(c2.getId(), c1.getId(), c3.getId());
     }
 
     @Test
