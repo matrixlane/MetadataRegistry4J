@@ -3,12 +3,14 @@ package io.github.matrixlane.metadataregistry.web.service;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Account;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.LanguageIdentification;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationAuthority;
+import io.github.matrixlane.metadataregistry.ext.registration.RegistrationAuthorityExtension;
 import io.github.matrixlane.metadataregistry.web.auth.AccountRepository;
 import io.github.matrixlane.metadataregistry.web.config.IdentifierStrategyLoader;
 import io.github.matrixlane.metadataregistry.web.dto.initwizard.InitWizardSetupRequest;
 import io.github.matrixlane.metadataregistry.web.repository.IdentifierStrategyConfigRepository;
 import io.github.matrixlane.metadataregistry.web.repository.LanguageIdentificationRepository;
 import io.github.matrixlane.metadataregistry.web.repository.NamespaceRepository;
+import io.github.matrixlane.metadataregistry.web.repository.RegistrationAuthorityExtensionRepository;
 import io.github.matrixlane.metadataregistry.web.repository.RegistrationAuthorityRepository;
 import io.github.matrixlane.metadataregistry.web.seed.StaticDataPresetService;
 import io.github.matrixlane.metadataregistry.web.seed.SystemDefaultNamespaceInitializer;
@@ -48,6 +50,9 @@ class InitWizardServiceOrderTest {
     private AccountRepository accountRepository;
     @Mock
     private RegistrationAuthorityRepository registrationAuthorityRepository;
+
+    @Mock
+    private RegistrationAuthorityExtensionRepository registrationAuthorityExtensionRepository;
     @Mock
     private NamespaceRepository namespaceRepository;
     @Mock
@@ -110,11 +115,17 @@ class InitWizardServiceOrderTest {
                 any(), any(), any(), any(), any(), any(), any(), any(), any(),
                 any(), any(), any(), any(), any(), any());
         // setup 对同一 RA 共 save 三次（创建、文档语言、命名空间挂接），全部发生在
-        // createDefault 之后；此处锁定的是顺序与首次 save 的 Primary 标志
+        // createDefault 之后；此处锁定的是顺序与 RA 创建
         ArgumentCaptor<RegistrationAuthority> raCaptor = ArgumentCaptor.forClass(RegistrationAuthority.class);
         inOrder.verify(registrationAuthorityRepository, times(3)).save(raCaptor.capture());
 
-        // 初始化创建的注册机构即 Primary 注册机构
-        assertThat(raCaptor.getAllValues().get(0).isPrimary()).isTrue();
+        // 初始化创建的注册机构即 Primary 注册机构——Primary 为 ext 卫星行，
+        // 紧随 RA 首次保存写入（同事务）
+        ArgumentCaptor<RegistrationAuthorityExtension> extCaptor =
+                ArgumentCaptor.forClass(RegistrationAuthorityExtension.class);
+        inOrder(registrationAuthorityRepository, registrationAuthorityExtensionRepository)
+                .verify(registrationAuthorityExtensionRepository).save(extCaptor.capture());
+        assertThat(extCaptor.getValue().isPrimary()).isTrue();
+        assertThat(extCaptor.getValue().getId()).isEqualTo(raCaptor.getAllValues().get(0).getId());
     }
 }

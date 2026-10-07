@@ -100,6 +100,9 @@ class RegistrationAuthorityDeletionServiceIntegrationTest {
     private RegistrationAuthorityService registrationAuthorityService;
     @Autowired
     private RegistrationAuthorityRepository raRepository;
+
+    @Autowired
+    private io.github.matrixlane.metadataregistry.web.repository.RegistrationAuthorityExtensionRepository registrationAuthorityExtensionRepository;
     @Autowired
     private NamespaceRepository namespaceRepository;
     @Autowired
@@ -211,6 +214,10 @@ class RegistrationAuthorityDeletionServiceIntegrationTest {
         ra.getPhoneNumber().add(io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.PhoneNumber.of("010-12345678"));
         ra = raRepository.save(ra);
         raId = ra.getId();
+        // Primary 标志卫星行（move-ra-primary-to-ext，非 Primary）：卫星行须随级联删除。
+        // 注意不得标 true——个人版删除保护会拒删本用例待删的"被删机构"。
+        registrationAuthorityExtensionRepository.save(
+                new io.github.matrixlane.metadataregistry.ext.registration.RegistrationAuthorityExtension(raId, false));
 
         RegistrationAuthority ra2 = newAuthority("幸存机构");
         ra2 = raRepository.save(ra2);
@@ -633,6 +640,8 @@ class RegistrationAuthorityDeletionServiceIntegrationTest {
         assertZeroRows("namespace", "id", deletedIds.get("namespace_id"));
         assertZeroRows("registrar", "id", deletedIds.get("registrar_id"));
         assertZeroRows("contact", "id", deletedIds.get("contact_id"));
+        // Primary 标志卫星表（ext 卫星行按 RA id 1:1，级联末段补删）
+        assertZeroRows("ext_registration_authority", "id", deletedIds.get("registration_authority_id"));
 
         // 通用零残留扫描：sqlite schema 中所有含 item 指向列、context 指向列或 RA 指向列的表
         Map<String, String> columnToIdSet = Map.ofEntries(
@@ -684,8 +693,11 @@ class RegistrationAuthorityDeletionServiceIntegrationTest {
         systemSettingService.setEdition(DeploymentEdition.PERSONAL);
 
         RegistrationAuthority primary = newAuthority("主要机构");
-        primary.setPrimary(true);
         primary = raRepository.save(primary);
+        // Primary 标志存于 ext 卫星表（move-ra-primary-to-ext）
+        registrationAuthorityExtensionRepository.save(
+                new io.github.matrixlane.metadataregistry.ext.registration.RegistrationAuthorityExtension(
+                        primary.getId(), true));
         registrationProcessService.ensureSeed(primary.getId());
         UUID primaryId = primary.getId();
 

@@ -17,12 +17,14 @@ public class DatabaseEnvironment {
     /**
      * 扩展(EXT)表集:归 ext schema;与 orm/orm-team.xml 清单一致(OrmTeamXmlTest 守卫;含 V20260901015 补迁的 interop 两表)。
      *
-     * <p><b>同名表警示</b>:V20260919001 语言名称扩展与标准表同名——团队库物理名均为
-     * {@code language_identification}(仅以 schema 区分),SQLite 下 EXT 表物理名为
-     * {@code ext_language_identification}。因此本清单中的裸键 {@code language_identification}
-     * 仅代表 EXT 表;标准表 {@code mdr.language_identification} 必须走
-     * {@link #qualify(String)} / {@link #qualifyStandard(String)},
-     * 禁止走 {@link #schemaOf(String)} / {@link #qualifyAuto(String)}(后者会把同名标准表路由到 ext schema)。
+     * <p><b>同名表警示</b>:V20260919001 语言名称扩展与 V20261008001 RA Primary 标志卫星
+     * 均与标准表同名——团队库物理名均为 {@code language_identification} /
+     * {@code registration_authority}(仅以 schema 区分),SQLite 下 EXT 表物理名为
+     * {@code ext_language_identification} / {@code ext_registration_authority}。
+     * 因此本清单中的裸键仅代表 EXT 表;标准表 {@code mdr.language_identification} /
+     * {@code mdr.registration_authority} 必须走 {@link #qualify(String)} /
+     * {@link #qualifyStandard(String)},禁止走 {@link #schemaOf(String)} /
+     * {@link #qualifyAuto(String)}(后者会把同名标准表路由到 ext schema)。
      */
     private static final java.util.Set<String> EXT_TABLES = java.util.Set.of(
             "classification_scheme", "classification_node",
@@ -32,6 +34,9 @@ public class DatabaseEnvironment {
             // V20260919001 语言名称扩展:团队库与标准表同名(language_identification,schema 区分);
             // SQLite 无 schema,物理名加 ext_ 前缀(ext_language_identification)。
             "language_identification", "ext_language_identification",
+            // V20261008001 RA Primary 标志卫星:团队库与标准表同名(registration_authority,schema 区分);
+            // SQLite 物理名加 ext_ 前缀(ext_registration_authority)。标准表禁止走 qualifyAuto。
+            "ext_registration_authority",
             "ai_generation_record",
             "account",
             "fhir_element_mapping", "interop_mapping",

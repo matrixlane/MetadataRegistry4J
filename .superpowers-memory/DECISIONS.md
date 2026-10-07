@@ -61,3 +61,19 @@ Reason: 值域 datatype、值域/概念域 valid_period.start 均为基数 1；�
 Alternatives considered: DB 列改 NOT NULL（被否决，方言风险）；前端必填+预填当日作为 UX 层配合（保留）。
 
 Impact: 保存前缺 start 即 422 拒绝；既有 32 行回填 2026-01-01 占位值（RA 可修）；`MetadataObjectAssociationException` 已映射为参数校验错误（此前落 500）。
+
+### Decision: 非标准扩展字段一律 ext schema 卫星表，mdr 只装标准列
+- id: decision-2026-10-07-mdr-ext-layering
+- type: decision
+- status: active
+- confidence: verified
+- last_updated: 2026-10-07
+- source: openspec/changes/archive/2026-10-05-authority-contact-governance/（is_primary 误落 mdr 后迁出）；openspec/changes/move-ra-primary-to-ext/；AGENTS.md"数据模型分层规则"
+- owner: matrixlane
+- review_after: 2027-01-07
+
+Reason: ISO/IEC 11179 标准表的可审计性要求 mdr schema 严格只含标准定义的表与列；应用扩展（如 Primary 标志、avatar、账号绑定）属软件自身语义，必须隔离在 ext schema 卫星表（1:1 按 id，不建 JPA 关联）。2026-10-05 authority-contact-governance 将 `is_primary` 直接加在 `mdr.registration_authority`（设计时错误类比 dimensionality.coordinate_indicator——后者实为 11179-31 表 22 标准属性），2026-10-07 用户指出后迁出至 `ext.registration_authority`。
+
+Alternatives considered: 标准表加应用列（被否决——破坏标准层纯洁性，违反既往 remove-individual-nonstandard-fields/remove-registrar-identifier 判例）；应用层派生不设列（对"需持久化的隐式标志"不可行）。
+
+Impact: 此后所有表结构设计/迁移评审第一项核对分层规则；AGENTS.md 已写入强制条款。

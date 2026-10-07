@@ -2,7 +2,7 @@
 <!--
   team profile 专属:扩展(EXT)实体的 schema 覆盖(合并模式,仅覆盖 <table> 的 schema,
   其余映射继承注解)。SQLite profile 不加载本文件,实体注解保持无 schema。
-  清单依据 openspec/changes/2026-09-01-mdr-ext-schema-split/design.md 第 3 节(28 个物理表名,含 V20260901015 补迁、ai-governance-assistant 新增与 V20260919001 语言名称扩展;其中 LanguageIdentificationExtension 与标准表同名,SQLite 下物理名为 ext_language_identification,故按物理表名计 28);
+  清单依据 openspec/changes/2026-09-01-mdr-ext-schema-split/design.md 第 3 节(29 个物理表名,含 V20260901015 补迁、ai-governance-assistant 新增、V20260919001 语言名称扩展与 V20261008001 RA Primary 标志卫星;其中 LanguageIdentificationExtension 与标准表同名,SQLite 下物理名为 ext_language_identification,故按物理表名计 29);
   漂移由 OrmTeamXmlTest 校验。
 -->
 <entity-mappings xmlns="https://jakarta.ee/xml/ns/persistence/orm" version="3.1">
@@ -11,7 +11,7 @@
     <entity class="io.github.matrixlane.metadataregistry.datasetregistration.entity.InteropDataSet"><table schema="ext"/></entity>
     <entity class="io.github.matrixlane.metadataregistry.datasetregistration.entity.InteropDataElement"><table schema="ext"/></entity>
 
-    <!-- ext 模块(13 个物理表名,12 实体;LanguageIdentificationExtension 在 SQLite 物理名为 ext_language_identification,口径见头注) -->
+    <!-- ext 模块(14 个物理表名,13 实体;LanguageIdentificationExtension 在 SQLite 物理名为 ext_language_identification,口径见头注) -->
     <entity class="io.github.matrixlane.metadataregistry.ext.classification.ClassificationScheme"><table schema="ext"/></entity>
     <entity class="io.github.matrixlane.metadataregistry.ext.classification.ClassificationNode"><table schema="ext"/></entity>
     <entity class="io.github.matrixlane.metadataregistry.ext.identification.IdentifierStrategyConfig"><table schema="ext"/></entity>
@@ -23,6 +23,8 @@
     <entity class="io.github.matrixlane.metadataregistry.ext.basicandcore.LanguageGovernance"><table schema="ext"/></entity>
     <!-- V20260919001 语言名称扩展:与标准表 mdr.language_identification 同名,仅以 ext schema 区分 -->
     <entity class="io.github.matrixlane.metadataregistry.ext.basicandcore.LanguageIdentificationExtension"><table name="language_identification" schema="ext"/></entity>
+    <!-- V20261008001 RA Primary 标志卫星:与标准表 mdr.registration_authority 同名,仅以 ext schema 区分 -->
+    <entity class="io.github.matrixlane.metadataregistry.ext.registration.RegistrationAuthorityExtension"><table schema="ext"/></entity>
     <entity class="io.github.matrixlane.metadataregistry.ext.designationanddefinition.NamingConventionRules"><table schema="ext"/></entity>
     <entity class="io.github.matrixlane.metadataregistry.ext.generation.AiGenerationRecord"><table schema="ext"/></entity>
 

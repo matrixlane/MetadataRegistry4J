@@ -11,6 +11,7 @@ import io.github.matrixlane.metadataregistry.web.common.BusinessException;
 import io.github.matrixlane.metadataregistry.web.common.ResourceNotFoundException;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.RegistrationAuthorityIdentifier;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.LanguageIdentification;
+import io.github.matrixlane.metadataregistry.ext.registration.RegistrationAuthorityExtension;
 import io.github.matrixlane.metadataregistry.web.dto.initwizard.InitWizardCommitRequest;
 import io.github.matrixlane.metadataregistry.web.dto.initwizard.InitWizardSetupRequest;
 import io.github.matrixlane.metadataregistry.web.dto.initwizard.InitWizardSpecAttributes;
@@ -18,6 +19,7 @@ import io.github.matrixlane.metadataregistry.web.dto.initwizard.InitWizardStatus
 import io.github.matrixlane.metadataregistry.web.edition.DeploymentEdition;
 import io.github.matrixlane.metadataregistry.web.repository.LanguageIdentificationRepository;
 import io.github.matrixlane.metadataregistry.web.repository.NamespaceRepository;
+import io.github.matrixlane.metadataregistry.web.repository.RegistrationAuthorityExtensionRepository;
 import io.github.matrixlane.metadataregistry.web.repository.RegistrationAuthorityRepository;
 import io.github.matrixlane.metadataregistry.web.seed.StaticDataPresetService;
 import io.github.matrixlane.metadataregistry.web.service.database.DatabaseCleaner;
@@ -52,6 +54,7 @@ public class InitWizardService {
     private final RegistrarService registrarService;
     private final AccountRepository accountRepository;
     private final RegistrationAuthorityRepository registrationAuthorityRepository;
+    private final RegistrationAuthorityExtensionRepository registrationAuthorityExtensionRepository;
     private final NamespaceRepository namespaceRepository;
     private final NamespaceProvisioningService namespaceProvisioningService;
     private final RegistrySpecificationService registrySpecificationService;
@@ -252,7 +255,6 @@ public class InitWizardService {
 
         // 2. Create RegistrationAuthority（初始化创建的注册机构即 Primary 注册机构）
         RegistrationAuthority ra = new RegistrationAuthority();
-        ra.setPrimary(true);
         ra.getName().add(Sign.of(raName));
         if (request.registrationAuthorityEnglishName() != null && !request.registrationAuthorityEnglishName().isBlank()) {
             ra.getName().add(Sign.of(request.registrationAuthorityEnglishName()));
@@ -269,6 +271,9 @@ public class InitWizardService {
         ra.setRegistrationAuthorityIdentifier(rai);
 
         ra = registrationAuthorityRepository.save(ra);
+        // Primary 标志为 ext 卫星行（mdr 实体不含该列，move-ra-primary-to-ext）：
+        // 初始化创建的机构即 Primary，与 RA 同一事务写入。
+        registrationAuthorityExtensionRepository.save(new RegistrationAuthorityExtension(ra.getId(), true));
 
         // 3. Assign self as registrar if checked
         if (selfAsRegistrar) {

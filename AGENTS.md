@@ -27,6 +27,17 @@
 
 涉及 ISO/IEC 11179 标准字段的解释性说明（UI placeholder、字段提示、文档描述等），**必须忠实还原标准文档中的原文文字说明**（可翻译为中文，但不得概括、扩写或自行发挥）；不得引用标准章节/条款号作为说明内容。表述前须核对标准原文（优先 Milvus 检索，回退 `ISO/IEC 11179 标准原文目录` 目录下 PDF）。
 
+# 数据模型分层规则（强制）
+
+数据库表结构按 schema 分层，**任何涉及表结构的设计与迁移必须先核对此规则**：
+
+- `mdr` schema（标准层）：只存放 ISO/IEC 11179 系列标准定义的标准表与标准列。标准没有定义的字段 MUST NOT 出现在 mdr 表上。
+- `ext` schema（扩展层）：应用自身的扩展字段一律放 ext schema 卫星表，与标准表 1:1（按 id 关联，有意不建 JPA 关联、经值键读写）。
+- 实现范式：
+  - 扩展实体放 `metadata-registry-ext` 模块，`@Table(name=...)` 不写 schema；team profile 经 `metadata-registry-web/src/main/resources/orm/orm-team.xml` 登记 `<table schema="ext"/>`；sqlite 同名冲突时物理表名加 `ext_` 前缀并经 `orm/orm-sqlite.xml` 登记。
+  - 迁移三方言同版本号：SQL Server 全限定 `ext.<table>`（schema 兜底 + COL_LENGTH 守卫）；SQLite 裸表名（`ext_` 前缀）；达梦全限定 `EXT.<TABLE>`。
+- 判据：字段能在 ISO/IEC 11179 标准条款中找到定义 → 才可进 mdr；否则一律 ext。（既有判例：`ext.account.avatar`、`ext_language_identification`、`ext.contact_account_binding`；反例教训：2026-10 `mdr.registration_authority.is_primary` 后迁出，见 DECISIONS.md）
+
 # 文档同步规则
 
 每次签入代码前，检查变更是否影响以下文档，如受影响必须同步更新：

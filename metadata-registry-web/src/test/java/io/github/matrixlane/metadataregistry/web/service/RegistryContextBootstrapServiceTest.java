@@ -9,6 +9,7 @@ import io.github.matrixlane.metadataregistry.commonfacilities.identification.Sco
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.AdministeredItem;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationAuthority;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrySpecification;
+import io.github.matrixlane.metadataregistry.ext.registration.RegistrationAuthorityExtension;
 import io.github.matrixlane.metadataregistry.web.auth.AccountRepository;
 import io.github.matrixlane.metadataregistry.web.dto.initwizard.InitWizardSetupRequest;
 import io.github.matrixlane.metadataregistry.web.repository.AdministeredItemRepository;
@@ -67,6 +68,9 @@ class RegistryContextBootstrapServiceTest {
 
     @Autowired
     private RegistrationAuthorityRepository registrationAuthorityRepository;
+
+    @Autowired
+    private io.github.matrixlane.metadataregistry.web.repository.RegistrationAuthorityExtensionRepository registrationAuthorityExtensionRepository;
 
     @Autowired
     private ContextRepository contextRepository;
@@ -312,11 +316,10 @@ class RegistryContextBootstrapServiceTest {
     @Test
     void backfillIfInitialized_initializedWithoutAnyPrimary_marksEarliestAuthority() {
         RegistrationAuthority wizardRa = runWizardAndGetRa("AUTO_WITH_OVERRIDE", "AUTO_WITH_OVERRIDE", "SEMVER");
-        // 向导创建的机构现即 Primary；本用例模拟迁移前存量状态（全库无任何 Primary），
-        // 故显式清除该标志
-        wizardRa.setPrimary(false);
-        registrationAuthorityRepository.save(wizardRa);
-        // 模拟存量库补充机构（旧库无 Primary 概念，is_primary 均为 false）
+        // 向导创建的机构现即 Primary（ext 卫星行）；本用例模拟迁移前存量状态
+        // （全库无任何 Primary），故显式删除该卫星行
+        registrationAuthorityExtensionRepository.deleteById(wizardRa.getId());
+        // 模拟存量库补充机构（旧库无 Primary 概念，无任何卫星行）
         RegistrationAuthority legacy = registrationAuthorityRepository.save(newLegacyAuthority("LEGACY-RA-1"));
         systemSettingService.setInitialized(true);
 
@@ -327,8 +330,8 @@ class RegistryContextBootstrapServiceTest {
                 .min(Comparator.comparing(UUID::toString))
                 .orElseThrow();
         UUID otherId = earliestId.equals(wizardRa.getId()) ? legacy.getId() : wizardRa.getId();
-        assertThat(registrationAuthorityRepository.findById(earliestId).orElseThrow().isPrimary()).isTrue();
-        assertThat(registrationAuthorityRepository.findById(otherId).orElseThrow().isPrimary()).isFalse();
+        assertThat(isPrimary(earliestId)).isTrue();
+        assertThat(isPrimary(otherId)).isFalse();
     }
 
     @Test
@@ -337,17 +340,14 @@ class RegistryContextBootstrapServiceTest {
         RegistrationAuthority ra2 = registrationAuthorityRepository.save(newLegacyAuthority("LEGACY-RA-2"));
         // 故意把非最早的机构标为 Primary：guard 生效则两次启动都不会改动任何标志
         RegistrationAuthority kept = ra1.getId().toString().compareTo(ra2.getId().toString()) < 0 ? ra2 : ra1;
-        kept.setPrimary(true);
-        registrationAuthorityRepository.save(kept);
+        registrationAuthorityExtensionRepository.save(new RegistrationAuthorityExtension(kept.getId(), true));
         systemSettingService.setInitialized(true);
 
         registryContextBootstrapService.backfillIfInitialized();
         registryContextBootstrapService.backfillIfInitialized();
 
-        assertThat(registrationAuthorityRepository.findById(ra1.getId()).orElseThrow().isPrimary())
-                .isEqualTo(ra1.getId().equals(kept.getId()));
-        assertThat(registrationAuthorityRepository.findById(ra2.getId()).orElseThrow().isPrimary())
-                .isEqualTo(ra2.getId().equals(kept.getId()));
+        assertThat(isPrimary(ra1.getId())).isEqualTo(ra1.getId().equals(kept.getId()));
+        assertThat(isPrimary(ra2.getId())).isEqualTo(ra2.getId().equals(kept.getId()));
     }
 
     @Test
@@ -358,7 +358,8 @@ class RegistryContextBootstrapServiceTest {
 
         registryContextBootstrapService.backfillIfInitialized();
 
-        assertThat(registrationAuthorityRepository.findById(ra.getId()).orElseThrow().isPrimary()).isTrue();
+        // 向导已置 Primary（ext 卫星行），回填幂等跳过、标志保持
+        assertThat(isPrimary(ra.getId())).isTrue();
     }
 
     @Test
@@ -368,7 +369,7 @@ class RegistryContextBootstrapServiceTest {
 
         registryContextBootstrapService.backfillIfInitialized();
 
-        assertThat(registrationAuthorityRepository.findById(ra.getId()).orElseThrow().isPrimary()).isFalse();
+        assertThat(isPrimary(ra.getId())).isFalse();
     }
 
     @Test
@@ -392,8 +393,14 @@ class RegistryContextBootstrapServiceTest {
                 .isEmpty();
     }
 
-    private RegistrationAuthority newLegacyAuthority(String organizationIdentifier) {
-        RegistrationAuthority ra = new RegistrationAuthority();
+    /** Primary 标志读取口径：ext 卫星行，缺失按 false（同服务层 helper 语义）。 */
+    private boolean isPrimary(UUID raId) {
+        return registrationAuthorityExtensionRepository.findById(raId)
+                .map(io.github.matrixlane.metadataregistry.ext.registration.RegistrationAuthorityExtension::isPrimary)
+                .orElse(false);
+    }
+
+    private RegistrationAuthority newLegacyAuthority(String organizationIdentifier) {        RegistrationAuthority ra = new RegistrationAuthority();
         io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.RegistrationAuthorityIdentifier rai =
                 new io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.RegistrationAuthorityIdentifier();
         rai.setInternationalCodeDesignator("ISO");

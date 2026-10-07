@@ -5,6 +5,7 @@ import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basic
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.Registrar;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationAuthority;
+import io.github.matrixlane.metadataregistry.ext.registration.RegistrationAuthorityExtension;
 import io.github.matrixlane.metadataregistry.web.auth.AccountRepository;
 import io.github.matrixlane.metadataregistry.web.common.BusinessException;
 import io.github.matrixlane.metadataregistry.web.common.ResourceNotFoundException;
@@ -13,6 +14,7 @@ import io.github.matrixlane.metadataregistry.web.dto.registrationauthority.Regis
 import io.github.matrixlane.metadataregistry.web.edition.DeploymentEdition;
 import io.github.matrixlane.metadataregistry.web.repository.LanguageIdentificationRepository;
 import io.github.matrixlane.metadataregistry.web.repository.NamespaceRepository;
+import io.github.matrixlane.metadataregistry.web.repository.RegistrationAuthorityExtensionRepository;
 import io.github.matrixlane.metadataregistry.web.repository.RegistrationAuthorityRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -64,6 +66,9 @@ class RegistrationAuthorityServiceTest {
 
     @Mock
     private NamespaceProvisioningService namespaceProvisioningService;
+
+    @Mock
+    private RegistrationAuthorityExtensionRepository registrationAuthorityExtensionRepository;
 
     @InjectMocks
     private RegistrationAuthorityService service;
@@ -305,7 +310,9 @@ class RegistrationAuthorityServiceTest {
         UUID id = UUID.randomUUID();
         RegistrationAuthority ra = new RegistrationAuthority();
         ra.setId(id);
-        ra.setPrimary(true);
+        // Primary 标志存于 ext 卫星表：Primary 行存在即拒绝删除
+        when(registrationAuthorityExtensionRepository.findById(id))
+                .thenReturn(Optional.of(new RegistrationAuthorityExtension(id, true)));
         when(systemSettingService.getEdition()).thenReturn(DeploymentEdition.PERSONAL);
         when(repository.findById(id)).thenReturn(Optional.of(ra));
 
@@ -321,7 +328,22 @@ class RegistrationAuthorityServiceTest {
         UUID id = UUID.randomUUID();
         RegistrationAuthority ra = new RegistrationAuthority();
         ra.setId(id);
-        ra.setPrimary(false);
+        when(registrationAuthorityExtensionRepository.findById(id))
+                .thenReturn(Optional.of(new RegistrationAuthorityExtension(id, false)));
+        when(systemSettingService.getEdition()).thenReturn(DeploymentEdition.PERSONAL);
+        when(repository.findById(id)).thenReturn(Optional.of(ra));
+
+        service.delete(id, SystemRole.SUPER_ADMIN);
+
+        verify(deletionService).delete(id);
+    }
+
+    @Test
+    void delete_personalEditionMissingSatelliteRowTreatedAsNonPrimary() {
+        // 缺失行语义：无卫星行按 isPrimary=false 处理（新建机构默认无标志）
+        UUID id = UUID.randomUUID();
+        RegistrationAuthority ra = new RegistrationAuthority();
+        ra.setId(id);
         when(systemSettingService.getEdition()).thenReturn(DeploymentEdition.PERSONAL);
         when(repository.findById(id)).thenReturn(Optional.of(ra));
 
@@ -398,12 +420,13 @@ class RegistrationAuthorityServiceTest {
 
     @Test
     void listAndGet_fillDeletableByEditionAndPrimary() {
-        // m6：deletable = !(个人版 && Primary)；版本未知按个人版保守
+        // m6：deletable = !(个人版 && Primary)；Primary 存于 ext 卫星表，版本未知按个人版保守
         UUID primaryId = UUID.randomUUID();
         RegistrationAuthority primary = new RegistrationAuthority();
         primary.setId(primaryId);
-        primary.setPrimary(true);
         primary.getName().add(io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.Sign.of("主要机构"));
+        when(registrationAuthorityExtensionRepository.findById(primaryId))
+                .thenReturn(Optional.of(new RegistrationAuthorityExtension(primaryId, true)));
         UUID normalId = UUID.randomUUID();
         RegistrationAuthority normal = new RegistrationAuthority();
         normal.setId(normalId);

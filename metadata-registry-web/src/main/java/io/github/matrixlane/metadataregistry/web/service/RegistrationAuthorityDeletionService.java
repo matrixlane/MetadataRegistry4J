@@ -4,6 +4,7 @@ import io.github.matrixlane.metadataregistry.web.common.ResourceNotFoundExceptio
 import io.github.matrixlane.metadataregistry.web.dto.registrationauthority.RegistrationAuthorityDeletionPreview;
 import io.github.matrixlane.metadataregistry.web.repository.RegistrationAuthorityRepository;
 import io.github.matrixlane.metadataregistry.web.service.database.DatabaseEnvironment;
+import io.github.matrixlane.metadataregistry.web.service.database.DatabaseVendor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -24,8 +25,9 @@ import java.util.UUID;
  * 置空）、提交记录（候选集 = join 行触及的 SR，SQL 侧 NOT EXISTS 分批）、主管记录、
  * 注册人员（registration_authority_id = RA 或 organization_id = RA 的 Registrar 行，
  * 含账号绑定与激活指向）、自有命名空间（sys: 系统命名空间保留，仅解除 NamingAuthority
- * 挂接）、注册流程迁移规则与文档语言关联，最后删除注册机构行与 Organization
- * JOINED 行。</p>
+ * 挂接）、注册流程迁移规则与文档语言关联，最后删除 Primary 标志卫星行
+ * （ext.registration_authority，move-ra-primary-to-ext）、注册机构行与
+ * Organization JOINED 行。</p>
  *
  * <p>实现走原生 JDBC（{@link DatabaseEnvironment#qualifyAuto} 方言/schema 感知 +
  * {@link JdbcTemplate}），与 DimensionalityService 清 join 表、
@@ -212,6 +214,9 @@ public class RegistrationAuthorityDeletionService {
         deleteWhereEq(t("registration_authority_doc_language"), "registration_authority_id", registrationAuthorityId);
 
         // ===== 7. registration_authority 行 + organization 行（JOINED） =====
+        // Primary 标志卫星行（move-ra-primary-to-ext：ext.registration_authority 与
+        // mdr 表同名，禁止走 qualifyAuto——同名标准表会被路由到 ext schema）
+        deleteWhereEq(tRaExtension(), "id", registrationAuthorityId);
         deleteWhereEq(t("registration_authority"), "id", registrationAuthorityId);
         deleteWhereEq(t("organization_name"), "organization_id", registrationAuthorityId);
         deleteWhereEq(t("organization_email"), "organization_id", registrationAuthorityId);
@@ -436,6 +441,19 @@ public class RegistrationAuthorityDeletionService {
     /** 表名按当前方言/schema 限定（EXT 表路由到 ext schema；SQLite 为裸名）。 */
     private String t(String table) {
         return databaseEnvironment.qualifyAuto(table);
+    }
+
+    /**
+     * RA Primary 标志卫星表限定名（V20261008001）：团队库与标准表同名
+     * （ext.registration_authority，经 ext schema 区分），SQLite 物理名
+     * ext_registration_authority。与 {@code language_identification} 同名表同理，
+     * 不得走 {@link DatabaseEnvironment#qualifyAuto(String)}（会把同名标准表路由到
+     * ext schema）。
+     */
+    private String tRaExtension() {
+        return databaseEnvironment.vendor() == DatabaseVendor.SQLITE
+                ? databaseEnvironment.qualify("ext_registration_authority")
+                : databaseEnvironment.qualifyExt("registration_authority");
     }
 
     private Object uuidArg(UUID id) {

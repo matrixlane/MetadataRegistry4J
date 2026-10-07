@@ -83,6 +83,9 @@ class InitWizardServiceIntegrationTest {
     private RegistrationAuthorityRepository registrationAuthorityRepository;
 
     @Autowired
+    private io.github.matrixlane.metadataregistry.web.repository.RegistrationAuthorityExtensionRepository registrationAuthorityExtensionRepository;
+
+    @Autowired
     private NamespaceRepository namespaceRepository;
 
     @Autowired
@@ -155,8 +158,10 @@ class InitWizardServiceIntegrationTest {
                 .findFirst()
                 .orElse(null);
         assertThat(createdRa).isNotNull();
-        // 初始化创建的注册机构即 Primary 注册机构
-        assertThat(createdRa.isPrimary()).isTrue();
+        // 初始化创建的注册机构即 Primary 注册机构（Primary 存于 ext 卫星表）
+        assertThat(registrationAuthorityExtensionRepository.findById(createdRa.getId())
+                .map(io.github.matrixlane.metadataregistry.ext.registration.RegistrationAuthorityExtension::isPrimary)
+                .orElse(false)).isTrue();
         assertThat(createdRa.getRegistrationAuthorityIdentifier()).isNotNull();
         assertThat(createdRa.getRegistrationAuthorityIdentifier().getOrganizationIdentifier()).isEqualTo("RA");
         assertThat(createdRa.getName().size()).isEqualTo(2);

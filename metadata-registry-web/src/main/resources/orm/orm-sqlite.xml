@@ -11,4 +11,10 @@
         <table name="ext_language_identification"/>
     </entity>
 
+    <!-- V20261008001 RA Primary 标志卫星:与标准表 registration_authority 同名,
+         SQLite 物理名加 ext_ 前缀(ext_registration_authority)。 -->
+    <entity class="io.github.matrixlane.metadataregistry.ext.registration.RegistrationAuthorityExtension">
+        <table name="ext_registration_authority"/>
+    </entity>
+
 </entity-mappings>

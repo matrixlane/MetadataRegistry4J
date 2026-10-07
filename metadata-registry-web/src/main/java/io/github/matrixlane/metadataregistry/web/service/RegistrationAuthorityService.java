@@ -10,6 +10,7 @@ import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.prede
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.Registrar;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationAuthority;
+import io.github.matrixlane.metadataregistry.ext.registration.RegistrationAuthorityExtension;
 import io.github.matrixlane.metadataregistry.web.auth.AccountRepository;
 import io.github.matrixlane.metadataregistry.web.common.BusinessException;
 import io.github.matrixlane.metadataregistry.web.common.ApiCodes;
@@ -19,6 +20,7 @@ import io.github.matrixlane.metadataregistry.web.dto.registrationauthority.Regis
 import io.github.matrixlane.metadataregistry.web.edition.DeploymentEdition;
 import io.github.matrixlane.metadataregistry.web.repository.LanguageIdentificationRepository;
 import io.github.matrixlane.metadataregistry.web.repository.NamespaceRepository;
+import io.github.matrixlane.metadataregistry.web.repository.RegistrationAuthorityExtensionRepository;
 import io.github.matrixlane.metadataregistry.web.repository.RegistrationAuthorityRepository;
 import io.github.matrixlane.metadataregistry.web.util.ItemNamingHelper;
 import lombok.RequiredArgsConstructor;
@@ -47,6 +49,7 @@ public class RegistrationAuthorityService {
     private final AccountRepository accountRepository;
     private final RegistrationAuthorityDeletionService deletionService;
     private final NamespaceProvisioningService namespaceProvisioningService;
+    private final RegistrationAuthorityExtensionRepository registrationAuthorityExtensionRepository;
 
     @Transactional(readOnly = true)
     public Page<RegistrationAuthorityResponse> list(String keyword, Pageable pageable) {
@@ -149,10 +152,10 @@ public class RegistrationAuthorityService {
     /**
      * 删除注册机构（版本化治理 + 级联删除）。
      *
-     * <p>删除保护仅按版本判定（M1）：PERSONAL 个人版主要注册机构（isPrimary）
-     * 不允许删除，其余一律放行（系统不存在运行模式概念，删除无任何模式门槛）；
-     * TEAM 团队版（或版本未设置，保守按 TEAM）无 Primary 保护，任何机构可删。
-     * 级联删除经 {@link RegistrationAuthorityDeletionService} 完成。</p>
+     * <p>删除保护仅按版本判定（M1）：PERSONAL 个人版主要注册机构（Primary，
+     * 存储于 ext 卫星表）不允许删除，其余一律放行（系统不存在运行模式概念，
+     * 删除无任何模式门槛）；TEAM 团队版（或版本未设置，保守按 TEAM）无 Primary
+     * 保护，任何机构可删。级联删除经 {@link RegistrationAuthorityDeletionService} 完成。</p>
      *
      * <p>角色门槛（M4）：仅 SUPER_ADMIN 可删除；SUBMITTER/REGISTRAR 业务角色拒绝。</p>
      */
@@ -162,10 +165,20 @@ public class RegistrationAuthorityService {
         }
         RegistrationAuthority entity = loadOrThrow(id);
         DeploymentEdition edition = systemSettingService.getEdition();
-        if (edition == DeploymentEdition.PERSONAL && entity.isPrimary()) {
+        if (edition == DeploymentEdition.PERSONAL && isPrimary(id)) {
             throw new BusinessException(ApiCodes.VALIDATION_FAILED, "主要注册机构不允许删除");
         }
         deletionService.delete(id);
+    }
+
+    /**
+     * Primary 隐式标志现存储于 ext 卫星表（{@code ext.registration_authority}，
+     * 与 mdr.registration_authority 按 id 一一对应）；无卫星行按 false 处理。
+     */
+    private boolean isPrimary(UUID id) {
+        return registrationAuthorityExtensionRepository.findById(id)
+                .map(RegistrationAuthorityExtension::isPrimary)
+                .orElse(false);
     }
 
     private RegistrationAuthority loadOrThrow(UUID id) {
@@ -232,11 +245,11 @@ public class RegistrationAuthorityService {
         List<String> names = entity.getName().stream().map(Sign::getValue).toList();
         String name = names.isEmpty() ? null : names.get(0);
         String englishName = names.size() > 1 ? names.get(1) : null;
-        // m6：deletable 间接信号——个人版 Primary 机构不可删（isPrimary 不进 DTO）；
-        // 版本未知按个人版保守。团队版无 Primary 删除保护。
+        // m6：deletable 间接信号——个人版 Primary 机构不可删（Primary 存于 ext 卫星表，
+        // 不进 DTO）；版本未知按个人版保守。团队版无 Primary 删除保护。
         DeploymentEdition edition = systemSettingService.getEdition();
         boolean personal = edition != DeploymentEdition.TEAM;
-        boolean deletable = !(personal && entity.isPrimary());
+        boolean deletable = !(personal && isPrimary(entity.getId()));
         return new RegistrationAuthorityResponse(
                 entity.getId(),
                 name,

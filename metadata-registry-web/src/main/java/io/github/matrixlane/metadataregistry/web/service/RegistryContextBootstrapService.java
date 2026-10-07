@@ -8,6 +8,7 @@ import io.github.matrixlane.metadataregistry.commonfacilities.identification.Nam
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.AdministeredItem;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationAuthority;
 import io.github.matrixlane.metadataregistry.ext.identification.IdentifierInputMode;
+import io.github.matrixlane.metadataregistry.ext.registration.RegistrationAuthorityExtension;
 import io.github.matrixlane.metadataregistry.web.dto.common.ItemRegistrationRequest;
 import io.github.matrixlane.metadataregistry.web.dto.common.TextLine;
 import io.github.matrixlane.metadataregistry.web.dto.common.TextLineContextEntry;
@@ -16,6 +17,7 @@ import io.github.matrixlane.metadataregistry.web.repository.ContextRepository;
 import io.github.matrixlane.metadataregistry.web.repository.DesignationRepository;
 import io.github.matrixlane.metadataregistry.web.repository.LanguageIdentificationRepository;
 import io.github.matrixlane.metadataregistry.web.repository.RegistrySpecificationRepository;
+import io.github.matrixlane.metadataregistry.web.repository.RegistrationAuthorityExtensionRepository;
 import io.github.matrixlane.metadataregistry.web.repository.RegistrationAuthorityRepository;
 import io.github.matrixlane.metadataregistry.web.service.database.DatabaseEnvironment;
 import io.github.matrixlane.metadataregistry.web.service.identifier.NamespaceIdentifierPolicyResolver;
@@ -65,6 +67,7 @@ public class RegistryContextBootstrapService {
     private final RegistrySpecificationRepository registrySpecificationRepository;
     private final SystemSettingService systemSettingService;
     private final RegistrationAuthorityRepository registrationAuthorityRepository;
+    private final RegistrationAuthorityExtensionRepository registrationAuthorityExtensionRepository;
     private final DesignationRepository designationRepository;
     private final NamespaceIdentifierPolicyResolver policyResolver;
     private final JdbcTemplate jdbcTemplate;
@@ -254,11 +257,12 @@ public class RegistryContextBootstrapService {
     }
 
     /**
-     * 存量库 Primary 标志回填（authority-contact-governance D1）：系统已初始化但
-     * registration_authority 没有任何 Primary 行时，把 id 字典序最小的既有机构补标
-     * Primary。选择口径与 {@code LanguageIdentifierResolver} 一致——UUID 规范文本的
-     * 字典序等价于三方言 SQL {@code MIN(id)} 的 128 位无符号字节序。存量库通常只有
-     * 一个机构，多机构时该口径给出确定结果。
+     * 存量库 Primary 标志回填（authority-contact-governance D1；move-ra-primary-to-ext
+     * 后标志存于 ext 卫星表）：系统已初始化但卫星表没有任何 Primary 行时，把 id
+     * 字典序最小的既有机构补标 Primary（为其建卫星行）。选择口径与
+     * {@code LanguageIdentifierResolver} 一致——UUID 规范文本的字典序等价于三方言
+     * SQL {@code MIN(id)} 的 128 位无符号字节序。存量库通常只有一个机构，多机构时
+     * 该口径给出确定结果。
      *
      * <p>幂等：已有 Primary 行即跳过，二次启动不再改动。无机构行时静默跳过。
      * 异常仅记 warn，不阻止启动。须经代理调用以启用事务（REQUIRED，单事务，
@@ -268,15 +272,18 @@ public class RegistryContextBootstrapService {
     public void backfillPrimaryAuthorityFlag() {
         try {
             List<RegistrationAuthority> authorities = registrationAuthorityRepository.findAll();
-            if (authorities.isEmpty() || authorities.stream().anyMatch(RegistrationAuthority::isPrimary)) {
+            if (authorities.isEmpty()) {
+                return;
+            }
+            List<RegistrationAuthorityExtension> extensions = registrationAuthorityExtensionRepository.findAll();
+            if (extensions.stream().anyMatch(RegistrationAuthorityExtension::isPrimary)) {
                 return;
             }
             RegistrationAuthority primary = authorities.stream()
                     .min(java.util.Comparator.comparing(
                             ra -> Optional.ofNullable(ra.getId()).map(UUID::toString).orElse("")))
                     .orElseThrow(() -> new IllegalStateException("注册机构列表非空但无最小 id 行"));
-            primary.setPrimary(true);
-            registrationAuthorityRepository.save(primary);
+            registrationAuthorityExtensionRepository.save(new RegistrationAuthorityExtension(primary.getId(), true));
             log.info("存量注册机构已回填 Primary 标志：id={}（共 {} 个机构，原无任何 Primary 行）",
                     primary.getId(), authorities.size());
         } catch (Exception e) {
