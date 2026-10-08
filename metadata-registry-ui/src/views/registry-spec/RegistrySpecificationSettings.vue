@@ -151,23 +151,7 @@
             />
           </el-select>
         </el-form-item>
-        <el-divider content-position="left">指称与定义</el-divider>
-        <DesignationDefinitionSection
-          :designations="form.designations"
-          :definitions="form.definitions"
-          :show-pairings="false"
-          :default-language-id="defaultLanguageId || undefined"
-          @update:designations="form.designations = $event"
-          @update:definitions="form.definitions = $event"
-        />
-        <el-divider content-position="left">注册标识</el-divider>
-        <ItemRegistrationSection
-          ref="regSection"
-          v-model="form.registration"
-          :is-editing="isEdit"
-          :registration-authority-name="editingRaName"
-        />
-      </el-form>
+        </el-form>
       <template #footer>
         <el-button @click="visible = false">取消</el-button>
         <el-button type="primary" :loading="saving" @click="submit">保存</el-button>
@@ -180,9 +164,6 @@
 import { ref, reactive, onMounted } from 'vue';
 import { registrySpecificationApi, languageApi, contextApi } from '@/api/resources';
 import DataTablePage from '@/components/DataTablePage.vue';
-import ItemRegistrationSection from '@/components/ItemRegistrationSection.vue';
-import DesignationDefinitionSection from '@/components/DesignationDefinitionSection.vue';
-import { useRegistryDefaultLanguage } from '@/composables/useRegistryDefaultLanguage';
 import { useDefaultContext } from '@/composables/useDefaultContext';
 import { useAuthStore } from '@/stores/auth';
 import {
@@ -201,13 +182,10 @@ const formRef = ref<FormInstance>();
 const visible = ref(false);
 const saving = ref(false);
 const isEdit = ref(false);
-const regSection = ref<InstanceType<typeof ItemRegistrationSection>>();
-const editingRaName = ref<string | null>(null);
 const languageOptions = ref<{ id: string; languageIdentifier: string; languageName?: string }[]>([]);
 const contextOptions = ref<{ id: string; label: string }[]>([]);
 const languagesLoaded = ref(false);
 const contextsLoaded = ref(false);
-const { defaultLanguageId, load: loadDefaultLanguage } = useRegistryDefaultLanguage();
 const { defaultContextId, load: loadDefaultContext } = useDefaultContext();
 // 系统初始化后注册规范仅允许编辑，不允许删除/批量删除；初始化状态失败时按已初始化处理（隐藏删除）
 const systemInitialized = ref(false);
@@ -242,7 +220,6 @@ const rules: FormRules = {
 
 onMounted(async () => {
   systemInitialized.value = await useAuthStore().checkInitialized();
-  loadDefaultLanguage();
   loadDefaultContext();
   try {
     const res = await languageApi.list({ size: 100 });
@@ -273,14 +250,8 @@ function resetForm() {
 async function openDialog(row?: Record<string, any>) {
   resetForm();
   isEdit.value = !!row?.id;
-  editingRaName.value = row?.meta?.registrationAuthorityName || null;
   if (row) {
     applyRowToForm(form, row);
-    form.registration = {
-      namespaceId: row.meta?.namespaceId || undefined,
-      identifier: row.meta?.identifier || undefined,
-      version: row.meta?.version || undefined,
-    };
   } else {
     // 新建时以系统默认上下文（Registry Context）预填，用户可变更
     await loadDefaultContext();
@@ -295,14 +266,9 @@ async function submit() {
   if (!formRef.value) return;
   await formRef.value.validate(async (valid) => {
     if (!valid) return;
-    const varError = regSection.value?.validateTemplateVariables() ?? null;
-    if (varError) {
-      ElMessage.error(varError);
-      return;
-    }
     saving.value = true;
     try {
-      const payload = buildRegistrySpecPayload(form, regSection.value?.buildPayload());
+      const payload = buildRegistrySpecPayload(form);
       if (isEdit.value && form.id) {
         await registrySpecificationApi.update(form.id, payload);
       } else {

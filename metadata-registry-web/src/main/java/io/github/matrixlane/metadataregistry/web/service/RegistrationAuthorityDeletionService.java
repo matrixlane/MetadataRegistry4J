@@ -22,7 +22,8 @@ import java.util.UUID;
  *
  * <p>按外键依赖顺序逐项清理注册机构名下的全部数据：管理项 Item 图（含 Context
  * JOINED 子表与指向被删 Context 的指称/定义/配对关联，registry_specification.context_id
- * 置空）、提交记录（候选集 = join 行触及的 SR，SQL 侧 NOT EXISTS 分批）、主管记录、
+ * 置空——该表已是独立根实体、非 Item 子表，只是以 context_id 引用 Context）、提交记录
+ * （候选集 = join 行触及的 SR，SQL 侧 NOT EXISTS 分批）、主管记录、
  * 注册人员（registration_authority_id = RA 或 organization_id = RA 的 Registrar 行，
  * 含账号绑定与激活指向）、自有命名空间（仅解除 NamingAuthority
  * 挂接）、注册流程迁移规则与文档语言关联，最后删除 Primary 标志卫星行
@@ -126,7 +127,9 @@ public class RegistrationAuthorityDeletionService {
         // 1c-ctx. Context 子表（JOINED）与指向被删 Context 的关联行（B1）：
         // Registry Context 是挂在 RA 下的 AdministeredItem（context 行 id = item id）；
         // 连同其余条目（命名空间等）若是 Context 一并清理。先删指向它们的关联行，
-        // 再删子表行（先于父 item 行），并把 registry_specification.context_id 置空
+        // 再删 Context 子表行，并把 registry_specification.context_id 置空
+        // （registry_specification 为独立根实体、不再是 Item 子表，不存在"子表行先于
+        // 父 item 行"的顺序约束，只受指向 Context 的外键约束）
         // （全局默认上下文由启动调和 backfillIfInitialized 在下次启动补建并回填）。
         List<UUID> contextIds = queryUuidsByIds(
                 "SELECT id FROM " + t("context") + " WHERE id IN (", itemIds);

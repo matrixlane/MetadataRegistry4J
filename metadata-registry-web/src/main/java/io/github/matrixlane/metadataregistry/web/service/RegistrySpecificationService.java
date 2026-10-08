@@ -3,7 +3,6 @@ package io.github.matrixlane.metadataregistry.web.service;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.Sign;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.LanguageIdentification;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.Context;
-import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.Item;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.DegreeOfConformance;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrySpecification;
 import io.github.matrixlane.metadataregistry.web.common.ApiCodes;
@@ -13,11 +12,9 @@ import io.github.matrixlane.metadataregistry.web.dto.registries.RegistrySpecific
 import io.github.matrixlane.metadataregistry.web.dto.registries.RegistrySpecificationResponse;
 import io.github.matrixlane.metadataregistry.web.repository.LanguageIdentificationRepository;
 import io.github.matrixlane.metadataregistry.web.repository.ContextRepository;
-import io.github.matrixlane.metadataregistry.web.repository.ItemRepository;
 import io.github.matrixlane.metadataregistry.web.repository.RegistrySpecificationRepository;
 import io.github.matrixlane.metadataregistry.web.util.ItemNamingHelper;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -28,23 +25,38 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
-@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional
 public class RegistrySpecificationService {
 
     private final RegistrySpecificationRepository repository;
-    private final ItemRepository itemRepository;
     private final LanguageIdentificationRepository languageRepository;
     private final LanguageIdentifierResolver languageIdentifierResolver;
     private final ContextRepository contextRepository;
-    private final ItemAdministrationService itemAdministrationService;
     private final SystemSettingService systemSettingService;
+
+    /**
+     * 按名称过滤。注册规范是独立根实体（无指称），关键词只能匹配表 28 自有的
+     * {@code name}（Sign）列；不能复用 {@code ObjectClassService.byKeyword}
+     * ——其泛型上限为 {@code <T extends Item>}，且走 designation 子查询。
+     */
+    private Specification<RegistrySpecification> byKeyword(String keyword) {
+        if (keyword == null || keyword.isBlank()) {
+            return Specification.where(null);
+        }
+        // %/_ 为 LIKE 通配符，按字面匹配需转义；小写化用 Locale.ROOT 避免土耳其语 I 问题
+        String literal = keyword.toLowerCase(java.util.Locale.ROOT)
+                .replace("\\", "\\\\")
+                .replace("%", "\\%")
+                .replace("_", "\\_");
+        String like = "%" + literal + "%";
+        return (root, query, cb) -> cb.like(cb.lower(root.get("name").get("value")), like, '\\');
+    }
 
     @Transactional(readOnly = true)
     public Page<RegistrySpecificationResponse> list(String keyword, Pageable pageable) {
-        Specification<RegistrySpecification> spec = ObjectClassService.byKeyword(keyword);
+        Specification<RegistrySpecification> spec = byKeyword(keyword);
         return repository.findAll(spec, pageable).map(this::toResponse);
     }
 
@@ -101,29 +113,6 @@ public class RegistrySpecificationService {
     }
 
     /**
-     * Clean up orphan registry_specification rows whose id no longer exists in the
-     * inherited item table. This prevents Hibernate from failing to add the FK
-     * constraint on startup. Idempotent: does nothing if no orphans are found.
-     */
-    @org.springframework.context.event.EventListener(org.springframework.boot.context.event.ApplicationReadyEvent.class)
-    public void cleanupOrphanRecords() {
-        long total = repository.count();
-        if (total == 0) {
-            return;
-        }
-        List<UUID> itemIds = itemRepository.findAll().stream()
-                .map(Item::getId)
-                .toList();
-        List<RegistrySpecification> orphans = repository.findAll().stream()
-                .filter(rs -> !itemIds.contains(rs.getId()))
-                .toList();
-        if (!orphans.isEmpty()) {
-            log.warn("发现 {} 条 registry_specification 孤儿记录（在 item 表中无对应 id），即将清理", orphans.size());
-            repository.deleteAll(orphans);
-        }
-    }
-
-    /**
      * 创建默认注册规范（仅名称/语言/描述的兼容重载）。
      * 标识生成策略与版本生成策略属于命名空间范畴
      * （见 InitWizardService 的命名空间步骤），不由注册规范承载。
@@ -155,8 +144,6 @@ public class RegistrySpecificationService {
                                                     List<String> alternativeLanguageIdentifiers,
                                                     List<String> referenceDocumentIdentifierKinds,
                                                     String representationClassSchemeId) {
-        // 名称缺省值需在名称字段与首选指称中保持一致，否则 designation 为 null
-        // 会触发命名规范校验失败。
         String effectiveName = registryName != null && !registryName.isBlank() ? registryName : "默认元数据注册表";
         String effectiveCharset = characterRepertoire != null && !characterRepertoire.isBlank()
                 ? characterRepertoire : "UTF-8";
@@ -186,10 +173,7 @@ public class RegistrySpecificationService {
                 conformanceLabel,
                 includedFeatures,
                 excludedFeatures,
-                effectiveTimeZone,
-                List.of(new io.github.matrixlane.metadataregistry.web.dto.common.TextLine(languageId, effectiveName, null, null, null, true)),
-                null,
-                null);
+                effectiveTimeZone);
         return create(request);
     }
 
@@ -259,14 +243,6 @@ public class RegistrySpecificationService {
         } else {
             entity.setContext(null);
         }
-
-        itemAdministrationService.applyDesignations(
-                entity, request.designations(),
-                request.registration() == null ? null : request.registration().namespaceId());
-        itemAdministrationService.applyDefinitions(entity, request.definitions());
-        if (request.registration() != null) {
-            itemAdministrationService.ensureAdministeredItem(entity, request.registration());
-        }
     }
 
     private RegistrySpecificationResponse toResponse(RegistrySpecification entity) {
@@ -287,7 +263,6 @@ public class RegistrySpecificationService {
                         : new ArrayList<>(entity.getReferenceDocumentIdentifierKinds());
         return new RegistrySpecificationResponse(
                 entity.getId(),
-                ItemNamingHelper.preferredDesignation(entity),
                 entity.getName() == null ? null : entity.getName().getValue(),
                 entity.getComment(),
                 entity.getWebAddress(),
@@ -305,9 +280,6 @@ public class RegistrySpecificationService {
                 entity.getConformanceLabel(),
                 entity.getIncludedFeatures(),
                 entity.getExcludedFeatures(),
-                entity.getDefaultTimeZone(),
-                itemAdministrationService.mapDesignations(entity),
-                itemAdministrationService.mapDefinitions(entity),
-                itemAdministrationService.buildItemMeta(entity));
+                entity.getDefaultTimeZone());
     }
 }

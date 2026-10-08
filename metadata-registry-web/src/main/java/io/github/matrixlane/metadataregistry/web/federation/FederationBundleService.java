@@ -10,7 +10,6 @@ import io.github.matrixlane.metadataregistry.commonfacilities.identification.Sco
 import io.github.matrixlane.metadataregistry.web.common.ApiCodes;
 import io.github.matrixlane.metadataregistry.web.common.BusinessException;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.AdministeredItem;
-import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrySpecification;
 import io.github.matrixlane.metadataregistry.web.entity.VersionHistory;
 import io.github.matrixlane.metadataregistry.web.repository.AdministeredItemRepository;
 import io.github.matrixlane.metadataregistry.web.repository.DefinitionRepository;
@@ -105,9 +104,12 @@ public class FederationBundleService {
 
     /**
      * 收集候选条目。命名空间包装物（全局命名空间映射用的 Administered_Item，
-     * 其 item 为 Namespace）不是可注册内容，一律排除。注册规范
-     * （Registry_Specification）描述注册表自身运行环境，RAI 一致即同一注册表，
-     * 目的方保留一份即可，不参与迁移（design Open Questions 结论 (a)）。
+     * 其 item 为 Namespace）不是可注册内容，一律排除。
+     *
+     * <p>注册规范（Registry_Specification）描述注册表自身运行环境，RAI 一致即同一
+     * 注册表、目的方保留一份即可；且它已是独立根实体（不再继承 Item，
+     * ISO/IEC 11179-3:2023 9.4.10 无 Direct superclass），类型上不可能出现在
+     * AdministeredItem.getItem() 上，故无需再写过滤器。</p>
      */
     List<AdministeredItem> collectItems(LocalDateTime since) {
         List<AdministeredItem> all;
@@ -119,7 +121,6 @@ public class FederationBundleService {
         }
         return all.stream()
                 .filter(ai -> !(ai.getItem() instanceof Namespace))
-                .filter(ai -> !(ai.getItem() instanceof RegistrySpecification))
                 .toList();
     }
 

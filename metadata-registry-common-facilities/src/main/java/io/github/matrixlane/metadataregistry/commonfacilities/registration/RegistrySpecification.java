@@ -3,14 +3,13 @@ package io.github.matrixlane.metadataregistry.commonfacilities.registration;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.StandardReference;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.LanguageIdentification;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.Context;
-import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.Item;
+import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.Entity;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.Sign;
 import jakarta.persistence.AttributeOverride;
 import jakarta.persistence.AttributeOverrides;
 import jakarta.persistence.Embedded;
 import jakarta.persistence.Column;
 import jakarta.persistence.ElementCollection;
-import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.JoinColumn;
@@ -28,13 +27,18 @@ import java.util.List;
  * ISO/IEC 11179-3:2023, 9.4.10 — Registry_Specification
  *
  * <p>Describes the environment in which a registry operates.</p>
+ *
+ * <p>直接超类为 {@link Entity}（技术性 {@code @MappedSuperclass}，只提供 UUID 主键）：
+ * 9.4.10 无 "Direct superclass" 小节，标准未声明本类为 Item 子类，故不得实现为
+ * Item 继承（否则凭空获得指称/定义/注册等非标准能力，并产生指向 {@code mdr.item}
+ * 的外键）。表 28 全部为类自有属性。</p>
  */
 @StandardReference("ISO/IEC 11179-3:2023, 9.4.10")
-@Entity
+@jakarta.persistence.Entity
 @Getter
 @Setter
 @NoArgsConstructor
-public class RegistrySpecification extends Item {
+public class RegistrySpecification extends Entity {
 
     /**
      * ISO/IEC 11179-3:2023 表 28(Registry_Specification):name 1 Sign (6.2.10),必备。

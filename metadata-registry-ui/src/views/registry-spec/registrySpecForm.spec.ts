@@ -27,48 +27,55 @@ function sampleRow(): Record<string, any> {
     includedFeatures: '包含',
     excludedFeatures: '排除',
     defaultTimeZone: '+0800',
-    designations: [
-      { id: 'd1', languageId: 'lang-zh', value: '主注册规范', contexts: [{ contextId: 'ctx-1', acceptability: 'PREFERRED' }] },
-      { id: 'd2', languageId: 'lang-en', value: 'Main Spec' },
-    ],
-    definitions: [{ id: 'f1', languageId: 'lang-zh', value: '规范定义文本' }],
-    meta: { registrationAuthorityName: 'RA', namespaceId: 'ns-1', identifier: 'RS.00001', version: '1.0.0' },
   };
 }
 
 describe('applyRowToForm（编辑回显映射）', () => {
-  it('映射表 28 全属性与指称/定义（保留行 id 与上下文）', () => {
+  it('映射表 28 全属性', () => {
     const form = createEmptyRegistrySpecForm();
     applyRowToForm(form, sampleRow());
 
     expect(form.id).toBe('spec-1');
     expect(form.name).toBe('主注册规范');
+    expect(form.comment).toBe('注释');
+    expect(form.webAddress).toBe('https://example.org/mdr');
+    expect(form.defaultLanguageId).toBe('lang-zh');
     expect(form.alternativeLanguageIds).toEqual(['lang-en', 'lang-de']);
     expect(form.referenceDocumentIdentifierKinds).toEqual(['URI', 'DOCNO']);
     expect(form.representationClassSchemeId).toBe('rcs-1');
     expect(form.contextId).toBe('ctx-1');
+    expect(form.characterRepertoire).toBe('UTF-8');
+    expect(form.standard).toBe('ISO/IEC 11179-3:2023');
     expect(form.defaultTimeZone).toBe('+0800');
     expect(form.degreeOfConformance).toBe('STRICTLY_CONFORMING');
-    expect(form.designations).toEqual([
-      {
-        id: 'd1',
-        languageId: 'lang-zh',
-        value: '主注册规范',
-        sourceId: undefined,
-        contexts: [{ contextId: 'ctx-1', acceptability: 'PREFERRED' }],
-      },
-      { id: 'd2', languageId: 'lang-en', value: 'Main Spec', sourceId: undefined, contexts: undefined },
-    ]);
-    expect(form.definitions).toEqual([
-      { id: 'f1', languageId: 'lang-zh', value: '规范定义文本', sourceId: undefined, contexts: undefined },
-    ]);
+    expect(form.conformanceLevel).toBe('level-1');
+    expect(form.conformanceLabel).toBe('标签');
+    expect(form.includedFeatures).toBe('包含');
+    expect(form.excludedFeatures).toBe('排除');
   });
 
-  it('行内可选字段缺失时不产生 undefined 键之外的异常', () => {
+  it('不再回显指称/定义/注册标识（注册规范非 Item 子类）', () => {
     const form = createEmptyRegistrySpecForm();
-    applyRowToForm(form, { id: 'spec-2', name: 'X', designations: [{ languageId: 'lang-zh', value: 'V' }] });
-    expect(form.designations[0].id).toBeUndefined();
+    applyRowToForm(form, {
+      ...sampleRow(),
+      designations: [{ id: 'd1', languageId: 'lang-zh', value: '主注册规范' }],
+      definitions: [{ id: 'f1', languageId: 'lang-zh', value: '规范定义文本' }],
+      meta: { registrationAuthorityName: 'RA', namespaceId: 'ns-1', identifier: 'RS.00001' },
+    });
+
+    expect(form).not.toHaveProperty('designations');
+    expect(form).not.toHaveProperty('definitions');
+    expect(form).not.toHaveProperty('registration');
+  });
+
+  it('行内可选字段缺失时集合回退为空数组、标量回退为空串', () => {
+    const form = createEmptyRegistrySpecForm();
+    applyRowToForm(form, { id: 'spec-2', name: 'X' });
     expect(form.alternativeLanguageIds).toEqual([]);
+    expect(form.referenceDocumentIdentifierKinds).toEqual([]);
+    expect(form.defaultTimeZone).toBe('');
+    expect(form.comment).toBe('');
+    expect(form.degreeOfConformance).toBeUndefined();
   });
 });
 
@@ -76,13 +83,13 @@ describe('buildRegistrySpecPayload（提交载荷组装）', () => {
   it('全字段填写时完整提交，集合字段原样传递', () => {
     const form = createEmptyRegistrySpecForm();
     applyRowToForm(form, sampleRow());
-    form.designations.push({ languageId: 'lang-fr', value: 'Spec principal' });
 
-    const payload = buildRegistrySpecPayload(form, { namespaceId: 'ns-1' });
+    const payload = buildRegistrySpecPayload(form);
 
     expect(payload).toMatchObject({
       name: '主注册规范',
       characterRepertoire: 'UTF-8',
+      standard: 'ISO/IEC 11179-3:2023',
       defaultTimeZone: '+0800',
       defaultLanguageId: 'lang-zh',
       alternativeLanguageIds: ['lang-en', 'lang-de'],
@@ -90,30 +97,36 @@ describe('buildRegistrySpecPayload（提交载荷组装）', () => {
       representationClassSchemeId: 'rcs-1',
       contextId: 'ctx-1',
       degreeOfConformance: 'STRICTLY_CONFORMING',
-      registration: { namespaceId: 'ns-1' },
+      conformanceLevel: 'level-1',
+      conformanceLabel: '标签',
+      includedFeatures: '包含',
+      excludedFeatures: '排除',
+      comment: '注释',
+      webAddress: 'https://example.org/mdr',
     });
-    // 已持久化行携带 id（就地更新），新建行不带 id
-    expect(payload.designations).toHaveLength(3);
-    expect(payload.designations[0]).toMatchObject({ id: 'd1', languageId: 'lang-zh', value: '主注册规范' });
-    expect(payload.designations[0].contexts).toEqual([{ contextId: 'ctx-1', acceptability: 'PREFERRED' }]);
-    expect(payload.designations[2]).toMatchObject({ id: undefined, languageId: 'lang-fr' });
-    expect(payload.definitions[0]).toMatchObject({ id: 'f1', value: '规范定义文本' });
+    // 表 28 之外不得再上行指称/定义/注册标识
+    expect(payload).not.toHaveProperty('designations');
+    expect(payload).not.toHaveProperty('definitions');
+    expect(payload).not.toHaveProperty('registration');
+    // 已持久化行携带 id 由调用方（更新路径）决定，载荷本身不含 id
+    expect(payload).not.toHaveProperty('id');
   });
 
-  it('空值与空集合以 undefined 省略，空文本行被过滤', () => {
+  it('空值与空集合以 undefined 省略', () => {
     const form = createEmptyRegistrySpecForm();
     form.name = '仅必填';
     form.characterRepertoire = 'UTF-8';
-    form.designations = [{ languageId: 'lang-zh', value: '  ' }];
 
-    const payload = buildRegistrySpecPayload(form, undefined);
+    const payload = buildRegistrySpecPayload(form);
 
     expect(payload.comment).toBeUndefined();
+    expect(payload.webAddress).toBeUndefined();
     expect(payload.alternativeLanguageIds).toBeUndefined();
     expect(payload.referenceDocumentIdentifierKinds).toBeUndefined();
     expect(payload.contextId).toBeUndefined();
     expect(payload.defaultTimeZone).toBeUndefined();
-    expect(payload.designations).toEqual([]);
+    expect(payload.degreeOfConformance).toBeUndefined();
+    expect(payload).toEqual({ name: '仅必填', characterRepertoire: 'UTF-8' });
   });
 });
 
@@ -147,8 +160,8 @@ describe('resetRegistrySpecForm（重置）', () => {
     expect(form.id).toBeUndefined();
     expect(form.alternativeLanguageIds).toEqual([]);
     expect(form.referenceDocumentIdentifierKinds).toEqual([]);
-    expect(form.designations).toEqual([]);
     expect(form.name).toBe('');
-    expect(form.registration).toEqual({});
+    expect(form.contextId).toBe('');
+    expect(form.defaultTimeZone).toBe('');
   });
 });

@@ -105,7 +105,6 @@ public class MetadataSearchService {
         StringBuilder sb = new StringBuilder("CASE ");
         // 注册类（Owner 类型）
         sb.append("WHEN EXISTS (SELECT 1 FROM ").append(t("namespace")).append(" n WHERE n.id = i.id) THEN 'Namespace' ");
-        sb.append("WHEN EXISTS (SELECT 1 FROM ").append(t("registry_specification")).append(" rs WHERE rs.id = i.id) THEN 'RegistrySpecification' ");
         sb.append("WHEN EXISTS (SELECT 1 FROM ").append(t("constraint_set")).append(" cs WHERE cs.id = i.id) THEN 'ConstraintSet' ");
         sb.append("WHEN EXISTS (SELECT 1 FROM ").append(t("reference_document")).append(" rd WHERE rd.id = i.id) THEN 'ReferenceDocument' ");
         // 数据规范类
@@ -405,7 +404,6 @@ public class MetadataSearchService {
             case "MeasureClass" -> "measure_class";
             case "Dimensionality" -> "dimensionality";
             case "Namespace" -> "namespace";
-            case "RegistrySpecification" -> "registry_specification";
             case "ConstraintSet" -> "constraint_set";
             case "ReferenceDocument" -> "reference_document";
             case "ClassificationScheme" -> "classification_scheme";

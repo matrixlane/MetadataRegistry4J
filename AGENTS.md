@@ -38,6 +38,15 @@
   - 迁移三方言同版本号：SQL Server 全限定 `ext.<table>`（schema 兜底 + COL_LENGTH 守卫）；SQLite 裸表名（`ext_` 前缀）；达梦全限定 `EXT.<TABLE>`。
 - 判据：字段能在 ISO/IEC 11179 标准条款中找到定义 → 才可进 mdr；否则一律 ext。（既有判例：`ext.account.avatar`、`ext_language_identification`、`ext.contact`（账号绑定卫星，原 contact_account_binding 迁入）、`ext.registrar`（默认注册人员标志）；反例教训：2026-10 `mdr.registration_authority.is_primary` 后迁出，见 DECISIONS.md）
 
+# 实体继承规则（强制）
+
+数据库表结构按 schema 分层，实体继承关系按标准元模型分层——**任何涉及实体继承（extends）的设计与实现必须先核对标准**：
+
+- 实体的继承（extends）关系 MUST 有 ISO/IEC 11179 相应部分 **"Direct superclass"** 条款依据；标准未声明 Direct superclass 的类 MUST 建模为独立根实体（直接继承仅提供标识符的 mapped-superclass `Entity`，先例：`Contact`/`Organization`/`LanguageIdentification`）。
+- 新增或变更实体继承时，MUST 同步更新守护测试 `StandardInheritanceConformanceTest`（metadata-registry-web 测试目录）的白名单并附标准条款引用；未登记的继承边 MUST 使构建失败。
+- 依据 MUST 以 Milvus 检索 / `ISO/IEC 11179 标准原文目录` PDF 原文核对，不得凭印象或二手资料声明继承关系。
+- 反例教训（2026-10-09）：`RegistrySpecification` 被错误实现为 `extends Item`（ISO/IEC 11179-3:2023 9.4.10 无 Direct superclass 声明），派生孤儿记录 → FK 约束失败 → 启动兜底清理 → WS 363 数据恢复后启动挂起 13 分钟的生产事故；纠偏见变更 `registry-specification-model-correction`。
+
 # 文档同步规则
 
 每次签入代码前，检查变更是否影响以下文档，如受影响必须同步更新：

@@ -3,7 +3,6 @@
  import com.fasterxml.jackson.databind.ObjectMapper;
  import io.github.matrixlane.metadataregistry.web.auth.JwtService;
  import io.github.matrixlane.metadataregistry.web.config.AppProperties;
- import io.github.matrixlane.metadataregistry.web.dto.common.TextLine;
  import io.github.matrixlane.metadataregistry.web.dto.registries.RegistrySpecificationRequest;
  import io.github.matrixlane.metadataregistry.web.dto.registries.RegistrySpecificationResponse;
  import io.github.matrixlane.metadataregistry.web.service.RegistrySpecificationService;
@@ -46,7 +45,6 @@
      private AppProperties appProperties;
  
      private static final UUID RS_ID = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
-     private static final UUID LANG_ID = UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
  
      @Test
      void list_shouldReturnOk() throws Exception {
@@ -82,8 +80,7 @@
      void create_shouldRejectMissingName() throws Exception {
          RegistrySpecificationRequest req = new RegistrySpecificationRequest(
                  "", null, null, null, null, "Unicode UTF-8", null, null, null,
-                 null, null, null, null, null, null, null,
-                 List.of(new TextLine(LANG_ID, "注册规范", null, null)), null, null);
+                 null, null, null, null, null, null, null);
  
          mockMvc.perform(post("/api/v1/registry-specifications")
                          .contentType(MediaType.APPLICATION_JSON)
@@ -115,16 +112,13 @@
                  "Unicode UTF-8",
                  null, null, null,
                  "ISO/IEC 11179-3:2023",
-                 null, null, null, null, null, null,
-                 List.of(new TextLine(LANG_ID, "注册规范", null, null)),
-                 null, null);
+                 null, null, null, null, null, null);
      }
  
      private RegistrySpecificationResponse createResponse() {
          return new RegistrySpecificationResponse(
-                 RS_ID, "注册规范", "MetadataRegistry4j", null, null,
+                 RS_ID, "MetadataRegistry4j", null, null,
                  null, null, List.of(), "Unicode UTF-8", List.of(), null, null,
-                 null, "ISO/IEC 11179-3:2023", null, null, null, null, null, null,
-                 List.of(), List.of(), null);
+                 null, "ISO/IEC 11179-3:2023", null, null, null, null, null, null);
      }
  }

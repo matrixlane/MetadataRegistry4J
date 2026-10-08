@@ -1,5 +1,3 @@
-import type { TextLineForm } from '@/types/common';
-
 /**
  * 注册规范编辑对话框的表单模型与纯函数。
  * 独立成模块以便 vitest 直接覆盖：回显映射（applyRowToForm）、
@@ -23,16 +21,11 @@ export interface RegistrySpecFormModel {
   includedFeatures: string;
   excludedFeatures: string;
   defaultTimeZone: string;
-  designations: TextLineForm[];
-  definitions: TextLineForm[];
-  registration: Record<string, any>;
 }
 
 const ARRAY_FIELDS: (keyof RegistrySpecFormModel)[] = [
   'alternativeLanguageIds',
   'referenceDocumentIdentifierKinds',
-  'designations',
-  'definitions',
 ];
 
 export function createEmptyRegistrySpecForm(): RegistrySpecFormModel {
@@ -54,9 +47,6 @@ export function createEmptyRegistrySpecForm(): RegistrySpecFormModel {
     includedFeatures: '',
     excludedFeatures: '',
     defaultTimeZone: '',
-    designations: [],
-    definitions: [],
-    registration: {},
   };
 }
 
@@ -69,25 +59,6 @@ export function resetRegistrySpecForm(form: RegistrySpecFormModel): void {
       (form as any)[k] = (empty as any)[k];
     }
   });
-}
-
-function normalizeContexts(raw: unknown): TextLineForm['contexts'] {
-  if (!Array.isArray(raw)) return undefined;
-  return raw.map((c: any) => ({
-    contextId: c.contextId || '',
-    acceptability: c.acceptability || 'ADMITTED',
-  }));
-}
-
-function normalizeTextLines(raw: unknown): TextLineForm[] {
-  if (!Array.isArray(raw)) return [];
-  return raw.map((r: any) => ({
-    id: r.id || undefined,
-    languageId: r.languageId || '',
-    value: r.value || '',
-    sourceId: r.sourceId || undefined,
-    contexts: normalizeContexts(r.contexts),
-  }));
 }
 
 /** 将列表行响应映射进表单（编辑回显）；row 为 RegistrySpecificationResponse。 */
@@ -109,28 +80,10 @@ export function applyRowToForm(form: RegistrySpecFormModel, row: Record<string, 
   form.includedFeatures = row.includedFeatures || '';
   form.excludedFeatures = row.excludedFeatures || '';
   form.defaultTimeZone = row.defaultTimeZone || '';
-  form.designations = normalizeTextLines(row.designations);
-  form.definitions = normalizeTextLines(row.definitions);
-}
-
-function toTextLinePayload(rows: TextLineForm[]) {
-  return rows
-    .filter((r) => (r.value || '').trim() !== '')
-    .map((r) => ({
-      id: r.id || undefined,
-      languageId: r.languageId || undefined,
-      value: r.value,
-      sourceId: r.sourceId || undefined,
-      contexts: r.contexts,
-      namingConventionIds: r.namingConventionIds,
-    }));
 }
 
 /** 组装提交载荷；空值字段以 undefined 省略，集合字段空数组同样省略。 */
-export function buildRegistrySpecPayload(
-  form: RegistrySpecFormModel,
-  registrationPayload: Record<string, any> | undefined,
-): Record<string, any> {
+export function buildRegistrySpecPayload(form: RegistrySpecFormModel): Record<string, any> {
   return {
     name: form.name,
     comment: form.comment || undefined,
@@ -150,9 +103,6 @@ export function buildRegistrySpecPayload(
     referenceDocumentIdentifierKinds: form.referenceDocumentIdentifierKinds.length
       ? form.referenceDocumentIdentifierKinds
       : undefined,
-    designations: toTextLinePayload(form.designations),
-    definitions: toTextLinePayload(form.definitions),
-    registration: registrationPayload,
   };
 }
 

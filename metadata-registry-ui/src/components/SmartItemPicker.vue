@@ -181,7 +181,6 @@ const TYPE_SHORT_LABELS: Record<string, string> = {
   MeasureClass: 'MC',
   Dimensionality: 'DIM',
   Namespace: 'NS',
-  RegistrySpecification: 'RS',
   ConstraintSet: 'CS',
   ReferenceDocument: 'RD',
   ClassificationScheme: 'CSCH',
@@ -205,7 +204,6 @@ const TYPE_LABELS: Record<string, string> = {
   MeasureClass: '计量类',
   Dimensionality: '维度',
   Namespace: '命名空间',
-  RegistrySpecification: '注册规范',
   ConstraintSet: '约束集',
   ReferenceDocument: '引用文档',
   ClassificationScheme: '分类方案',
@@ -228,7 +226,7 @@ function typeLabel(t: string): string {
 function typeTagType(t?: string | null): 'primary' | 'success' | 'warning' | 'info' | 'danger' {
   if (!t) return 'info';
   if (t.includes('Enumerated') || t === 'DataElement') return 'success';
-  if (t === 'Namespace' || t === 'RegistrySpecification') return 'primary';
+  if (t === 'Namespace') return 'primary';
   if (t.startsWith('Reference')) return 'warning';
   return 'info';
 }

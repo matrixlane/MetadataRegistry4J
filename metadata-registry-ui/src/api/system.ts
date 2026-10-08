@@ -1,21 +1,12 @@
 import request from '@/utils/request';
-import type { PageResponse } from '@/types/common';
 
 export interface RegistrySpecification {
   id?: string;
-  registryName: string;
-  identifierPrefix?: string;
-  autoGenerateIdentifier: boolean;
-  identifierPattern?: string;
-  versioningPolicy?: string;
-  mandatoryClassification: boolean;
-  defaultLanguage: string;
-  description?: string;
-  /** 默认语言 ID（与 RegistrySpecificationResponse 对齐）；用于 DesignationEditor 预选。 */
+  name?: string;
+  /** 默认语言 ID（与 RegistrySpecificationResponse 对齐）。 */
   defaultLanguageId?: string | null;
   /** 默认语言 identifier 字符串（如 zh-CN）。 */
   defaultLanguageIdentifier?: string | null;
-  alternativeLanguageIds?: string[];
 }
 
 export const systemApi = {
@@ -52,34 +43,6 @@ export const systemApi = {
    */
   setAllowUserRegistration: (allowRegistration: boolean) =>
     request.put<void>('/system/settings/allow-user-registration', null, { params: { allowRegistration } }),
-};
-
-export const registrySpecificationApi = {
-  /**
-   * 查询当前的注册规范
-   */
-  get: () => request.get<RegistrySpecification | null>('/registry-specifications'),
-
-  /**
-   * 查询系统中是否已登记元数据
-   */
-  hasMetadata: () => request.get<boolean>('/registry-specifications/has-metadata'),
-
-  /**
-   * 分页列出注册规范（用于 useRegistryDefaultLanguage 等需要查列表的场景）
-   */
-  list: (params?: { size?: number; page?: number; q?: string }) =>
-    request.get<PageResponse<RegistrySpecification>>('/registry-specifications', { params }),
-
-  /**
-   * 创建注册规范
-   */
-  create: (data: RegistrySpecification) => request.post<RegistrySpecification>('/registry-specifications', data),
-
-  /**
-   * 更新注册规范
-   */
-  update: (id: string, data: RegistrySpecification) => request.put<RegistrySpecification>(`/registry-specifications/${id}`, data),
 };
 
 export interface DashboardStats {

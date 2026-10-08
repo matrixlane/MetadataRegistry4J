@@ -40,7 +40,7 @@ public class MetadataSearchController {
             "DataElement", "DataElementConcept", "ConceptualDomain", "ValueDomain",
             "ObjectClass", "Property", "DataType", "DataTypeScheme",
             "UnitOfMeasure", "MeasureClass", "Dimensionality",
-            "Namespace", "RegistrySpecification", "ConstraintSet", "ReferenceDocument",
+            "Namespace", "ConstraintSet", "ReferenceDocument",
             "ClassificationScheme", "Context",
             "Organization", "Individual", "Contact", "DocumentType"
     );
