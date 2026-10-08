@@ -346,19 +346,19 @@
                   <span class="menu-label__sub">Registration</span>
                 </span>
               </template>
-              <el-menu-item index="/registration-authorities">
-                <template #title>
-                  <span class="menu-label">
-                    <span class="menu-label__main">{{ $t('nav.registrationAuthority') }}</span>
-                    <span class="menu-label__sub">Registration Authority</span>
-                  </span>
-                </template>
-              </el-menu-item>
               <el-menu-item index="/registry-specifications">
                 <template #title>
                   <span class="menu-label">
                     <span class="menu-label__main">{{ $t('nav.registrySpecification') }}</span>
                     <span class="menu-label__sub">Registry Specification</span>
+                  </span>
+                </template>
+              </el-menu-item>
+              <el-menu-item index="/registration-authorities">
+                <template #title>
+                  <span class="menu-label">
+                    <span class="menu-label__main">{{ $t('nav.registrationAuthority') }}</span>
+                    <span class="menu-label__sub">Registration Authority</span>
                   </span>
                 </template>
               </el-menu-item>

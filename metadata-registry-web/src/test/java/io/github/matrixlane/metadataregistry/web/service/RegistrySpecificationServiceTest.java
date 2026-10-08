@@ -45,7 +45,10 @@ import io.github.matrixlane.metadataregistry.commonfacilities.registration.Regis
  
      @Mock
      private ItemAdministrationService itemAdministrationService;
- 
+
+     @Mock
+     private SystemSettingService systemSettingService;
+
      @InjectMocks
      private RegistrySpecificationService service;
  
@@ -91,6 +94,17 @@ import io.github.matrixlane.metadataregistry.commonfacilities.registration.Regis
          assertThat(response.standard()).isEqualTo("ISO/IEC 11179-3:2023");
          assertThat(response.degreeOfConformance()).isEqualTo(DegreeOfConformance.CONFORMING);
          verify(repository).save(any(RegistrySpecification.class));
+     }
+
+     @Test
+     @DisplayName("已存在注册规范时再次新增应被拒绝（有且仅有一条）")
+     void create_alreadyExists_shouldReject() {
+         when(repository.count()).thenReturn(1L);
+
+         assertThatThrownBy(() -> service.create(request("Second", "Unicode UTF-8")))
+                 .isInstanceOf(io.github.matrixlane.metadataregistry.web.common.BusinessException.class)
+                 .hasMessageContaining("有且仅有一条");
+         verify(repository, org.mockito.Mockito.never()).save(any(RegistrySpecification.class));
      }
  
      @Test
@@ -222,6 +236,7 @@ import io.github.matrixlane.metadataregistry.commonfacilities.registration.Regis
      @DisplayName("删除不存在的 RegistrySpecification 应抛出 ResourceNotFoundException")
      void delete_notExists_shouldThrow() {
          UUID id = UUID.randomUUID();
+         when(systemSettingService.isInitialized()).thenReturn(false);
          when(repository.existsById(id)).thenReturn(false);
  
          assertThatThrownBy(() -> service.delete(id))
@@ -233,10 +248,37 @@ import io.github.matrixlane.metadataregistry.commonfacilities.registration.Regis
      @DisplayName("删除存在的 RegistrySpecification 应调用 repository.deleteById")
      void delete_exists_shouldDelete() {
          UUID id = UUID.randomUUID();
+         when(systemSettingService.isInitialized()).thenReturn(false);
          when(repository.existsById(id)).thenReturn(true);
  
          service.delete(id);
  
          verify(repository).deleteById(id);
+     }
+
+     @Test
+     @DisplayName("系统初始化后删除 RegistrySpecification 应被拒绝")
+     void delete_initializedSystem_shouldReject() {
+         UUID id = UUID.randomUUID();
+         when(systemSettingService.isInitialized()).thenReturn(true);
+
+         assertThatThrownBy(() -> service.delete(id))
+                 .isInstanceOf(io.github.matrixlane.metadataregistry.web.common.BusinessException.class)
+                 .hasMessageContaining("不允许删除");
+         verify(repository, org.mockito.Mockito.never()).deleteById(any());
+     }
+
+     @Test
+     @DisplayName("系统初始化后批量删除 RegistrySpecification 应逐条被拒绝")
+     void deleteBatch_initializedSystem_shouldRejectEach() {
+         UUID id1 = UUID.randomUUID();
+         UUID id2 = UUID.randomUUID();
+         when(systemSettingService.isInitialized()).thenReturn(true);
+
+         assertThatThrownBy(() -> service.delete(id1))
+                 .isInstanceOf(io.github.matrixlane.metadataregistry.web.common.BusinessException.class);
+         assertThatThrownBy(() -> service.delete(id2))
+                 .isInstanceOf(io.github.matrixlane.metadataregistry.web.common.BusinessException.class);
+         verify(repository, org.mockito.Mockito.never()).deleteById(any());
      }
  }

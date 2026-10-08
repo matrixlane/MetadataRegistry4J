@@ -6,6 +6,8 @@ import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.Item;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.DegreeOfConformance;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrySpecification;
+import io.github.matrixlane.metadataregistry.web.common.ApiCodes;
+import io.github.matrixlane.metadataregistry.web.common.BusinessException;
 import io.github.matrixlane.metadataregistry.web.common.ResourceNotFoundException;
 import io.github.matrixlane.metadataregistry.web.dto.registries.RegistrySpecificationRequest;
 import io.github.matrixlane.metadataregistry.web.dto.registries.RegistrySpecificationResponse;
@@ -38,6 +40,7 @@ public class RegistrySpecificationService {
     private final LanguageIdentifierResolver languageIdentifierResolver;
     private final ContextRepository contextRepository;
     private final ItemAdministrationService itemAdministrationService;
+    private final SystemSettingService systemSettingService;
 
     @Transactional(readOnly = true)
     public Page<RegistrySpecificationResponse> list(String keyword, Pageable pageable) {
@@ -50,7 +53,18 @@ public class RegistrySpecificationService {
         return toResponse(loadOrThrow(id));
     }
 
+   /**
+    * 新增注册规范。
+    *
+    * <p>注册规范为注册表的固有组成部分，全系统有且仅有一条：已存在记录时
+    * MUST NOT 再次新增（400）。初始化向导经 {@link #createDefault} 创建前
+    * 已清空业务数据（{@code InitWizardService.clearBusinessDataOnly}），
+    * 不受此守卫影响。</p>
+    */
    public RegistrySpecificationResponse create(RegistrySpecificationRequest request) {
+       if (repository.count() > 0) {
+           throw new BusinessException(ApiCodes.VALIDATION_FAILED, "注册规范有且仅有一条，不允许新增");
+       }
        RegistrySpecification entity = new RegistrySpecification();
        applyRequest(entity, request);
        RegistrySpecification saved = repository.save(entity);
@@ -64,7 +78,17 @@ public class RegistrySpecificationService {
         return toResponse(saved);
     }
 
+   /**
+    * 删除注册规范。
+    *
+    * <p>系统初始化完成后，注册规范为注册表的固有组成部分（每个注册系统一条），
+    * MUST NOT 删除（单条删除与批量删除均拒绝），仅允许编辑更新；未初始化
+    * （向导草稿阶段）放行。</p>
+    */
    public void delete(UUID id) {
+       if (systemSettingService.isInitialized()) {
+           throw new BusinessException(ApiCodes.VALIDATION_FAILED, "系统初始化后注册规范不允许删除，仅允许编辑");
+       }
        if (!repository.existsById(id)) {
            throw new ResourceNotFoundException("RegistrySpecification", id);
        }

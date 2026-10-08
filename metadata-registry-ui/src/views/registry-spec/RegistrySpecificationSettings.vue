@@ -5,6 +5,8 @@
       ref="tableRef"
       :fetch-fn="registrySpecificationApi.list"
       :delete-fn="registrySpecificationApi.delete"
+      :can-create="false"
+      :can-delete="!systemInitialized"
       @create="openDialog()"
       @edit="(r) => openDialog(r)"
       @delete="handleDelete"
@@ -182,6 +184,7 @@ import ItemRegistrationSection from '@/components/ItemRegistrationSection.vue';
 import DesignationDefinitionSection from '@/components/DesignationDefinitionSection.vue';
 import { useRegistryDefaultLanguage } from '@/composables/useRegistryDefaultLanguage';
 import { useDefaultContext } from '@/composables/useDefaultContext';
+import { useAuthStore } from '@/stores/auth';
 import {
   createEmptyRegistrySpecForm,
   resetRegistrySpecForm,
@@ -206,6 +209,8 @@ const languagesLoaded = ref(false);
 const contextsLoaded = ref(false);
 const { defaultLanguageId, load: loadDefaultLanguage } = useRegistryDefaultLanguage();
 const { defaultContextId, load: loadDefaultContext } = useDefaultContext();
+// 系统初始化后注册规范仅允许编辑，不允许删除/批量删除；初始化状态失败时按已初始化处理（隐藏删除）
+const systemInitialized = ref(false);
 
 const form = reactive(createEmptyRegistrySpecForm()) as RegistrySpecFormModel;
 
@@ -236,6 +241,7 @@ const rules: FormRules = {
 };
 
 onMounted(async () => {
+  systemInitialized.value = await useAuthStore().checkInitialized();
   loadDefaultLanguage();
   loadDefaultContext();
   try {
