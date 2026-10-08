@@ -105,7 +105,7 @@
     <RegistrationAuthorityCreateWizard
       ref="wizard"
       :edition="edition"
-      @success="tableRef?.fetchData()"
+      @success="onWizardSuccess"
     />
   </div>
 </template>
@@ -119,6 +119,7 @@ import request from '@/utils/request';
 import DataTablePage from '@/components/DataTablePage.vue';
 import ResourceFormDialog from '@/components/ResourceFormDialog.vue';
 import RegistrationAuthorityCreateWizard from './RegistrationAuthorityCreateWizard.vue';
+import { useActiveRegistrar } from '@/composables/useActiveRegistrar';
 import type { RegistrationAuthorityDeletionPreview } from '@/types/common';
 
 const { t } = useI18n();
@@ -144,6 +145,29 @@ onMounted(async () => {
 
 function updateFn(data: Record<string, unknown>) {
   return registrationAuthorityApi.update(data.id as string, data);
+}
+
+/**
+ * 创建成功：刷新列表，并强制刷新顶栏注册机构切换器的身份列表——useActiveRegistrar
+ * 是模块级单例且默认只首载一次，新建机构自动成为本人注册人员后必须 force 重拉，
+ * 否则本次会话内切换器不显示新机构（identities.length 不变，下拉不渲染）。
+ */
+function onWizardSuccess() {
+  tableRef.value?.fetchData();
+  void useActiveRegistrar()
+    .load(true)
+    .catch(() => {
+      // 刷新失败保留旧列表，下次挂载/手动刷新重试
+    });
+}
+
+/** 删除成功：级联删除该机构注册人员身份后同样强制刷新切换器身份列表。 */
+function refreshRegistrarIdentities() {
+  void useActiveRegistrar()
+    .load(true)
+    .catch(() => {
+      // 同上：失败静默，下次重试
+    });
 }
 
 /**
@@ -182,6 +206,7 @@ async function handleDelete(row: Record<string, unknown>) {
     await registrationAuthorityApi.delete(id);
     ElMessage.success(t('registrationAuthority.deleteSuccess'));
     tableRef.value?.fetchData();
+    refreshRegistrarIdentities();
   } catch {
     // request interceptor 已展示错误（如个人版 primary 行后端 422 拒绝）
   }

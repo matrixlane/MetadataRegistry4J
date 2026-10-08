@@ -4,7 +4,7 @@ import ElementPlus, { ElMessageBox } from 'element-plus';
 import { createI18n } from 'vue-i18n';
 import type { VueWrapper } from '@vue/test-utils';
 import RegistrationAuthorityList from './RegistrationAuthorityList.vue';
-import { registrationAuthorityApi } from '@/api/resources';
+import { registrationAuthorityApi, activeRegistrarApi } from '@/api/resources';
 import request from '@/utils/request';
 import zhCN from '@/i18n/zh-CN.json';
 
@@ -47,6 +47,10 @@ vi.mock('@/api/resources', () => ({
     delete: vi.fn(),
     deletionPreview: vi.fn(),
   },
+  // useActiveRegistrar 数据源：组件在创建/删除成功后 force 刷新身份列表
+  activeRegistrarApi: {
+    current: vi.fn().mockResolvedValue({ identities: [], defaultRegistrarId: null }),
+  },
 }));
 
 // SegmentTemplateDesigner（向导步骤二）挂载时经 identifierStrategyApi 拉预设与缩写表，
@@ -63,6 +67,7 @@ const mockedStatusGet = vi.mocked(request.get);
 const mockedList = vi.mocked(registrationAuthorityApi.list);
 const mockedDelete = vi.mocked(registrationAuthorityApi.delete);
 const mockedPreview = vi.mocked(registrationAuthorityApi.deletionPreview);
+const mockedActiveCurrent = vi.mocked(activeRegistrarApi.current);
 
 function pageOf(content: any[]) {
   return { content, page: 0, size: 20, totalElements: content.length, totalPages: 1 };
@@ -186,6 +191,8 @@ describe('RegistrationAuthorityList（acg-submission）', () => {
 
     await flushPromises();
     expect(mockedDelete).toHaveBeenCalledWith('ra-1');
+    // 级联删除该机构注册人员身份后，顶栏注册机构切换器的身份列表强制刷新
+    expect(mockedActiveCurrent).toHaveBeenCalled();
     confirmSpy.mockRestore();
   });
 
@@ -327,6 +334,8 @@ describe('RegistrationAuthorityList 新建向导（ra-creation-wizard）', () =>
     await submitWizard();
     expect(mockedCreate).toHaveBeenCalledTimes(1);
     expect(mockedCreate.mock.calls[0][0].selfAsRegistrar).toBe(true);
+    // 创建成功即强制刷新顶栏切换器身份列表（否则本次会话内新机构不出现在切换菜单）
+    expect(mockedActiveCurrent).toHaveBeenCalled();
   });
 
   it('命名空间开关关闭时无编辑字段，开启后展现命名空间名称输入框', async () => {
