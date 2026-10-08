@@ -53,3 +53,7 @@
 - **范围外记录（交用户决策）**：工作树中 V20260525001__Add_performance_indexes.sql 被并行流程改写（Flyway checksum 风险，提交时需 repair 或回退）；mreg 下残留旧名表（designation_context_relation/designation_naming_convention/registration_transition_approval 等被旧 jar 重建）建议另立清理迁移。
 
 **重验证**：守护测试+RegistrySpecification*Test mvn exit 0（加宽后无未登记边）；前端 registry-spec 16/16 + vue-tsc 0；SQL Server 全新恢复库执行修正版 exit 0 且结果正确（FK 0/基行 0/spec 无损）；SQLite B1 回归库 + M2 链库双冒烟幂等通过；真实库 flyway 历史 09008 行已删、随新 jar 重启自动按修正版重放（幂等无感）。
+
+## 追加：cleanup-stale-legacy-tables（同日，用户指令"清理历史旧表"）
+
+评审 B1 的连带发现落地：mdr 中 11 张被 10-08 旧模型 jar 重建的残留表（9 张为 09005/09006 更名表的旧名 + value_meaning_permissible_value_meaning 冗余表 4674 行旧 jar 并行写入 + ws_import_run 零引用 WIP 残留）经三方言 V20261009009 全守卫删除。判定双证据：建表时间晚于迁移应用时间 + 当前模型零引用（逐一 grep）；ext.contact/ext.registrar 虽同被重建但属现行卫星表，不动。验证：migtest 全新恢复库 11→0、rename 目标与 ext 行数不变、幂等；sqlite 合成库 + 干净库双场景；真实库随新 jar 自动应用成功。openspec 归档为 2026-10-09-cleanup-stale-legacy-tables。
