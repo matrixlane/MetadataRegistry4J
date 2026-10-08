@@ -16,6 +16,9 @@ Thumbs.db
 metadata_registry.db
 data/
 
+# 未核准的基准数据快照，不得签入（需重新核准后再放行）
+db-baseline/
+
 # Runtime logs
 *.log
 metadata-registry-ui/ui_*.log
