@@ -188,14 +188,20 @@ public class RegistrarService {
      *
      * <p>{@code username} 此前只用于生成非标准的 {@code {username}-registrar} 标识符，
      * 该列已按 ISO/IEC 11179-3:2023 §6.3.5 移除；参数保留是为避免改动既有调用点。
+     *
+     * <p>Individual 解析两级：显式 {@code individualName}（初始化向导传入用户填写姓名）
+     * 非空时新建并挂到 Account；为空时回退复用 {@code account.getIndividual()}——注册机构
+     * 创建页自动建立 Registrar（PERSONAL 自动 / TEAM selfAsRegistrar）走此级，使该机构
+     * 默认注册人员直接关联当前用户自己，与首个机构向导创建的 Registrar 同人。</p>
      */
     public Registrar createRegistrarForUser(UUID accountId, String username, String individualName, String roleName, UUID organizationId, RegistrationAuthority ra) {
         // 1. Get current Account
         Account account = accountRepository.findById(accountId)
                 .orElseThrow(() -> new ResourceNotFoundException("Account", accountId));
 
-        // 2. Optional Individual — created only when an explicit name is provided
-        //    (init wizard passes the user-provided name; empty = no Individual).
+        // 2. Optional Individual — explicit name wins (init wizard passes the
+        //    user-provided name); blank falls back to the account's own Individual
+        //    so an auto-created Registrar is linked to the current user.
         Individual individual = null;
         if (individualName != null && !individualName.isBlank()) {
             individual = new Individual();
@@ -205,6 +211,8 @@ public class RegistrarService {
             // 打开即显示并可就地更新，避免后续保存时再产生第二个 Individual。
             account.setIndividual(individual);
             accountRepository.save(account);
+        } else if (account.getIndividual() != null) {
+            individual = account.getIndividual();
         }
 
         // 3. Role — required, by roleName uniqueness. If a Role with the same

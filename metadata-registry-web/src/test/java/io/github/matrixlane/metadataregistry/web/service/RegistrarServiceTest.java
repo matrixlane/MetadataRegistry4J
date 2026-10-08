@@ -360,6 +360,34 @@ class RegistrarServiceTest {
     }
 
     @Test
+    void createRegistrarForUser_individualNameBlank_accountHasIndividual_reusesAccountIndividual() {
+        RegistrationAuthority authority = ra();
+        Role existingRole = role(UUID.randomUUID(), "注册管理员");
+        Individual own = individual(UUID.randomUUID());
+        own.setName(
+                io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.Sign.of("汪汇"));
+        Account account = new Account();
+        account.setUsername("admin");
+        account.setIndividual(own);
+        when(accountRepository.findById(any(UUID.class))).thenReturn(Optional.of(account));
+        when(roleRepository.findByRoleNameIgnoreCase("注册管理员")).thenReturn(Optional.of(existingRole));
+        when(registrarRepository.save(any(Registrar.class))).thenAnswer(inv -> {
+            Registrar r = inv.getArgument(0);
+            r.setId(UUID.randomUUID());
+            return r;
+        });
+
+        Registrar saved = service.createRegistrarForUser(
+                UUID.randomUUID(), "admin", null, "注册管理员", null, authority);
+
+        // 第二个注册机构自动建立的默认 Registrar：直接关联当前用户自己的 Individual
+        assertThat(saved.getIndividual()).isSameAs(own);
+        // 复用而非新建；回退路径不得触碰 Account 关联
+        verify(individualRepository, never()).save(any(Individual.class));
+        verify(accountRepository, never()).save(any(Account.class));
+    }
+
+    @Test
     void createRegistrarForUser_roleNameExisting_reusesRole() {
         RegistrationAuthority authority = ra();
         Role existingRole = role(UUID.randomUUID(), "注册管理员");
