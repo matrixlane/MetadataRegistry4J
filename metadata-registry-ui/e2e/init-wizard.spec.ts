@@ -210,7 +210,7 @@ test('个人版初始化流程（版本 → 数据库 → 治理配置预填默�
   await page.fill('input[placeholder="8-64 个字符"]', 'E2ePass@123');
   await page.fill('input[placeholder="再次输入新密码"]', 'E2ePass@123');
 
-  await page.click('button:has-text("完成初始化并启用系统")');
+  await page.click('button:has-text("完成初始化")');
 
   // commit 成功后跳转登录页（向导会话令牌已废弃，需用新密码登录）
   await page.waitForURL('**/login');
@@ -260,11 +260,11 @@ test('团队版完整初始化流程（版本 → 数据库 → 治理配置 →
   await expect(stepTitle).toContainText('配置命名空间');
   await page.click('button:has-text("下一步")');
 
-  // 管理员密码
+  // 管理员账户
   await expect(stepTitle).toContainText('设置超级管理员密码');
   await page.fill('input[placeholder="8-64 个字符"]', 'E2ePass@123');
   await page.fill('input[placeholder="再次输入新密码"]', 'E2ePass@123');
-  await page.click('button:has-text("完成初始化并启用系统")');
+  await page.click('button:has-text("完成初始化")');
 
   await page.waitForURL('**/login');
   expect(page.url()).toContain('/login');
@@ -317,7 +317,7 @@ test('团队版关闭「设为注册人员」后要素留空仍可完成注册�
   await expect(stepTitle).toContainText('设置超级管理员密码');
   await page.fill('input[placeholder="8-64 个字符"]', 'E2ePass@123');
   await page.fill('input[placeholder="再次输入新密码"]', 'E2ePass@123');
-  await page.click('button:has-text("完成初始化并启用系统")');
+  await page.click('button:has-text("完成初始化")');
 
   await page.waitForURL('**/login');
   expect(page.url()).toContain('/login');

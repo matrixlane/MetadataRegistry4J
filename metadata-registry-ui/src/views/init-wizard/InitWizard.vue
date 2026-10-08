@@ -12,7 +12,7 @@
           v-for="title in displaySteps"
           :key="title"
           :title="title"
-          :class="{ 'final-step': title === '管理员密码' }"
+          :class="{ 'final-step': title === '管理员账户' }"
         />
       </el-steps>
 
@@ -375,16 +375,16 @@
           </el-form>
         </div>
 
-        <!-- Step 6: final commit step — 团队版设置管理员密码；个人版免登录仅确认 -->
+        <!-- Step 6: final commit step — 团队版设置管理员账户（密码）；个人版免登录仅确认 -->
         <div v-if="currentStep === 5" class="step-pane fade-in">
           <template v-if="form.edition === 'PERSONAL'">
             <h3 class="step-title">完成初始化</h3>
             <p class="step-desc">
-              个人版无需设置密码：系统仅本地访问，无登录概念。提交后系统将正式启用并直接进入应用。
+              个人版无需设置管理员账户，将使用内置账户默认登录，完成初始化即可直接进入应用。
             </p>
             <el-alert type="info" :closable="false" show-icon class="mb-4">
               <template #title>
-                <strong>当前管理员账户：</strong>admin
+                <strong>当前管理员账户：</strong>admin（内置）
                 <br />
                 <span style="font-size: 13px;">
                   个人版不签发任何登录令牌，访问将以管理员身份直接进行（激活的注册机构等状态保存在本浏览器）。
@@ -481,7 +481,7 @@
           style="width: 200px; margin-left: auto;"
           @click="handleCommit"
         >
-          完成初始化并启用系统
+          完成初始化
         </el-button>
         <el-button
           v-else
@@ -608,7 +608,7 @@ const dbFormModified = computed(
 );
 
 // 表单 ref 与 rules 按 1 起始的步骤序号命名，与步骤语义一一对应：
-// formStep3Ref=注册规范（步骤 3）、formStep5Ref=命名空间（步骤 5）、formStep6Ref=管理员密码（步骤 6）。
+// formStep3Ref=注册规范（步骤 3）、formStep5Ref=命名空间（步骤 5）、formStep6Ref=管理员账户（步骤 6）。
 // 注册机构步骤（步骤 4）为手工校验字段，无 el-form ref。
 const formStep3Ref = ref<FormInstance>();
 const formStep5Ref = ref<FormInstance>();
@@ -754,7 +754,7 @@ const lastStepIndex = computed(() => {
 // 这三者是开展数据治理工作的先决条件；注册规范由向导配置表 28 属性、系统
 // 以默认值预填，个人版同样以预填默认值保持精简体验。
 const displaySteps = computed(() => {
-  return ['版本选择', '数据库', '注册规范', '注册机构', '命名空间', '管理员密码'];
+  return ['版本选择', '数据库', '注册规范', '注册机构', '命名空间', '管理员账户'];
 });
 
 const displayActive = computed(() => {
@@ -860,6 +860,10 @@ async function callSetup(): Promise<void> {
       // 个人版免登录：后端不签发令牌，前端直接进入已初始化态。
       // 必须同步写入 edition——bypassLogin（免登录判定/登出按钮隐藏）依赖该值，
       // 否则路由守卫会因 edition 为空把用户弹回登录页。
+      // 先清掉浏览器可能残留的旧部署令牌（库已重建、账号 UUID 已变）：请求拦截器
+      // 否则会一路携带它，个人版隐式管理员认证被 Bearer 头绕过，/auth/me 404
+      // （Account not found）。
+      auth.logout();
       auth.setInitialized(true);
       auth.setEdition(form.edition);
     }
@@ -1051,6 +1055,8 @@ async function handleCommit() {
     try {
       await request.post('/init-wizard/commit');
       setupCommitted.value = true;
+      // 与 callSetup 同理：清除可能残留的旧令牌后再进入免登录态
+      auth.logout();
       auth.setInitialized(true);
       auth.setEdition(form.edition);
       ElMessage.success('系统初始化成功！');

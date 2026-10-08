@@ -92,6 +92,13 @@ request.interceptors.response.use(
       if (window.location.pathname !== '/init-wizard') {
         window.location.href = '/login';
       }
+    } else if (error.response?.status === 404
+        && (error.config?.url ?? '').endsWith('/auth/me')
+        && useAuthStore().bypassLogin) {
+      // 个人版免登录：localStorage 残留的旧令牌（库已重建、账号 UUID 已变）会让
+      // /auth/me 404。路由守卫会据此丢弃残留令牌完成自愈——此处静默，
+      // 不再弹出 "Account not found" 惊吓用户。
+      return Promise.reject(error);
     } else {
       const status = error.response?.status;
       const serverMsg = error.response?.data?.message;

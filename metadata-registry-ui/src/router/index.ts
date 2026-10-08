@@ -418,7 +418,15 @@ router.beforeEach(async (to) => {
   if (!auth.user) {
     try {
       await auth.fetchMe();
-    } catch {
+    } catch (e) {
+      const status = (e as { response?: { status?: number } })?.response?.status;
+      if (status === 404 && auth.bypassLogin && auth.token) {
+        // 个人版免登录：localStorage 可能残留旧部署的令牌（库已重建、账号 UUID 已变），
+        // Bearer 头会绕过隐式管理员认证导致 /auth/me 404。丢弃残留令牌后，后续请求
+        // 改走匿名通道，由 PersonalEditionAuthenticationFilter 装载隐式管理员。
+        auth.token = '';
+        localStorage.removeItem('token');
+      }
       if (!auth.bypassLogin) {
         auth.logout();
         return '/login';
