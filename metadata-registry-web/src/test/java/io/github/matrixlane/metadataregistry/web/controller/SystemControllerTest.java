@@ -71,13 +71,17 @@ class SystemControllerTest {
     @DisplayName("恢复出厂设置：管理员提交正确密码应返回成功")
     void factoryReset_asAdmin_shouldReturnOk() throws Exception {
         UUID adminId = UUID.randomUUID();
-        FactoryResetRequest request = new FactoryResetRequest("Admin@123");
-        doNothing().when(factoryResetService).executeFactoryReset(any(UUID.class), eq("Admin@123"));
+        FactoryResetRequest request = new FactoryResetRequest("Admin@123", null);
+        doNothing().when(factoryResetService).executeFactoryReset(any(UUID.class), any(FactoryResetRequest.class), eq("127.0.0.1"));
 
         UsernamePasswordAuthenticationToken auth = createAdminAuth(adminId);
         org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(auth);
         try {
             mockMvc.perform(post("/api/v1/system/factory-reset")
+                            .with(req -> {
+                                req.setRemoteAddr("127.0.0.1");
+                                return req;
+                            })
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(request)))
                     .andExpect(status().isOk())
@@ -87,29 +91,34 @@ class SystemControllerTest {
             org.springframework.security.core.context.SecurityContextHolder.clearContext();
         }
 
-        verify(factoryResetService).executeFactoryReset(eq(adminId), eq("Admin@123"));
+        verify(factoryResetService).executeFactoryReset(eq(adminId), any(FactoryResetRequest.class), eq("127.0.0.1"));
     }
 
     // =========================================================================
-    // 2. 密码为空
+    // 2. 版本分支后的校验下沉：空密码请求可直达 service（团队/个人由 service 判定）
     // =========================================================================
 
     @Test
-    @DisplayName("恢复出厂设置：密码为空应返回 422")
-    void factoryReset_blankPassword_shouldReturn422() throws Exception {
+    @DisplayName("恢复出厂设置：空请求体不再被控制器 422 拦截，由 service 按版本校验")
+    void factoryReset_emptyBody_shouldReachService() throws Exception {
         UUID adminId = UUID.randomUUID();
-        FactoryResetRequest request = new FactoryResetRequest("");
 
         UsernamePasswordAuthenticationToken auth = createAdminAuth(adminId);
         org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(auth);
         try {
             mockMvc.perform(post("/api/v1/system/factory-reset")
+                            .with(request -> {
+                                request.setRemoteAddr("127.0.0.1");
+                                return request;
+                            })
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(request)))
-                    .andExpect(status().isUnprocessableEntity());
+                            .content("{}"))
+                    .andExpect(status().isOk());
         } finally {
             org.springframework.security.core.context.SecurityContextHolder.clearContext();
         }
+
+        verify(factoryResetService).executeFactoryReset(eq(adminId), any(FactoryResetRequest.class), eq("127.0.0.1"));
     }
 
     // =========================================================================
@@ -120,14 +129,18 @@ class SystemControllerTest {
     @DisplayName("恢复出厂设置：密码错误时 service 抛出 BusinessException")
     void factoryReset_wrongPassword_shouldPropagateException() throws Exception {
         UUID adminId = UUID.randomUUID();
-        FactoryResetRequest request = new FactoryResetRequest("wrongPassword");
+        FactoryResetRequest request = new FactoryResetRequest("wrongPassword", null);
         doThrow(new BusinessException(ApiCodes.UNAUTHORIZED, "密码验证失败"))
-                .when(factoryResetService).executeFactoryReset(any(UUID.class), eq("wrongPassword"));
+                .when(factoryResetService).executeFactoryReset(any(UUID.class), any(FactoryResetRequest.class), eq("127.0.0.1"));
 
         UsernamePasswordAuthenticationToken auth = createAdminAuth(adminId);
         org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(auth);
         try {
             mockMvc.perform(post("/api/v1/system/factory-reset")
+                            .with(req -> {
+                                req.setRemoteAddr("127.0.0.1");
+                                return req;
+                            })
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(request)))
                     .andExpect(status().isBadRequest())
@@ -136,6 +149,36 @@ class SystemControllerTest {
         } finally {
             org.springframework.security.core.context.SecurityContextHolder.clearContext();
         }
+    }
+
+    // =========================================================================
+    // 4. 安全边界：X-Forwarded-For 不得影响本机来源判定（只信直接连接的 remoteAddr）
+    // =========================================================================
+
+    @Test
+    @DisplayName("恢复出厂设置：伪造 X-Forwarded-For 不改变 remoteAddr 透传值")
+    void factoryReset_xForwardedForSpoofed_shouldStillUseRemoteAddr() throws Exception {
+        UUID adminId = UUID.randomUUID();
+        FactoryResetRequest request = new FactoryResetRequest("Admin@123", null);
+        doNothing().when(factoryResetService).executeFactoryReset(any(UUID.class), any(FactoryResetRequest.class), eq("192.168.1.10"));
+
+        UsernamePasswordAuthenticationToken auth = createAdminAuth(adminId);
+        org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(auth);
+        try {
+            mockMvc.perform(post("/api/v1/system/factory-reset")
+                            .with(req -> {
+                                req.setRemoteAddr("192.168.1.10");
+                                return req;
+                            })
+                            .header("X-Forwarded-For", "127.0.0.1")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isOk());
+        } finally {
+            org.springframework.security.core.context.SecurityContextHolder.clearContext();
+        }
+
+        verify(factoryResetService).executeFactoryReset(eq(adminId), any(FactoryResetRequest.class), eq("192.168.1.10"));
     }
 
     // =========================================================================

@@ -7,7 +7,7 @@ import io.github.matrixlane.metadataregistry.web.service.FactoryResetService;
 import io.github.matrixlane.metadataregistry.web.service.SystemSettingService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.validation.Valid;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -23,9 +23,10 @@ public class SystemController {
 
     @PostMapping("/factory-reset")
     @Operation(summary = "恢复出厂设置")
-    public ApiResponse<Void> factoryReset(@Valid @RequestBody FactoryResetRequest request,
-                                          @AuthenticationPrincipal AuthenticatedUser user) {
-        factoryResetService.executeFactoryReset(user.id(), request.password());
+    public ApiResponse<Void> factoryReset(@RequestBody FactoryResetRequest request,
+                                          @AuthenticationPrincipal AuthenticatedUser user,
+                                          HttpServletRequest httpRequest) {
+        factoryResetService.executeFactoryReset(user.id(), request, httpRequest.getRemoteAddr());
         return ApiResponse.ok();
     }
 

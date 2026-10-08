@@ -3,6 +3,10 @@ package io.github.matrixlane.metadataregistry.web.service;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Account;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.SystemRole;
 import io.github.matrixlane.metadataregistry.web.auth.AccountRepository;
+import io.github.matrixlane.metadataregistry.web.common.ApiCodes;
+import io.github.matrixlane.metadataregistry.web.common.BusinessException;
+import io.github.matrixlane.metadataregistry.web.dto.system.FactoryResetRequest;
+import io.github.matrixlane.metadataregistry.web.edition.DeploymentEdition;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -11,8 +15,11 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 
+import java.util.UUID;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * 恢复出厂设置 × 语言预置的端到端回归测试。
@@ -56,22 +63,60 @@ class FactoryResetLanguagePresetIntegrationTest {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
+    @Autowired
+    private SystemSettingService systemSettingService;
+
+    @Test
+    @DisplayName("个人版：确认短语 + 本机来源执行恢复出厂，重建 admin 为 NO_PASSWORD 哨兵；非本机来源 403 且数据保留")
+    void personalFactoryReset_shouldReseedNoPasswordAndRejectNonLoopback() {
+        // 非本机来源：即使确认短语正确也必须 403，且不得清除任何数据
+        systemSettingService.setEdition(DeploymentEdition.PERSONAL);
+        Account admin = new Account();
+        admin.setUsername("personal-admin-" + UUID.randomUUID().toString().substring(0, 8));
+        admin.setPasswordHash("NO_PASSWORD");
+        admin.setSysRole(SystemRole.SUPER_ADMIN);
+        admin.setEnabled(true);
+        UUID adminId = accountRepository.save(admin).getId();
+
+        assertThatThrownBy(() -> factoryResetService.executeFactoryReset(
+                        adminId, new FactoryResetRequest(null, "恢复出厂设置"), "192.168.1.10"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getCode()).isEqualTo(ApiCodes.FORBIDDEN));
+        assertThat(accountRepository.findById(adminId)).isPresent();
+
+        // 本机来源 + 正确短语：执行成功，重建的 admin 为 NO_PASSWORD 哨兵
+        assertThatCode(() -> factoryResetService.executeFactoryReset(
+                        adminId, new FactoryResetRequest(null, "恢复出厂设置"), "127.0.0.1"))
+                .doesNotThrowAnyException();
+
+        String passwordHash = jdbcTemplate.queryForObject(
+                "SELECT password_hash FROM account WHERE username = 'admin'", String.class);
+        assertThat(passwordHash).isEqualTo("NO_PASSWORD");
+        // 个人版重新初始化不要求密码：初始化的前置数据已被 presetAll 重建
+        assertThat(systemSettingService.isInitialized()).isFalse();
+    }
+
     @Test
     @DisplayName("恢复出厂设置：语言代码只播种一次且名称齐全（预置脚本不得与 JPA 播种重复插入）")
     void factoryResetSeedsEachLanguageExactlyOnceWithName() {
-        // 与团队库现状一致：唯一索引先行，出厂流程必须在该约束下跑通
+        // 与团队库现状一致：唯一索引先行，出厂流程必须在该约束下跑通。
+        // 显式锁定 TEAM 版本：本测试依赖"版本为空⇒TEAM 密码分支"的语义，
+        // 不接受同文件其他用例残留的 edition 状态（共享内存库，顺序无关性靠显式前提）。
+        systemSettingService.setEdition(DeploymentEdition.TEAM);
         jdbcTemplate.execute("DROP INDEX IF EXISTS uq_language_identification_identifier");
         jdbcTemplate.execute("CREATE UNIQUE INDEX uq_language_identification_identifier"
                 + " ON language_identification (language_identifier)");
 
         Account admin = new Account();
-        admin.setUsername("factory-reset-admin-" + java.util.UUID.randomUUID().toString().substring(0, 8));
+        admin.setUsername("factory-reset-admin-" + UUID.randomUUID().toString().substring(0, 8));
         admin.setPasswordHash(passwordEncoder.encode("Admin@123"));
         admin.setSysRole(SystemRole.SUPER_ADMIN);
         admin.setEnabled(true);
-        java.util.UUID adminId = accountRepository.save(admin).getId();
+        UUID adminId = accountRepository.save(admin).getId();
 
-        assertThatCode(() -> factoryResetService.executeFactoryReset(adminId, "Admin@123"))
+        assertThatCode(() -> factoryResetService.executeFactoryReset(
+                        adminId, new io.github.matrixlane.metadataregistry.web.dto.system.FactoryResetRequest("Admin@123", null),
+                        "127.0.0.1"))
                 .doesNotThrowAnyException();
 
         Integer languages = jdbcTemplate.queryForObject(

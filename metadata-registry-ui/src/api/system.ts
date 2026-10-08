@@ -22,9 +22,12 @@ export const systemApi = {
   /**
    * 恢复出厂设置 — 清除所有数据并将系统重置为初始状态
    * POST /api/v1/system/factory-reset
+   *
+   * 二次确认按部署版本差异化：团队版传当前管理员密码；个人版无密码概念，
+   * 传确认短语（与固定短语"恢复出厂设置"精确匹配）。
    */
-  factoryReset: (password: string) =>
-    request.post<void>('/system/factory-reset', { password }),
+  factoryReset: (payload: { password?: string; confirmationPhrase?: string }) =>
+    request.post<void>('/system/factory-reset', payload),
 
   /**
    * 获取新用户注册是否需要审核的开关状态

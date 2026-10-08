@@ -62,38 +62,60 @@
       </template>
     </el-dialog>
 
-    <!-- Step 2: Password verification dialog -->
+    <!-- Step 2: Credential verification dialog (edition-differentiated) -->
     <el-dialog
-      v-model="passwordVisible"
-      title="🔐 身份验证"
+      v-model="verifyVisible"
+      :title="isPersonal ? '⚠️ 二次确认' : '🔐 身份验证'"
       width="420px"
       :close-on-click-modal="false"
       destroy-on-close
     >
-      <p style="margin-top: 0; color: var(--el-text-color-regular);">
-        请输入您当前的登录密码以确认此操作：
-      </p>
-      <el-form @submit.prevent="executeReset">
-        <el-form-item>
-          <el-input
-            v-model="password"
-            type="password"
-            name="password"
-            autocomplete="current-password"
-            placeholder="请输入管理员密码"
-            show-password
-            :disabled="resetting"
-            @keyup.enter="executeReset"
-          />
-        </el-form-item>
-      </el-form>
+      <!-- 个人版（PERSONAL）：无密码概念，输入固定确认短语（GitHub 删库式） -->
+      <template v-if="isPersonal">
+        <p style="margin-top: 0; color: var(--el-text-color-regular);">
+          此操作不可恢复。请输入 <strong>「{{ CONFIRM_PHRASE }}」</strong> 以确认：
+        </p>
+        <el-form @submit.prevent="executeReset">
+          <el-form-item>
+            <el-input
+              v-model="phraseInput"
+              type="text"
+              autocomplete="off"
+              :placeholder="`请输入：${CONFIRM_PHRASE}`"
+              :disabled="resetting"
+              @keyup.enter="executeReset"
+            />
+          </el-form-item>
+        </el-form>
+      </template>
+
+      <!-- 团队版（TEAM）：输入当前管理员密码 -->
+      <template v-else>
+        <p style="margin-top: 0; color: var(--el-text-color-regular);">
+          请输入您当前的登录密码以确认此操作：
+        </p>
+        <el-form @submit.prevent="executeReset">
+          <el-form-item>
+            <el-input
+              v-model="password"
+              type="password"
+              name="password"
+              autocomplete="current-password"
+              placeholder="请输入管理员密码"
+              show-password
+              :disabled="resetting"
+              @keyup.enter="executeReset"
+            />
+          </el-form-item>
+        </el-form>
+      </template>
 
       <template #footer>
-        <el-button @click="passwordVisible = false" :disabled="resetting">取消</el-button>
+        <el-button @click="verifyVisible = false" :disabled="resetting">取消</el-button>
         <el-button
           type="danger"
           :loading="resetting"
-          :disabled="!password.trim()"
+          :disabled="!canSubmit"
           @click="executeReset"
         >
           {{ resetting ? '正在重置...' : '确认重置' }}
@@ -117,7 +139,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { WarningFilled, Loading } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
@@ -127,27 +149,62 @@ import { useAuthStore } from '@/stores/auth';
 const router = useRouter();
 const auth = useAuthStore();
 
+/** 个人版二次确认的固定短语（与后端 FactoryResetService.CONFIRMATION_PHRASE 同步）。 */
+const CONFIRM_PHRASE = '恢复出厂设置';
+
 const confirmVisible = ref(false);
-const passwordVisible = ref(false);
+const verifyVisible = ref(false);
 const password = ref('');
+const phraseInput = ref('');
 const resetting = ref(false);
+
+/**
+ * 部署版本：个人版渲染确认短语对话框，团队版渲染密码对话框。
+ * 版本经 auth store（checkInitialized 写回 edition）单点解析；仍未知按团队版渲染
+ * （fail-closed：个人版误显密码框后果是功能不可用，团队版误显短语框则削弱确认强度）。
+ */
+const edition = computed(() => auth.edition);
+const isPersonal = computed(() => edition.value === 'PERSONAL');
+
+const canSubmit = computed(() =>
+  isPersonal.value ? phraseInput.value.trim() === CONFIRM_PHRASE : !!password.value.trim()
+);
+
+/** 版本未决时向 store 补全；失败保持 null（调用方按团队版兜底）。 */
+async function resolveEdition() {
+  if (auth.edition) return;
+  try {
+    await auth.checkInitialized(true);
+  } catch {
+    // 保持 null → 按团队版渲染
+  }
+}
+
+onMounted(resolveEdition);
 
 function showConfirmDialog() {
   confirmVisible.value = true;
 }
 
-function showPasswordDialog() {
+async function showPasswordDialog() {
   confirmVisible.value = false;
+  // 版本未决时先补全再开第二步对话框，避免密码框/短语框中途切换丢掉已输入内容
+  await resolveEdition();
   password.value = '';
-  passwordVisible.value = true;
+  phraseInput.value = '';
+  verifyVisible.value = true;
 }
 
 async function executeReset() {
-  if (!password.value.trim()) return;
+  if (!canSubmit.value) return;
 
   resetting.value = true;
   try {
-    await systemApi.factoryReset(password.value);
+    await systemApi.factoryReset(
+      isPersonal.value
+        ? { confirmationPhrase: phraseInput.value.trim() }
+        : { password: password.value }
+    );
 
     // ── Frontend state cleanup ────────────────────────────────────────────
     // We intentionally do NOT clear localStorage or fully log out: the
@@ -177,7 +234,9 @@ async function executeReset() {
     }, 1500);
   } catch (err: any) {
     resetting.value = false;
-    passwordVisible.value = false;
+    // 出错即关闭第二步对话框并丢弃已输入内容（含刻意选择：重试需从第一步重来，
+    // 对破坏性操作偏保守；勿当 bug "修复"为重置失败保留凭据输入）。
+    verifyVisible.value = false;
     // The error message is already shown by the request interceptor
   }
 }
