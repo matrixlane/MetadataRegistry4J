@@ -360,11 +360,17 @@ export interface NamingConventionResponse {
   label?: string;
   scopeRule?: string;
   authorityRule?: string;
+  semanticRule?: string;
+  syntacticRule?: string;
+  lexicalRule?: string;
   designations?: TextLineResponse[];
   definitions?: TextLineResponse[];
   registrationStatus?: string;
   meta?: {
     identifier?: string;
+    namespaceId?: string;
+    version?: string;
+    registrationAuthorityName?: string;
     registrationStatus?: string;
   };
 }
@@ -372,9 +378,13 @@ export interface NamingConventionResponse {
 export interface NamingConventionRequest {
   scopeRule: string;
   authorityRule?: string;
-  designations: TextLineForm[];
+  semanticRule?: string;
+  syntacticRule?: string;
+  lexicalRule?: string;
+  designations?: TextLineForm[];
   definitions?: TextLineForm[];
   registration?: {
+    namespaceId?: string;
     identifier?: string;
     version?: string;
   };

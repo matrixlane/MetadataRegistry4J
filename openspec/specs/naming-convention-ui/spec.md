@@ -1,35 +1,28 @@
 # naming-convention-ui Specification
 
 ## Purpose
-TBD - created by archiving change align-namespace-ui. Update Purpose after archive.
+提供「命名规范」（Naming_Convention，ISO/IEC 11179-3:2023 §8.4.4）的独立管理界面：按标准由注册标识识别、以五个规则属性（scope/authority/semantic/syntactic/lexical）为内容，支持完整 CRUD、搜索、删除前引用提示，并与命名空间页面解耦。指称通过 naming_convention_conformance 关联选择命名规范；命名规范表单保留指称/定义编辑区（Item 子类可被 named/defined，0..* 非必填）。
+
 ## Requirements
+
 ### Requirement: 命名规范必须可独立创建与管理
 
-系统 MUST 提供「命名规范」管理页面，路径与「命名空间」同级，覆盖 `POST /api/v1/naming-conventions`、`GET /api/v1/naming-conventions`、`GET /api/v1/naming-conventions/{id}`、`PUT /api/v1/naming-conventions/{id}`、`DELETE /api/v1/naming-conventions/{id}` 完整 CRUD。
+系统 MUST 提供「命名规范」管理页面，路径与「命名空间」同级，覆盖 `POST /api/v1/naming-conventions`、`GET /api/v1/naming-conventions`、`GET /api/v1/naming-conventions/{id}`、`PUT /api/v1/naming-conventions/{id}`、`DELETE /api/v1/naming-conventions/{id}` 完整 CRUD。命名规范按 ISO/IEC 11179-3:2023 §8.4.4 建模：由注册标识识别，内容为五个规则属性；创建 MUST NOT 要求填写指称或定义。
 
 #### Scenario: 新建命名规范
-- **WHEN** 用户打开「命名规范」页面，点击「新建」，填写 `scopeRule = "^[a-z]+$"`，添加 1 条 designation（语言 zh-CN，文本「小写命名规则」），提交
+
+- **WHEN** 用户打开「命名规范」页面，点击「新建」，填写 `scopeRule = "^[a-z]+$"` 与注册标识，提交
 - **THEN** 系统调用 `POST /api/v1/naming-conventions` 提交 `NamingConventionRequest`，返回 201，列表中可见新行
 
 #### Scenario: 编辑回填完整字段
+
 - **WHEN** 用户点击列表中已有命名规范的「编辑」按钮
-- **THEN** 系统调用 `GET /api/v1/naming-conventions/{id}` 拉取 `NamingConventionResponse`，表单回填 `scopeRule`、`authorityRule`、`designations`、`definitions`、`registration`，并保留 `meta.identifier` 一致
+- **THEN** 系统调用 `GET /api/v1/naming-conventions/{id}` 拉取 `NamingConventionResponse`，表单回填 `scopeRule`、`authorityRule`、`semanticRule`、`syntacticRule`、`lexicalRule`、`designations`、`definitions` 与 `registration`，并保留 `meta.identifier` 一致
 
 #### Scenario: 列表搜索
+
 - **WHEN** 用户在搜索框输入关键词
 - **THEN** 列表调用 `/api/v1/naming-conventions?q=<keyword>` 并刷新结果
-
-### Requirement: scopeRule 必填与 designations 至少一条
-
-表单 MUST 强制 `scopeRule` 非空、`designations` 至少一条，与后端 `NamingConventionRequest` 的 `@NotBlank` / `@NotEmpty` 注解保持一致。
-
-#### Scenario: scopeRule 为空提交
-- **WHEN** 用户提交时 `scopeRule` 为空
-- **THEN** 前端校验失败，提示「scopeRule 不能为空」
-
-#### Scenario: designations 列表为空提交
-- **WHEN** 用户提交时未添加任何 designation
-- **THEN** 前端校验失败，提示「designations 不能为空」
 
 ### Requirement: 删除前关联性提示
 
@@ -62,15 +55,25 @@ TBD - created by archiving change align-namespace-ui. Update Purpose after archi
 ### Requirement: 列表列与表单字段
 
 「命名规范」列表 MUST 展示以下列：
-- **标识符**（`id` 截取前 8 位）
-- **首选名称**（`label`，来自首选 designation）
+- **名称**（`label`（来自首选指称）；无指称时回退 `scopeRule` 截断文本）
 - **scopeRule**（前 50 字符，超出截断）
 - **authorityRule**（前 50 字符，超出截断；空时显示 `-`）
+- **semanticRule**（前 50 字符，超出截断；空时显示 `-`）
+- **syntacticRule**（前 50 字符，超出截断；空时显示 `-`）
+- **lexicalRule**（前 50 字符，超出截断；空时显示 `-`）
 - **状态**（`meta.registrationStatus`）
 
+新建/编辑表单 MUST 提供 `scopeRule`（必填）、`authorityRule`、`semanticRule`、`syntacticRule`、`lexicalRule`（选填）五个规则属性输入，「注册标识」区段，以及「指称」「定义」编辑区（Naming_Convention 为 Item 子类，实例可被命名与定义；指称/定义 0..* 非必填）；字段提示 MUST 忠实对应 ISO/IEC 11179-3:2023 Table 17 的属性定义。
+
 #### Scenario: 列渲染
+
 - **WHEN** 列表加载完成
-- **THEN** 按上述 5 列展示，每行数据来源于 `GET /api/v1/naming-conventions` 的 `NamingConventionResponse[]`
+- **THEN** 按上述 7 列展示，每行数据来源于 `GET /api/v1/naming-conventions` 的 `NamingConventionResponse[]`
+
+#### Scenario: 表单五规则属性
+
+- **WHEN** 用户打开「新建命名规范」对话框并切换到「属性」页签
+- **THEN** 表单呈现 scopeRule、authorityRule、semanticRule、syntacticRule、lexicalRule 五个输入项，scopeRule 标记必填
 
 ### Requirement: API 客户端强类型
 
@@ -80,3 +83,16 @@ TBD - created by archiving change align-namespace-ui. Update Purpose after archi
 - **WHEN** 开发者执行 `npm run build`
 - **THEN** `namingConventionApi` 的入参/出参类型完整，无 `any` 类型警告
 
+### Requirement: scopeRule 必填，designations 非必填
+
+表单 MUST 强制 `scopeRule` 非空（与后端 `NamingConventionRequest` 的 `@NotBlank` 一致）；表单 MUST 提供指称与定义编辑区，MUST NOT 校验 designations/definitions 条数。
+
+#### Scenario: scopeRule 为空提交
+
+- **WHEN** 用户提交时 `scopeRule` 为空
+- **THEN** 前端校验失败，提示「scopeRule 不能为空」
+
+#### Scenario: 未填写指称提交
+
+- **WHEN** 用户提交时未填写任何指称或定义
+- **THEN** 系统正常提交，不提示 designations 相关错误

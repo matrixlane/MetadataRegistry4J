@@ -12,7 +12,7 @@
       <template #columns>
         <el-table-column :label="$t('common.name')" min-width="220">
           <template #default="{ row }">
-            {{ row.label || preferredDesignation(row) || '-' }}
+            {{ row.label || truncate(row.scopeRule, 40) || '-' }}
             <code v-if="row.authorityRule" class="authority-hint" :title="row.authorityRule">{{ truncate(row.authorityRule, 40) }}</code>
           </template>
         </el-table-column>
@@ -25,6 +25,24 @@
         <el-table-column :label="$t('namingConvention.authorityRule')" min-width="180">
           <template #default="{ row }">
             <code v-if="row.authorityRule" style="font-size: 12px;">{{ truncate(row.authorityRule, 50) }}</code>
+            <span v-else>-</span>
+          </template>
+        </el-table-column>
+        <el-table-column :label="$t('namingConvention.semanticRule')" min-width="180">
+          <template #default="{ row }">
+            <code v-if="row.semanticRule" style="font-size: 12px;">{{ truncate(row.semanticRule, 50) }}</code>
+            <span v-else>-</span>
+          </template>
+        </el-table-column>
+        <el-table-column :label="$t('namingConvention.syntacticRule')" min-width="180">
+          <template #default="{ row }">
+            <code v-if="row.syntacticRule" style="font-size: 12px;">{{ truncate(row.syntacticRule, 50) }}</code>
+            <span v-else>-</span>
+          </template>
+        </el-table-column>
+        <el-table-column :label="$t('namingConvention.lexicalRule')" min-width="180">
+          <template #default="{ row }">
+            <code v-if="row.lexicalRule" style="font-size: 12px;">{{ truncate(row.lexicalRule, 50) }}</code>
             <span v-else>-</span>
           </template>
         </el-table-column>
@@ -56,7 +74,7 @@
             />
           </el-tab-pane>
 
-          <!-- 指称（与数据元等注册项弹窗一致的独立页签） -->
+          <!-- 指称（Naming_Convention 为 Item 子类，可被命名，0..* 非必填） -->
           <el-tab-pane label="指称" name="designations">
             <el-form-item label="指称">
               <MultilingualTextEditor
@@ -67,7 +85,7 @@
             </el-form-item>
           </el-tab-pane>
 
-          <!-- 定义 -->
+          <!-- 定义（Item 子类可被定义，0..* 非必填） -->
           <el-tab-pane label="定义" name="definitions">
             <el-form-item label="定义">
               <MultilingualTextEditor
@@ -105,6 +123,42 @@
                 :placeholder="$t('namingConvention.authorityRulePlaceholder')"
               />
             </el-form-item>
+            <el-form-item>
+              <template #label>
+                <span>{{ $t('namingConvention.semanticRule') }}</span>
+                <el-tooltip :content="$t('namingConvention.semanticRuleTip')" placement="top">
+                  <el-icon style="margin-left: 4px;"><QuestionFilled /></el-icon>
+                </el-tooltip>
+              </template>
+              <el-input
+                v-model="form.semanticRule"
+                :placeholder="$t('namingConvention.semanticRulePlaceholder')"
+              />
+            </el-form-item>
+            <el-form-item>
+              <template #label>
+                <span>{{ $t('namingConvention.syntacticRule') }}</span>
+                <el-tooltip :content="$t('namingConvention.syntacticRuleTip')" placement="top">
+                  <el-icon style="margin-left: 4px;"><QuestionFilled /></el-icon>
+                </el-tooltip>
+              </template>
+              <el-input
+                v-model="form.syntacticRule"
+                :placeholder="$t('namingConvention.syntacticRulePlaceholder')"
+              />
+            </el-form-item>
+            <el-form-item>
+              <template #label>
+                <span>{{ $t('namingConvention.lexicalRule') }}</span>
+                <el-tooltip :content="$t('namingConvention.lexicalRuleTip')" placement="top">
+                  <el-icon style="margin-left: 4px;"><QuestionFilled /></el-icon>
+                </el-tooltip>
+              </template>
+              <el-input
+                v-model="form.lexicalRule"
+                :placeholder="$t('namingConvention.lexicalRulePlaceholder')"
+              />
+            </el-form-item>
           </el-tab-pane>
         </el-tabs>
       </template>
@@ -138,17 +192,9 @@ const { defaultLanguageId } = useRegistryDefaultLanguage();
 const editingId = ref<string | null>(null);
 const editingRaName = ref<string | null>(null);
 
-function truncate(text: string, max: number): string {
+function truncate(text: string | undefined, max: number): string {
   if (!text) return '';
   return text.length > max ? `${text.slice(0, max)}…` : text;
-}
-
-function preferredDesignation(row: NamingConventionResponse): string {
-  if (row.label) return row.label;
-  const list = row.designations || [];
-  if (list.length === 0) return '';
-  const zh = list.find((d) => d.languageCode === 'zh-CN');
-  return zh?.value || list[0]?.value || '';
 }
 
 function handleCreate() {
@@ -157,6 +203,9 @@ function handleCreate() {
   dialog.value?.open({
     scopeRule: '',
     authorityRule: '',
+    semanticRule: '',
+    syntacticRule: '',
+    lexicalRule: '',
     designations: [],
     definitions: [],
     registration: {},
@@ -171,6 +220,9 @@ async function handleEdit(row: NamingConventionResponse) {
     dialog.value?.open({
       scopeRule: detail.scopeRule || '',
       authorityRule: detail.authorityRule || '',
+      semanticRule: detail.semanticRule || '',
+      syntacticRule: detail.syntacticRule || '',
+      lexicalRule: detail.lexicalRule || '',
       designations: (detail.designations || []).map((d) => ({
         languageId: d.languageId,
         value: d.value,
@@ -197,20 +249,19 @@ async function submitFn(data: Record<string, unknown>) {
     ElMessage.error('scopeRule 不能为空');
     throw new Error('scopeRule required');
   }
-  const designations = (data.designations as TextLineForm[]) || [];
-  if (designations.length === 0) {
-    ElMessage.error('designations 不能为空');
-    throw new Error('designations required');
-  }
   const varError = regSection.value?.validateTemplateVariables() ?? null;
   if (varError) {
     ElMessage.error(varError);
     throw new Error(varError);
   }
+  const optional = (v: unknown) => ((v as string) || '').trim() || undefined;
   const payload: NamingConventionRequest = {
     scopeRule: (data.scopeRule as string).trim(),
-    authorityRule: (data.authorityRule as string) || undefined,
-    designations,
+    authorityRule: optional(data.authorityRule),
+    semanticRule: optional(data.semanticRule),
+    syntacticRule: optional(data.syntacticRule),
+    lexicalRule: optional(data.lexicalRule),
+    designations: (data.designations as TextLineForm[]) || [],
     definitions: (data.definitions as TextLineForm[]) || [],
     registration: regSection.value?.buildPayload() as any,
   };
@@ -235,7 +286,7 @@ async function handleDelete(row: NamingConventionResponse) {
     } catch {
       refCount = 0;
     }
-    const label = row.label || preferredDesignation(row) || '—';
+    const label = row.label || truncate(row.scopeRule, 40) || '—';
     let msg: string;
     if (refCount > 0) {
       msg = `命名规范「${label}」已被 ${refCount} 个命名空间引用，确认删除？`;
