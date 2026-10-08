@@ -10781,9 +10781,8 @@ components:
       properties:
         password:
           type: string
-          minLength: 1
-      required:
-      - password
+        confirmationPhrase:
+          type: string
     VersionTransitionRequest:
       type: object
       properties:
