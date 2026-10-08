@@ -175,9 +175,6 @@ const activeRaRegistrationAuthorityId = ref<string | null>(null);
 /** 活动 Registrar 身份查询本身失败（接口异常），与"无活动身份"区分提示 */
 const activeRegistrarQueryFailed = ref(false);
 
-/** system-default 命名空间的 URN 方案引用（与后端 SystemDefaultNamespaceInitializer 一致） */
-const SYSTEM_DEFAULT_SCHEME = 'urn:metadata-registry:system-default';
-
 const identifierChoice = ref<GenerationMode>('auto');
 const versionChoice = ref<GenerationMode>('auto');
 const generationModeOptions = [
@@ -319,12 +316,6 @@ const versionRules = [
   },
 ];
 
-// 无注册机构关联命名空间时：仅当目标为 system-default 命名空间才禁用保存
-// （外部命名空间用于导入/编目外部数据标准，不受门槛限制）。
-const gateBlocked = computed(() =>
-  !raNamespaceExists.value && selectedNamespace.value?.schemeReference === SYSTEM_DEFAULT_SCHEME
-);
-
 function goCreateNamespace() {
   router.push('/namespaces');
 }
@@ -442,7 +433,7 @@ async function loadOptions() {
   }
   // 默认命名空间预选（default-namespace-by-active-registrar）。置于最末，
   // 仅当 active RA / namespaces / readiness 三路全部就位后再写入 model。
-  // 此后才上报 loaded=true（外层以 gateBlocked 可读作为 loadOptions 完成的信号），
+  // 此后才上报 loaded=true（外层以 loaded 作为 loadOptions 完成的信号），
   // 避免宿主/测试在默认推导前写入并被异步覆盖。
   applyDefaultNamespace();
   loaded.value = true;
@@ -464,12 +455,11 @@ function applyDefaultNamespace() {
   if (current) {
     return;
   }
-  // 自有命名空间 = 注册机构关联 + 非外部 + 非 system-default
+  // 自有命名空间 = 注册机构关联 + 非外部
   const own = namespaces.value.find(
     (ns) =>
       ns.registrationAuthorityId === targetRaId
-      && ns.namespaceKind !== 'EXTERNAL'
-      && ns.schemeReference !== SYSTEM_DEFAULT_SCHEME,
+      && ns.namespaceKind !== 'EXTERNAL',
   );
   if (own) {
     model.value.namespaceId = own.id;
@@ -577,7 +567,7 @@ defineExpose({
   reset,
   buildPayload,
   validateTemplateVariables,
-  gateBlocked,
+  loaded,
   identifierAutoInEffect,
   versionAutoInEffect,
   wasIdentifierAuto,

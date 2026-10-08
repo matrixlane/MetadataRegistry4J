@@ -14,21 +14,15 @@ public interface NamespaceRepository
 
     boolean existsByShorthandPrefix(String shorthandPrefix);
 
-    Optional<Namespace> findByShorthandPrefix(String shorthandPrefix);
-
     boolean existsByRegistrationAuthorityIsNotNull();
 
     @Query("SELECT ns FROM Namespace ns WHERE ns.schemeReference.value = :schemeReference")
     Optional<Namespace> findBySchemeReference(@Param("schemeReference") String schemeReference);
 
     /**
-     * 取与给定 Registration_Authority 直接关联、且 schemeReference 非 system-default
-     * 的自有命名空间。1:1 不变量由 active-registrar-ownership 能力保障。
+     * 取与给定 Registration_Authority 直接关联的自有命名空间。
+     * 1:1 不变量由 active-registrar-ownership 能力保障。
      * 用于 ItemAdministrationService 默认命名空间推导。
      */
-    @Query("SELECT ns FROM Namespace ns WHERE ns.registrationAuthority.id = :registrationAuthorityId"
-            + " AND ns.schemeReference.value <> :schemeReference")
-    Optional<Namespace> findFirstByRegistrationAuthority_IdAndSchemeReferenceNot(
-            @Param("registrationAuthorityId") UUID registrationAuthorityId,
-            @Param("schemeReference") String schemeReference);
+    Optional<Namespace> findFirstByRegistrationAuthority_Id(UUID registrationAuthorityId);
 }

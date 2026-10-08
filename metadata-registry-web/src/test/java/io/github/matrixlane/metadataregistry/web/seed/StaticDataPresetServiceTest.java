@@ -39,8 +39,6 @@ class StaticDataPresetServiceTest {
     @Mock
     private LanguagePresetSeeder languagePresetSeeder;
     @Mock
-    private SystemDefaultNamespaceInitializer systemDefaultNamespaceInitializer;
-    @Mock
     private RegistrationProcessService registrationProcessService;
     @Mock
     private RegistrationAuthorityRepository registrationAuthorityRepository;
@@ -63,7 +61,7 @@ class StaticDataPresetServiceTest {
     }
 
     @Test
-    @DisplayName("presetAll:按固定顺序执行五个步骤并以 refreshRegistry 收尾")
+    @DisplayName("presetAll:按固定顺序执行四个步骤并以 refreshRegistry 收尾")
     void presetAllExecutesStepsInOrder() {
         UUID raId = UUID.randomUUID();
         RegistrationAuthority ra = new RegistrationAuthority();
@@ -74,10 +72,9 @@ class StaticDataPresetServiceTest {
 
         presetService.presetAll();
 
-        InOrder order = inOrder(languagePresetSeeder, systemDefaultNamespaceInitializer,
+        InOrder order = inOrder(languagePresetSeeder,
                 jdbcTemplate, accountRepository, registrationProcessService, identifierStrategyLoader);
         order.verify(languagePresetSeeder).reapplyPreset();
-        order.verify(systemDefaultNamespaceInitializer).initializeSystemDefaultNamespace();
         order.verify(jdbcTemplate).queryForObject(
                 containsSql("SELECT COUNT(*) FROM ext.identifier_strategy_config"), eq(Integer.class));
         order.verify(accountRepository).count();

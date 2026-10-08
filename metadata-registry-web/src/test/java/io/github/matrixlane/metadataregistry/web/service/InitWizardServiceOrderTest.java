@@ -13,7 +13,6 @@ import io.github.matrixlane.metadataregistry.web.repository.NamespaceRepository;
 import io.github.matrixlane.metadataregistry.web.repository.RegistrationAuthorityExtensionRepository;
 import io.github.matrixlane.metadataregistry.web.repository.RegistrationAuthorityRepository;
 import io.github.matrixlane.metadataregistry.web.seed.StaticDataPresetService;
-import io.github.matrixlane.metadataregistry.web.seed.SystemDefaultNamespaceInitializer;
 import io.github.matrixlane.metadataregistry.web.service.database.DatabaseCleaner;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -77,8 +76,6 @@ class InitWizardServiceOrderTest {
     private NamespaceProvisioningService namespaceProvisioningService;
     @Mock
     private RegistryContextBootstrapService registryContextBootstrapService;
-    @Mock
-    private SystemDefaultNamespaceInitializer systemDefaultNamespaceInitializer;
     @Mock
     private jakarta.persistence.EntityManager entityManager;
 

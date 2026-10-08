@@ -525,7 +525,7 @@
     "strategyTemplate": "模板",
     "strategyTemplateTip": "占位符：{ns} 命名空间简写、{type} 实体类型简写（如 DE）、{seq:N} 序列号（N 位补零）、{yyyyMM} 等日期、{uuid} 短随机码；分隔符可用 - _ .",
     "shorthandPrefix": "简写前缀",
-    "shorthandPrefixTip": "如 sys: 、 org: ，用于快速限定命名空间",
+    "shorthandPrefixTip": "如 de: 、 org: ，用于快速限定命名空间",
     "schemeReference": "方案引用",
     "schemeReferenceTip": "IRI 形式的方案引用，如 urn:metadata-registry:my-namespace",
     "mandatoryNamingConventionIndicator": "强制命名规范",

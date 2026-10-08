@@ -37,7 +37,6 @@ import static org.mockito.Mockito.when;
  *   <li>BC-02: Namespace 不存在 → namespaceExists=false</li>
  *   <li>BC-03: Namespace 无关联 RA（非 ACTIVE）→ namespaceActive=false</li>
  *   <li>BC-04: 用户无 CREATE 权限 → userHasPermission=false（当前硬编码）</li>
- *   <li>BC-08: system-default NS 已存在时重复启动 → 幂等</li>
  *   <li>system-readiness 全局检查</li>
  * </ul>
  */

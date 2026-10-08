@@ -19,7 +19,6 @@ import io.github.matrixlane.metadataregistry.web.repository.LanguageIdentificati
 import io.github.matrixlane.metadataregistry.web.repository.NamespaceRepository;
 import io.github.matrixlane.metadataregistry.web.repository.RegistrarRepository;
 import io.github.matrixlane.metadataregistry.web.repository.RegistrationAuthorityRepository;
-import io.github.matrixlane.metadataregistry.web.seed.SystemDefaultNamespaceInitializer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -123,19 +122,6 @@ class NamespaceGateIntegrationTest {
         assertThat(namespaceRepository.existsByRegistrationAuthorityIsNotNull()).isFalse();
 
         assertThatThrownBy(() -> dataElementService.create(requestFor(null)))
-                .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("命名空间");
-    }
-
-    @Test
-    void createDataElement_systemDefaultNamespace_blocked() {
-        // system-default 命名空间不计入前置条件。
-        Namespace systemDefault = new Namespace();
-        systemDefault.setShorthandPrefix(SystemDefaultNamespaceInitializer.SYSTEM_DEFAULT_PREFIX);
-        systemDefault.setSchemeReference(Sign.of(SystemDefaultNamespaceInitializer.SYSTEM_DEFAULT_SCHEME));
-        namespaceRepository.save(systemDefault);
-
-        assertThatThrownBy(() -> dataElementService.create(requestFor(systemDefault.getId())))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("命名空间");
     }

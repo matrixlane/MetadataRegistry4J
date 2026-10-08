@@ -106,7 +106,7 @@ async function mountSection(
   const section = wrapper.findComponent(ItemRegistrationSection);
   // 等待 onMounted 的命名空间加载
   await vi.waitFor(() => {
-    expect((section.vm as any).gateBlocked).toBeDefined();
+    expect((section.vm as any).loaded).toBeTruthy();
   });
   (wrapper.vm as any).form.registration.namespaceId = namespaceId;
   await wrapper.vm.$nextTick();
@@ -421,7 +421,7 @@ describe('ItemRegistrationSection 默认命名空间按活动 Registrar 预选',
     const section = wrapper.findComponent(ItemRegistrationSection);
     // 等到 gateBlocked 可读 = loadOptions 完成 = applyDefaultNamespace 已运行
     await vi.waitFor(() => {
-      expect((section.vm as any).gateBlocked).toBeDefined();
+      expect((section.vm as any).loaded).toBeTruthy();
     });
     // 多让一拍让异步 setup 都跑完
     await new Promise((r) => setTimeout(r, 0));
@@ -455,27 +455,6 @@ describe('ItemRegistrationSection 默认命名空间按活动 Registrar 预选',
     }
   });
 
-  it('system-default 命名空间不参与默认推导', async () => {
-    const tempNs = {
-      id: 'ns-system-default-with-ra',
-      identifier: 'ns-system-default',
-      identifierInputMode: 'AUTO_WITH_OVERRIDE',
-      versionInputMode: 'AUTO_WITH_OVERRIDE',
-      versioningPolicy: 'SEMVER',
-      schemeReference: 'urn:metadata-registry:system-default',
-      registrationAuthorityId: 'ra-awo',
-    };
-    const originalLen = namespaces.length;
-    namespaces.push(tempNs);
-    try {
-      const { wrapper } = await mountForCreate();
-      expect((wrapper.vm as any).form.registration.namespaceId).toBe('ns-awo');
-      wrapper.unmount();
-    } finally {
-      namespaces.length = originalLen;
-    }
-  });
-
   it('活动 RA 不存在自有命名空间时不预选', async () => {
     (activeRegistrarApi.current as any).mockResolvedValueOnce({
       defaultRegistrarId: 'reg-unknown',
@@ -487,7 +466,7 @@ describe('ItemRegistrationSection 默认命名空间按活动 Registrar 预选',
     });
     const section = wrapper.findComponent(ItemRegistrationSection);
     await vi.waitFor(() => {
-      expect((section.vm as any).gateBlocked).toBeDefined();
+      expect((section.vm as any).loaded).toBeTruthy();
     });
     await new Promise((r) => setTimeout(r, 0));
     expect((wrapper.vm as any).form.registration.namespaceId).toBeUndefined();
@@ -502,7 +481,7 @@ describe('ItemRegistrationSection 默认命名空间按活动 Registrar 预选',
     });
     const section = wrapper.findComponent(ItemRegistrationSection);
     await vi.waitFor(() => {
-      expect((section.vm as any).gateBlocked).toBeDefined();
+      expect((section.vm as any).loaded).toBeTruthy();
     });
     await new Promise((r) => setTimeout(r, 0));
     expect((wrapper.vm as any).form.registration.namespaceId).toBeUndefined();
@@ -516,7 +495,7 @@ describe('ItemRegistrationSection 默认命名空间按活动 Registrar 预选',
     });
     const section = wrapper.findComponent(ItemRegistrationSection);
     await vi.waitFor(() => {
-      expect((section.vm as any).gateBlocked).toBeDefined();
+      expect((section.vm as any).loaded).toBeTruthy();
     });
     await new Promise((r) => setTimeout(r, 0));
     expect((wrapper.vm as any).form.registration.namespaceId).toBeUndefined();

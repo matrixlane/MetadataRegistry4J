@@ -46,7 +46,6 @@ import io.github.matrixlane.metadataregistry.web.repository.RegistrySpecificatio
 import io.github.matrixlane.metadataregistry.web.repository.ScopedIdentifierRepository;
 import io.github.matrixlane.metadataregistry.web.repository.StewardshipRecordRepository;
 import io.github.matrixlane.metadataregistry.web.repository.SubmissionRecordRepository;
-import io.github.matrixlane.metadataregistry.web.seed.SystemDefaultNamespaceInitializer;
 import io.github.matrixlane.metadataregistry.web.service.database.DatabaseEnvironment;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -78,7 +77,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 /**
  * 注册机构级联删除集成测试（acg-ra-governance 验收）：
  * 造"满配"注册机构，级联删除后扫描 sqlite schema 中所有含 item 指向列或
- * RA 指向列的表，断言零残留行；sys: 系统命名空间保留且 NamingAuthority 置空。
+ * RA 指向列的表，断言零残留行；指向被删 RA 的独立命名空间保留且 NamingAuthority 置空。
  */
 @SpringBootTest(properties = {
         "spring.config.import=",
@@ -164,7 +163,7 @@ class RegistrationAuthorityDeletionServiceIntegrationTest {
     private UUID registrar2Id;
     private UUID plainContactId;
     private UUID adminAccountId;
-    private UUID sysNsId;
+    private UUID orphanTargetNsId;
     private UUID raNsId;
     private UUID sharedSrId;
     private UUID orphanSrId;
@@ -242,18 +241,14 @@ class RegistrationAuthorityDeletionServiceIntegrationTest {
         AdministeredItem aiB = newAdministeredItem(ctxB, ra2);
         otherItemAiId = aiB.getId();
 
-        // ---- sys: 系统命名空间（须保留，NamingAuthority 指向被删 RA） ----
-        Namespace sysNs = namespaceRepository
-                .findByShorthandPrefix(SystemDefaultNamespaceInitializer.SYSTEM_DEFAULT_PREFIX)
-                .orElseGet(() -> {
-                    Namespace ns = new Namespace();
-                    ns.setShorthandPrefix(SystemDefaultNamespaceInitializer.SYSTEM_DEFAULT_PREFIX);
-                    ns.setSchemeReference(Sign.of(SystemDefaultNamespaceInitializer.SYSTEM_DEFAULT_SCHEME));
-                    return namespaceRepository.save(ns);
-                });
-        sysNs.setNamingAuthority(ra);
-        sysNs = namespaceRepository.save(sysNs);
-        sysNsId = sysNs.getId();
+        // ---- 指向被删 RA 的独立命名空间（须保留，NamingAuthority 指向被删 RA） ----
+        Namespace orphanTargetNs = new Namespace();
+        orphanTargetNs.setShorthandPrefix("orphan-ns");
+        orphanTargetNs.setSchemeReference(Sign.of("urn:test:orphan-namespace"));
+        orphanTargetNs = namespaceRepository.save(orphanTargetNs);
+        orphanTargetNs.setNamingAuthority(ra);
+        orphanTargetNs = namespaceRepository.save(orphanTargetNs);
+        orphanTargetNsId = orphanTargetNs.getId();
 
         // ---- RA 自有命名空间（含指称、identified_item、自身标识、卫星配置） ----
         Namespace raNs = new Namespace();
@@ -451,7 +446,7 @@ class RegistrationAuthorityDeletionServiceIntegrationTest {
                 UUID.randomUUID(), ctx1.getId(), nodeId, LocalDateTime.now());
         UUID mrId = UUID.randomUUID();
         insert("INSERT INTO merge_request (id, source_node_id, target_namespace_id, status, created_at) VALUES (?, ?, ?, 'OPEN', ?)",
-                mrId, nodeId, sysNsId, LocalDateTime.now());
+                mrId, nodeId, orphanTargetNsId, LocalDateTime.now());
         insert("INSERT INTO merge_request_item (id, merge_request_id, remote_item_key, change_type, resolution, linked_local_item_id)"
                         + " VALUES (?, ?, 'RAI-1:CTX-1', 'ADD', 'PENDING', ?)",
                 UUID.randomUUID(), mrId, ctx1.getId());
@@ -608,7 +603,7 @@ class RegistrationAuthorityDeletionServiceIntegrationTest {
     }
 
     @Test
-    @DisplayName("级联删除：全表零残留，幸存数据与 sys: 命名空间不受影响")
+    @DisplayName("级联删除：全表零残留，幸存数据与独立命名空间不受影响")
     void delete_cascadesWithZeroResidue() {
         deletionService.delete(raId);
         // 删除经原生 JDBC 完成，清 JPA 一级缓存后再做实体级断言
@@ -616,9 +611,9 @@ class RegistrationAuthorityDeletionServiceIntegrationTest {
 
         // 注册机构与组织行删除
         assertThat(raRepository.findById(raId)).isEmpty();
-        // sys: 命名空间保留且 NamingAuthority 已置空
-        Namespace sysNs = namespaceRepository.findById(sysNsId).orElseThrow();
-        assertThat(sysNs.getNamingAuthority()).isNull();
+        // 指向被删 RA 的独立命名空间保留且 NamingAuthority 已置空
+        Namespace orphanTargetNs = namespaceRepository.findById(orphanTargetNsId).orElseThrow();
+        assertThat(orphanTargetNs.getNamingAuthority()).isNull();
         // 共享提交记录保留（仅剩幸存项关联）；ra2 的无关联孤儿 SR 原样保留（M3）
         assertThat(submissionRecordRepository.findById(sharedSrId)).isPresent();
         assertThat(submissionRecordRepository.findById(orphanSrId)).isPresent();

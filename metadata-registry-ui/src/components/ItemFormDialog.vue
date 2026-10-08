@@ -340,7 +340,7 @@
 
     <template #footer>
       <el-button @click="visible = false">取消</el-button>
-      <el-button type="primary" :loading="saving" :disabled="gateBlocksSave" @click="handleSubmit">保存</el-button>
+      <el-button type="primary" :loading="saving" @click="handleSubmit">保存</el-button>
     </template>
   </el-dialog>
 </template>
@@ -624,9 +624,6 @@ const designationNamingConventionOptions = computed(() =>
 );
 
 const isEditing = computed(() => !!form.id);
-
-// 命名空间前置门槛（system-default 且无 RA 命名空间时禁保存）由注册区段组件判定
-const gateBlocksSave = computed(() => registrationSectionRef.value?.gateBlocked ?? false);
 
 watch(() => form.registration.namespaceId, (namespaceId) => {
   loadNamespaceDetail(namespaceId);

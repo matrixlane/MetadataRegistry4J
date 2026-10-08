@@ -50,7 +50,6 @@ import io.github.matrixlane.metadataregistry.web.repository.ReferenceDocumentRep
 import io.github.matrixlane.metadataregistry.web.repository.RegistrationAuthorityRepository;
 import io.github.matrixlane.metadataregistry.web.repository.RegistrySpecificationRepository;
 import io.github.matrixlane.metadataregistry.web.federation.GlobalNamespaceService;
-import io.github.matrixlane.metadataregistry.web.seed.SystemDefaultNamespaceInitializer;
 import io.github.matrixlane.metadataregistry.web.service.namingconvention.NamingConventionEngine;
 import io.github.matrixlane.metadataregistry.web.service.namingconvention.NamingConventionRuleResult;
 import io.github.matrixlane.metadataregistry.web.service.identifier.IdentifierInputPolicyService;
@@ -848,15 +847,11 @@ public class ItemAdministrationService {
      * 自有数据标准的命名空间前置条件：系统中必须存在至少一个与注册机构关联的
      * 命名空间，否则阻止创建自有数据标准并引导先补建命名空间。
      *
-     * <p>外部命名空间（无关联注册机构，且非 system-default）用于导入/编目外部
-     * 组织的数据标准，不受此限制；system-default 仅供系统内部与试用，不计入该
-     * 前置条件。
+     * <p>外部命名空间（无关联注册机构）用于导入/编目外部组织的数据标准，
+     * 不受此限制。
      */
     private void enforceRaNamespacePrecondition(Namespace ns) {
-        boolean externalNamespace = ns != null
-                && ns.getRegistrationAuthority() == null
-                && !(ns.getSchemeReference() != null
-                && SystemDefaultNamespaceInitializer.SYSTEM_DEFAULT_SCHEME.equals(ns.getSchemeReference().getValue()));
+        boolean externalNamespace = ns != null && ns.getRegistrationAuthority() == null;
         if (externalNamespace) {
             return;
         }
@@ -871,7 +866,6 @@ public class ItemAdministrationService {
      * 按当前活动 Registrar 所属 Registration_Authority 的自有命名空间返回；
      * 无活动身份或对应 RA 尚未建立自有命名空间时返回空，交由
      * {@link #enforceRaNamespacePrecondition(Namespace)} 在前置校验中拒绝。
-     * System-default 命名空间永远不参与默认推导。
      */
     private java.util.Optional<Namespace> resolveDefaultNamespace() {
         if (activeRegistrarService.currentAccountIdOrNull() == null) {
@@ -880,9 +874,8 @@ public class ItemAdministrationService {
         return activeRegistrarService.resolveForCurrentUser()
                 .flatMap(active -> active.getRegistrationAuthority() == null
                         ? java.util.Optional.empty()
-                        : namespaceRepository.findFirstByRegistrationAuthority_IdAndSchemeReferenceNot(
-                                active.getRegistrationAuthority().getId(),
-                                SystemDefaultNamespaceInitializer.SYSTEM_DEFAULT_SCHEME));
+                        : namespaceRepository.findFirstByRegistrationAuthority_Id(
+                                active.getRegistrationAuthority().getId()));
     }
 
     public ItemMetaResponse buildItemMeta(Item item) {

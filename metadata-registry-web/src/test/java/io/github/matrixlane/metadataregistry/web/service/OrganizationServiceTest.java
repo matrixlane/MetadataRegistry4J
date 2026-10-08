@@ -4,7 +4,6 @@ import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basic
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.Sign;
 import io.github.matrixlane.metadataregistry.web.dto.organization.OrganizationOption;
 import io.github.matrixlane.metadataregistry.web.repository.OrganizationRepository;
-import io.github.matrixlane.metadataregistry.web.seed.SystemDefaultNamespaceInitializer;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -15,10 +14,6 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -79,25 +74,5 @@ class OrganizationServiceTest {
         assertThat(result).hasSize(1);
         assertThat(result.get(0).id()).isEqualTo(id);
         assertThat(result.get(0).name()).isNull();
-    }
-
-    @Test
-    void options_excludesSystemOrganization() {
-        when(repository.findAll()).thenReturn(List.of(
-                named(SystemDefaultNamespaceInitializer.SYSTEM_ORGANIZATION_ID, "system"),
-                named(UUID.randomUUID(), "默认注册机构")
-        ));
-
-        List<OrganizationOption> result = service.options();
-
-        assertThat(result).hasSize(1);
-        assertThat(result.get(0).name()).isEqualTo("默认注册机构");
-    }
-
-    @Test
-    void delete_systemOrganization_throwsValidationError() {
-        assertThatThrownBy(() -> service.delete(SystemDefaultNamespaceInitializer.SYSTEM_ORGANIZATION_ID))
-                .hasMessageContaining("系统组织");
-        verify(repository, never()).deleteById(any());
     }
 }

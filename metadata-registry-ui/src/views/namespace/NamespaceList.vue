@@ -93,7 +93,7 @@
                   <el-icon style="margin-left: 4px;"><QuestionFilled /></el-icon>
                 </el-tooltip>
               </template>
-              <el-input v-model="form.shorthandPrefix" :placeholder="`sys:`" />
+              <el-input v-model="form.shorthandPrefix" :placeholder="`de:`" />
             </el-form-item>
             <el-form-item>
               <template #label>

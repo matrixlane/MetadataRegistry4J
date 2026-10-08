@@ -24,7 +24,7 @@ import java.util.UUID;
  * JOINED 子表与指向被删 Context 的指称/定义/配对关联，registry_specification.context_id
  * 置空）、提交记录（候选集 = join 行触及的 SR，SQL 侧 NOT EXISTS 分批）、主管记录、
  * 注册人员（registration_authority_id = RA 或 organization_id = RA 的 Registrar 行，
- * 含账号绑定与激活指向）、自有命名空间（sys: 系统命名空间保留，仅解除 NamingAuthority
+ * 含账号绑定与激活指向）、自有命名空间（仅解除 NamingAuthority
  * 挂接）、注册流程迁移规则与文档语言关联，最后删除 Primary 标志卫星行
  * （ext.registration_authority，move-ra-primary-to-ext）、注册机构行与
  * Organization JOINED 行。</p>
@@ -185,7 +185,7 @@ public class RegistrationAuthorityDeletionService {
         deleteByIds(t("contact"), "id", orgContactIds);
         deleteWhereEq(t("namespace_permission"), "organization_id", registrationAuthorityId);
 
-        // ===== 4. RA 自有 Namespace 及其从属（sys: 系统命名空间保留） =====
+        // ===== 4. RA 自有 Namespace 及其从属 =====
         List<UUID> namespaceIds = queryUuids(
                 "SELECT id FROM " + t("namespace") + " WHERE registration_authority_id = ?",
                 uuidArg(registrationAuthorityId));
@@ -198,7 +198,7 @@ public class RegistrationAuthorityDeletionService {
         }
         deleteNamespaceGraph(namespaceIds);
 
-        // sys: 等其余命名空间的 NamingAuthority 指向该 RA 时置空（系统命名空间保留）
+        // 其余命名空间的 NamingAuthority 指向该 RA 时置空
         jdbcTemplate.update("UPDATE " + t("namespace") + " SET naming_authority_id = NULL"
                 + " WHERE naming_authority_id = ?", uuidArg(registrationAuthorityId));
 

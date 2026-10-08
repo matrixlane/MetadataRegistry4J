@@ -32,7 +32,6 @@ import io.github.matrixlane.metadataregistry.web.repository.NamingConventionRepo
 import io.github.matrixlane.metadataregistry.web.service.identifier.IdentifierInputPolicyService;
 import io.github.matrixlane.metadataregistry.web.service.namingconvention.NamingConventionEngine;
 import io.github.matrixlane.metadataregistry.web.service.namespace.NamespaceConstraintValidator;
-import io.github.matrixlane.metadataregistry.web.seed.SystemDefaultNamespaceInitializer;
 import io.github.matrixlane.metadataregistry.web.repository.RegistrySpecificationRepository;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrySpecification;
 import org.junit.jupiter.api.BeforeEach;
@@ -509,22 +508,27 @@ class ItemAdministrationServiceTest {
     }
 
     @Test
-    void ensureAdministeredItem_systemDefaultNamespace_blockedWhenNoRaNamespace() {
-        // system-default 命名空间不计入前置条件：向其中创建自有数据标准同样被阻止。
+    void ensureAdministeredItem_raUnscopedNamespaceTreatedAsExternal_allowedWhenNoRaNamespace() {
+        // 无关联注册机构的命名空间按外部命名空间处理：不受门槛限制，
+        // 条目归属活动身份所在机构。
         UUID namespaceId = UUID.randomUUID();
         Namespace ns = new Namespace();
         ns.setId(namespaceId);
-        ns.setSchemeReference(Sign.of(SystemDefaultNamespaceInitializer.SYSTEM_DEFAULT_SCHEME));
+        ns.setSchemeReference(Sign.of("urn:example:external-standard"));
         when(namespaceRepository.findById(namespaceId)).thenReturn(Optional.of(ns));
-        when(namespaceRepository.existsByRegistrationAuthorityIsNotNull()).thenReturn(false);
+        RegistrationAuthority ra = newRa();
+        UUID accountId = UUID.randomUUID();
+        when(activeRegistrarService.currentAccountIdOrNull()).thenReturn(accountId);
+        when(activeRegistrarService.resolveForCurrentUser())
+                .thenReturn(Optional.of(new Registrar(ra)));
 
         ItemRegistrationRequest req = new ItemRegistrationRequest(
                 namespaceId, "MANUAL-123", "1.0.0", List.of(), List.of()
         );
 
-        assertThatThrownBy(() -> itemAdministrationService.ensureAdministeredItem(item, req))
-                .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("命名空间");
+        AdministeredItem ai = itemAdministrationService.ensureAdministeredItem(item, req);
+
+        assertThat(ai.getRegistrationAuthority()).isSameAs(ra);
     }
 
     @Test
@@ -670,7 +674,7 @@ class ItemAdministrationServiceTest {
 
     @Test
     void ensureAdministeredItem_create_externalNamespaceAlsoOwnedByActiveRa() {
-        // 外部命名空间（无关联注册机构、非 system-default）：条目仍归属活动身份所在机构
+        // 外部命名空间（无关联注册机构）：条目仍归属活动身份所在机构
         RegistrationAuthority ra = newRa();
         Namespace ns = new Namespace();
         ns.setId(UUID.randomUUID());
@@ -790,8 +794,7 @@ class ItemAdministrationServiceTest {
         when(activeRegistrarService.currentAccountIdOrNull()).thenReturn(UUID.randomUUID());
         when(activeRegistrarService.resolveForCurrentUser())
                 .thenReturn(Optional.of(new Registrar(ra)));
-        when(namespaceRepository.findFirstByRegistrationAuthority_IdAndSchemeReferenceNot(
-                ra.getId(), SystemDefaultNamespaceInitializer.SYSTEM_DEFAULT_SCHEME))
+        when(namespaceRepository.findFirstByRegistrationAuthority_Id(ra.getId()))
                 .thenReturn(Optional.of(ownNs));
         when(namespaceRepository.existsByRegistrationAuthorityIsNotNull()).thenReturn(true);
 
@@ -823,7 +826,7 @@ class ItemAdministrationServiceTest {
         itemAdministrationService.ensureAdministeredItem(item, req);
 
         verify(namespaceRepository, never())
-                .findFirstByRegistrationAuthority_IdAndSchemeReferenceNot(any(), any());
+                .findFirstByRegistrationAuthority_Id(any());
     }
 
     @Test
@@ -839,7 +842,7 @@ class ItemAdministrationServiceTest {
 
         assertThat(ai.getRegistrationAuthority()).isSameAs(targetRa);
         verify(namespaceRepository, never())
-                .findFirstByRegistrationAuthority_IdAndSchemeReferenceNot(any(), any());
+                .findFirstByRegistrationAuthority_Id(any());
     }
 
     @Test
@@ -854,7 +857,7 @@ class ItemAdministrationServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("命名空间");
         verify(namespaceRepository, never())
-                .findFirstByRegistrationAuthority_IdAndSchemeReferenceNot(any(), any());
+                .findFirstByRegistrationAuthority_Id(any());
     }
 
     @Test
@@ -895,8 +898,7 @@ class ItemAdministrationServiceTest {
         when(activeRegistrarService.currentAccountIdOrNull()).thenReturn(UUID.randomUUID());
         when(activeRegistrarService.resolveForCurrentUser())
                 .thenReturn(Optional.of(new Registrar(ra)));
-        when(namespaceRepository.findFirstByRegistrationAuthority_IdAndSchemeReferenceNot(
-                ra.getId(), SystemDefaultNamespaceInitializer.SYSTEM_DEFAULT_SCHEME))
+        when(namespaceRepository.findFirstByRegistrationAuthority_Id(ra.getId()))
                 .thenReturn(Optional.empty());
         when(namespaceRepository.existsByRegistrationAuthorityIsNotNull()).thenReturn(false);
 

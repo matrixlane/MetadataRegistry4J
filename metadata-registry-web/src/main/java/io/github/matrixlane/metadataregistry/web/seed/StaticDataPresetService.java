@@ -30,8 +30,6 @@ import java.util.List;
  * <ol>
  *   <li>重放语言预置 SQL 脚本清单（语言代码 22 + 中文名称/地区名 22，
  *       含 zh-CN=简体中文 口径修正）——{@link LanguagePresetSeeder}；</li>
- *   <li>系统组织（固定 UUID …0001）+ {@code sys:} 系统默认命名空间（含中英双指称）
- *       ——{@link SystemDefaultNamespaceInitializer}；</li>
  *   <li>{@code identifier_strategy_config} 全局默认行（UUID / INTERNAL /
  *       is_global_default=1，三方言补齐）；</li>
  *   <li>占位超级管理员 {@code admin / NO_PASSWORD}（账户表非空即跳过）；</li>
@@ -47,7 +45,6 @@ import java.util.List;
 public class StaticDataPresetService {
 
     private final LanguagePresetSeeder languagePresetSeeder;
-    private final SystemDefaultNamespaceInitializer systemDefaultNamespaceInitializer;
     private final RegistrationProcessService registrationProcessService;
     private final RegistrationAuthorityRepository registrationAuthorityRepository;
     private final AccountRepository accountRepository;
@@ -62,12 +59,11 @@ public class StaticDataPresetService {
     @Transactional
     public void presetAll() {
         languagePresetSeeder.reapplyPreset();
-        systemDefaultNamespaceInitializer.initializeSystemDefaultNamespace();
         ensureGlobalDefaultIdentifierStrategy();
         ensurePlaceholderAdmin();
         reconcileRegistrationTransitionRules();
         // 顺序双保险：即便本入口在 IdentifierStrategyLoader 之后执行，也保证注册表
-        // 能装载到步骤 3 写入的全局默认策略。
+        // 能装载到步骤 2 写入的全局默认策略。
         identifierStrategyLoader.refreshRegistry();
         log.info("静态预置数据统一入口 presetAll() 执行完成");
     }

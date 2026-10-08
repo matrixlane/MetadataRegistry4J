@@ -39,7 +39,7 @@ import java.util.List;
 public class Namespace extends Item {
 
     /**
-     * Shorthand prefix for identifiers within this namespace (e.g. "sys:").
+     * Shorthand prefix for identifiers within this namespace (e.g. "ra-1:").
      * Used as a quick qualifier to distinguish namespaces.
      */
     @jakarta.persistence.Column(name = "shorthand_prefix", length = 32)
@@ -47,7 +47,7 @@ public class Namespace extends Item {
 
     /**
      * ISO/IEC 11179-3:2023 表 13(Namespace):scheme_reference 0..1 Sign (6.2.10),
-     * IRI 形式的方案引用。例:"urn:metadata-registry:system-default"
+     * IRI 形式的方案引用。例:"urn:iso:std:iso:11179:-3:ed-4"
      */
     @Embedded
     @AttributeOverrides({

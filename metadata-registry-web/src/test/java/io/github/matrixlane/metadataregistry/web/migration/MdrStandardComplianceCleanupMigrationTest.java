@@ -250,6 +250,7 @@ class MdrStandardComplianceCleanupMigrationTest {
                 .locations("classpath:db/migration/sqlite")
                 .baselineOnMigrate(true)
                 .baselineVersion(MigrationVersion.fromVersion(BASELINE))
+                .target(MigrationVersion.fromVersion(FLYWAY_VERSION))
                 .load();
         flyway.migrate();
         MigrateResult second = flyway.migrate();

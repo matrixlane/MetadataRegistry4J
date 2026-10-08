@@ -16,7 +16,6 @@ import io.github.matrixlane.metadataregistry.web.repository.ContextRepository;
 import io.github.matrixlane.metadataregistry.web.repository.LanguageIdentificationRepository;
 import io.github.matrixlane.metadataregistry.web.repository.RegistrySpecificationRepository;
 import io.github.matrixlane.metadataregistry.web.repository.ScopedIdentifierRepository;
-import io.github.matrixlane.metadataregistry.web.seed.SystemDefaultNamespaceInitializer;
 import java.util.Optional;
 import io.github.matrixlane.metadataregistry.web.repository.NamespaceRepository;
 import io.github.matrixlane.metadataregistry.web.repository.IdentifierStrategyConfigRepository;
@@ -102,9 +101,6 @@ class InitWizardServiceIntegrationTest {
 
     @Autowired
     private ScopedIdentifierRepository scopedIdentifierRepository;
-
-    @Autowired
-    private Optional<SystemDefaultNamespaceInitializer> systemDefaultNamespaceInitializer;
 
     private UUID appUserId;
 
@@ -248,10 +244,9 @@ class InitWizardServiceIntegrationTest {
         assertThat(registryContextSi.getIdentifier()).isEqualTo("CTX.00001");
         assertThat(registryContextSi.getVersion()).isNotBlank();
 
-        // 6. Verify System Default Namespace is created (if initializer bean is present)
-        if (systemDefaultNamespaceInitializer.isPresent()) {
-            assertThat(namespaceRepository.existsByShorthandPrefix("sys:")).isTrue();
-        }
+        // 6. setup 后 namespace 表仅含向导创建的注册机构自有命名空间（无 sys: 预置）
+        assertThat(namespaceRepository.findAll())
+                .allMatch(ns -> ns.getRegistrationAuthority() != null);
     }
 
     @Test
@@ -372,11 +367,6 @@ class InitWizardServiceIntegrationTest {
 
         // 默认命名空间已创建
         assertThat(namespaceRepository.count()).isGreaterThanOrEqualTo(1);
-
-        // sys: 系统默认命名空间 NamingAuthority 挂接到新建注册机构（不再使用系统组织）
-        Namespace sysNs = namespaceRepository.findByShorthandPrefix("sys:").orElseThrow();
-        assertThat(sysNs.getNamingAuthority()).isNotNull();
-        assertThat(sysNs.getNamingAuthority().getId()).isEqualTo(ra.getId());
 
         // 版本草稿已写入，系统仍未初始化（等 commit）
         assertThat(systemSettingService.getEdition().name()).isEqualTo("PERSONAL");

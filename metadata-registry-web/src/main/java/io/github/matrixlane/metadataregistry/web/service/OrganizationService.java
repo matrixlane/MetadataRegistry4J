@@ -30,10 +30,7 @@ public class OrganizationService {
 
     @Transactional(readOnly = true)
     public Page<OrganizationResponse> list(String keyword, Pageable pageable) {
-        Specification<Organization> spec = Specification.where((root, q, cb) ->
-                // 系统组织为 sys: 命名空间的内部 NamingAuthority，不向用户展示
-                cb.not(cb.equal(root.get("id"),
-                        cb.literal(io.github.matrixlane.metadataregistry.web.seed.SystemDefaultNamespaceInitializer.SYSTEM_ORGANIZATION_ID))));
+        Specification<Organization> spec = null;
         if (keyword != null && !keyword.isBlank()) {
             String like = "%" + keyword.toLowerCase() + "%";
             spec = spec.and((root, q, cb) -> {
@@ -59,8 +56,6 @@ public class OrganizationService {
     @Transactional(readOnly = true)
     public List<OrganizationOption> options() {
         return repository.findAll().stream()
-                // 系统组织为内部对象，不作为可选组织（如注册人员所属组织）
-                .filter(o -> !io.github.matrixlane.metadataregistry.web.seed.SystemDefaultNamespaceInitializer.SYSTEM_ORGANIZATION_ID.equals(o.getId()))
                 .map(o -> new OrganizationOption(
                         o.getId(),
                         o.getName().isEmpty() ? null : o.getName().get(0).getValue()))
@@ -83,11 +78,6 @@ public class OrganizationService {
     }
 
     public void delete(UUID id) {
-        if (io.github.matrixlane.metadataregistry.web.seed.SystemDefaultNamespaceInitializer.SYSTEM_ORGANIZATION_ID.equals(id)) {
-            throw new io.github.matrixlane.metadataregistry.web.common.BusinessException(
-                    io.github.matrixlane.metadataregistry.web.common.ApiCodes.VALIDATION_FAILED,
-                    "系统组织为系统内部对象（sys: 命名空间所属），不能删除");
-        }
         if (!repository.existsById(id)) {
             throw new ResourceNotFoundException("Organization", id);
         }

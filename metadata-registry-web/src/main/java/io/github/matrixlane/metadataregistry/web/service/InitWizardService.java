@@ -66,7 +66,6 @@ public class InitWizardService {
     private final PasswordEncoder passwordEncoder;
     private final DatabaseCleaner databaseCleaner;
     private final RegistryContextBootstrapService registryContextBootstrapService;
-    private final io.github.matrixlane.metadataregistry.web.seed.SystemDefaultNamespaceInitializer systemDefaultNamespaceInitializer;
     private final jakarta.persistence.EntityManager entityManager;
 
     @Transactional(readOnly = true)
@@ -124,7 +123,7 @@ public class InitWizardService {
         // Clear any leftover dirty data from a previous aborted attempt.
         clearBusinessDataOnly();
 
-        // 静态预置统一入口（幂等兜底）：语言代码与中文名称、系统组织与 sys: 命名空间、
+        // 静态预置统一入口（幂等兜底）：语言代码与中文名称、
         // 全局默认标识策略、占位管理员、标准注册流转规则。静态预置数据正常已由
         // 启动期（数据库设置完成并重启后）就绪，此处兜底保证 setup 重复提交、
         // 恢复出厂后重新初始化等路径下静态数据完整可用。
@@ -321,10 +320,6 @@ public class InitWizardService {
             registrationAuthorityRepository.save(ra);
         }
 
-        // 6. sys: 系统默认命名空间 NamingAuthority 挂接到本次创建的注册机构
-        // （未初始化期间留空；initializeSystemDefaultNamespace 内调和逻辑幂等）。
-        systemDefaultNamespaceInitializer.initializeSystemDefaultNamespace();
-
         // NOTE: system.initialized stays FALSE; admin password is NOT reset
         // here. Those happen in commit().
     }
@@ -421,7 +416,7 @@ public class InitWizardService {
             return;
         }
         clearBusinessDataOnly();
-        // 清理会连带删除系统组织 / sys: 命名空间 / 全局默认标识策略等静态预置行
+        // 清理会连带删除全局默认标识策略等静态预置行
         // （language 两表在保留集内），此处按统一入口幂等恢复，保证 abort 后
         // 静态预置数据完整可用。
         staticDataPresetService.presetAll();
