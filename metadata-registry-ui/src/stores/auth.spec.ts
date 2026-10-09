@@ -104,4 +104,23 @@ describe('stores/auth checkInitialized 初始化状态探测', () => {
     expect(await auth.checkInitialized()).toBe(true);
     expect(mockedGet).toHaveBeenCalledTimes(4); // 每次调用失败重试一次
   });
+
+  it('代理/扩展异常返回 200 但体非法（HTML→undefined）时视为失败并重试', async () => {
+    mockedGet
+      .mockResolvedValueOnce(undefined as never) // 200 但非 JSON 响应体被解成 undefined
+      .mockResolvedValueOnce({ initialized: true, edition: 'PERSONAL' } as never);
+    const auth = useAuthStore();
+    expect(await auth.checkInitialized()).toBe(true);
+    expect(mockedGet).toHaveBeenCalledTimes(2);
+    expect(auth.bypassLogin).toBe(true);
+  });
+
+  it('持续返回非法响应时降级返回 true 且不缓存', async () => {
+    mockedGet.mockResolvedValue('<html>proxy error</html>' as never);
+    const auth = useAuthStore();
+    expect(await auth.checkInitialized()).toBe(true);
+    expect(auth.initialized).toBeNull();
+    expect(auth.edition).toBeNull();
+    expect(mockedGet).toHaveBeenCalledTimes(2);
+  });
 });

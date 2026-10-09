@@ -113,7 +113,7 @@
 
 <script setup lang="ts">
 import { reactive, ref, onMounted, watch } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRouter, useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import type { FormInstance, FormRules } from 'element-plus';
 import { ElMessage } from 'element-plus';
@@ -124,6 +124,7 @@ import LoginLayout from '@/layouts/LoginLayout.vue';
 import request from '@/utils/request';
 
 const router = useRouter();
+const route = useRoute();
 const { t } = useI18n();
 const auth = useAuthStore();
 const formRef = ref<FormInstance>();
@@ -160,7 +161,22 @@ async function checkAllowRegistration() {
 
 onMounted(() => {
   checkAllowRegistration();
+  recoverPersonalSession();
 });
+
+// 个人版免登录兜底：路由守卫因瞬时网络错误把个人版误判为未登录而落到本页时，
+// 挂载后强制重查一次初始化状态——确认为 PERSONAL 已初始化即回目标页，
+// 避免后端已就绪但用户被钉死在登录页（重启窗口事故）。
+async function recoverPersonalSession() {
+  try {
+    await auth.checkInitialized(true);
+  } catch {
+    // 后端不可达：保持登录页现状
+  }
+  if (auth.bypassLogin) {
+    router.push((route.query.redirect as string) || '/');
+  }
+}
 
 const registerForm = reactive({
   username: '',

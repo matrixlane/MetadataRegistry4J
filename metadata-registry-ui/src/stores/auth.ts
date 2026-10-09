@@ -98,15 +98,28 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  /** 查询初始化状态，失败间隔 800ms 重试一次（静默，不触发错误提示）。 */
+  /** 查询初始化状态，失败或响应非法时间隔 800ms 重试一次（静默，不触发错误提示）。 */
   async function fetchInitStatusWithRetry(): Promise<InitWizardStatus> {
     try {
-      return await withSilentErrors(() => request.get<InitWizardStatus>('/init-wizard/status'));
+      return await fetchInitStatusOnce();
     } catch {
       // 落到此处多为重启窗口的瞬时网络错误，间隔后换新连接重试一次
     }
     await new Promise((resolve) => setTimeout(resolve, 800));
-    return withSilentErrors(() => request.get<InitWizardStatus>('/init-wizard/status'));
+    return fetchInitStatusOnce();
+  }
+
+  /**
+   * 单次查询并校验响应形状：代理/扩展异常时可能拿到 200 但响应体是 HTML，
+   * request 拦截器会把它解成 undefined——一律视为失败交给上层重试，
+   * 绝不让非法响应缓存成"已初始化 + 版本未知"（重启后登录页事故）。
+   */
+  async function fetchInitStatusOnce(): Promise<InitWizardStatus> {
+    const status = await withSilentErrors(() => request.get<InitWizardStatus>('/init-wizard/status'));
+    if (!status || typeof status.initialized !== 'boolean') {
+      throw new Error('非法的初始化状态响应');
+    }
+    return status;
   }
 
   async function login(payload: LoginPayload) {
