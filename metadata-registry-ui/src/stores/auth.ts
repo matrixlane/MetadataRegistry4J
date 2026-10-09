@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import type { AppUserDto } from '@/types/common';
-import request from '@/utils/request';
+import request, { withSilentErrors } from '@/utils/request';
 
 interface LoginPayload {
   username: string;
@@ -76,22 +76,37 @@ export const useAuthStore = defineStore('auth', () => {
    * Fetch initialization status from the backend.
    * Result is cached in `initialized`; subsequent calls return the cached value
    * without hitting the network (unless `force` is true).
+   *
+   * 失败时重试一次再降级：应用重启后，浏览器可能复用已被服务端重置的空闲
+   * 连接（半开连接），首个请求瞬时失败而后端实际已就绪——重试即落在新建连接上。
+   * 降级结果绝不写入缓存（保持 initialized=null，下次导航重试）：个人版免登录
+   * 依赖 edition 判定，缓存"已初始化 + 版本未知"会让 isLoggedIn 恒为 false，
+   * 整个页面会话被钉死在登录页且无法自愈（重启后登录页事故）。
    */
   async function checkInitialized(force = false): Promise<boolean> {
     if (!force && initialized.value !== null) {
       return initialized.value;
     }
     try {
-      const status = await request.get<InitWizardStatus>('/init-wizard/status');
+      const status = await fetchInitStatusWithRetry();
       initialized.value = status.initialized;
       edition.value = status.edition ?? null;
       return status.initialized;
     } catch {
-      // If the check fails we conservatively treat the system as initialized
-      // so as not to block users on network errors unrelated to init state.
-      initialized.value = true;
+      // 后端持续不可达：本次导航保守放行（视为已初始化），不弹错误、不缓存。
       return true;
     }
+  }
+
+  /** 查询初始化状态，失败间隔 800ms 重试一次（静默，不触发错误提示）。 */
+  async function fetchInitStatusWithRetry(): Promise<InitWizardStatus> {
+    try {
+      return await withSilentErrors(() => request.get<InitWizardStatus>('/init-wizard/status'));
+    } catch {
+      // 落到此处多为重启窗口的瞬时网络错误，间隔后换新连接重试一次
+    }
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    return withSilentErrors(() => request.get<InitWizardStatus>('/init-wizard/status'));
   }
 
   async function login(payload: LoginPayload) {
