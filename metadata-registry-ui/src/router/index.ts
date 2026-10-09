@@ -18,6 +18,15 @@ const router = createRouter({
       meta: { public: true },
     },
     {
+      // 连接恢复页：初始化状态未知（后端瞬时不可达/响应非法）时由守卫送入，
+      // 静默重试至状态已知再分流。个人版免登录：本页取代登录页作为等待态，
+      // 个人版因此永远不会渲染登录页（personal-no-login）。
+      path: '/connecting',
+      name: 'Connecting',
+      component: () => import('@/views/connecting/Connecting.vue'),
+      meta: { public: true },
+    },
+    {
       path: '/',
       component: () => import('@/layouts/AppLayout.vue'),
       redirect: '/dashboard',
@@ -390,8 +399,14 @@ router.beforeEach(async (to) => {
   // also the case where a freshly-reset system has no token at all and the
   // user lands on the root URL.
   // Skip the check for the wizard itself to avoid an infinite redirect.
-  if (to.path !== '/init-wizard') {
+  // /connecting 同样跳过：它就是状态未知时的重试等待页，由它自己重查后分流。
+  if (to.path !== '/init-wizard' && to.path !== '/connecting') {
     const isInitialized = await auth.checkInitialized();
+    // 状态未知（重试后仍不可达/响应非法）：不猜测、不踢向登录页——个人版
+    // 没有可去的登录页，进连接恢复页静默重试，恢复后回跳目标。
+    if (auth.initialized === null) {
+      return { path: '/connecting', query: { redirect: to.fullPath } };
+    }
     if (!isInitialized) {
       return '/init-wizard';
     }
