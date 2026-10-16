@@ -40,7 +40,7 @@ public class UnitOfMeasureService {
     @Transactional(readOnly = true)
     public Page<UnitOfMeasureResponse> list(String keyword, Pageable pageable) {
         Specification<UnitOfMeasure> spec = ObjectClassService.byKeyword(keyword);
-        return repository.findAll(spec, pageable).map(this::toResponse);
+        return ItemListSorts.findAll(repository, spec, pageable).map(this::toResponse);
     }
 
     @Transactional(readOnly = true)
@@ -72,7 +72,11 @@ public class UnitOfMeasureService {
     public void delete(UUID id) {
         UnitOfMeasure entity = repository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("UnitOfMeasure", id));
+        // Recorded 及之后的注册状态已纳入版本控制，只能走 Retired，不允许直接删除
+        itemAdministrationService.assertDeletable(entity);
         versionHistoryService.recordSnapshot(entity, "DELETE", toResponse(entity));
+        // 解除提交记录连接；关联条目删光后空的 SubmissionRecord 一并删除
+        itemAdministrationService.removeFromSubmissionRecords(entity);
         repository.deleteById(id);
     }
 

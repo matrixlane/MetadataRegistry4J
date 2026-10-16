@@ -46,6 +46,7 @@ class AdministrativeStatusServiceTest {
     @Test
     void markDraft_missingState_doesNothing() {
         AdministeredItem item = new AdministeredItem();
+        item.setCreationDateTime(LocalDateTime.now());
 
         administrativeStatusService.markDraft(item);
 
@@ -65,6 +66,7 @@ class AdministrativeStatusServiceTest {
     @Test
     void clear_missingState_doesNothing() {
         AdministeredItem item = new AdministeredItem();
+        item.setCreationDateTime(LocalDateTime.now());
 
         administrativeStatusService.clear(item);
 
@@ -94,6 +96,7 @@ class AdministrativeStatusServiceTest {
 
     private AdministeredItem itemWithState(RegistrationStatus status) {
         AdministeredItem item = new AdministeredItem();
+        item.setCreationDateTime(LocalDateTime.now());
         RegistrationState state = new RegistrationState();
         state.setRegistrationStatus(status);
         state.setEffectiveDate(LocalDateTime.now());

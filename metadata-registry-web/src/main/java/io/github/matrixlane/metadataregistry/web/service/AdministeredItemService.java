@@ -27,6 +27,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -140,11 +141,15 @@ public class AdministeredItemService {
         String itemLabel = realItem == null ? null : ItemNamingHelper.preferredDesignation(realItem);
 
         // align-submission-record-to-iso：编辑表单"提交记录"只读面板数据源
+        List<io.github.matrixlane.metadataregistry.commonfacilities.registration.SubmissionRecord> srs =
+                submissionRecordRepository.findAllByRegisteredItemIdOrderByIdDesc(ai.getId());
+        Map<UUID, Long> itemCountBySubmission =
+                submissionRecordRepository.countRegisteredItemsBySubmissionRecordIds(
+                        srs.stream().map(io.github.matrixlane.metadataregistry.commonfacilities.registration.SubmissionRecord::getId).toList());
         List<io.github.matrixlane.metadataregistry.web.dto.common.SubmissionRecordSummary> submissionRecordSummaries =
-                submissionRecordRepository
-                        .findAllByRegisteredItemIdOrderByIdDesc(ai.getId())
-                        .stream()
-                        .map(SubmissionRecordMapper::toSummary)
+                srs.stream()
+                        .map(sr -> SubmissionRecordMapper.toSummary(
+                                sr, itemCountBySubmission.getOrDefault(sr.getId(), 0L)))
                         .toList();
 
         String identifier = null;

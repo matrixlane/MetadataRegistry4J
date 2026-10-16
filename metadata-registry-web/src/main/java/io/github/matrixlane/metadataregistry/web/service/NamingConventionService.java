@@ -29,7 +29,7 @@ public class NamingConventionService {
     @Transactional(readOnly = true)
     public Page<NamingConventionResponse> list(String keyword, Pageable pageable) {
         Specification<NamingConvention> spec = byKeyword(keyword);
-        return repository.findAll(spec, pageable).map(this::toResponse);
+        return ItemListSorts.findAll(repository, spec, pageable).map(this::toResponse);
     }
 
     @Transactional(readOnly = true)
@@ -54,9 +54,11 @@ public class NamingConventionService {
     }
 
     public void delete(UUID id) {
-        if (!repository.existsById(id)) {
-            throw new ResourceNotFoundException("NamingConvention", id);
-        }
+        NamingConvention entity = loadOrThrow(id);
+        // Recorded 及之后的注册状态已纳入版本控制，只能走 Retired，不允许直接删除
+        itemAdministrationService.assertDeletable(entity);
+        // 解除提交记录连接；关联条目删光后空的 SubmissionRecord 一并删除
+        itemAdministrationService.removeFromSubmissionRecords(entity);
         repository.deleteById(id);
     }
 
@@ -82,22 +84,9 @@ public class NamingConventionService {
                 .orElseThrow(() -> new ResourceNotFoundException("NamingConvention", id));
     }
 
+    /** 委托共享实现：名称（指称）或标识符命中即返回，见 {@link ObjectClassService#byKeyword}。 */
     private static Specification<NamingConvention> byKeyword(String keyword) {
-        if (keyword == null || keyword.isBlank()) {
-            return Specification.where(null);
-        }
-        String like = "%" + keyword.toLowerCase() + "%";
-        return (root, query, cb) -> {
-            if (query != null) query.distinct(true);
-            var sub = query.subquery(Long.class);
-            var designation = sub.from(
-                    io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.Designation.class);
-            sub.select(cb.literal(1L));
-            sub.where(cb.and(
-                    cb.equal(designation.get("item").get("id"), root.get("id")),
-                    cb.like(cb.lower(designation.get("sign").get("value")), like)));
-            return cb.exists(sub);
-        };
+        return ObjectClassService.byKeyword(keyword);
     }
 
     private NamingConventionResponse toResponse(NamingConvention entity) {

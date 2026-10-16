@@ -3,7 +3,7 @@ package io.github.matrixlane.metadataregistry.web.service;
 import io.github.matrixlane.metadataregistry.ext.identification.IdentifierCreationMode;
 import io.github.matrixlane.metadataregistry.ext.identification.IdentifierVersionHistory;
 import io.github.matrixlane.metadataregistry.ext.identification.ScopedIdentifierLifecycle;
-import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifiedItem;
+import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegisteredItem;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.ScopedIdentifier;
 import io.github.matrixlane.metadataregistry.ext.identification.VersionStatus;
@@ -16,7 +16,7 @@ import io.github.matrixlane.metadataregistry.web.dto.scopedidentifier.ScopedIden
 import io.github.matrixlane.metadataregistry.web.dto.scopedidentifier.ScopedIdentifierResponse;
 import io.github.matrixlane.metadataregistry.web.dto.scopedidentifier.VersionTransitionRequest;
 import io.github.matrixlane.metadataregistry.web.repository.IdentifierVersionHistoryRepository;
-import io.github.matrixlane.metadataregistry.web.repository.IdentifiedItemRepository;
+import io.github.matrixlane.metadataregistry.web.repository.RegisteredItemRepository;
 import io.github.matrixlane.metadataregistry.web.repository.NamespaceRepository;
 import io.github.matrixlane.metadataregistry.web.repository.ScopedIdentifierRepository;
 import io.github.matrixlane.metadataregistry.web.service.identifier.IdentifierInputPolicyService;
@@ -42,7 +42,7 @@ public class ScopedIdentifierService {
     private final ScopedIdentifierRepository scopedIdentifierRepository;
     private final IdentifierVersionHistoryRepository historyRepository;
     private final NamespaceRepository namespaceRepository;
-    private final IdentifiedItemRepository identifiedItemRepository;
+    private final RegisteredItemRepository registeredItemRepository;
     private final IdentifierInputPolicyService identifierInputPolicyService;
     private final NamespaceConstraintValidator namespaceConstraintValidator;
     private final ScopedIdentifierLifecycleService lifecycleService;
@@ -61,18 +61,18 @@ public class ScopedIdentifierService {
         Namespace namespace = namespaceRepository.findById(request.namespaceId())
                 .orElseThrow(() -> new ResourceNotFoundException("Namespace", request.namespaceId()));
 
-        if (!identifiedItemRepository.existsById(request.identifiedItemId())) {
+        if (!registeredItemRepository.existsById(request.identifiedItemId())) {
             throw new ResourceNotFoundException("IdentifiedItem", request.identifiedItemId());
         }
         // 只为段模板 {type} 解析取持久化类名：先读 FK，再按 type() 探测具体类
         // （只探测子类表主键），不加载 Item 联合子类对象图（30+ 子类整图 join
         // 超出 SQLite 单条 SQL 64 表上限）；实体本体用 getReference 代理，仅借其外键。
-        Class<?> itemClass = identifiedItemRepository.findItemIdById(request.identifiedItemId())
-                .map(identifiedItemRepository::findItemConcreteTypeById)
+        Class<?> itemClass = registeredItemRepository.findItemIdById(request.identifiedItemId())
+                .map(registeredItemRepository::findItemConcreteTypeById)
                 .orElse(null);
-        Class<?> identifiedItemClass = IdentifiedItem.class;
+        Class<?> identifiedItemClass = RegisteredItem.class;
         String itemType = (itemClass != null ? itemClass : identifiedItemClass).getSimpleName();
-        IdentifiedItem identifiedItem = identifiedItemRepository.getReferenceById(request.identifiedItemId());
+        RegisteredItem identifiedItem = registeredItemRepository.getReferenceById(request.identifiedItemId());
         boolean autoGenerate = request.identifier() == null || request.identifier().isBlank();
         // 自动生成的标识（尤其时间戳唯一性段）与已有标识撞库时有界重试：
         // 重试重新执行生成（时间戳取新值）；顺序号有悲观锁、UUID 碰撞概率可忽略，
@@ -165,11 +165,11 @@ public class ScopedIdentifierService {
 
         if (request.identifiedItemId() != null
                 && !request.identifiedItemId().equals(entity.getIdentifiedItem().getId())) {
-            if (!identifiedItemRepository.existsById(request.identifiedItemId())) {
+            if (!registeredItemRepository.existsById(request.identifiedItemId())) {
                 throw new ResourceNotFoundException("IdentifiedItem", request.identifiedItemId());
             }
             // 仅需更换外键引用：getReference 代理即可，避免加载 Item 联合子类整图
-            entity.setIdentifiedItem(identifiedItemRepository.getReferenceById(request.identifiedItemId()));
+            entity.setIdentifiedItem(registeredItemRepository.getReferenceById(request.identifiedItemId()));
         }
 
         namespaceConstraintValidator.validateScopedIdentifier(
@@ -271,7 +271,7 @@ public class ScopedIdentifierService {
 
     private ScopedIdentifierResponse toResponse(ScopedIdentifier si) {
         Namespace ns = si.getNamespace();
-        IdentifiedItem ii = si.getIdentifiedItem();
+        RegisteredItem ii = si.getIdentifiedItem();
         ScopedIdentifierLifecycle lifecycle = lifecycleService.getOrDefault(si.getId());
 
         UUID identifiedItemId = null;

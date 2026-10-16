@@ -1,6 +1,6 @@
 package io.github.matrixlane.metadataregistry.web.service;
 
-import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifiedItem;
+import io.github.matrixlane.metadataregistry.commonfacilities.registration.AdministeredItem;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.ScopedIdentifier;
 import io.github.matrixlane.metadataregistry.ext.identification.ScopedIdentifierLifecycle;
@@ -165,7 +165,7 @@ class IdentifierResolutionServiceTest {
         si.setVersion(version);
         si.setNamespace(new Namespace());
         si.getNamespace().setId(namespaceId);
-        si.setIdentifiedItem(new IdentifiedItem());
+        si.setIdentifiedItem(new AdministeredItem());
         si.getIdentifiedItem().setId(identifiedItemId);
         ScopedIdentifierLifecycle lc = new ScopedIdentifierLifecycle();
         lc.setScopedIdentifierId(si.getId());

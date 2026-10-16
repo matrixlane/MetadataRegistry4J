@@ -32,7 +32,12 @@ public class AdministeredItem extends RegisteredItem {
 
     private String origin;
 
-    @OneToOne(cascade = CascadeType.ALL)
+    /**
+     * LAZY：owning 方 OneToOne 的 LAZY 经外键代理即可生效，无需字节码增强。
+     * 列表性能优化（2026-10-11）：registration_state 的 EAGER 会让每次 identifiedItem
+     * 自动初始化级联 join registration_state 表；访问方均在 @Transactional 内。
+     */
+    @OneToOne(fetch = jakarta.persistence.FetchType.LAZY, cascade = CascadeType.ALL)
     @JoinColumn(name = "registration_state_id")
     private RegistrationState registrationState;
 
@@ -43,11 +48,11 @@ public class AdministeredItem extends RegisteredItem {
     @OneToMany(mappedBy = "administeredItem", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<AttachedItem> attachedItems = new ArrayList<>();
 
-    @ManyToOne
+    @ManyToOne(fetch = jakarta.persistence.FetchType.LAZY)
     @JoinColumn(name = "stewardship_record_id")
     private StewardshipRecord stewardshipRecord;
 
-    @ManyToOne
+    @ManyToOne(fetch = jakarta.persistence.FetchType.LAZY)
     @JoinColumn(name = "registration_authority_id")
     private RegistrationAuthority registrationAuthority;
 

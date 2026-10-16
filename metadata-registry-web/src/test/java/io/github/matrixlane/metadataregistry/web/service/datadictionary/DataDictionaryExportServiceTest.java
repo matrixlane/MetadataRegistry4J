@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.Definition;
 import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.Designation;
-import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifiedItem;
+import io.github.matrixlane.metadataregistry.commonfacilities.registration.AdministeredItem;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.ScopedIdentifier;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.AdministeredItem;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationState;

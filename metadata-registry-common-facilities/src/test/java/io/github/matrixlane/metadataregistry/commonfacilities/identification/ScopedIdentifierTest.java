@@ -1,5 +1,6 @@
 package io.github.matrixlane.metadataregistry.commonfacilities.identification;
 
+import io.github.matrixlane.metadataregistry.commonfacilities.registration.AdministeredItem;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -9,7 +10,7 @@ class ScopedIdentifierTest {
     @Test
     void shouldSetFields() {
         Namespace ns = new Namespace();
-        IdentifiedItem item = new IdentifiedItem();
+        AdministeredItem item = new AdministeredItem();
         ScopedIdentifier si = new ScopedIdentifier("urn:demo:123", ns, item);
         assertThat(si.getIdentifier()).isEqualTo("urn:demo:123");
         assertThat(si.getNamespace()).isEqualTo(ns);
@@ -25,7 +26,7 @@ class ScopedIdentifierTest {
 
     private static Namespace namespaceWithIdentifiers(String... identifiers) {
         Namespace ns = new Namespace();
-        IdentifiedItem nsItem = new IdentifiedItem();
+        AdministeredItem nsItem = new AdministeredItem();
         for (String id : identifiers) {
             ScopedIdentifier nsId = new ScopedIdentifier();
             nsId.setIdentifier(id);

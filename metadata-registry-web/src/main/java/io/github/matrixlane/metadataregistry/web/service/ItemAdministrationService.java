@@ -12,6 +12,7 @@ import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefi
 import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.NamingConvention;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifiedItem;
 import io.github.matrixlane.metadataregistry.ext.identification.IdentifierCreationMode;
+import io.github.matrixlane.metadataregistry.ext.identification.IdentifierInputMode;
 import io.github.matrixlane.metadataregistry.ext.identification.ScopedIdentifierLifecycle;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.ScopedIdentifier;
@@ -38,6 +39,7 @@ import io.github.matrixlane.metadataregistry.web.dto.common.TextLineContextRespo
 import io.github.matrixlane.metadataregistry.web.dto.common.TextLineResponse;
 import io.github.matrixlane.metadataregistry.web.repository.AdministeredItemRepository;
 import io.github.matrixlane.metadataregistry.web.repository.ContactRepository;
+import io.github.matrixlane.metadataregistry.web.repository.DesignationRepository;
 import io.github.matrixlane.metadataregistry.web.repository.OrganizationRepository;
 import io.github.matrixlane.metadataregistry.web.repository.ScopedIdentifierRepository;
 import io.github.matrixlane.metadataregistry.web.repository.StewardshipRecordRepository;
@@ -60,13 +62,17 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
@@ -87,6 +93,7 @@ public class ItemAdministrationService {
     private final NamingConventionEngine namingConventionEngine;
     private final ScopedIdentifierRepository scopedIdentifierRepository;
     private final AdministeredItemRepository administeredItemRepository;
+    private final DesignationRepository designationRepository;
     private final IdentifierInputPolicyService identifierInputPolicyService;
     private final NamingConventionRepository namingConventionRepository;
     private final NamespaceConstraintValidator namespaceConstraintValidator;
@@ -140,9 +147,14 @@ public class ItemAdministrationService {
     public void applyDesignations(Item item, List<TextLine> designations, UUID namespaceId) {
         if (designations == null) return;
 
-        validateIsolatedLines(designations, "指称");
-        validateNamingConventions(designations);
-        validatePreferredUniqueness(designations, resolveLanguages(designations), "指称");
+        // 回退恢复期间跳过内容校验：恢复的目标是忠实还原基线快照的历史内容，
+        // 即使其不满足现行规则（孤立行/命名规范/首选唯一性等校验均为后加入），也不应阻断回退。
+        boolean restore = isRestoreInProgress();
+        if (!restore) {
+            validateIsolatedLines(designations, "指称");
+            validateNamingConventions(designations);
+            validatePreferredUniqueness(designations, resolveLanguages(designations), "指称");
+        }
 
         Map<UUID, Designation> existingById = new HashMap<>();
         for (Designation d : item.getDesignations()) {
@@ -183,7 +195,7 @@ public class ItemAdministrationService {
                     d.getDesignationContexts().add(dc);
                 }
             }
-            if (namespaceId != null) {
+            if (!restore && namespaceId != null) {
                 namespaceConstraintValidator.validateDesignation(namespaceId, d, d.getId());
             }
         }
@@ -275,8 +287,11 @@ public class ItemAdministrationService {
     public void applyDefinitions(Item item, List<TextLine> definitions) {
         if (definitions == null) return;
 
-        validateIsolatedLines(definitions, "定义");
-        validatePreferredUniqueness(definitions, resolveLanguages(definitions), "定义");
+        boolean restore = isRestoreInProgress();
+        if (!restore) {
+            validateIsolatedLines(definitions, "定义");
+            validatePreferredUniqueness(definitions, resolveLanguages(definitions), "定义");
+        }
 
         Map<UUID, Definition> existingById = new HashMap<>();
         for (Definition d : item.getDefinitions()) {
@@ -418,20 +433,30 @@ public class ItemAdministrationService {
             }
 
             // 版本：AUTO 时 MUST 忽略请求体显式值并按命名空间版本策略递增；MANUAL / NULL 时
-            // 接受显式值并按策略校验，空则递增（registry-merge-strategy D4/D5）。
+            // 显式携带不同版本 → 按策略校验并采用；其余（回显同值/留空）时 MANUAL 一律保持
+            // 原版本（纯手动创建方式系统不做自动生成），mode 缺失（NULL，迁移前既存/裸导入
+            // 记录）按命名空间版本输入模式回退：MANUAL_ONLY 命名空间保持原版本，其余维持
+            // registry-merge-strategy D4/D5 的本地编辑递增语义。
             // 联邦合并路径不经由此处，版本由合并执行器显式维护。
             String requestedVersion = req.version();
-            if (lifecycleService.getOrDefault(si.getId()).getVersionCreationMode() == IdentifierCreationMode.AUTO) {
-                si.setVersion(Versions.bump(si.getVersion(), ns != null
-                        ? namespaceIdentifierSettingsService.getOrDefault(ns.getId()).getVersioningPolicy() : null));
+            IdentifierCreationMode versionCreationMode =
+                    lifecycleService.getOrDefault(si.getId()).getVersionCreationMode();
+            var nsSettings = ns != null ? namespaceIdentifierSettingsService.getOrDefault(ns.getId()) : null;
+            boolean legacyAutoBump = versionCreationMode == null
+                    && (nsSettings == null || !IdentifierInputMode.MANUAL_ONLY.name()
+                            .equals(String.valueOf(nsSettings.getVersionInputMode()).trim().toUpperCase()));
+            if (versionCreationMode == IdentifierCreationMode.AUTO) {
+                si.setVersion(Versions.bump(si.getVersion(),
+                        nsSettings != null ? nsSettings.getVersioningPolicy() : null));
             } else if (requestedVersion != null && !requestedVersion.isBlank()
                     && !requestedVersion.equals(si.getVersion())) {
                 identifierInputPolicyService.validateManualVersion(ns, requestedVersion);
                 si.setVersion(requestedVersion);
-            } else {
-                si.setVersion(Versions.bump(si.getVersion(), ns != null
-                        ? namespaceIdentifierSettingsService.getOrDefault(ns.getId()).getVersioningPolicy() : null));
+            } else if (legacyAutoBump) {
+                si.setVersion(Versions.bump(si.getVersion(),
+                        nsSettings != null ? nsSettings.getVersioningPolicy() : null));
             }
+            // else：MANUAL（或 MANUAL_ONLY 命名空间下的存量记录）未显式变更版本 → 保持原版本
             if (ai.getScopedIdentifiers().size() == 1 && ns != null) {
                 // 单标识条目维持既有行为；多标识（联邦迁移双标识）条目不重挂命名空间，
                 // 避免改写来源命名空间下的标识（合并基）
@@ -879,9 +904,153 @@ public class ItemAdministrationService {
     }
 
     public ItemMetaResponse buildItemMeta(Item item) {
+        return buildItemMeta(item, null, true);
+    }
+
+    /** 用整页预取组装单条元数据；{@code preload} 为 null/空时退化为逐条查询。 */
+    public ItemMetaResponse buildItemMeta(Item item, ItemMetaPreload preload) {
+        return buildItemMeta(item, preload, true);
+    }
+
+    /**
+     * 删除前置校验：仅注册状态为 Recorded 之前（Incomplete/Candidate，或尚无受管链）
+     * 的条目允许直接删除；Recorded 及之后（含 Retired/Superseded 等）已纳入版本控制，
+     * 只能经注册状态推进流程转为 Retired，不得直接删除。
+     */
+    public void assertDeletable(Item item) {
+        if (!(item.getIdentifiedItem() instanceof AdministeredItem administeredItem)) {
+            return;
+        }
+        RegistrationState state = administeredItem.getRegistrationState();
+        if (state != null && state.getRegistrationStatus() != null
+                && state.getRegistrationStatus().ordinal() >= RegistrationStatus.RECORDED.ordinal()) {
+            throw new BusinessException(ApiCodes.CONFLICT,
+                    "条目当前注册状态为「" + state.getRegistrationStatus().name() + "」，"
+                            + "Recorded 及之后的状态已纳入版本控制，不能直接删除；"
+                            + "请通过注册状态推进流程将条目转为 Retired");
+        }
+    }
+
+    /**
+     * 删除条目前解除其受管链上的提交记录入边：registered_item_submission_record
+     * 连接表由 SubmissionRecord 侧拥有（RegisteredItem.submissionRecords 为 inverse
+     * 无级联），不先移除连接行，删除 registered_item 即被外键阻塞（409 数据冲突）。
+     * 关联的 RegisteredItem 全部移除后 SubmissionRecord 本身一并删除（提交履历随
+     * 条目消亡，不保留空壳）；尚有其它条目关联的 SubmissionRecord 保留。
+     */
+    public void removeFromSubmissionRecords(Item item) {
+        RegisteredItem registeredItem = item.getIdentifiedItem();
+        if (registeredItem == null) {
+            return;
+        }
+        for (SubmissionRecord record : new ArrayList<>(registeredItem.getSubmissionRecords())) {
+            record.getRegisteredItems().remove(registeredItem);
+            if (record.getRegisteredItems().isEmpty()) {
+                submissionRecordRepository.delete(record);
+            }
+        }
+    }
+
+    /**
+     * 条目注册元数据的整页预取结果（列表页组装用，避免逐条查询）。
+     *
+     * @param metaByItemId      itemId → {@link AdministeredItemRepository#findMetaByItemIds} 的投影行
+     * @param identifiersByItem itemId → 该条目的标识符标量行列表
+     *                          （{@link ScopedIdentifierRepository#findScalarByItemIds}）
+     * @param lifecycles        scopedIdentifierId → 生命周期卫星行
+     */
+    public record ItemMetaPreload(
+            Map<UUID, Object[]> metaByItemId,
+            Map<UUID, List<Object[]>> identifiersByItem,
+            Map<UUID, ScopedIdentifierLifecycle> lifecycles,
+            Map<UUID, Namespace> namespacesById,
+            Map<UUID, List<UUID>> referenceDocumentIdsByItem) {
+
+        static ItemMetaPreload empty() {
+            return new ItemMetaPreload(Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
+        }
+    }
+
+    /**
+     * 整页预取（列表页用）。
+     *
+     * <p>一次批量查询把本页所需的受管元数据与标识符全部取回，再由
+     * {@link #buildItemMeta(Item, ItemMetaPreload)} 逐条组装。沿用项目既有批量范式
+     * （见 {@code LanguageExtensionService#mapByLanguageIds}「列表页组装用，避免 N+1」）。</p>
+     */
+    @Transactional(readOnly = true)
+    public ItemMetaPreload preloadItemMeta(Collection<? extends Item> items) {
+        if (items == null || items.isEmpty()) {
+            return ItemMetaPreload.empty();
+        }
+        List<UUID> itemIds = items.stream()
+                .filter(Objects::nonNull).map(Item::getId)
+                .filter(Objects::nonNull).distinct().toList();
+        if (itemIds.isEmpty()) {
+            return ItemMetaPreload.empty();
+        }
+        Map<UUID, Object[]> metaByItemId = new HashMap<>();
+        for (Object[] row : administeredItemRepository.findMetaByItemIds(itemIds)) {
+            metaByItemId.put((UUID) row[0], row);
+        }
+        Map<UUID, List<Object[]>> identifiersByItem = new HashMap<>();
+        for (Object[] row : scopedIdentifierRepository.findScalarByItemIds(itemIds)) {
+            identifiersByItem.computeIfAbsent((UUID) row[0], k -> new ArrayList<>()).add(row);
+        }
+        Map<UUID, ScopedIdentifierLifecycle> lifecycles = lifecycleService.mapByScopedIdentifierIds(
+                identifiersByItem.values().stream().flatMap(List::stream)
+                        .map(r -> (UUID) r[1]).filter(Objects::nonNull).distinct().toList());
+        // 主标识偏好（preferPrimaryIdentifier）依赖命名空间的归属属性，批量版须一并取回
+        List<UUID> nsIds = identifiersByItem.values().stream().flatMap(List::stream)
+                .map(r -> (UUID) r[4]).filter(Objects::nonNull).distinct().toList();
+        Map<UUID, Namespace> namespacesById = nsIds.isEmpty() ? Map.of()
+                : namespaceRepository.findAllById(nsIds).stream()
+                        .collect(Collectors.toMap(Namespace::getId, Function.identity()));
+        Map<UUID, List<UUID>> referenceDocIdsByItem = new HashMap<>();
+        for (Object[] row : administeredItemRepository.findReferenceDocumentIdsByItemIds(itemIds)) {
+            referenceDocIdsByItem.computeIfAbsent((UUID) row[0], k -> new ArrayList<>())
+                    .add((UUID) row[1]);
+        }
+        return new ItemMetaPreload(metaByItemId, identifiersByItem, lifecycles, namespacesById,
+                referenceDocIdsByItem);
+    }
+
+    /**
+     * 批量预取一批条目的首选指称（itemId → signValue），列表页组装关联条目标签用。
+     *
+     * <p>纯标量查询（designation 表 + language 排序），不触碰 Item 继承代理——
+     * 避免 {@code ItemNamingHelper.preferredDesignation(dec)} 之类的实体路径在
+     * 列表页初始化 DEC/VD 代理级联触发 identifiedItem 加载（JOINED 继承 +
+     * mappedBy 方 LAZY OneToOne 无字节码增强即 EAGER，单次重 join 实测 ~37ms）。</p>
+     *
+     * @return itemId → 首选指称（按语言优先级取每组首行）
+     */
+    @Transactional(readOnly = true)
+    public Map<UUID, String> preloadPreferredDesignations(Collection<UUID> itemIds) {
+        if (itemIds == null || itemIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<UUID, String> result = new HashMap<>();
+        for (Object[] row : designationRepository.findSignValuesByItemIdsOrdered(itemIds)) {
+            // 每组首行即语言优先级最高的指称，后续行忽略
+            result.putIfAbsent((UUID) row[0], (String) row[1]);
+        }
+        return result;
+    }
+
+    /**
+     * 用整页预取组装单条元数据；{@code preload} 为 null/空时退化为逐条查询。
+     *
+     * @param includeSubmissionRecords 是否组装提交记录摘要。列表页表格不展示该数据，
+     *                                 传 {@code false} 可跳过逐条查询（每条目 2 次：
+     *                                 findAllByRegisteredItemId + countRegisteredItems），
+     *                                 20 行/页即 40 次 SQL 往返。
+     */
+    public ItemMetaResponse buildItemMeta(Item item, ItemMetaPreload preload, boolean includeSubmissionRecords) {
         if (item == null) {
             return null;
         }
+        boolean batched = preload != null && !preload.metaByItemId().isEmpty();
 
         UUID administeredItemId = null;
         RegistrationStatus registrationStatus = null;
@@ -894,80 +1063,99 @@ public class ItemAdministrationService {
         String scopedIdentifierStr = null;
         IdentifierCreationMode identifierCreationMode = null;
         IdentifierCreationMode versionCreationMode = null;
-
-        // Try to query AdministeredItem by itemId
-        List<Object[]> metaList = administeredItemRepository.findMetaByItemId(item.getId());
-        if (metaList != null && !metaList.isEmpty()) {
-            Object[] metaRow = metaList.get(0);
-            administeredItemId = (UUID) metaRow[0];
-            registrationStatus = (RegistrationStatus) metaRow[1];
-        }
-        var administeredItem = administeredItemRepository.findByItem_Id(item.getId()).orElse(null);
-        if (administeredItem != null && administeredItem.getRegistrationAuthority() != null) {
-            registrationAuthorityId = administeredItem.getRegistrationAuthority().getId();
-            var raNameList = administeredItem.getRegistrationAuthority().getName();
-            registrationAuthorityName = raNameList == null ? null
-                    : raNameList.stream().findFirst().map(n -> n.getValue()).orElse(null);
-        }
-
-        // Registration_State 其余属性回显（11179-3:2023 表 22），供编辑表单回填
-        RegistrationState regState = administeredItem == null ? null : administeredItem.getRegistrationState();
-        LocalDateTime stateEffectiveDate = regState == null ? null : regState.getEffectiveDate();
-        LocalDateTime stateUntilDate = regState == null ? null : regState.getUntilDate();
-        String administrativeStatus = regState == null || regState.getAdministrativeStatus() == null
-                ? null
-                : regState.getAdministrativeStatus().standardValue();
-        String administrativeNote = regState == null ? null : regState.getAdministrativeNote();
-        String unresolvedIssue = regState == null ? null : regState.getUnresolvedIssue();
-
-        // Stewardship_Record 回显：从已加载的 AdministeredItem 取 FK id，不触发关联实体整图加载
+        LocalDateTime stateEffectiveDate = null;
+        LocalDateTime stateUntilDate = null;
+        String administrativeStatus = null;
+        String administrativeNote = null;
+        String unresolvedIssue = null;
         UUID stewardshipRecordId = null;
         UUID stewardshipContactId = null;
         UUID stewardshipOrganizationId = null;
-        if (administeredItem != null && administeredItem.getStewardshipRecord() != null) {
-            StewardshipRecord sr = administeredItem.getStewardshipRecord();
-            stewardshipRecordId = sr.getId();
-            if (sr.getContact() != null) {
-                stewardshipContactId = sr.getContact().getId();
+        List<UUID> referenceDocumentIds = List.of();
+
+        // 受管元数据走标量投影（单条版 12 列 / 批量版首列为 itemId），不加载 AdministeredItem 实体。
+        // 本方法在列表响应中逐条调用，若加载实体，其 EAGER 关联会把 Item 子类继承树一并拉进
+        // 单条 SQL 的 join——实测单次 44ms、731 逻辑读（2026-10-09，见 design D1'）。
+        Object[] metaRow = batched
+                ? preload.metaByItemId().get(item.getId())
+                : administeredItemRepository.findMetaByItemId(item.getId()).stream().findFirst().orElse(null);
+        if (metaRow != null) {
+            int o = batched ? 1 : 0;
+            administeredItemId = (UUID) metaRow[o];
+            registrationStatus = (RegistrationStatus) metaRow[o + 1];
+            registrationAuthorityId = (UUID) metaRow[o + 2];
+            registrationAuthorityName = (String) metaRow[o + 3];
+            stateEffectiveDate = (LocalDateTime) metaRow[o + 4];
+            stateUntilDate = (LocalDateTime) metaRow[o + 5];
+            administrativeStatus = metaRow[o + 6] == null ? null
+                    : ((AdministrativeStatus) metaRow[o + 6]).standardValue();
+            administrativeNote = (String) metaRow[o + 7];
+            unresolvedIssue = (String) metaRow[o + 8];
+            stewardshipRecordId = (UUID) metaRow[o + 9];
+            stewardshipContactId = (UUID) metaRow[o + 10];
+            stewardshipOrganizationId = (UUID) metaRow[o + 11];
+            if (batched) {
+                referenceDocumentIds = preload.referenceDocumentIdsByItem()
+                        .getOrDefault(item.getId(), List.of());
+            } else {
+                var ai = administeredItemRepository.findByItem_Id(item.getId()).orElse(null);
+                referenceDocumentIds = ai == null || ai.getReferenceDocuments() == null
+                        ? List.of()
+                        : ai.getReferenceDocuments().stream().map(ReferenceDocument::getId).toList();
             }
-            if (sr.getOrganization() != null) {
-                stewardshipOrganizationId = sr.getOrganization().getId();
+        }
+
+        // 标识符：批量走标量投影（ScopedIdentifier 实体的 identifiedItem 是默认 EAGER 的
+        // @ManyToOne，加载它即触发继承展开）；单条沿用既有查询。
+        List<Object[]> siRows = null;
+        if (batched) {
+            siRows = preload.identifiersByItem().get(item.getId());
+        }
+        if (siRows != null && !siRows.isEmpty()) {
+            Object[] siRow = preferPrimaryScalarIdentifier(siRows, preload.namespacesById());
+            UUID siId = (UUID) siRow[1];
+            identifier = (String) siRow[2];
+            version = (String) siRow[3];
+            nsId = (UUID) siRow[4];
+            ScopedIdentifierLifecycle siLifecycle = preload.lifecycles().get(siId);
+            if (siLifecycle != null) {
+                identifierCreationMode = siLifecycle.getIdentifierCreationMode();
+                versionCreationMode = siLifecycle.getVersionCreationMode();
+            }
+            Namespace ns = preload.namespacesById().get(nsId);
+            nsLabel = ns == null ? null : ItemNamingHelper.preferredDesignation(ns);
+            scopedIdentifierStr = buildScopedIdentifierStr(nsLabel, identifier, version);
+        } else if (!batched) {
+            List<ScopedIdentifier> siList = scopedIdentifierRepository.findByItemId(item.getId());
+            if (siList != null && !siList.isEmpty()) {
+                ScopedIdentifier si = preferPrimaryIdentifier(siList);
+                identifier = si.getIdentifier();
+                version = si.getVersion();
+                ScopedIdentifierLifecycle siLifecycle = lifecycleService.getOrDefault(si.getId());
+                identifierCreationMode = siLifecycle.getIdentifierCreationMode();
+                versionCreationMode = siLifecycle.getVersionCreationMode();
+                if (si.getNamespace() != null) {
+                    nsId = si.getNamespace().getId();
+                    nsLabel = ItemNamingHelper.preferredDesignation(si.getNamespace());
+                }
+                scopedIdentifierStr = buildScopedIdentifierStr(nsLabel, identifier, version);
             }
         }
 
         // 关联 SubmissionRecord 列表（align-submission-record-to-iso）：编辑表单"提交记录"只读面板数据源。
-        // 用 entityId 而非 Item.id 过滤，因为 SubmissionRecord.registeredItems 是 RegisteredItem。
+        // 列表页（includeSubmissionRecords=false）不组装——表格不展示该数据，逐条查询是
+        // 列表接口的主要 SQL 来源之一（每条目 2 次，20 行/页即 40 次往返）。
         List<SubmissionRecordSummary> submissionRecordSummaries = List.of();
-        if (administeredItem != null) {
+        if (includeSubmissionRecords && administeredItemId != null) {
             List<SubmissionRecord> srs = submissionRecordRepository
-                    .findAllByRegisteredItemIdOrderByIdDesc(administeredItem.getId());
+                    .findAllByRegisteredItemIdOrderByIdDesc(administeredItemId);
+            Map<UUID, Long> itemCountBySubmission =
+                    submissionRecordRepository.countRegisteredItemsBySubmissionRecordIds(
+                            srs.stream().map(SubmissionRecord::getId).toList());
             submissionRecordSummaries = srs.stream()
-                    .map(SubmissionRecordMapper::toSummary)
+                    .map(sr -> SubmissionRecordMapper.toSummary(
+                            sr, itemCountBySubmission.getOrDefault(sr.getId(), 0L)))
                     .toList();
-        }
-
-        // Try to query ScopedIdentifier by itemId
-        List<ScopedIdentifier> siList = scopedIdentifierRepository.findByItemId(item.getId());
-        if (siList != null && !siList.isEmpty()) {
-            ScopedIdentifier si = preferPrimaryIdentifier(siList);
-            identifier = si.getIdentifier();
-            version = si.getVersion();
-            var siLifecycle = lifecycleService.getOrDefault(si.getId());
-            identifierCreationMode = siLifecycle.getIdentifierCreationMode();
-            versionCreationMode = siLifecycle.getVersionCreationMode();
-            if (si.getNamespace() != null) {
-                nsId = si.getNamespace().getId();
-                nsLabel = ItemNamingHelper.preferredDesignation(si.getNamespace());
-            }
-            
-            // Build scopedIdentifierStr: namespace:identifier@version
-            StringBuilder sb = new StringBuilder();
-            if (nsLabel != null) sb.append(nsLabel).append(':');
-            sb.append(identifier == null ? "" : identifier);
-            if (version != null && !version.isBlank()) {
-                sb.append('@').append(version);
-            }
-            scopedIdentifierStr = sb.toString();
         }
 
         return new ItemMetaResponse(
@@ -993,7 +1181,49 @@ public class ItemAdministrationService {
                 stewardshipRecordId,
                 stewardshipContactId,
                 stewardshipOrganizationId,
+                referenceDocumentIds,
                 submissionRecordSummaries);
+    }
+
+    /**
+     * 标识符标量行的主标识偏好，与 {@link #preferPrimaryIdentifier(List)} 同规则：
+     * 优先注册机构自有命名空间下的标识；其次非全局、非迁入副本命名空间下的标识。
+     */
+    private static Object[] preferPrimaryScalarIdentifier(List<Object[]> siRows, Map<UUID, Namespace> namespaces) {
+        return siRows.stream()
+                .filter(r -> namespaces.get((UUID) r[4]) != null
+                        && namespaces.get((UUID) r[4]).getRegistrationAuthority() != null)
+                .findFirst()
+                .orElseGet(() -> siRows.stream()
+                        .filter(r -> {
+                            Namespace ns = namespaces.get((UUID) r[4]);
+                            return ns != null
+                                    && !GlobalNamespaceService.isGlobalNamespace(ns)
+                                    && !GlobalNamespaceService.isImportedNamespace(ns);
+                        })
+                        .findFirst()
+                        .orElse(siRows.get(0)));
+    }
+
+    private static String buildScopedIdentifierStr(String nsLabel, String identifier, String version) {
+        StringBuilder sb = new StringBuilder();
+        if (nsLabel != null) {
+            sb.append(nsLabel).append(':');
+        }
+        sb.append(identifier == null ? "" : identifier);
+        if (version != null && !version.isBlank()) {
+            sb.append('@').append(version);
+        }
+        return sb.toString();
+    }
+
+    private String nsLabelOf(UUID nsId) {
+        if (nsId == null) {
+            return null;
+        }
+        return namespaceRepository.findById(nsId)
+                .map(ItemNamingHelper::preferredDesignation)
+                .orElse(null);
     }
 
     /**
@@ -1027,7 +1257,10 @@ public class ItemAdministrationService {
                     d.getSource() == null ? null : d.getSource().getId(),
                     d.getSource() == null || d.getSource().getTitle() == null
                             ? null : d.getSource().getTitle().getValue(),
-                    mapDesignationContexts(d)));
+                    mapDesignationContexts(d),
+                    d.getNamingConventions() == null ? null
+                            : d.getNamingConventions().stream()
+                                    .map(NamingConvention::getId).toList()));
         }
         return out;
     }
@@ -1046,7 +1279,8 @@ public class ItemAdministrationService {
                     d.getSource() == null ? null : d.getSource().getId(),
                     d.getSource() == null || d.getSource().getTitle() == null
                             ? null : d.getSource().getTitle().getValue(),
-                    mapDefinitionContexts(d)));
+                    mapDefinitionContexts(d),
+                    null));
         }
         return out;
     }

@@ -28,6 +28,12 @@ public class OrganizationService {
 
     private final OrganizationRepository repository;
 
+    /**
+     * 组织列表，关键词按名称检索。
+     *
+     * <p>维持仅名称匹配：Organization 是独立根实体（{@code Organization extends Entity}），
+     * 不在受管链上，不存在 Scoped_Identifier 行，故无标识符可匹配。</p>
+     */
     @Transactional(readOnly = true)
     public Page<OrganizationResponse> list(String keyword, Pageable pageable) {
         Specification<Organization> spec = null;

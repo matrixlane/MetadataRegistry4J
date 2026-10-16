@@ -2,7 +2,7 @@ package io.github.matrixlane.metadataregistry.web.service;
 
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Account;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.SystemRole;
-import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifiedItem;
+import io.github.matrixlane.metadataregistry.commonfacilities.registration.AdministeredItem;
 import io.github.matrixlane.metadataregistry.ext.identification.IdentifierStrategyConfig;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.Registrar;
@@ -17,7 +17,7 @@ import io.github.matrixlane.metadataregistry.web.dto.identifierstrategy.Identifi
 import io.github.matrixlane.metadataregistry.web.dto.scopedidentifier.ScopedIdentifierCreateRequest;
 import io.github.matrixlane.metadataregistry.web.dto.scopedidentifier.ScopedIdentifierResponse;
 import io.github.matrixlane.metadataregistry.web.repository.DataElementRepository;
-import io.github.matrixlane.metadataregistry.web.repository.IdentifiedItemRepository;
+import io.github.matrixlane.metadataregistry.web.repository.RegisteredItemRepository;
 import io.github.matrixlane.metadataregistry.web.repository.IdentifierVersionHistoryRepository;
 import io.github.matrixlane.metadataregistry.web.repository.IdentifierStrategyConfigRepository;
 import io.github.matrixlane.metadataregistry.web.repository.NamespaceRepository;
@@ -90,7 +90,7 @@ class SegmentTemplateStrategyIntegrationTest {
     @Autowired
     private NamespaceRepository namespaceRepository;
     @Autowired
-    private IdentifiedItemRepository identifiedItemRepository;
+    private RegisteredItemRepository registeredItemRepository;
     @Autowired
     private DataElementRepository dataElementRepository;
     @Autowired
@@ -118,8 +118,8 @@ class SegmentTemplateStrategyIntegrationTest {
     private Namespace ownNamespace;
     private Namespace externalNamespace;
     private DataElement dataElement;
-    private IdentifiedItem dataElementItem;
-    private IdentifiedItem bareItem;
+    private AdministeredItem dataElementItem;
+    private AdministeredItem bareItem;
     private int templateVersion;
 
     // 不加 @Transactional：避免测试管理事务持有 SQLite 写锁（同并发用例的教训）。
@@ -150,8 +150,13 @@ class SegmentTemplateStrategyIntegrationTest {
         externalNamespace = namespaceRepository.save(new Namespace());
 
         dataElement = dataElementRepository.save(new DataElement());
-        dataElementItem = identifiedItemRepository.save(new IdentifiedItem(dataElement));
-        bareItem = identifiedItemRepository.save(new IdentifiedItem());
+        // ISO/IEC 11179-3:2023 表 21：creation_datetime 重数 1（必备）
+        AdministeredItem deAi = new AdministeredItem(dataElement);
+        deAi.setCreationDateTime(LocalDateTime.now());
+        dataElementItem = registeredItemRepository.save(deAi);
+        AdministeredItem bareAi = new AdministeredItem();
+        bareAi.setCreationDateTime(LocalDateTime.now());
+        bareItem = registeredItemRepository.save(bareAi);
 
         // 活动 Registrar 会话：自有/外部判定的主判定链
         AuthenticatedUser principal = new AuthenticatedUser(account.getId(), account.getUsername(), SystemRole.SUPER_ADMIN);
@@ -186,7 +191,7 @@ class SegmentTemplateStrategyIntegrationTest {
         namespaceRepository.deleteAll(List.of(ownNamespace, externalNamespace));
         // 批量删除：逐条 delete 会先 merge 加载实体，EAGER item 关联的
         // 联合子类整图 join 会超出 SQLite 单条 SQL 64 表上限
-        identifiedItemRepository.deleteAllByIdIn(List.of(dataElementItem.getId(), bareItem.getId()));
+        registeredItemRepository.deleteAllByIdIn(List.of(dataElementItem.getId(), bareItem.getId()));
         dataElementRepository.delete(dataElement);
         accountRepository.delete(account);
         registrationAuthorityRepository.delete(registrationAuthority);
@@ -213,7 +218,7 @@ class SegmentTemplateStrategyIntegrationTest {
     }
 
     private ScopedIdentifierCreateRequest createRequest(Namespace namespace, String identifier,
-                                                        IdentifiedItem item) {
+                                                        AdministeredItem item) {
         return new ScopedIdentifierCreateRequest(
                 namespace.getId(), identifier, "1.0.0", item.getId(), "segment test", null);
     }
@@ -307,6 +312,19 @@ class SegmentTemplateStrategyIntegrationTest {
                 createRequest(ownNamespace, "WN.DE.99999", dataElementItem)))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("already exists");
+    }
+
+    @Test
+    void manualIdentifierViolatingTemplate_rejectedWithFormatRequirement() {
+        // 报错须说明模板格式要求与示例，而非仅提示"不符合要求"
+        assertThatThrownBy(() -> scopedIdentifierService.create(
+                createRequest(ownNamespace, "WN.DE.1", dataElementItem)))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("实际输入：「WN.DE.1」")
+                .hasMessageContaining("模板格式：")
+                .hasMessageContaining("顺序号（5 位数字，如 00001）")
+                .hasMessageContaining("示例：")
+                .hasMessageContaining("WN.DE.00001");
     }
 
     @Test

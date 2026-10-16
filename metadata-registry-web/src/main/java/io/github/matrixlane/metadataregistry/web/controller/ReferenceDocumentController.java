@@ -9,7 +9,9 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -61,5 +63,11 @@ public class ReferenceDocumentController {
     public ApiResponse<Void> delete(@PathVariable UUID id) {
         service.delete(id);
         return ApiResponse.ok();
+    }
+
+    @GetMapping("/{id}/content")
+    @Operation(summary = "读取本地参考文档内容", description = "按 URI 读取本地文件并流式返回；文件不存在返回 404。")
+    public ResponseEntity<Resource> content(@PathVariable UUID id) {
+        return service.content(id);
     }
 }

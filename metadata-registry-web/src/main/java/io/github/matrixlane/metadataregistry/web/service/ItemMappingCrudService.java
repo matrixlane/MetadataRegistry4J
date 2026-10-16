@@ -12,7 +12,7 @@ import io.github.matrixlane.metadataregistry.web.common.ResourceNotFoundExceptio
 import io.github.matrixlane.metadataregistry.web.dto.mapping.ItemMappingHierarchyRequest;
 import io.github.matrixlane.metadataregistry.web.dto.mapping.ItemMappingRequest;
 import io.github.matrixlane.metadataregistry.web.dto.mapping.ItemMappingResponse;
-import io.github.matrixlane.metadataregistry.web.repository.IdentifiedItemRepository;
+import io.github.matrixlane.metadataregistry.web.repository.RegisteredItemRepository;
 import io.github.matrixlane.metadataregistry.web.repository.ItemRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -48,7 +48,7 @@ public class ItemMappingCrudService {
     private final ItemMappingRepository mappingRepository;
     private final MappingHierarchyRepository hierarchyRepository;
     private final ItemRepository itemRepository;
-    private final IdentifiedItemRepository identifiedItemRepository;
+    private final RegisteredItemRepository registeredItemRepository;
     private final ItemMappingService mappingService;
     private final ItemAdministrationService itemAdministrationService;
 
@@ -262,7 +262,7 @@ public class ItemMappingCrudService {
             return Map.of();
         }
         Map<UUID, RegistrationStatus> statuses = new HashMap<>();
-        for (Object[] row : identifiedItemRepository
+        for (Object[] row : registeredItemRepository
                 .findRegistrationStatusRowsByItemIds(mappingIds)) {
             statuses.put((UUID) row[0], (RegistrationStatus) row[1]);
         }

@@ -19,6 +19,9 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -36,7 +39,13 @@ public class DataElementService {
     @Transactional(readOnly = true)
     public Page<DataElementResponse> list(String keyword, Pageable pageable) {
         Specification<DataElement> spec = ObjectClassService.byKeyword(keyword);
-        return repository.findAll(spec, pageable).map(this::toResponse);
+        var page0 = ItemListSorts.findAll(repository, spec, pageable);
+        var preload0 = itemAdministrationService.preloadItemMeta(page0.getContent());
+        // 批量预取本页条目 + 关联 DEC/VD 的首选指称：取代理 id 不初始化实体
+        // （初始化即级联触发 identifiedItem 的 JOINED 继承重 join），标签改走标量查询。
+        Map<UUID, String> names = itemAdministrationService.preloadPreferredDesignations(
+                collectRelatedIds(page0.getContent()));
+        return page0.map(entity -> toResponse(entity, preload0, names));
     }
 
     @Transactional(readOnly = true)
@@ -64,7 +73,11 @@ public class DataElementService {
     public void delete(UUID id) {
         DataElement entity = repository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("DataElement", id));
+        // Recorded 及之后的注册状态已纳入版本控制，只能走 Retired，不允许直接删除
+        itemAdministrationService.assertDeletable(entity);
         versionHistoryService.recordSnapshot(entity, "DELETE", toResponse(entity));
+        // 解除提交记录连接；关联条目删光后空的 SubmissionRecord 一并删除
+        itemAdministrationService.removeFromSubmissionRecords(entity);
         repository.deleteById(id);
     }
 
@@ -114,18 +127,55 @@ public class DataElementService {
     }
 
     private DataElementResponse toResponse(DataElement entity) {
+        return toResponse(entity, null, null);
+    }
+
+    private DataElementResponse toResponse(DataElement entity,
+                                           ItemAdministrationService.ItemMetaPreload preload,
+                                           Map<UUID, String> preferredNames) {
         DataElementConcept dec = entity.getDataElementConcept();
         ValueDomain vd = entity.getValueDomain();
+        UUID decId = dec == null ? null : dec.getId();
+        UUID vdId = vd == null ? null : vd.getId();
         return new DataElementResponse(
                 entity.getId(),
                 ItemNamingHelper.preferredDesignation(entity),
-                dec == null ? null : dec.getId(),
-                dec == null ? null : ItemNamingHelper.preferredDesignation(dec),
-                vd == null ? null : vd.getId(),
-                vd == null ? null : ItemNamingHelper.preferredDesignation(vd),
+                decId,
+                decId == null ? null : resolveName(decId, dec, preferredNames),
+                vdId,
+                vdId == null ? null : resolveName(vdId, vd, preferredNames),
                 entity.getPrecision(),
                 itemAdministrationService.mapDesignations(entity),
                 itemAdministrationService.mapDefinitions(entity),
-                itemAdministrationService.buildItemMeta(entity));
+                itemAdministrationService.buildItemMeta(entity, preload,
+                        /* includeSubmissionRecords */ preload == null));
+    }
+
+    /**
+     * 解析关联条目标签：批量预取名存在时直接取（列表路径，纯标量不初始化代理）；
+     * 否则回退到实体路径 {@link ItemNamingHelper#preferredDesignation}（单条/编辑路径）。
+     */
+    private static String resolveName(UUID id, io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.Item item,
+                                      Map<UUID, String> preferredNames) {
+        if (preferredNames != null) {
+            return preferredNames.get(id);
+        }
+        return ItemNamingHelper.preferredDesignation(item);
+    }
+
+    private static Set<UUID> collectRelatedIds(java.util.List<DataElement> content) {
+        Set<UUID> ids = new HashSet<>();
+        for (DataElement de : content) {
+            ids.add(de.getId());
+            DataElementConcept dec = de.getDataElementConcept();
+            if (dec != null) {
+                ids.add(dec.getId());
+            }
+            ValueDomain vd = de.getValueDomain();
+            if (vd != null) {
+                ids.add(vd.getId());
+            }
+        }
+        return ids;
     }
 }

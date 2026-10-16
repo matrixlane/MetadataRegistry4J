@@ -103,7 +103,7 @@
      @DisplayName("删除不存在的 ConstraintSet 应抛出 ResourceNotFoundException")
      void delete_notExists_shouldThrow() {
          UUID id = UUID.randomUUID();
-         when(repository.existsById(id)).thenReturn(false);
+         when(repository.findById(id)).thenReturn(Optional.empty());
  
          assertThatThrownBy(() -> service.delete(id))
                  .isInstanceOf(ResourceNotFoundException.class)
@@ -114,7 +114,7 @@
      @DisplayName("删除存在的 ConstraintSet 应调用 repository.deleteById")
      void delete_exists_shouldDelete() {
          UUID id = UUID.randomUUID();
-         when(repository.existsById(id)).thenReturn(true);
+         when(repository.findById(id)).thenReturn(Optional.of(new ConstraintSet()));
  
          service.delete(id);
  

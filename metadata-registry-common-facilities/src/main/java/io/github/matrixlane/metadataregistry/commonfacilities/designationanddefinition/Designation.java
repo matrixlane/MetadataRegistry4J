@@ -63,7 +63,10 @@ public class Designation extends Entity {
     @OneToMany(mappedBy = "designation", cascade = jakarta.persistence.CascadeType.ALL, orphanRemoval = true)
     private List<DesignationContext> designationContexts = new ArrayList<>();
 
-    @OneToMany(mappedBy = "designation")
+    // cascade + orphanRemoval：配对行的持久化生命周期挂在指称上；条目删除经
+    // Item.designations 级联到指称时，若不级联删除配对，designation_definition_pairing
+    // 的外键会先挡住 definition/designation 的删除（409 数据冲突）。
+    @OneToMany(mappedBy = "designation", cascade = jakarta.persistence.CascadeType.ALL, orphanRemoval = true)
     private List<DesignationDefinitionPairing> designationDefinitionPairings = new ArrayList<>();
 
     /**

@@ -1,13 +1,14 @@
 package io.github.matrixlane.metadataregistry.web.service;
 
-import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifiedItem;
+import io.github.matrixlane.metadataregistry.commonfacilities.registration.AdministeredItem;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.ScopedIdentifier;
 import io.github.matrixlane.metadataregistry.web.common.BusinessException;
 import io.github.matrixlane.metadataregistry.web.dto.scopedidentifier.ScopedIdentifierCreateRequest;
-import io.github.matrixlane.metadataregistry.web.repository.IdentifiedItemRepository;
+import io.github.matrixlane.metadataregistry.web.repository.RegisteredItemRepository;
 import io.github.matrixlane.metadataregistry.web.repository.NamespaceRepository;
 import io.github.matrixlane.metadataregistry.web.repository.ScopedIdentifierRepository;
+import java.time.LocalDateTime;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -49,7 +50,7 @@ class ScopedIdentifierConcurrencyIntegrationTest {
     private NamespaceRepository namespaceRepository;
 
     @Autowired
-    private IdentifiedItemRepository identifiedItemRepository;
+    private RegisteredItemRepository registeredItemRepository;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -70,8 +71,9 @@ class ScopedIdentifierConcurrencyIntegrationTest {
         namespace = namespaceRepository.save(namespace);
         namespaceId = namespace.getId();
 
-        IdentifiedItem identifiedItem = new IdentifiedItem();
-        identifiedItem = identifiedItemRepository.save(identifiedItem);
+        AdministeredItem identifiedItem = new AdministeredItem();
+        identifiedItem.setCreationDateTime(LocalDateTime.now());
+        identifiedItem = registeredItemRepository.save(identifiedItem);
         identifiedItemId = identifiedItem.getId();
     }
 

@@ -34,6 +34,7 @@ import io.github.matrixlane.metadataregistry.web.service.namingconvention.Naming
 import io.github.matrixlane.metadataregistry.web.service.namespace.NamespaceConstraintValidator;
 import io.github.matrixlane.metadataregistry.web.repository.RegistrySpecificationRepository;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrySpecification;
+import java.time.LocalDateTime;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -449,6 +450,53 @@ class ItemAdministrationServiceTest {
     }
 
     @Test
+    void applyDesignations_shouldSkipValidationDuringRestore() {
+        try {
+            itemAdministrationService.setRestoreInProgress(true);
+            when(languageRepository.findById(languageId)).thenReturn(Optional.of(lang));
+
+            // 无上下文且未标记例外的孤立指称：正常保存被拒，回退恢复期间应放行
+            TextLine line = new TextLine(languageId, "历史孤立指称", null, null, null, false);
+            itemAdministrationService.applyDesignations(item, List.of(line), UUID.randomUUID());
+
+            assertThat(item.getDesignations()).hasSize(1);
+            verifyNoInteractions(namespaceConstraintValidator);
+        } finally {
+            itemAdministrationService.setRestoreInProgress(false);
+        }
+    }
+
+    @Test
+    void applyDefinitions_shouldSkipValidationDuringRestore() {
+        try {
+            itemAdministrationService.setRestoreInProgress(true);
+            when(languageRepository.findById(languageId)).thenReturn(Optional.of(lang));
+
+            TextLine line = new TextLine(languageId, "历史孤立定义", null, null, null, false);
+            itemAdministrationService.applyDefinitions(item, List.of(line));
+
+            assertThat(item.getDefinitions()).hasSize(1);
+        } finally {
+            itemAdministrationService.setRestoreInProgress(false);
+        }
+    }
+
+    @Test
+    void mapDesignations_shouldIncludeNamingConventionIds() {
+        var nc = new io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.NamingConvention();
+        nc.setId(UUID.randomUUID());
+        Designation designation = new Designation();
+        designation.setSign(Sign.of("带规范指称"));
+        designation.getNamingConventions().add(nc);
+        item.getDesignations().add(designation);
+
+        var mapped = itemAdministrationService.mapDesignations(item);
+
+        assertThat(mapped).hasSize(1);
+        assertThat(mapped.get(0).namingConventionIds()).containsExactly(nc.getId());
+    }
+
+    @Test
     void ensureAdministeredItem_shouldUseManualIdentifier() {
         UUID namespaceId = UUID.randomUUID();
         Namespace ns = new Namespace();
@@ -754,6 +802,7 @@ class ItemAdministrationServiceTest {
         when(namespaceRepository.findById(ns.getId())).thenReturn(Optional.of(ns));
         when(namespaceRepository.existsByRegistrationAuthorityIsNotNull()).thenReturn(true);
         AdministeredItem existing = new AdministeredItem(item);
+        existing.setCreationDateTime(LocalDateTime.now());
         existing.setRegistrationAuthority(ra);
         item.setIdentifiedItem(existing);
 
@@ -914,6 +963,7 @@ class ItemAdministrationServiceTest {
 
     private AdministeredItem attachExistingIdentifier(Namespace ns, String identifier, String version) {
         AdministeredItem ai = new AdministeredItem(item);
+        ai.setCreationDateTime(LocalDateTime.now());
         ScopedIdentifier si = new ScopedIdentifier(identifier, ns, ai);
         si.setVersion(version);
         ai.getScopedIdentifiers().add(si);
@@ -989,6 +1039,79 @@ class ItemAdministrationServiceTest {
     }
 
     @Test
+    void ensureAdministeredItem_update_manualCreationMode_sameVersionEcho_keepsVersion() {
+        // 创建方式 MANUAL（用户手动录入版本）：编辑回显同值 MUST 保持原版本，不得自动递增
+        //（如年度版本 2023 不得因一次普通编辑变为 2024）
+        Namespace ns = new Namespace();
+        ns.setId(UUID.randomUUID());
+        stubVersioningPolicy(ns, "SEQUENTIAL");
+        when(namespaceRepository.findById(ns.getId())).thenReturn(Optional.of(ns));
+        stubVersionCreationMode(io.github.matrixlane.metadataregistry.ext.identification.IdentifierCreationMode.MANUAL);
+        AdministeredItem existing = attachExistingIdentifier(ns, "X-1", "2023");
+
+        ItemRegistrationRequest req = new ItemRegistrationRequest(
+                ns.getId(), null, "2023", List.of(), List.of());
+
+        itemAdministrationService.ensureAdministeredItem(item, req);
+
+        assertThat(existing.getScopedIdentifiers().get(0).getVersion()).isEqualTo("2023");
+    }
+
+    @Test
+    void ensureAdministeredItem_update_manualCreationMode_blankVersion_keepsVersion() {
+        // 创建方式 MANUAL 下请求未携带版本：纯手动模式系统不做自动生成，保持原版本
+        Namespace ns = new Namespace();
+        ns.setId(UUID.randomUUID());
+        stubVersioningPolicy(ns, "SEQUENTIAL");
+        when(namespaceRepository.findById(ns.getId())).thenReturn(Optional.of(ns));
+        stubVersionCreationMode(io.github.matrixlane.metadataregistry.ext.identification.IdentifierCreationMode.MANUAL);
+        AdministeredItem existing = attachExistingIdentifier(ns, "X-1", "2023");
+
+        ItemRegistrationRequest req = new ItemRegistrationRequest(
+                ns.getId(), null, null, List.of(), List.of());
+
+        itemAdministrationService.ensureAdministeredItem(item, req);
+
+        assertThat(existing.getScopedIdentifiers().get(0).getVersion()).isEqualTo("2023");
+    }
+
+    @Test
+    void ensureAdministeredItem_update_manualCreationMode_explicitDifferentVersion_honored() {
+        // 创建方式 MANUAL 下显式提供不同版本：按策略校验并采用
+        Namespace ns = new Namespace();
+        ns.setId(UUID.randomUUID());
+        stubVersioningPolicy(ns, "FREE_TEXT");
+        when(namespaceRepository.findById(ns.getId())).thenReturn(Optional.of(ns));
+        stubVersionCreationMode(io.github.matrixlane.metadataregistry.ext.identification.IdentifierCreationMode.MANUAL);
+        AdministeredItem existing = attachExistingIdentifier(ns, "X-1", "2023");
+
+        ItemRegistrationRequest req = new ItemRegistrationRequest(
+                ns.getId(), null, "2025", List.of(), List.of());
+
+        itemAdministrationService.ensureAdministeredItem(item, req);
+
+        assertThat(existing.getScopedIdentifiers().get(0).getVersion()).isEqualTo("2025");
+    }
+
+    @Test
+    void ensureAdministeredItem_update_manualOnlyNamespaceLegacyItem_keepsVersion() {
+        // mode 缺失（NULL：迁移前既存/裸导入记录，如 WS 363 基准导入）且命名空间版本输入模式
+        // 为 MANUAL_ONLY：纯手动命名空间不做自动递增，回显同值保持原版本
+        Namespace ns = new Namespace();
+        ns.setId(UUID.randomUUID());
+        stubNamespaceSettings(ns, "FREE_TEXT", "MANUAL_ONLY");
+        when(namespaceRepository.findById(ns.getId())).thenReturn(Optional.of(ns));
+        AdministeredItem existing = attachExistingIdentifier(ns, "X-1", "2023");
+
+        ItemRegistrationRequest req = new ItemRegistrationRequest(
+                ns.getId(), null, "2023", List.of(), List.of());
+
+        itemAdministrationService.ensureAdministeredItem(item, req);
+
+        assertThat(existing.getScopedIdentifiers().get(0).getVersion()).isEqualTo("2023");
+    }
+
+    @Test
     void ensureAdministeredItem_update_dualIdentifiers_onlyNamespaceMatchedIdentifierBumped() {
         // 联邦迁移后的双标识条目：本地编辑仅递增目的方命名空间下的标识，
         // 来源命名空间下的标识（合并基）保持不变
@@ -1001,6 +1124,7 @@ class ItemAdministrationServiceTest {
         when(namespaceRepository.findById(targetNs.getId())).thenReturn(Optional.of(targetNs));
 
         AdministeredItem ai = new AdministeredItem(item);
+        ai.setCreationDateTime(LocalDateTime.now());
         ScopedIdentifier targetSi = new ScopedIdentifier("T-1", targetNs, ai);
         targetSi.setVersion("1");
         ScopedIdentifier sourceSi = new ScopedIdentifier("X-1", sourceCopy, ai);
@@ -1032,6 +1156,7 @@ class ItemAdministrationServiceTest {
         when(namespaceRepository.existsByRegistrationAuthorityIsNotNull()).thenReturn(true);
 
         AdministeredItem ai = new AdministeredItem(item);
+        ai.setCreationDateTime(LocalDateTime.now());
         ScopedIdentifier raSi = new ScopedIdentifier("T-1", raNs, ai);
         raSi.setVersion("1");
         ScopedIdentifier sourceSi = new ScopedIdentifier("X-1", sourceCopy, ai);
@@ -1055,6 +1180,21 @@ class ItemAdministrationServiceTest {
         settings.setNamespaceId(ns.getId());
         settings.setVersioningPolicy(policy);
         lenient().when(namespaceIdentifierSettingsService.getOrDefault(ns.getId())).thenReturn(settings);
+    }
+
+    private void stubNamespaceSettings(Namespace ns, String versioningPolicy, String versionInputMode) {
+        var settings = new io.github.matrixlane.metadataregistry.ext.identification.NamespaceIdentifierSettings();
+        settings.setNamespaceId(ns.getId());
+        settings.setVersioningPolicy(versioningPolicy);
+        settings.setVersionInputMode(versionInputMode);
+        lenient().when(namespaceIdentifierSettingsService.getOrDefault(ns.getId())).thenReturn(settings);
+    }
+
+    private void stubVersionCreationMode(
+            io.github.matrixlane.metadataregistry.ext.identification.IdentifierCreationMode versionCreationMode) {
+        var lifecycle = new io.github.matrixlane.metadataregistry.ext.identification.ScopedIdentifierLifecycle();
+        lifecycle.setVersionCreationMode(versionCreationMode);
+        lenient().when(lifecycleService.getOrDefault(any())).thenReturn(lifecycle);
     }
 
     // ===== workspace-administrative-status：编辑后统一置 Draft =====
@@ -1086,6 +1226,7 @@ class ItemAdministrationServiceTest {
         when(namespaceRepository.findById(ns.getId())).thenReturn(Optional.of(ns));
         when(namespaceRepository.existsByRegistrationAuthorityIsNotNull()).thenReturn(true);
         AdministeredItem existing = new AdministeredItem(item);
+        existing.setCreationDateTime(LocalDateTime.now());
         existing.setRegistrationAuthority(ra);
         RegistrationState state = new RegistrationState();
         state.setRegistrationStatus(RegistrationStatus.RECORDED);
@@ -1112,6 +1253,7 @@ class ItemAdministrationServiceTest {
         when(namespaceRepository.findById(ns.getId())).thenReturn(Optional.of(ns));
         when(namespaceRepository.existsByRegistrationAuthorityIsNotNull()).thenReturn(true);
         AdministeredItem existing = new AdministeredItem(item);
+        existing.setCreationDateTime(LocalDateTime.now());
         existing.setRegistrationAuthority(ra);
         RegistrationState state = new RegistrationState();
         state.setRegistrationStatus(RegistrationStatus.RECORDED);
@@ -1137,6 +1279,7 @@ class ItemAdministrationServiceTest {
         when(namespaceRepository.findById(ns.getId())).thenReturn(Optional.of(ns));
         when(namespaceRepository.existsByRegistrationAuthorityIsNotNull()).thenReturn(true);
         AdministeredItem existing = new AdministeredItem(item);
+        existing.setCreationDateTime(LocalDateTime.now());
         existing.setRegistrationAuthority(ra);
         RegistrationState state = new RegistrationState();
         state.setRegistrationStatus(RegistrationStatus.RECORDED);
@@ -1196,6 +1339,7 @@ class ItemAdministrationServiceTest {
         ns.setId(UUID.randomUUID());
         when(namespaceRepository.findById(ns.getId())).thenReturn(Optional.of(ns));
         AdministeredItem existing = new AdministeredItem(item);
+        existing.setCreationDateTime(LocalDateTime.now());
         existing.setExplanatoryComment("既有注释");
         item.setIdentifiedItem(existing);
 
@@ -1214,6 +1358,7 @@ class ItemAdministrationServiceTest {
         ns.setId(UUID.randomUUID());
         when(namespaceRepository.findById(ns.getId())).thenReturn(Optional.of(ns));
         AdministeredItem existing = new AdministeredItem(item);
+        existing.setCreationDateTime(LocalDateTime.now());
         existing.setExplanatoryComment("既有注释");
         item.setIdentifiedItem(existing);
 
@@ -1387,6 +1532,7 @@ class ItemAdministrationServiceTest {
 
         StewardshipRecord existing = newStewardshipRecord(UUID.randomUUID(), newContact(UUID.randomUUID(), null), newOrganization(UUID.randomUUID()));
         AdministeredItem administeredItem = new AdministeredItem(item);
+        administeredItem.setCreationDateTime(LocalDateTime.now());
         administeredItem.setStewardshipRecord(existing);
         item.setIdentifiedItem(administeredItem);
 
@@ -1407,11 +1553,19 @@ class ItemAdministrationServiceTest {
         UUID organizationId = UUID.randomUUID();
 
         AdministeredItem administeredItem = new AdministeredItem(item);
+        administeredItem.setCreationDateTime(LocalDateTime.now());
         administeredItem.setId(aiId);
         StewardshipRecord record = newStewardshipRecord(recordId, newContact(contactId, null), newOrganization(organizationId));
         administeredItem.setStewardshipRecord(record);
 
-        when(administeredItemRepository.findMetaByItemId(item.getId())).thenReturn(List.<Object[]>of(new Object[]{aiId, RegistrationStatus.INCOMPLETE}));
+        // buildItemMeta 走 findMetaByItemId 的 12 列标量投影
+        // （aiId, registrationStatus, raId, raName, effectiveDate, untilDate,
+        //   administrativeStatus, administrativeNote, unresolvedIssue,
+        //   stewardshipRecordId, stewardshipContactId, stewardshipOrganizationId）
+        when(administeredItemRepository.findMetaByItemId(item.getId())).thenReturn(List.<Object[]>of(new Object[]{
+                aiId, RegistrationStatus.INCOMPLETE, null, null,
+                null, null, null, null, null,
+                recordId, contactId, organizationId}));
         when(administeredItemRepository.findByItem_Id(item.getId())).thenReturn(Optional.of(administeredItem));
         when(scopedIdentifierRepository.findByItemId(item.getId())).thenReturn(List.of());
 
@@ -1422,12 +1576,45 @@ class ItemAdministrationServiceTest {
         assertThat(meta.stewardshipOrganizationId()).isEqualTo(organizationId);
     }
 
+
+
+    @Test
+    void preloadItemMeta_returnsReferenceDocumentIdsPerItem() {
+        Item item1 = new TestItem(); item1.setId(UUID.randomUUID());
+        Item item2 = new TestItem(); item2.setId(UUID.randomUUID());
+        Item itemWithoutRefs = new TestItem(); itemWithoutRefs.setId(UUID.randomUUID());
+        UUID ai1 = UUID.randomUUID(), ai2 = UUID.randomUUID();
+        UUID docA = UUID.randomUUID(), docB = UUID.randomUUID();
+
+        when(administeredItemRepository.findMetaByItemIds(anyCollection()))
+                .thenReturn(List.<Object[]>of(
+                        new Object[]{item1.getId(), ai1, RegistrationStatus.STANDARD, null, null,
+                                null, null, null, null, null, null, null, null},
+                        new Object[]{item2.getId(), ai2, RegistrationStatus.STANDARD, null, null,
+                                null, null, null, null, null, null, null, null}));
+        when(scopedIdentifierRepository.findScalarByItemIds(anyCollection())).thenReturn(List.of());
+        when(administeredItemRepository.findReferenceDocumentIdsByItemIds(anyCollection()))
+                .thenReturn(List.<Object[]>of(
+                        new Object[]{item1.getId(), docA},
+                        new Object[]{item1.getId(), docB},
+                        new Object[]{item2.getId(), docB}));
+
+        var preload = itemAdministrationService.preloadItemMeta(List.of(item1, item2, itemWithoutRefs));
+
+        assertThat(preload.referenceDocumentIdsByItem().get(item1.getId()))
+                .containsExactlyInAnyOrder(docA, docB);
+        assertThat(preload.referenceDocumentIdsByItem().get(item2.getId())).containsExactly(docB);
+        assertThat(preload.referenceDocumentIdsByItem())
+                .doesNotContainKey(itemWithoutRefs.getId());
+    }
+
     // ===== acg-submission：organizationId 显式给出时的联系人身份解析 =====
 
     private Item newPersistedItem() {
         Item persisted = new TestItem();
         persisted.setId(UUID.randomUUID());
         AdministeredItem ai = new AdministeredItem(persisted);
+        ai.setCreationDateTime(LocalDateTime.now());
         when(administeredItemRepository.findByItem_Id(persisted.getId())).thenReturn(Optional.of(ai));
         return persisted;
     }
@@ -1590,5 +1777,60 @@ class ItemAdministrationServiceTest {
                 ArgumentCaptor.forClass(SubmissionRecord.class);
         verify(submissionRecordRepository).save(captor.capture());
         assertThat(captor.getValue().getContact()).isSameAs(earliest);
+    }
+
+    // ===== 删除守卫与提交记录清理（Recorded 起纳入版本控制） =====
+
+    @Test
+    void assertDeletable_allowsPreRecordedStatusAndMissingChain() {
+        // 无受管链：允许
+        itemAdministrationService.assertDeletable(item);
+        // Incomplete / Candidate：允许
+        for (RegistrationStatus status : List.of(RegistrationStatus.INCOMPLETE, RegistrationStatus.CANDIDATE)) {
+            AdministeredItem ai = new AdministeredItem(item);
+            RegistrationState state = new RegistrationState();
+            state.setRegistrationStatus(status);
+            ai.setRegistrationState(state);
+            item.setIdentifiedItem(ai);
+            itemAdministrationService.assertDeletable(item);
+        }
+    }
+
+    @Test
+    void assertDeletable_rejectsRecordedAndLater() {
+        for (RegistrationStatus status : List.of(RegistrationStatus.RECORDED, RegistrationStatus.QUALIFIED,
+                RegistrationStatus.STANDARD, RegistrationStatus.RETIRED, RegistrationStatus.SUPERSEDED)) {
+            AdministeredItem ai = new AdministeredItem(item);
+            RegistrationState state = new RegistrationState();
+            state.setRegistrationStatus(status);
+            ai.setRegistrationState(state);
+            item.setIdentifiedItem(ai);
+            assertThatThrownBy(() -> itemAdministrationService.assertDeletable(item))
+                    .isInstanceOf(BusinessException.class)
+                    .hasMessageContaining("Retired");
+        }
+    }
+
+    @Test
+    void removeFromSubmissionRecords_removesLinksAndDeletesOrphanedRecord() {
+        AdministeredItem ai = new AdministeredItem(item);
+        item.setIdentifiedItem(ai);
+        Item otherItem = new TestItem();
+        otherItem.setId(UUID.randomUUID());
+        AdministeredItem otherAi = new AdministeredItem(otherItem);
+
+        SubmissionRecord orphaned = new SubmissionRecord();
+        orphaned.getRegisteredItems().add(ai);
+        SubmissionRecord stillLinked = new SubmissionRecord();
+        stillLinked.getRegisteredItems().add(ai);
+        stillLinked.getRegisteredItems().add(otherAi);
+        ai.getSubmissionRecords().addAll(List.of(orphaned, stillLinked));
+
+        itemAdministrationService.removeFromSubmissionRecords(item);
+
+        assertThat(orphaned.getRegisteredItems()).isEmpty();
+        assertThat(stillLinked.getRegisteredItems()).containsExactly(otherAi);
+        verify(submissionRecordRepository).delete(orphaned);
+        verify(submissionRecordRepository, never()).delete(stillLinked);
     }
 }

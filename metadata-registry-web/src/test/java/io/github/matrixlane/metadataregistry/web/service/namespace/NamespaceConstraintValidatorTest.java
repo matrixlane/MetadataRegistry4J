@@ -4,7 +4,7 @@ package io.github.matrixlane.metadataregistry.web.service.namespace;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.Sign;
 import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.Designation;
 import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.NamingConvention;
-import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifiedItem;
+import io.github.matrixlane.metadataregistry.commonfacilities.registration.AdministeredItem;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.ScopedIdentifier;
 import io.github.matrixlane.metadataregistry.web.common.BusinessException;
@@ -12,6 +12,7 @@ import io.github.matrixlane.metadataregistry.web.repository.DesignationRepositor
 import io.github.matrixlane.metadataregistry.web.repository.NamespaceRepository;
 import io.github.matrixlane.metadataregistry.web.repository.ScopedIdentifierRepository;
 import io.github.matrixlane.metadataregistry.web.service.namingconvention.NamingConflictDetector;
+import java.time.LocalDateTime;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -155,7 +156,8 @@ class NamespaceConstraintValidatorTest {
     void validateScopedIdentifier_shouldFailWhenOneNamePerItemViolated() {
         namespace.setOneNamePerItemIndicator(true);
         UUID identifiedItemId = UUID.randomUUID();
-        IdentifiedItem ii = new IdentifiedItem();
+        AdministeredItem ii = new AdministeredItem();
+        ii.setCreationDateTime(LocalDateTime.now());
         ii.setId(identifiedItemId);
         ScopedIdentifier existing = new ScopedIdentifier();
         existing.setId(UUID.randomUUID());
@@ -178,7 +180,7 @@ class NamespaceConstraintValidatorTest {
         namespace.setOneItemPerNameIndicator(true);
         ScopedIdentifier si = new ScopedIdentifier();
         si.setIdentifier("duplicate");
-        si.setIdentifiedItem(new IdentifiedItem());
+        si.setIdentifiedItem(new AdministeredItem());
         si.getIdentifiedItem().setId(UUID.randomUUID());
         when(namingConflictDetector.hasIdentifierConflict(namespaceId, "duplicate", null))
                 .thenReturn(true);

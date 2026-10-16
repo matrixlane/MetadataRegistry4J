@@ -103,7 +103,7 @@ class InferencePromptBuilderTest {
         when(itemAdministrationService.mapDesignations(any())).thenReturn(List.of());
         when(itemAdministrationService.mapDefinitions(any())).thenReturn(List.of(
                 new TextLineResponse(UUID.randomUUID(), null, "zh-CN", "用于唯一标识患者的代码。",
-                        UUID.randomUUID(), "术语表", List.of())));
+                        UUID.randomUUID(), "术语表", List.of(), null)));
 
         String prompt = promptBuilder.build(itemId, List.of("definition"), "zh-CN", null, 3);
 
@@ -118,7 +118,7 @@ class InferencePromptBuilderTest {
         when(itemAdministrationService.buildItemMeta(any())).thenReturn(meta(null, null));
         when(itemAdministrationService.mapDesignations(any())).thenReturn(List.of(
                 new TextLineResponse(UUID.randomUUID(), null, "zh-CN", longDefinition,
-                        null, null, List.of())));
+                        null, null, List.of(), null)));
         when(itemAdministrationService.mapDefinitions(any())).thenReturn(List.of());
 
         String prompt = promptBuilder.build(itemId, List.of("definition"), "zh-CN", null, 3);
@@ -201,7 +201,8 @@ class InferencePromptBuilderTest {
                 null,
                 null,
                 null,
-                java.util.List.of());
+                java.util.List.of(),
+                List.of());
     }
 
     private TextLineResponse designationLine() {
@@ -212,7 +213,8 @@ class InferencePromptBuilderTest {
                 "患者标识符",
                 UUID.randomUUID(),
                 "数据元字典",
-                List.of(new TextLineContextResponse(UUID.randomUUID(), "临床文档", "PREFERRED")));
+                List.of(new TextLineContextResponse(UUID.randomUUID(), "临床文档", "PREFERRED")),
+                null);
     }
 
     private DataElementConcept decWithName(String name) {

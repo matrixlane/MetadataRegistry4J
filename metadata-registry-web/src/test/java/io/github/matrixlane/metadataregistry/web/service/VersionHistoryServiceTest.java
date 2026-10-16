@@ -667,6 +667,7 @@ class VersionHistoryServiceTest {
 
     private void bindAdministeredItem(DataElement item, RegistrationStatus status, AdministrativeStatus adminStatus) {
         AdministeredItem ai = new AdministeredItem(item);
+        ai.setCreationDateTime(LocalDateTime.now());
         RegistrationState state = new RegistrationState();
         state.setRegistrationStatus(status);
         state.setAdministrativeStatus(adminStatus);

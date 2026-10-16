@@ -10,5 +10,7 @@ public record TextLineResponse(
         String value,
         UUID sourceId,
         String sourceTitle,
-        List<TextLineContextResponse> contexts) {
+        List<TextLineContextResponse> contexts,
+        /** 指称关联的命名规范 id（Definition 行恒为 null）。回退恢复依此还原基线关联。 */
+        List<UUID> namingConventionIds) {
 }

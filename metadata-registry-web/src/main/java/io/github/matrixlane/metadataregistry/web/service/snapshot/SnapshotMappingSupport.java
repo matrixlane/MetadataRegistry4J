@@ -15,8 +15,8 @@ import java.util.List;
 /**
  * 快照 Response DTO → Update Request 的公共字段映射工具。
  *
- * <p>Response 中未保留的字段（如 namingConventionIds、isolatedException）回退时按
- * null 处理；前端如需保留可在后续迭代扩展 Response。</p>
+ * <p>Response 中未保留的字段仅 {@code isolatedException}（按 null 处理）：该标志是
+ * 保存时点的确认语义、不持久化，历史基线无此概念，回退无需还原。</p>
  */
 public final class SnapshotMappingSupport {
 
@@ -47,7 +47,7 @@ public final class SnapshotMappingSupport {
                 response.value(),
                 response.sourceId(),
                 mapContexts(response.contexts()),
-                null,
+                response.namingConventionIds(),
                 null
         );
     }

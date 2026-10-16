@@ -208,7 +208,7 @@ class NamespaceServiceTest {
 
     @Test
     void delete_shouldRemoveNamespace() {
-        when(repository.existsById(namespaceId)).thenReturn(true);
+        when(repository.findById(namespaceId)).thenReturn(Optional.of(new Namespace()));
 
         service.delete(namespaceId);
 
@@ -217,7 +217,7 @@ class NamespaceServiceTest {
 
     @Test
     void delete_shouldThrowWhenNotFound() {
-        when(repository.existsById(namespaceId)).thenReturn(false);
+        when(repository.findById(namespaceId)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.delete(namespaceId))
                 .isInstanceOf(ResourceNotFoundException.class)
@@ -272,6 +272,25 @@ class NamespaceServiceTest {
         // 不得禁用或重建策略配置（回归：此路径曾把 "{}" 发布导致标识生成失败）
         NamespaceRequest request = new NamespaceRequest(raId, List.of(), List.of(), null,
                 null, null, null, null, null, null, null, null, null, "SEGMENT_TEMPLATE",
+                null, null, null, null);
+        when(repository.findById(namespaceId)).thenReturn(Optional.of(namespace));
+        when(organizationRepository.findById(raId)).thenReturn(Optional.of(registrationAuthority));
+        when(repository.save(any(Namespace.class))).thenAnswer(i -> i.getArgument(0));
+        when(itemAdministrationService.mapDesignations(any())).thenReturn(List.of());
+        when(itemAdministrationService.mapDefinitions(any())).thenReturn(List.of());
+
+        service.update(namespaceId, request);
+
+        verify(strategyConfigRepository, never()).save(any());
+        verify(strategyLoader, never()).refreshRegistry();
+    }
+
+    @Test
+    void update_withUuidStrategy_keepsExistingStrategyUntouched() {
+        // UUID 是内置兜底策略、无需配置行：旧版表单把 identifierStrategy 默认值 "UUID"
+        // 随命名空间保存回传，此路径曾据此禁用刚发布的段模板策略，导致设计器保存后丢失
+        NamespaceRequest request = new NamespaceRequest(raId, List.of(), List.of(), null,
+                null, null, null, null, null, null, null, null, null, "UUID",
                 null, null, null, null);
         when(repository.findById(namespaceId)).thenReturn(Optional.of(namespace));
         when(organizationRepository.findById(raId)).thenReturn(Optional.of(registrationAuthority));

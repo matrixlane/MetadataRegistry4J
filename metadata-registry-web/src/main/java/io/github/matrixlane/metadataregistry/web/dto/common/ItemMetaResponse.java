@@ -5,6 +5,7 @@ import io.github.matrixlane.metadataregistry.commonfacilities.registration.Regis
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.List;
 import java.util.UUID;
 
 public record ItemMetaResponse(
@@ -40,6 +41,8 @@ public record ItemMetaResponse(
         UUID stewardshipContactId,
         /** Stewardship_Record 回显：主管组织 ID。 */
         UUID stewardshipOrganizationId,
+        /** 该 AdministeredItem 经引用关联（11179-3:2023 §9.5.2）关联的参考文档 id；按页批量取回。 */
+        List<UUID> referenceDocumentIds,
         /** 该 AdministeredItem 关联的 SubmissionRecord 列表（按 id 降序；align-submission-record-to-iso）。
          *  编辑界面"提交记录"只读面板的数据源；历史脏数据标 SYSTEM_DRAFT，新条目均 USER_SUBMISSION。 */
         List<SubmissionRecordSummary> submissionRecordSummaries) {

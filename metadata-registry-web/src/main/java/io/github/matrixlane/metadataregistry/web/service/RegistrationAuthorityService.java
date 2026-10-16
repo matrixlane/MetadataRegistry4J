@@ -51,6 +51,14 @@ public class RegistrationAuthorityService {
     private final NamespaceProvisioningService namespaceProvisioningService;
     private final RegistrationAuthorityExtensionRepository registrationAuthorityExtensionRepository;
 
+    /**
+     * 注册机构列表，关键词按名称检索。
+     *
+     * <p>维持仅名称匹配：RegistrationAuthority 继承 Organization，而 Organization 是
+     * 独立根实体（{@code Organization extends Entity}），不在受管链上，
+     * 不存在 Scoped_Identifier 行。其 RegistrationAuthorityIdentifier 是 ISO/IEC 11179-3
+     * 的机构编码分段（ICD/OI/OP），不是受管链上的业务标识符，故不参与关键词匹配。</p>
+     */
     @Transactional(readOnly = true)
     public Page<RegistrationAuthorityResponse> list(String keyword, Pageable pageable) {
         Specification<RegistrationAuthority> spec = Specification.where(null);

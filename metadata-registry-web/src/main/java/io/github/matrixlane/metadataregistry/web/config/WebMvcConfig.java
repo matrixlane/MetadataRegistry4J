@@ -5,11 +5,8 @@ import io.github.matrixlane.metadataregistry.web.logging.ApiLoggingInterceptor;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.format.FormatterRegistry;
-import org.springframework.web.method.support.HandlerMethodArgumentResolver;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
-
-import java.util.List;
 
 /**
  * Web MVC configuration that registers the API logging interceptor
@@ -29,13 +26,6 @@ public class WebMvcConfig implements WebMvcConfigurer {
         // 映射度查询参数使用标准小写值
         // （如 "related to"），此处注册解析器以支持 @RequestParam 绑定。
         registry.addConverter(String.class, MappingDegree.class, MappingDegree::fromStandardValue);
-    }
-
-    @Override
-    public void addArgumentResolvers(List<HandlerMethodArgumentResolver> resolvers) {
-        // 用户配置的解析器优先于 Spring Boot 自动配置的 Pageable 解析器，
-        // 在分页参数进入 controller 前完成 Item 虚拟排序键改写
-        resolvers.add(new ItemSortPageableResolver());
     }
 
     @Override

@@ -2,10 +2,11 @@ package io.github.matrixlane.metadataregistry.web.service;
 
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.Sign;
 import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.Designation;
-import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifiedItem;
+import io.github.matrixlane.metadataregistry.commonfacilities.registration.AdministeredItem;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.ScopedIdentifier;
 import io.github.matrixlane.metadataregistry.dataspecification.DataElement;
 import io.github.matrixlane.metadataregistry.web.repository.DataElementRepository;
+import java.time.LocalDateTime;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -45,7 +46,8 @@ class ItemSortPathIntegrationTest {
         designation.setSign(Sign.of(name));
         designation.setItem(de);
         de.getDesignations().add(designation);
-        IdentifiedItem ii = new IdentifiedItem(de);
+        AdministeredItem ii = new AdministeredItem(de);
+        ii.setCreationDateTime(LocalDateTime.now());
         de.setIdentifiedItem(ii);
         ScopedIdentifier si = new ScopedIdentifier(identifier, null, ii);
         si.setVersion("1.0.0");

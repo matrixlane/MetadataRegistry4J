@@ -45,6 +45,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -69,7 +70,13 @@ public class ValueDomainService {
         if (typeSpec != null) {
             spec = (spec == null) ? typeSpec : spec.and(typeSpec);
         }
-        return repository.findAll(spec, pageable).map(this::toResponse);
+        var page0 = ItemListSorts.findAll(repository, spec, pageable);
+        var preload0 = itemAdministrationService.preloadItemMeta(page0.getContent());
+        // 批量预取首选指称：本页 VD + 关联 DataType/UOM/CD（instanceof 类型判别会初始化
+        // VD 代理并级联触发 identifiedItem 重 join，关联标签改走纯标量查询，不触碰代理）。
+        Map<UUID, String> names = itemAdministrationService.preloadPreferredDesignations(
+                collectRelatedIds(page0.getContent()));
+        return page0.map(entity -> toResponse(entity, preload0, names, /* listView */ true));
     }
 
     @Transactional(readOnly = true)
@@ -173,10 +180,14 @@ public class ValueDomainService {
     public void delete(UUID id) {
         ValueDomain entity = repository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("ValueDomain", id));
+        // Recorded 及之后的注册状态已纳入版本控制，只能走 Retired，不允许直接删除
+        itemAdministrationService.assertDeletable(entity);
         versionHistoryService.recordSnapshot(entity, "DELETE", toResponse(entity));
         if (entity instanceof LocalEnumeratedValueDomain levd) {
             cleanupPermissibleValues(levd);
         }
+        // 解除提交记录连接；关联条目删光后空的 SubmissionRecord 一并删除
+        itemAdministrationService.removeFromSubmissionRecords(entity);
         repository.deleteById(id);
     }
 
@@ -334,6 +345,18 @@ public class ValueDomainService {
     }
 
     private ValueDomainResponse toResponse(ValueDomain entity) {
+        return toResponse(entity, null, null, /* listView */ false);
+    }
+
+    /**
+     * @param preferredNames 批量预取的首选指称（列表路径）；null 时走实体路径。
+     * @param listView       列表页标记：跳过 PV 明细（前端表格不消费）与提交记录查询；
+     *                       详情/编辑路径必须为 false（需要完整数据）。
+     */
+    private ValueDomainResponse toResponse(ValueDomain entity,
+                                           ItemAdministrationService.ItemMetaPreload preload,
+                                           Map<UUID, String> preferredNames,
+                                           boolean listView) {
         ValueDomainType type = inferType(entity);
         UUID dcdId = null;
         String dcdLabel = null;
@@ -344,24 +367,26 @@ public class ValueDomainService {
         String refCdLabel = null;
         List<PermissibleValueResponse> pvResponses = Collections.emptyList();
         if (entity instanceof LocalEnumeratedValueDomain levd) {
-            pvResponses = mapPermissibleValues(levd);
+            if (!listView) {
+                pvResponses = mapPermissibleValues(levd);
+            }
             LocalEnumeratedConceptualDomain lecd = levd.getLocalEnumeratedConceptualDomain();
             if (lecd != null) {
                 lecdId = lecd.getId();
-                lecdLabel = ItemNamingHelper.preferredDesignation(lecd);
+                lecdLabel = resolveName(lecdId, lecd, preferredNames);
             }
         } else if (entity instanceof DescribedValueDomain dvd) {
             DescribedConceptualDomain dcd = dvd.getDescribedConceptualDomain();
             if (dcd != null) {
                 dcdId = dcd.getId();
-                dcdLabel = ItemNamingHelper.preferredDesignation(dcd);
+                dcdLabel = resolveName(dcdId, dcd, preferredNames);
             }
         } else if (entity instanceof ReferenceEnumeratedValueDomain revd) {
             permittedValuesFieldname = revd.getPermittedValuesFieldname();
             ReferenceEnumeratedConceptualDomain recd = revd.getReferencedConceptualDomain();
             if (recd != null) {
                 refCdId = recd.getId();
-                refCdLabel = ItemNamingHelper.preferredDesignation(recd);
+                refCdLabel = resolveName(refCdId, recd, preferredNames);
             }
         }
         DataType dt = entity.getDataType();
@@ -369,14 +394,17 @@ public class ValueDomainService {
         Datetime_Period period = entity.getValidPeriod();
         io.github.matrixlane.metadataregistry.dataspecification.ConceptualDomain unifiedCd =
                 ValueDomainConceptualDomains.get(entity);
+        UUID dtId = dt == null ? null : dt.getId();
+        UUID uomId = uom == null ? null : uom.getId();
+        UUID unifiedCdId = unifiedCd == null ? null : unifiedCd.getId();
         return new ValueDomainResponse(
                 entity.getId(),
                 ItemNamingHelper.preferredDesignation(entity),
                 type,
-                dt == null ? null : dt.getId(),
-                dt == null ? null : ItemNamingHelper.preferredDesignation(dt),
-                uom == null ? null : uom.getId(),
-                uom == null ? null : ItemNamingHelper.preferredDesignation(uom),
+                dtId,
+                dtId == null ? null : resolveName(dtId, dt, preferredNames),
+                uomId,
+                uomId == null ? null : resolveName(uomId, uom, preferredNames),
                 entity.getMaximumCharacterQuantity(),
                 entity.getFormat(),
                 period == null ? null : toLocal(period.getStartDateTime()),
@@ -388,12 +416,46 @@ public class ValueDomainService {
                 permittedValuesFieldname,
                 refCdId,
                 refCdLabel,
-                unifiedCd == null ? null : unifiedCd.getId(),
-                unifiedCd == null ? null : ItemNamingHelper.preferredDesignation(unifiedCd),
+                unifiedCdId,
+                unifiedCdId == null ? null : resolveName(unifiedCdId, unifiedCd, preferredNames),
                 pvResponses,
                 itemAdministrationService.mapDesignations(entity),
                 itemAdministrationService.mapDefinitions(entity),
-                itemAdministrationService.buildItemMeta(entity));
+                itemAdministrationService.buildItemMeta(entity, preload, !listView));
+    }
+
+    /**
+     * 解析关联条目标签：批量预取名存在时直接取（列表路径，纯标量不初始化代理）；
+     * 否则回退到实体路径 {@link ItemNamingHelper#preferredDesignation}（单条/编辑路径）。
+     */
+    private static String resolveName(UUID id,
+                                      io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.Item item,
+                                      Map<UUID, String> preferredNames) {
+        if (preferredNames != null) {
+            return preferredNames.get(id);
+        }
+        return ItemNamingHelper.preferredDesignation(item);
+    }
+
+    private static java.util.Set<UUID> collectRelatedIds(List<ValueDomain> content) {
+        java.util.Set<UUID> ids = new java.util.HashSet<>();
+        for (ValueDomain vd : content) {
+            ids.add(vd.getId());
+            DataType dt = vd.getDataType();
+            if (dt != null) {
+                ids.add(dt.getId());
+            }
+            UnitOfMeasure uom = vd.getUnitOfMeasure();
+            if (uom != null) {
+                ids.add(uom.getId());
+            }
+            io.github.matrixlane.metadataregistry.dataspecification.ConceptualDomain cd =
+                    ValueDomainConceptualDomains.get(vd);
+            if (cd != null) {
+                ids.add(cd.getId());
+            }
+        }
+        return ids;
     }
 
     /**

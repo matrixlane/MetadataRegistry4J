@@ -277,7 +277,7 @@ public class MetadataSearchService {
 
         // Count query
         String countSql = "SELECT COUNT(DISTINCT ai.id) FROM " + t("administered_item") + " ai " +
-                "JOIN " + t("identified_item") + " ii ON ai.id = ii.id " +
+                "JOIN " + t("registered_item") + " ii ON ai.id = ii.id " +
                 "JOIN " + t("item") + " i ON ii.item_id = i.id " +
                 "LEFT JOIN " + t("registration_state") + " rs ON ai.registration_state_id = rs.id " +
                 "LEFT JOIN " + t("scoped_identifier") + " si ON si.identified_item_id = ai.id " +
@@ -336,7 +336,7 @@ public class MetadataSearchService {
                 "ai.change_description, " +
                 matchTypeLiteral + " AS match_type " +
                 "FROM " + t("administered_item") + " ai " +
-                "JOIN " + t("identified_item") + " ii ON ai.id = ii.id " +
+                "JOIN " + t("registered_item") + " ii ON ai.id = ii.id " +
                 "JOIN " + t("item") + " i ON ii.item_id = i.id " +
                 "LEFT JOIN " + t("scoped_identifier") + " si ON si.identified_item_id = ai.id " +
                 "LEFT JOIN " + t("namespace") + " ns ON si.namespace_id = ns.id " +

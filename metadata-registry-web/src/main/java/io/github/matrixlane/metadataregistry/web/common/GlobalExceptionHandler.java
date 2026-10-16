@@ -83,8 +83,15 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ApiResponse<Void>> handleAccessDenied(AccessDeniedException ex) {
+        // 服务层拒绝（活动 Registrar 归属、命名空间权限等）自带可操作说明，透传给用户；
+        // 无消息时（如底层框架抛出）回退到通用文案。URL 规则拒绝仍由 SecurityConfig
+        // 的 accessDeniedHandler 返回通用文案，不受此处影响。
+        String message = ex.getMessage();
+        if (message == null || message.isBlank()) {
+            message = "无权访问此资源";
+        }
         return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                .body(ApiResponse.error(ApiCodes.FORBIDDEN, "无权访问此资源"));
+                .body(ApiResponse.error(ApiCodes.FORBIDDEN, message));
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)

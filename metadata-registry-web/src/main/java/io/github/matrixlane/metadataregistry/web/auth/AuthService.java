@@ -34,6 +34,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
+import io.github.matrixlane.metadataregistry.web.edition.DeploymentEdition;
 import io.github.matrixlane.metadataregistry.web.dto.individual.IndividualRequest;
 import io.github.matrixlane.metadataregistry.web.dto.individual.IndividualResponse;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Individual;
@@ -98,6 +99,13 @@ public class AuthService {
     }
 
     public LoginResponse login(LoginRequest request) {
+        // 个人版无登录概念（personal-no-login-registrar-default）：请求体中的用户名与密码
+        // 一律不参与校验，直接签发隐式管理员会话——个人版不存在"忘记密码/被强制改密"场景，
+        // 让 /auth/login 走团队版分支只会把 force_password_reset 重新置位并锁死整个界面。
+        if (systemSettingService.getEdition() == DeploymentEdition.PERSONAL) {
+            return personalAdminSession();
+        }
+
         Account user = userRepository.findByUsername(request.username())
                 .orElseThrow(() -> new BadCredentialsException("用户名或密码错误"));
         if (!user.isEnabled()) {
@@ -122,6 +130,8 @@ public class AuthService {
         if (isFirstLoginAdmin) {
             forceChangePassword = true;
             user.setForcePasswordReset(true);
+            // 账号尚无密码 → 没有"上一次有效登录"，清空以匹配前端的首登判据
+            user.setLastLoginAt(null);
         } else if (isEmergencyLogin) {
             forceChangePassword = true;
             emergencyLogin = true;
@@ -156,12 +166,30 @@ public class AuthService {
             }
         }
 
-        user.setLastLoginAt(LocalDateTime.now());
+        if (!isFirstLoginAdmin) {
+            user.setLastLoginAt(LocalDateTime.now());
+        }
         userRepository.save(user);
         
         String token = jwtService.generateToken(user, forceChangePassword, emergencyLogin,
                 user.isTempPasswordUsed(), isRegistrar(user), isSubmitter(user));
         return LoginResponse.of(token, jwtService.expiresInSeconds(), toProfile(user, forceChangePassword, emergencyLogin, user.isTempPasswordUsed()));
+    }
+
+    /**
+     * 个人版免登录会话：装载系统唯一的 SUPER_ADMIN 签发令牌，语义与
+     * {@code PersonalEditionAuthenticationFilter} 的隐式认证完全一致——密码相关标志
+     * （forceChangePassword / emergencyLogin / tempPasswordUsed）恒为 false，且绝不写
+     * {@code force_password_reset}，因此个人版任何入口都不可能进入强制改密状态。
+     */
+    private LoginResponse personalAdminSession() {
+        Account admin = userRepository.findFirstBySysRole(SystemRole.SUPER_ADMIN)
+                .orElseThrow(() -> new BusinessException("系统尚未完成初始化，请先运行初始化向导"));
+        admin.setLastLoginAt(LocalDateTime.now());
+        userRepository.save(admin);
+        String token = jwtService.generateToken(admin, false, false, false,
+                isRegistrar(admin), isSubmitter(admin));
+        return LoginResponse.of(token, jwtService.expiresInSeconds(), toProfile(admin, false, false, false));
     }
 
     @Transactional(readOnly = true)

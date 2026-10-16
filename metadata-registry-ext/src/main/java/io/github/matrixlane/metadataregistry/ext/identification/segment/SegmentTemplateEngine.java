@@ -2,6 +2,8 @@ package io.github.matrixlane.metadataregistry.ext.identification.segment;
 
 import io.github.matrixlane.metadataregistry.ext.identification.segment.types.SequenceSegmentHandler;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -80,6 +82,158 @@ public class SegmentTemplateEngine {
     /** Returns true when the identifier fully matches the template's format. */
     public boolean matchesFormat(SegmentTemplate template, String identifier) {
         return identifier != null && deriveFormatPattern(template).matcher(identifier).matches();
+    }
+
+    /**
+     * Renders a human-readable description of the format this template
+     * enforces, segment by segment, for validation error messages. Never
+     * throws: segments that cannot be described fall back to their raw
+     * type text so the message can always be built.
+     */
+    public String describeFormat(SegmentTemplate template) {
+        StringBuilder out = new StringBuilder();
+        for (SegmentDefinition def : template.getSegments()) {
+            if (out.length() > 0) {
+                out.append(" + ");
+            }
+            out.append(describeSegment(def));
+        }
+        return out.toString();
+    }
+
+    /**
+     * Renders a concrete example identifier following this template. Every
+     * segment value is chosen to satisfy the segment's own format rule
+     * (catalog abbreviation, variable default or pattern-derived placeholder,
+     * current time for timestamps, zero-padded sequence start), so the
+     * example always conforms to {@link #deriveFormatPattern}. Never
+     * allocates and never throws.
+     */
+    public String renderExample(SegmentTemplate template) {
+        StringBuilder out = new StringBuilder();
+        for (SegmentDefinition def : template.getSegments()) {
+            out.append(exampleSegmentValue(def));
+        }
+        return out.toString();
+    }
+
+    private String describeSegment(SegmentDefinition def) {
+        try {
+            return switch (def.segmentType()) {
+                case LITERAL -> "固定字符「" + def.stringParam("value", "") + "」";
+                case SEPARATOR -> "分隔符「" + def.stringParam("char", ".") + "」";
+                case OBJECT_ABBREVIATION -> describeAbbreviation();
+                case VARIABLE -> describeVariable(def);
+                case SEQUENCE -> {
+                    int pad = def.intParam("pad", 6);
+                    yield "顺序号（" + pad + " 位数字，如 " + zeroPadded(def.longParam("start", 1), pad) + "）";
+                }
+                case TIMESTAMP -> "时间戳（" + def.stringParam("pattern", "") + "）";
+                case UUID -> "short".equalsIgnoreCase(def.stringParam("form", "full"))
+                        ? "UUID 短码（8 位）" : "UUID（36 位）";
+                case CHECKSUM -> "校验位";
+            };
+        } catch (RuntimeException e) {
+            return "未识别段「" + def.getType() + "」";
+        }
+    }
+
+    private String describeAbbreviation() {
+        List<String> values;
+        try {
+            values = new ArrayList<>(
+                    new LinkedHashSet<>(ObjectAbbreviationCatalog.getInstance().all().values()));
+        } catch (RuntimeException e) {
+            values = List.of();
+        }
+        if (values.isEmpty()) {
+            return "对象类型缩写";
+        }
+        String sample = values.size() > 5
+                ? String.join("、", values.subList(0, 5)) + " 等"
+                : String.join("、", values);
+        return "对象类型缩写（如 " + sample + "）";
+    }
+
+    private String describeVariable(SegmentDefinition def) {
+        String label = def.stringParam("label", def.getName());
+        String pattern = def.stringParam("pattern");
+        return pattern == null || pattern.isBlank()
+                ? "变量「" + label + "」"
+                : "变量「" + label + "」，格式 " + pattern;
+    }
+
+    private String exampleSegmentValue(SegmentDefinition def) {
+        try {
+            return switch (def.segmentType()) {
+                case LITERAL -> def.stringParam("value", "");
+                case SEPARATOR -> def.stringParam("char", ".");
+                case OBJECT_ABBREVIATION -> {
+                    String catalog = ObjectAbbreviationCatalog.getInstance().all().values().stream()
+                            .findFirst().orElse(null);
+                    yield catalog != null ? catalog
+                            : def.stringParam("default") != null ? def.stringParam("default") : "XX";
+                }
+                case VARIABLE -> variableExample(def);
+                case SEQUENCE -> zeroPadded(def.longParam("start", 1), def.intParam("pad", 6));
+                case TIMESTAMP -> LocalDateTime.now()
+                        .format(DateTimeFormatter.ofPattern(def.stringParam("pattern", "")));
+                case UUID -> "short".equalsIgnoreCase(def.stringParam("form", "full"))
+                        ? "01234567" : "01234567-89ab-cdef-0123-456789abcdef";
+                case CHECKSUM -> "0";
+            };
+        } catch (RuntimeException e) {
+            return String.valueOf(def.getType());
+        }
+    }
+
+    private String variableExample(SegmentDefinition def) {
+        String pattern = def.stringParam("pattern");
+        String value = def.stringParam("default");
+        if (value == null || value.isBlank()) {
+            value = sampleOfPattern(pattern);
+        }
+        int pad = def.intParam("pad", 0);
+        if (pad > 0 && value.length() < pad) {
+            String padded = "0".repeat(pad - value.length()) + value;
+            if (pattern == null || matchesPattern(pattern, padded)) {
+                value = padded;
+            }
+        }
+        return value;
+    }
+
+    /** Best-effort placeholder value that satisfies the given validation pattern. */
+    private String sampleOfPattern(String pattern) {
+        if (pattern == null || pattern.isBlank()) {
+            return "X";
+        }
+        for (String candidate : SAMPLE_CANDIDATES) {
+            if (matchesPattern(pattern, candidate)) {
+                return candidate;
+            }
+        }
+        return "X";
+    }
+
+    private static boolean matchesPattern(String pattern, String value) {
+        try {
+            return Pattern.compile(pattern).matcher(value).matches();
+        } catch (RuntimeException e) {
+            return false;
+        }
+    }
+
+    /** Candidate placeholder values, digits first since variable patterns are mostly numeric. */
+    private static final List<String> SAMPLE_CANDIDATES = List.of(
+            "0", "00", "000", "0000", "00000", "000000", "0000000", "00000000",
+            "1", "01", "001", "0001",
+            "A", "AA", "AAA", "A0", "AB", "ABC", "ABCD",
+            "X", "XX", "XXX", "X0");
+
+    private static String zeroPadded(long value, int pad) {
+        String s = String.valueOf(value);
+        return s.length() >= pad ? s : "0".repeat(pad - s.length()) + s;
     }
 
     /**

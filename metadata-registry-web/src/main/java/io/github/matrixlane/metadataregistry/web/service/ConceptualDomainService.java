@@ -59,7 +59,9 @@ public class ConceptualDomainService {
         if (typeSpec != null) {
             spec = (spec == null) ? typeSpec : spec.and(typeSpec);
         }
-        return repository.findAll(spec, pageable).map(this::toResponse);
+        var page0 = ItemListSorts.findAll(repository, spec, pageable);
+        var preload0 = itemAdministrationService.preloadItemMeta(page0.getContent());
+        return page0.map(entity -> toResponse(entity, preload0));
     }
 
     @Transactional(readOnly = true)
@@ -189,10 +191,14 @@ public class ConceptualDomainService {
     public void delete(UUID id) {
         ConceptualDomain entity = repository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("ConceptualDomain", id));
+        // Recorded 及之后的注册状态已纳入版本控制，只能走 Retired，不允许直接删除
+        itemAdministrationService.assertDeletable(entity);
         versionHistoryService.recordSnapshot(entity, "DELETE", toResponse(entity));
         if (entity instanceof LocalEnumeratedConceptualDomain lecd) {
             cleanupValueMeanings(lecd);
         }
+        // 解除提交记录连接；关联条目删光后空的 SubmissionRecord 一并删除
+        itemAdministrationService.removeFromSubmissionRecords(entity);
         repository.deleteById(id);
     }
 
@@ -202,10 +208,20 @@ public class ConceptualDomainService {
     }
 
     private ConceptualDomainResponse toResponse(ConceptualDomain entity) {
+
+
+        return toResponse(entity, null);
+
+
+    }
+
+
+
+    private ConceptualDomainResponse toResponse(ConceptualDomain entity, ItemAdministrationService.ItemMetaPreload preload) {
         ConceptualDomainType type = inferType(entity);
         List<ValueMeaningResponse> vmResponses = Collections.emptyList();
         if (entity instanceof LocalEnumeratedConceptualDomain lecd) {
-            vmResponses = mapValueMeanings(lecd);
+            vmResponses = mapValueMeanings(lecd, preload);
         }
         return new ConceptualDomainResponse(
                 entity.getId(),
@@ -217,7 +233,7 @@ public class ConceptualDomainService {
                 vmResponses,
                 entity.getValidPeriod() == null ? null : toLocal(entity.getValidPeriod().getStartDateTime()),
                 entity.getValidPeriod() == null ? null : toLocal(entity.getValidPeriod().getEndDateTime()),
-                itemAdministrationService.buildItemMeta(entity),
+                itemAdministrationService.buildItemMeta(entity, preload),
                 entity.getDimensionality() == null ? null : entity.getDimensionality().getId(),
                 entity.getDimensionality() == null ? null : ItemNamingHelper.preferredDesignation(entity.getDimensionality()));
     }
@@ -242,7 +258,9 @@ public class ConceptualDomainService {
         };
     }
 
-    private List<ValueMeaningResponse> mapValueMeanings(LocalEnumeratedConceptualDomain lecd) {
+    private List<ValueMeaningResponse> mapValueMeanings(
+            LocalEnumeratedConceptualDomain lecd,
+            ItemAdministrationService.ItemMetaPreload preload) {
         List<ValueMeaningSet> sets = valueMeaningSetRepository
                 .findByLocalEnumeratedConceptualDomainId(lecd.getId());
         if (sets.isEmpty()) {
@@ -260,7 +278,7 @@ public class ConceptualDomainService {
                     itemAdministrationService.mapDefinitions(vm),
                     period == null ? null : toLocal(period.getStartDateTime()),
                     period == null ? null : toLocal(period.getEndDateTime()),
-                    itemAdministrationService.buildItemMeta(vm)));
+                    itemAdministrationService.buildItemMeta(vm, preload)));
         }
         return out;
     }

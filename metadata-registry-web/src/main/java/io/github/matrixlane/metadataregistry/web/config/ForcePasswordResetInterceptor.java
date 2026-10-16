@@ -1,6 +1,7 @@
 package io.github.matrixlane.metadataregistry.web.config;
 
 import io.github.matrixlane.metadataregistry.web.auth.AuthenticatedUser;
+import io.github.matrixlane.metadataregistry.web.edition.DeploymentEdition;
 import io.github.matrixlane.metadataregistry.web.service.SystemSettingService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -27,6 +28,12 @@ public class ForcePasswordResetInterceptor implements HandlerInterceptor {
         if (auth != null && auth.getPrincipal() instanceof AuthenticatedUser) {
             AuthenticatedUser user = (AuthenticatedUser) auth.getPrincipal();
             if (user.forceChangePassword()) {
+                // 个人版无密码概念（personal-no-login-registrar-default）：强制改密拦截
+                // MUST NOT 在个人版生效。会话标志只可能来自陈旧令牌或历史脏数据，
+                // 触发拦截会把整个应用锁死在 498，而用户没有任何合法操作能清掉该标志。
+                if (systemSettingService.getEdition() == DeploymentEdition.PERSONAL) {
+                    return true;
+                }
                 String path = request.getRequestURI();
                 // Whitelist endpoints for password reset process
                 if (path.endsWith("/api/v1/auth/login") ||

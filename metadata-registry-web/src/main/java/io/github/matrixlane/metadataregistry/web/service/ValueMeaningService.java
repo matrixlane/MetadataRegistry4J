@@ -27,7 +27,7 @@ public class ValueMeaningService {
     @Transactional(readOnly = true)
     public Page<ConceptResponse> list(String keyword, Pageable pageable) {
         Specification<ValueMeaning> spec = ObjectClassService.byKeyword(keyword);
-        return repository.findAll(spec, pageable).map(this::toResponse);
+        return ItemListSorts.findAll(repository, spec, pageable).map(this::toResponse);
     }
 
     @Transactional(readOnly = true)
@@ -52,9 +52,11 @@ public class ValueMeaningService {
     }
 
     public void delete(UUID id) {
-        if (!repository.existsById(id)) {
-            throw new ResourceNotFoundException("ValueMeaning", id);
-        }
+        ValueMeaning entity = loadOrThrow(id);
+        // Recorded 及之后的注册状态已纳入版本控制，只能走 Retired，不允许直接删除
+        itemAdministrationService.assertDeletable(entity);
+        // 解除提交记录连接；关联条目删光后空的 SubmissionRecord 一并删除
+        itemAdministrationService.removeFromSubmissionRecords(entity);
         repository.deleteById(id);
     }
 

@@ -520,4 +520,68 @@ class SegmentTemplateEngineTest {
             assertThat(engine.validate(template)).isEmpty();
         }
     }
+
+    @Nested
+    @DisplayName("格式说明与示例（报错提示用）")
+    class FormatDescription {
+
+        @Test
+        @DisplayName("金样本模板逐段描述且示例符合格式")
+        void goldenTemplate_describedAndExemplified() {
+            SegmentTemplate template = prefixObjectSequenceTemplate();
+            assertThat(engine.describeFormat(template))
+                    .contains("固定字符「WN」")
+                    .contains("分隔符「.」")
+                    .contains("对象类型缩写")
+                    .contains("顺序号（5 位数字，如 00001）");
+            String example = engine.renderExample(template);
+            assertThat(example).startsWith("WN.").endsWith(".00001");
+            assertThat(engine.matchesFormat(template, example)).isTrue();
+        }
+
+        @Test
+        @DisplayName("变量段描述含标签与格式，示例取自模式派生值")
+        void variableTemplate_describedAndExemplified() {
+            SegmentTemplate template = SegmentTemplate.fromJson("""
+                    {"segments":[
+                      {"type":"VARIABLE","name":"deptCode","params":{"label":"科室代码","pattern":"\\\\d{2}","required":true}},
+                      {"type":"SEPARATOR","params":{"char":"-"}},
+                      {"type":"SEQUENCE","name":"seq","params":{"start":1,"increment":1,"pad":4,"overflow":"REJECT"}}
+                    ]}""");
+            assertThat(engine.describeFormat(template))
+                    .contains("变量「科室代码」")
+                    .contains("\\d{2}");
+            String example = engine.renderExample(template);
+            assertThat(example).endsWith("-0001");
+            assertThat(engine.matchesFormat(template, example)).isTrue();
+        }
+
+        @Test
+        @DisplayName("时间戳/UUID/校验位示例均符合各自格式")
+        void nonLiteralSegments_examplesConform() {
+            SegmentTemplate template = SegmentTemplate.fromJson("""
+                    {"segments":[
+                      {"type":"OBJECT_ABBREVIATION","name":"objectAbbr","params":{"default":"MD"}},
+                      {"type":"SEPARATOR","params":{"char":"-"}},
+                      {"type":"TIMESTAMP","name":"ts","params":{"pattern":"yyyyMMdd"}},
+                      {"type":"SEPARATOR","params":{"char":"-"}},
+                      {"type":"UUID","name":"uuid","params":{"form":"short"}},
+                      {"type":"CHECKSUM","name":"check","params":{"algorithm":"mod11"}}
+                    ]}""");
+            String example = engine.renderExample(template);
+            assertThat(engine.matchesFormat(template, example)).isTrue();
+        }
+
+        @Test
+        @DisplayName("未识别段类型不阻断描述与示例")
+        void unknownSegmentType_fallback() {
+            SegmentTemplate template = SegmentTemplate.fromJson("""
+                    {"segments":[
+                      {"type":"LITERAL","params":{"value":"CV"}},
+                      {"type":"NOPE","params":{}}
+                    ]}""");
+            assertThat(engine.describeFormat(template)).contains("未识别段「NOPE」");
+            assertThat(engine.renderExample(template)).isEqualTo("CVNOPE");
+        }
+    }
 }

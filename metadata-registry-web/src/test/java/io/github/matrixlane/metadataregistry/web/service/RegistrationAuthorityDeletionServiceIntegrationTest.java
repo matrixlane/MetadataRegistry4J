@@ -10,7 +10,7 @@ import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.prede
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.Text;
 import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.Definition;
 import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.Designation;
-import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifiedItem;
+import io.github.matrixlane.metadataregistry.commonfacilities.registration.AdministeredItem;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.ScopedIdentifier;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.AdministeredItem;
@@ -35,7 +35,7 @@ import io.github.matrixlane.metadataregistry.web.edition.DeploymentEdition;
 import io.github.matrixlane.metadataregistry.web.repository.AdministeredItemRepository;
 import io.github.matrixlane.metadataregistry.web.repository.ContactRepository;
 import io.github.matrixlane.metadataregistry.web.repository.ContextRepository;
-import io.github.matrixlane.metadataregistry.web.repository.IdentifiedItemRepository;
+import io.github.matrixlane.metadataregistry.web.repository.RegisteredItemRepository;
 import io.github.matrixlane.metadataregistry.web.repository.LanguageIdentificationRepository;
 import io.github.matrixlane.metadataregistry.web.repository.NamespaceRepository;
 import io.github.matrixlane.metadataregistry.web.repository.RegistrationAuthorityRepository;
@@ -119,7 +119,7 @@ class RegistrationAuthorityDeletionServiceIntegrationTest {
     @Autowired
     private AdministeredItemRepository administeredItemRepository;
     @Autowired
-    private IdentifiedItemRepository identifiedItemRepository;
+    private RegisteredItemRepository registeredItemRepository;
     @Autowired
     private ScopedIdentifierRepository scopedIdentifierRepository;
     @Autowired
@@ -260,8 +260,9 @@ class RegistrationAuthorityDeletionServiceIntegrationTest {
         raNs.getDesignations().add(nsDesignation);
         raNs = namespaceRepository.save(raNs);
         raNsId = raNs.getId();
-        IdentifiedItem nsIdentified = new IdentifiedItem(raNs);
-        nsIdentified = identifiedItemRepository.save(nsIdentified);
+        AdministeredItem nsIdentified = new AdministeredItem(raNs);
+        nsIdentified.setCreationDateTime(LocalDateTime.now());
+        nsIdentified = registeredItemRepository.save(nsIdentified);
         raNs.setIdentifiedItem(nsIdentified);
         namespaceRepository.save(raNs);
         ScopedIdentifier nsSi = new ScopedIdentifier("NS-1", raNs, nsIdentified);
@@ -291,7 +292,7 @@ class RegistrationAuthorityDeletionServiceIntegrationTest {
         Context attachedCtx = newContext("挂载项载体", null);
         AttachedItem attached = new AttachedItem(attachedCtx);
         attached.setAdministeredItem(ai1);
-        attached = identifiedItemRepository.save(attached);
+        attached = registeredItemRepository.save(attached);
         ai1.getAttachedItems().add(attached);
         administeredItemRepository.save(ai1);
 
@@ -632,7 +633,7 @@ class RegistrationAuthorityDeletionServiceIntegrationTest {
         assertZeroRows("item", "id", deletedIds.get("item_id"));
         assertZeroRows("administered_item", "id", deletedIds.get("administered_item_id"));
         assertZeroRows("registered_item", "id", deletedIds.get("registered_item_id"));
-        assertZeroRows("identified_item", "id", deletedIds.get("identified_item_id"));
+        assertZeroRows("registered_item", "id", deletedIds.get("identified_item_id"));
         assertZeroRows("namespace", "id", deletedIds.get("namespace_id"));
         assertZeroRows("registrar", "id", deletedIds.get("registrar_id"));
         assertZeroRows("contact", "id", deletedIds.get("contact_id"));
@@ -775,8 +776,8 @@ class RegistrationAuthorityDeletionServiceIntegrationTest {
         entityManager.flush();
         // Item 联合继承整图加载会超出 SQLite 64 表上限——AI 归属一律走 JDBC 逐表查询
         UUID registryContextAiId = jdbcTemplate.queryForObject(
-                "SELECT ai.id FROM administered_item ai JOIN identified_item ii ON ii.id = ai.id"
-                        + " WHERE ii.item_id = ?",
+                "SELECT ai.id FROM administered_item ai JOIN registered_item ri ON ri.id = ai.id"
+                        + " WHERE ri.item_id = ?",
                 (rs, rowNum) -> DatabaseEnvironment.toUuid(rs.getObject(1)),
                 databaseEnvironment.toJdbcUuid(RegistryContextBootstrapService.REGISTRY_CONTEXT_ID));
 
@@ -815,8 +816,8 @@ class RegistrationAuthorityDeletionServiceIntegrationTest {
         assertThat(countRows("context", "id", RegistryContextBootstrapService.REGISTRY_CONTEXT_ID)).isEqualTo(1);
         assertThat(countRows("item", "id", RegistryContextBootstrapService.REGISTRY_CONTEXT_ID)).isEqualTo(1);
         assertThat(jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM administered_item ai JOIN identified_item ii ON ii.id = ai.id"
-                        + " WHERE ii.item_id = ? AND ai.registration_authority_id = ?",
+                "SELECT COUNT(*) FROM administered_item ai JOIN registered_item ri ON ri.id = ai.id"
+                        + " WHERE ri.item_id = ? AND ai.registration_authority_id = ?",
                 Long.class,
                 databaseEnvironment.toJdbcUuid(RegistryContextBootstrapService.REGISTRY_CONTEXT_ID),
                 databaseEnvironment.toJdbcUuid(ra2Id))).isEqualTo(1);

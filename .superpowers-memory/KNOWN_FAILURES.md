@@ -127,14 +127,15 @@ Mitigation: WindowsCommandResolver（PATH+PATHEXT 解析、.cmd/.bat 走 cmd /c�
 ### Failure Pattern: SQLite 64 表 join 上限——带 AdministeredItem 的条目 update/delete 必 500
 - id: failure-2026-09-21-sqlite-64-table-join-limit
 - type: environment_limitation
-- status: active
+- status: resolved
 - confidence: verified
-- last_updated: 2026-09-22
+- last_updated: 2026-10-09
 - source: add-uom-measure-class-association 验证期发现；add-submitter-contact-identity 冒烟复现（`ActiveRegistrarService.assertCanModifyItem` → `AdministeredItemRepository.findByItem_Id` 全子类 join 超 64 表）
+- resolved_by: repair-administered-item-closure（2026-10-09）
 - owner: matrixlane
 - review_after: 2026-12-21
 
-Trigger: SQLite 环境对任何已归属注册机构的条目执行 update/delete（`assertCanModifyItem`/`assertCanModify` 触发 `findByItem_Id`）。
+Trigger: SQLite 环境对任何已归属注册机构的条目执行 update/delete（`assertCanModifyItem` 触发 `findByItem_Id`）。
 
 Symptom: 500 `[SQLITE_ERROR] at most 64 tables in a join`（Item 全子类 + 关联对象图单查询 join 超限）。SQL Server / 达梦无此限制。
 
@@ -142,7 +143,18 @@ Likely cause: Hibernate 对 `AdministeredItem`（RegisteredItem 子类）按 id 
 
 How to detect: 日志搜 `at most 64 tables in a join`。
 
-Mitigation: SQLite 冒烟跳过条目 update/delete 路径（用单元测试覆盖）；根治须拆分实体继承映射或改 `findByItem_Id` 查询形状（单独 backlog）。
+Resolution（2026-10-09，repair-administered-item-closure）: 改查询形状，不动继承映射。
+`AdministeredItemRepository` 新增投影 `findRegistrationAuthorityIdByItemId`
+（`SELECT ai.registrationAuthority.id FROM AdministeredItem ai WHERE ai.item.id = :itemId`），
+`ActiveRegistrarService.assertCanModifyItem` 改用它——权限校验只需要归属注册机构一个标量，
+不必展开整个受管项对象图，从根上不产生那条深 join。`assertCanModify(AdministeredItem)`
+（实体已在手场景）不改。回归由 `AdministeredItemClosureConformanceTest` 的
+`resolvesRegistrationAuthorityViaProjection` / `projectionReturnsEmptyForUnadministeredItem`
+两例在 SQLite 上锁定。
+
+残余风险: 本条只治了权限校验这一条触发路径。若将来新增按 id 加载 `AdministeredItem` 实体的
+代码（如详情页、导出、联邦同步），会重新踩到 64 表上限。约束见 AGENTS.md「正交链完整性规则」
+配套的查询形状约定：需要受管项标量属性时一律用投影，不取实体。
 
 ### Failure Pattern: mdr.* 自然键列缺 UNIQUE 约束 + JPA findBy* 隐含唯一假设
 - id: failure-2026-09-30-natural-key-without-unique-constraint

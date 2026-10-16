@@ -165,6 +165,7 @@ public class IdentifierInputPolicyService {
             case SEMVER -> "1.0.0";
             case SEQUENTIAL -> "1";
             case DATE -> LocalDate.now().toString();
+            case FREE_TEXT -> "1";
         };
     }
 
@@ -182,6 +183,9 @@ public class IdentifierInputPolicyService {
 
     private void validateVersion(NamespaceIdentifierPolicy policy, String version) {
         switch (policy.versioningPolicy()) {
+            case FREE_TEXT -> {
+                // 自由文本：不做任何格式校验
+            }
             case SEQUENTIAL -> {
                 if (!SEQUENTIAL_VERSION.matcher(version).matches()) {
                     throw new BusinessException(ApiCodes.VALIDATION_FAILED,
@@ -241,9 +245,12 @@ public class IdentifierInputPolicyService {
         }
         try {
             SegmentTemplate template = SegmentTemplate.fromJson(config.getConfigJson());
-            if (!new SegmentTemplateEngine().matchesFormat(template, identifier)) {
+            SegmentTemplateEngine engine = new SegmentTemplateEngine();
+            if (!engine.matchesFormat(template, identifier)) {
                 throw new BusinessException(ApiCodes.VALIDATION_FAILED,
-                        "标识符不符合该命名空间已发布模板的格式要求: " + identifier);
+                        "标识符不符合该命名空间已发布模板的格式要求。实际输入：「" + identifier
+                        + "」；模板格式：" + engine.describeFormat(template)
+                        + "；示例：" + engine.renderExample(template));
             }
         } catch (SegmentTemplateException e) {
             log.warn("[IdentifierInputPolicyService] Cannot derive format from template of namespace {}, skipping: {}",

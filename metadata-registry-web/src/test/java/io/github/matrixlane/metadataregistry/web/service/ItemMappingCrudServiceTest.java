@@ -13,7 +13,7 @@ import io.github.matrixlane.metadataregistry.web.common.ResourceNotFoundExceptio
 import io.github.matrixlane.metadataregistry.web.dto.mapping.ItemMappingHierarchyRequest;
 import io.github.matrixlane.metadataregistry.web.dto.mapping.ItemMappingRequest;
 import io.github.matrixlane.metadataregistry.web.dto.mapping.ItemMappingResponse;
-import io.github.matrixlane.metadataregistry.web.repository.IdentifiedItemRepository;
+import io.github.matrixlane.metadataregistry.web.repository.RegisteredItemRepository;
 import io.github.matrixlane.metadataregistry.web.repository.ItemRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -51,7 +51,7 @@ class ItemMappingCrudServiceTest {
     @Mock
     private ItemRepository itemRepository;
     @Mock
-    private IdentifiedItemRepository identifiedItemRepository;
+    private RegisteredItemRepository registeredItemRepository;
     @Mock
     private ItemMappingService mappingService;
     @Mock
@@ -118,7 +118,7 @@ class ItemMappingCrudServiceTest {
                 .thenReturn(saved);
         when(mappingRepository.findById(id)).thenReturn(Optional.of(saved));
         stubRows(id);
-        when(identifiedItemRepository.findRegistrationStatusRowsByItemIds(anyCollection()))
+        when(registeredItemRepository.findRegistrationStatusRowsByItemIds(anyCollection()))
                 .thenReturn(rows(new Object[]{id, RegistrationStatus.RECORDED}));
 
         ItemMappingResponse response = crudService.create(request(MappingDegree.DERIVED_FROM));

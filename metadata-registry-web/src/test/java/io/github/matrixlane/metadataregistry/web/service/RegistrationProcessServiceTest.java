@@ -1275,6 +1275,7 @@ class RegistrationProcessServiceTest {
 
     private static AdministeredItem item(UUID id, RegistrationStatus status, RegistrationAuthority ra) {
         AdministeredItem ai = new AdministeredItem();
+        ai.setCreationDateTime(LocalDateTime.now());
         ai.setId(id);
         ai.setRegistrationAuthority(ra);
         RegistrationState state = new RegistrationState();

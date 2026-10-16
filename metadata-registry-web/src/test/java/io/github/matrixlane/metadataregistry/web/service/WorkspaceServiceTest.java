@@ -14,11 +14,12 @@ import io.github.matrixlane.metadataregistry.web.dto.workspace.WorkspaceSubmitRe
 import io.github.matrixlane.metadataregistry.web.repository.AdministeredItemRepository;
 import io.github.matrixlane.metadataregistry.web.repository.ContactRepository;
 import io.github.matrixlane.metadataregistry.web.repository.DesignationRepository;
-import io.github.matrixlane.metadataregistry.web.repository.IdentifiedItemRepository;
+import io.github.matrixlane.metadataregistry.web.repository.RegisteredItemRepository;
 import io.github.matrixlane.metadataregistry.web.repository.OrganizationRepository;
 import io.github.matrixlane.metadataregistry.web.repository.RegistrationTransitionApprovalRepository;
 import io.github.matrixlane.metadataregistry.web.repository.RegistrationTransitionRuleRepository;
 import io.github.matrixlane.metadataregistry.web.repository.VersionHistoryRepository;
+import java.time.LocalDateTime;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -56,7 +57,7 @@ class WorkspaceServiceTest {
     @Mock private ContactRepository contactRepository;
     @Mock private OrganizationRepository organizationRepository;
     @Mock private DesignationRepository designationRepository;
-    @Mock private IdentifiedItemRepository identifiedItemRepository;
+    @Mock private RegisteredItemRepository registeredItemRepository;
 
     @InjectMocks
     private WorkspaceService workspaceService;
@@ -87,6 +88,7 @@ class WorkspaceServiceTest {
         Item item = new Item() {};
         item.setId(itemId);
         AdministeredItem ai = new AdministeredItem(item);
+        ai.setCreationDateTime(LocalDateTime.now());
         item.setIdentifiedItem(ai);
         RegistrationState state = new RegistrationState();
         state.setRegistrationStatus(RegistrationStatus.INCOMPLETE);

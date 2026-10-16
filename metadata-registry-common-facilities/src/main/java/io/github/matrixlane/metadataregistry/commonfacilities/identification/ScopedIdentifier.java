@@ -7,6 +7,7 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegisteredItem;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
@@ -66,13 +67,13 @@ public class ScopedIdentifier {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "identified_item_id")
-    private IdentifiedItem identifiedItem;
+    private RegisteredItem identifiedItem;
 
     /**
      * Convenience constructor for programmatic creation.
      */
     public ScopedIdentifier(String identifier,
-                            Namespace namespace, IdentifiedItem identifiedItem) {
+                            Namespace namespace, RegisteredItem identifiedItem) {
         this.identifier = identifier;
         this.namespace = namespace;
         this.identifiedItem = identifiedItem;

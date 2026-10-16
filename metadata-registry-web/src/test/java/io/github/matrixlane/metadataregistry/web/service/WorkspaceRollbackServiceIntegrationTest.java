@@ -13,6 +13,8 @@ import io.github.matrixlane.metadataregistry.commonfacilities.registration.Admin
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.Registrar;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationAuthority;
 import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.Acceptability;
+import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.NamingConvention;
+import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.predefinedtypes.Text;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationState;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationStatus;
 import io.github.matrixlane.metadataregistry.web.auth.AccountRepository;
@@ -33,6 +35,7 @@ import io.github.matrixlane.metadataregistry.web.repository.NamespaceRepository;
 import io.github.matrixlane.metadataregistry.web.repository.RegistrarRepository;
 import io.github.matrixlane.metadataregistry.web.repository.RegistrationAuthorityRepository;
 import io.github.matrixlane.metadataregistry.web.repository.VersionHistoryRepository;
+import java.time.LocalDateTime;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -97,6 +100,12 @@ class WorkspaceRollbackServiceIntegrationTest {
 
     @Autowired
     private ContactAccountService contactAccountService;
+
+    @Autowired
+    private io.github.matrixlane.metadataregistry.web.repository.DesignationRepository designationRepository;
+
+    @Autowired
+    private io.github.matrixlane.metadataregistry.web.repository.NamingConventionRepository namingConventionRepository;
 
     @Autowired
     private ObjectMapper objectMapper;
@@ -181,6 +190,55 @@ class WorkspaceRollbackServiceIntegrationTest {
         List<VersionHistory> afterRollback = versionHistoryRepository.findByItemIdOrderByVersionNumberDesc(itemId);
         assertThat(afterRollback).hasSize(3);
         assertThat(readKind(afterRollback.get(0))).isEqualTo(SnapshotKind.ROLLED_BACK);
+    }
+
+    @Test
+    void rollbackDraft_shouldRestoreBaselineEvenIfBaselineFailsCurrentValidation() {
+        // 复现用户报告场景：历史数据（如基准导入）的指称无上下文关联，
+        // 后加的"孤立行必须有上下文或标记例外"校验不应阻断回退——
+        // 回退的目标是忠实还原基线内容，即使该内容按现行规则不合法。
+        DataElementResponse created = createDataElement("原始名称");
+        UUID itemId = created.id();
+        setRegistrationState(itemId, RegistrationStatus.RECORDED, null);
+        // 模拟历史数据形态：剥离指称的全部上下文关联
+        stripDesignationContexts(itemId);
+        // 基线同时携带一条命名规范关联：编辑期会被清空（payload 未携带），回退后应还原
+        NamingConvention nc = createNamingConvention();
+        linkNamingConvention(itemId, nc.getId());
+
+        // 编辑进入草稿：基线捕获的是剥离后（无上下文）的内容；编辑提交内容本身合法
+        dataElementService.update(itemId, requestWithDesignation("编辑后名称"));
+
+        // 修复前：此处抛「第 1 条指称既没有上下文也未标记为例外」，回退被阻断
+        workspaceRollbackService.rollback(itemId);
+
+        DataElementResponse rolledBack = dataElementService.get(itemId);
+        assertThat(rolledBack.label()).isEqualTo("原始名称");
+        assertThat(rolledBack.designations().get(0).contexts()).isEmpty();
+        assertThat(rolledBack.designations().get(0).namingConventionIds()).containsExactly(nc.getId());
+        // 状态断言走实体路径：meta() 标量投影在途重构下行为另测，见 rollbackRejected_withoutBaseline
+        AdministeredItem ai = administeredItemRepository.findByItem_Id(itemId).orElseThrow();
+        assertThat(ai.getRegistrationState().getAdministrativeStatus()).isNull();
+        assertThat(ai.getRegistrationState().getRegistrationStatus()).isEqualTo(RegistrationStatus.RECORDED);
+    }
+
+    private NamingConvention createNamingConvention() {
+        NamingConvention nc = new NamingConvention();
+        nc.setScopeRule(Text.of("回退测试命名规范"));
+        return namingConventionRepository.save(nc);
+    }
+
+    private void linkNamingConvention(UUID itemId, UUID ncId) {
+        NamingConvention nc = namingConventionRepository.findById(ncId).orElseThrow();
+        for (var designation : designationRepository.findByItem_Id(itemId)) {
+            designation.getNamingConventions().add(nc);
+        }
+    }
+
+    private void stripDesignationContexts(UUID itemId) {
+        for (var designation : designationRepository.findByItem_Id(itemId)) {
+            designation.getDesignationContexts().clear();
+        }
     }
 
     @Test
@@ -318,6 +376,8 @@ class WorkspaceRollbackServiceIntegrationTest {
         RegistrationState state = ai.getRegistrationState();
         if (state == null) {
             state = new RegistrationState();
+            // ISO/IEC 11179-3:2023 表 22：effective_date 重数 1（必备）
+            state.setEffectiveDate(LocalDateTime.now());
             ai.setRegistrationState(state);
         }
         state.setRegistrationStatus(status);

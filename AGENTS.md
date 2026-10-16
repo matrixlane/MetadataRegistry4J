@@ -38,6 +38,37 @@
   - 迁移三方言同版本号：SQL Server 全限定 `ext.<table>`（schema 兜底 + COL_LENGTH 守卫）；SQLite 裸表名（`ext_` 前缀）；达梦全限定 `EXT.<TABLE>`。
 - 判据：字段能在 ISO/IEC 11179 标准条款中找到定义 → 才可进 mdr；否则一律 ext。（既有判例：`ext.account.avatar`、`ext_language_identification`、`ext.contact`（账号绑定卫星，原 contact_account_binding 迁入）、`ext.registrar`（默认注册人员标志）；反例教训：2026-10 `mdr.registration_authority.is_primary` 后迁出，见 DECISIONS.md）
 
+# 正交链完整性规则（强制）
+
+ISO/IEC 11179 元模型中，**受管链与内容链是两条正交的链**，靠 §7.4.1 `item_identification`
+**关联**连接，不靠继承：
+
+```
+内容链：Entity → Item → DataElement / ValueDomain / …      （11179-31 §7.2.2.4.1 等声明 Direct superclass = Item）
+受管链：Entity → IdentifiedItem → RegisteredItem → AdministeredItem / AttachedItem
+                                        ↑ 沿 item_identification 关联挂回同一个 item
+```
+
+任何涉及这两条链的建模与数据导入，MUST 保证以下不变式：
+
+- **§7.4.1**：条目若被标识，`SHALL` 恰好绑定一个 `Identified_Item`；有 `Scoped_Identifier`
+  即意味着必有 `Identified_Item`（§7.4.2：每个 Identified_Item 至少关联一个 Scoped_Identifier）。
+- **§9.4.1.2**：已标识条目 `SHALL` 沿受管链落到 `Administered_Item` 或 `Attached_Item`
+  （"Registered_Item shall be instantiated as either an Administered_Item or an Attached_Item
+  but not both."），**不得停在 `Identified_Item` 中间层**。
+- **裸 SQL 数据导入 MUST 自建完整关联链。** `administered_item` / `registered_item` /
+  `registration_state` 全库仅由 `ItemAdministrationService.ensureAdministeredItem()` 创建，
+  绕过该服务的还原脚本、批量导入脚本天然产不出这三张表。
+- **验收 MUST 含语义不变式断言**，不得只比对行数或字节。
+
+> 反例教训（2026-10-09）：WS 363/364 基准还原脚本为裸 SQL，未自建受管链，11,177 个已标识
+> 条目全部停在 Identified_Item，注册状态恒为空、不出现在注册项列表、永远无法经推进流程获得
+> 状态。因验收只比对"行数与基准声明一致"而长期未被发现。守护测试
+> `AdministeredItemClosureConformanceTest`；处置见
+> `openspec/changes/repair-administered-item-closure/`。
+>
+> 基准生成器 `scratch/ws-verify/gen_baseline_sql.py` 已内置前置断言：源库不闭环即拒绝生成。
+
 # 实体继承规则（强制）
 
 数据库表结构按 schema 分层，实体继承关系按标准元模型分层——**任何涉及实体继承（extends）的设计与实现必须先核对标准**：
@@ -66,6 +97,10 @@
 修改项目级规则时只编辑本文件；`CLAUDE.md` 仅保留导入声明，不复制规则正文。
 
 # Agent 登录系统规则
+
+登录要求按部署版本区分：**个人版（PERSONAL）无账号密码概念**——`PersonalEditionAuthenticationFilter` 对未认证请求自动装载系统唯一 SUPER_ADMIN 隐式主体（无密码、强制改密/498 拦截不触发），Agent 冒烟/E2E 直接请求即可，无需登录；**只有团队版（TEAM）需要账号密码登录**，适用下列规则。
+
+> 本机当前部署（localhost:8081，SQL Server 库）运行在个人版下。Agent 以后测试系统直接调用 API，**不需要账号登录，也不要再创建测试账号**；既有的 `agent-uitest` 测试账号已于 2026-10-13 删除。
 
 Coding Agent 需要登录系统（API 冒烟、E2E、手工验证）时，**必须自己创建一个专用 Admin 测试账户**，严禁使用超级管理员应急码（`emergency-code.txt`）登录。
 

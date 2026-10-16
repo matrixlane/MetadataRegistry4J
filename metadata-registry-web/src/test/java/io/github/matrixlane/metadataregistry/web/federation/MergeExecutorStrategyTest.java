@@ -17,6 +17,7 @@ import io.github.matrixlane.metadataregistry.web.repository.RegistrationAuthorit
 import io.github.matrixlane.metadataregistry.web.repository.ScopedIdentifierRepository;
 import io.github.matrixlane.metadataregistry.web.service.ItemAdministrationService;
 import io.github.matrixlane.metadataregistry.web.service.VersionHistoryService;
+import java.time.LocalDateTime;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -257,6 +258,7 @@ class MergeExecutorStrategyTest {
         DataElement localItem = new DataElement();
         localItem.setId(localItemId);
         AdministeredItem ai = new AdministeredItem(localItem);
+        ai.setCreationDateTime(LocalDateTime.now());
         ai.setId(UUID.randomUUID());
         localItem.setIdentifiedItem(ai);
         return localItem;

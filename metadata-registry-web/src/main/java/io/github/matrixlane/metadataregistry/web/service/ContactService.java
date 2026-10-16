@@ -51,6 +51,12 @@ public class ContactService {
     private final io.github.matrixlane.metadataregistry.web.repository.StewardshipRecordRepository stewardshipRecordRepository;
     private final io.github.matrixlane.metadataregistry.web.repository.RegistrationTransitionApprovalRepository registrationTransitionApprovalRepository;
 
+    /**
+     * 联系人身份列表。关键词按所属组织名检索。
+     *
+     * <p>维持仅组织名匹配：Contact 是独立根实体（{@code Contact extends Entity}），
+     * 不在受管链上，不存在 Scoped_Identifier 行，故无标识符可匹配。</p>
+     */
     @Transactional(readOnly = true)
     public Page<ContactResponse> list(String keyword, Pageable pageable) {
         Specification<Contact> spec = Specification.where(null);

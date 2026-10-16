@@ -29,7 +29,9 @@ public class DataTypeSchemeService {
     @Transactional(readOnly = true)
     public Page<DataTypeSchemeResponse> list(String keyword, Pageable pageable) {
         Specification<DataTypeScheme> spec = ObjectClassService.byKeyword(keyword);
-        return repository.findAll(spec, pageable).map(this::toResponse);
+        var page0 = ItemListSorts.findAll(repository, spec, pageable);
+        var preload0 = itemAdministrationService.preloadItemMeta(page0.getContent());
+        return page0.map(entity -> toResponse(entity, preload0));
     }
 
     @Transactional(readOnly = true)
@@ -52,9 +54,15 @@ public class DataTypeSchemeService {
     }
 
     public void delete(UUID id) {
-        if (!repository.existsById(id)) {
-            throw new ResourceNotFoundException("DataTypeScheme", id);
-        }
+        DataTypeScheme entity = repository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("DataTypeScheme", id));
+        // Recorded 及之后的注册状态已纳入版本控制，只能走 Retired，不允许直接删除
+        itemAdministrationService.assertDeletable(entity);
+        // 先解除所有数据类型的关联（data_type.data_type_scheme_id 外键），
+        // 否则删除方案会被引用阻塞（409 数据冲突）。
+        entity.getDataTypes().forEach(dt -> dt.setDataTypeScheme(null));
+        // 解除提交记录连接；关联条目删光后空的 SubmissionRecord 一并删除
+        itemAdministrationService.removeFromSubmissionRecords(entity);
         repository.deleteById(id);
     }
 
@@ -77,12 +85,22 @@ public class DataTypeSchemeService {
     }
 
     private DataTypeSchemeResponse toResponse(DataTypeScheme entity) {
+
+
+        return toResponse(entity, null);
+
+
+    }
+
+
+
+    private DataTypeSchemeResponse toResponse(DataTypeScheme entity, ItemAdministrationService.ItemMetaPreload preload) {
         return new DataTypeSchemeResponse(
                 entity.getId(),
                 ItemNamingHelper.preferredDesignation(entity),
                 entity.getSchemeReference() == null ? null : entity.getSchemeReference().getId(),
                 itemAdministrationService.mapDesignations(entity),
                 itemAdministrationService.mapDefinitions(entity),
-                itemAdministrationService.buildItemMeta(entity));
+                itemAdministrationService.buildItemMeta(entity, preload));
     }
 }

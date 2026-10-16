@@ -23,6 +23,12 @@ import java.util.Objects;
 @AllArgsConstructor
 public class Text implements IValueType<String> {
 
+    /**
+     * ISO/IEC 11179-3:2023 6.2.12 — Text 取值:自然语言文本,长度可远超指称
+     * (WS 363 定义实测最长 196 字符)。显式放宽至 4000,避免方言默认 255
+     * 截断长定义(2026-10 恢复 WS 数据时实测触发)。
+     */
+    @jakarta.persistence.Column(name = "value", length = 4000)
     private String value;
 
     public static Text of(String value) {

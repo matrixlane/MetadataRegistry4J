@@ -56,6 +56,10 @@ public class RegistrarService {
      * 三要素均可空，故个人/角色用 LEFT JOIN（默认内连接会把缺要素的 Registrar 整行滤掉）。
      * 组织名是 {@code @ElementCollection}，join 会让同一 Registrar 按名称条数重复出现，
      * 故走 exists 子查询，不改变结果基数。
+     *
+     * <p>三要素已覆盖全部可检索属性，维持不加标识符匹配：Registrar 经
+     * {@code Contact} 继承自独立根实体 Entity，不在受管链上，不存在
+     * Scoped_Identifier 行。</p>
      */
     private Specification<Registrar> matchesKeyword(String keyword) {
         String like = "%" + keyword.toLowerCase() + "%";

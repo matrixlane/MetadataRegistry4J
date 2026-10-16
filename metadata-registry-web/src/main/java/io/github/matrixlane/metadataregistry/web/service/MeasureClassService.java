@@ -44,7 +44,7 @@ public class MeasureClassService {
     @Transactional(readOnly = true)
     public Page<MeasureClassResponse> list(String keyword, Pageable pageable) {
         Specification<MeasureClass> spec = byKeyword(keyword);
-        return repository.findAll(spec, pageable).map(this::toResponse);
+        return ItemListSorts.findAll(repository, spec, pageable).map(this::toResponse);
     }
 
     @Transactional(readOnly = true)
@@ -78,12 +78,16 @@ public class MeasureClassService {
     public void delete(UUID id) {
         MeasureClass entity = repository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("MeasureClass", id));
+        // Recorded 及之后的注册状态已纳入版本控制，只能走 Retired，不允许直接删除
+        itemAdministrationService.assertDeletable(entity);
         long references = unitOfMeasureRepository.countByMeasureClasses_Id(id);
         if (references > 0) {
             throw new BusinessException(ApiCodes.CONFLICT,
                     "计量类正被 %d 个计量单位引用，无法删除".formatted(references));
         }
         versionHistoryService.recordSnapshot(entity, "DELETE", toResponse(entity));
+        // 解除提交记录连接；关联条目删光后空的 SubmissionRecord 一并删除
+        itemAdministrationService.removeFromSubmissionRecords(entity);
         repository.deleteById(id);
     }
 
@@ -92,14 +96,9 @@ public class MeasureClassService {
                 .orElseThrow(() -> new ResourceNotFoundException("MeasureClass", id));
     }
 
+    /** 委托共享实现：名称（指称）或标识符命中即返回，见 {@link ObjectClassService#byKeyword}。 */
     static <T extends Item> Specification<T> byKeyword(String keyword) {
-        if (keyword == null || keyword.isBlank()) return Specification.where(null);
-        String like = "%" + keyword.toLowerCase() + "%";
-        return (root, q, cb) -> {
-            if (q != null) q.distinct(true);
-            var d = root.join("designations", jakarta.persistence.criteria.JoinType.LEFT);
-            return cb.like(cb.lower(d.get("sign").get("value")), like);
-        };
+        return ObjectClassService.byKeyword(keyword);
     }
 
     /** dimensionalityIds 整体替换：计量类侧 0..*，null/空集清空；任一 id 不存在即拒绝。 */

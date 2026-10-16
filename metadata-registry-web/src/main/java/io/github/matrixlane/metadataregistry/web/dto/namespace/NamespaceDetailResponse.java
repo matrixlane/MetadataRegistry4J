@@ -22,7 +22,7 @@ import java.util.UUID;
  * @param oneItemPerNameIndicator One Item per name flag
  * @param identifierInputMode Identifier input mode (AUTO_ONLY / AUTO_WITH_OVERRIDE / MANUAL_ONLY)
  * @param versionInputMode Version input mode (AUTO_ONLY / AUTO_WITH_OVERRIDE / MANUAL_ONLY)
- * @param versioningPolicy Version numbering policy (SEMVER / SEQUENTIAL / DATE)
+ * @param versioningPolicy Version numbering policy (SEMVER / SEQUENTIAL / DATE / FREE_TEXT)
  * @param manualIdentifierPattern Regex applied to manual identifiers (may be null)
  */
 public record NamespaceDetailResponse(

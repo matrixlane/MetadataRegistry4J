@@ -99,10 +99,14 @@ public class PermissibleValueMeaningService {
 
     public void delete(UUID id) {
         PermissibleValueMeaning pvm = loadOrThrow(id);
+        // Recorded 及之后的注册状态已纳入版本控制，只能走 Retired，不允许直接删除
+        itemAdministrationService.assertDeletable(pvm);
         // Remove from all linked PVs
         for (PermissibleValue pv : pvm.getPermissibleValues()) {
             pv.getPermissibleValueMeanings().remove(pvm);
         }
+        // 解除提交记录连接；关联条目删光后空的 SubmissionRecord 一并删除
+        itemAdministrationService.removeFromSubmissionRecords(pvm);
         repository.delete(pvm);
     }
 

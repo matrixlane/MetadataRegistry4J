@@ -224,6 +224,24 @@ class IdentifierInputPolicyServiceTest {
                 .hasMessageContaining("日期版本");
     }
 
+    @Test
+    void version_blank_freeTextGeneratesNeutralInitial() {
+        stubPolicy(IdentifierInputMode.AUTO_WITH_OVERRIDE, IdentifierInputMode.AUTO_WITH_OVERRIDE,
+                VersioningPolicy.FREE_TEXT, null);
+
+        assertThat(service.resolveVersion(namespace, null)).isEqualTo("1");
+    }
+
+    @Test
+    void version_freeText_acceptsArbitraryManualValue() {
+        stubPolicy(IdentifierInputMode.AUTO_WITH_OVERRIDE, IdentifierInputMode.MANUAL_ONLY,
+                VersioningPolicy.FREE_TEXT, null);
+
+        assertThat(service.resolveVersion(namespace, "V2-rc.1")).isEqualTo("V2-rc.1");
+        // 自由文本下任意非空版本串均合法；抛出异常即测试失败
+        service.validateManualVersion(namespace, "2026 修订版");
+    }
+
     // ── 外部命名空间闸门（设计 D6）─────────────────────────────────────
 
     @Test

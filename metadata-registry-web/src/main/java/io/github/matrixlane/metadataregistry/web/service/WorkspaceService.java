@@ -23,7 +23,7 @@ import io.github.matrixlane.metadataregistry.web.dto.workspace.WorkspaceSummaryR
 import io.github.matrixlane.metadataregistry.web.repository.AdministeredItemRepository;
 import io.github.matrixlane.metadataregistry.web.repository.ContactRepository;
 import io.github.matrixlane.metadataregistry.web.repository.DesignationRepository;
-import io.github.matrixlane.metadataregistry.web.repository.IdentifiedItemRepository;
+import io.github.matrixlane.metadataregistry.web.repository.RegisteredItemRepository;
 import io.github.matrixlane.metadataregistry.web.repository.OrganizationRepository;
 import io.github.matrixlane.metadataregistry.web.repository.RegistrationTransitionApprovalRepository;
 import io.github.matrixlane.metadataregistry.web.repository.RegistrationTransitionRuleRepository;
@@ -75,7 +75,7 @@ public class WorkspaceService {
     private final ContactRepository contactRepository;
     private final OrganizationRepository organizationRepository;
     private final DesignationRepository designationRepository;
-    private final IdentifiedItemRepository identifiedItemRepository;
+    private final RegisteredItemRepository registeredItemRepository;
 
     // =========================================================================
     // 三视图汇总
@@ -389,7 +389,7 @@ public class WorkspaceService {
 
     /** 条目具体类型：子类表探测（只查子类表主键），不加载 Item 联合继承整图。 */
     private String typeNameOf(UUID itemId) {
-        Class<?> type = identifiedItemRepository.findItemConcreteTypeById(itemId);
+        Class<?> type = registeredItemRepository.findItemConcreteTypeById(itemId);
         return type == null ? null : type.getSimpleName();
     }
 

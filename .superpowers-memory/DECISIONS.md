@@ -77,3 +77,19 @@ Reason: ISO/IEC 11179 标准表的可审计性要求 mdr schema 严格只含标�
 Alternatives considered: 标准表加应用列（被否决——破坏标准层纯洁性，违反既往 remove-individual-nonstandard-fields/remove-registrar-identifier 判例）；应用层派生不设列（对"需持久化的隐式标志"不可行）。
 
 Impact: 此后所有表结构设计/迁移评审第一项核对分层规则；AGENTS.md 已写入强制条款。
+
+### Decision: WS/T 364-2023 同码不同义 4 组的本地处置（偏离标准原文，用户裁决）
+- id: decision-2026-10-12-ws364-dup-code-adjudication
+- type: decision
+- status: active
+- confidence: verified
+- last_updated: 2026-10-12
+- source: 用户 2026-10-12 指令；scratch/restore-test/code_recoding_proposal.md；scratch/ws-verify/report_duplicate_codes_errata.md
+- owner: matrixlane
+- review_after: 2027-04-12
+
+Reason: WS/T 364-2023（2023-12-08 勘误后印刷版）仍有 4 组同码不同义（标准自身编号缺陷，非导入错误）。用户裁决不等标委会复审：CV03.00.203（加速器→4004）、CV05.01.016（多趾—右侧→1702）按提案更正码值；CV04.30.002（编码多处结构性缺陷，含 2 组同码双义及左腕关节整块 5 行部位字母错误）整域从基准脚本与数据库移除。由此基准数据**有意偏离标准原文**——若标准将来发布复审修订，须与本地处置对账（标准采纳值优先，本地差异按本决策回改）。
+
+Alternatives considered: 维持原文双行等标委会（被用户否决）；CV04.30.002 仅改 2 个撞码（被否决——该域编码体系性问题，单点修改无法修复）。
+
+Impact: 金库 data/metadata-registry.db、SQL Server metadata_registry、db-baseline 两脚本均已落地；CV04.30.002 唯一引用方 DE04.30.036.00 的 value_domain_id 置 NULL；回滚靠 2026-10-12 两份 .bak（metadata_registry-pre-adjudication / pre-errata）。

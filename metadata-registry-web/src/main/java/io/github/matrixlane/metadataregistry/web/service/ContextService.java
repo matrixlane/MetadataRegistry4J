@@ -48,7 +48,9 @@ public class ContextService {
     @Transactional(readOnly = true)
     public Page<ContextResponse> list(String keyword, Pageable pageable) {
         Specification<Context> spec = byKeyword(keyword);
-        return repository.findAll(spec, pageable).map(this::toResponse);
+        var page0 = ItemListSorts.findAll(repository, spec, pageable);
+        var preload0 = itemAdministrationService.preloadItemMeta(page0.getContent());
+        return page0.map(entity -> toResponse(entity, preload0));
     }
 
     @Transactional(readOnly = true)
@@ -109,9 +111,11 @@ public class ContextService {
     }
 
     public void delete(UUID id) {
-        if (!repository.existsById(id)) {
-            throw new ResourceNotFoundException("Context", id);
-        }
+        Context entity = loadOrThrow(id);
+        // Recorded 及之后的注册状态已纳入版本控制，只能走 Retired，不允许直接删除
+        itemAdministrationService.assertDeletable(entity);
+        // 解除提交记录连接；关联条目删光后空的 SubmissionRecord 一并删除
+        itemAdministrationService.removeFromSubmissionRecords(entity);
         repository.deleteById(id);
     }
 
@@ -120,29 +124,28 @@ public class ContextService {
                 .orElseThrow(() -> new ResourceNotFoundException("Context", id));
     }
 
+    /** 委托共享实现：名称（指称）或标识符命中即返回，见 {@link ObjectClassService#byKeyword}。 */
     static <T extends Item> Specification<T> byKeyword(String keyword) {
-        if (keyword == null || keyword.isBlank()) return Specification.where(null);
-        String like = "%" + keyword.toLowerCase() + "%";
-        return (root, query, cb) -> {
-            if (query != null) query.distinct(true);
-            jakarta.persistence.criteria.Subquery<Long> sq = query.subquery(Long.class);
-            var designation = sq.from(
-                io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.Designation.class);
-            sq.select(cb.literal(1L));
-            sq.where(cb.and(
-                cb.equal(designation.get("item").get("id"), root.get("id")),
-                cb.like(cb.lower(designation.get("sign").get("value")), like)));
-            return cb.exists(sq);
-        };
+        return ObjectClassService.byKeyword(keyword);
     }
 
     private ContextResponse toResponse(Context entity) {
+
+
+        return toResponse(entity, null);
+
+
+    }
+
+
+
+    private ContextResponse toResponse(Context entity, ItemAdministrationService.ItemMetaPreload preload) {
         return new ContextResponse(
                 entity.getId(),
                 ItemNamingHelper.preferredDesignation(entity),
                 itemAdministrationService.mapDesignations(entity),
                 itemAdministrationService.mapDefinitions(entity),
-                itemAdministrationService.buildItemMeta(entity));
+                itemAdministrationService.buildItemMeta(entity, preload));
     }
 
     @Transactional(readOnly = true)

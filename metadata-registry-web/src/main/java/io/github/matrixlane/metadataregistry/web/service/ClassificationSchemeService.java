@@ -36,6 +36,12 @@ public class ClassificationSchemeService {
 
     // ==================== Scheme Operations ====================
 
+    /**
+     * 分类方案列表，关键词按方案名称检索。
+     *
+     * <p>维持仅名称匹配：ClassificationScheme 是 ext 层的应用扩展实体（非 ISO/IEC 11179
+     * 标准条目），无指称、无 Scoped_Identifier，也不存在标识符列，无标识符可匹配。</p>
+     */
     public Page<ClassificationSchemeResponse> listSchemes(String q, Pageable pageable) {
         Page<ClassificationScheme> page;
         if (q != null && !q.isBlank()) {
@@ -249,7 +255,11 @@ public class ClassificationSchemeService {
     }
 
     /**
-     * 搜索节点（按名称或编码模糊匹配）
+     * 搜索节点（按名称或编码模糊匹配）。
+     *
+     * <p>分类节点是 ext 层应用扩展实体，无指称、无 Scoped_Identifier；其
+     * {@code nodeCode} 本身即该实体的编码/标识属性，故按"名称或编码"匹配即可，
+     * 已满足"标识符可搜"。</p>
      */
     public List<ClassificationNodeResponse> searchNodes(UUID schemeId, String keyword) {
         schemeRepository.findById(schemeId)

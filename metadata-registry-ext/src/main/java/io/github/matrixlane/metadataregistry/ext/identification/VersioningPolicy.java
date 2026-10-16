@@ -23,5 +23,12 @@ public enum VersioningPolicy {
     /**
      * Date-based versioning (yyyy-MM-dd). Initial version: current date.
      */
-    DATE
+    DATE,
+
+    /**
+     * Free-text versioning: no format constraint on manual version values.
+     * Intended for namespaces whose version input mode is MANUAL_ONLY;
+     * auto-generation under this policy yields the neutral initial version 1.
+     */
+    FREE_TEXT
 }

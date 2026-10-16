@@ -140,7 +140,7 @@ flowchart TD
 |---|---|---|
 | 0 | `ApiLoggingInterceptor` | API 请求日志 |
 | 1 | `InitializationWizardInterceptor` | 系统未初始化时（除白名单外）拦截并返回 499，引导前端跳转初始化向导 |
-| 2 | `ForcePasswordResetInterceptor` | `forceChangePassword` 会话仅放行登录/改密/个人资料/初始化向导/工厂重置及未初始化时的数据源端点，其余抛出 498 |
+| 2 | `ForcePasswordResetInterceptor` | `forceChangePassword` 会话仅放行登录/改密/个人资料/初始化向导/工厂重置及未初始化时的数据源端点，其余抛出 498；个人版（PERSONAL）整体豁免 |
 | 3 | `MaintenanceModeInterceptor` | 迁移维护模式开启期间拒绝一切非 GET 写操作（迁移与认证端点除外），返回 503 |
 
 ```mermaid

@@ -167,8 +167,8 @@ class MetadataSearchServiceTest {
 
     /** 已知物理表名白名单：回归错拼的表名（如 registration_specification）导致的 no such table。 */
     private static final java.util.Set<String> KNOWN_TABLES = java.util.Set.of(
-            "administered_item", "identified_item", "item", "scoped_identifier", "namespace",
-            "registration_authority", "registration_state", "registered_item", "designation", "definition",
+            "administered_item", "registered_item", "item", "scoped_identifier", "namespace",
+            "registration_authority", "registration_state", "designation", "definition",
             "designation_context", "definition_context", "organization_name", "constraint_set",
             "reference_document", "data_element", "data_element_concept",
             "conceptual_domain", "value_domain", "object_class", "property", "data_type",

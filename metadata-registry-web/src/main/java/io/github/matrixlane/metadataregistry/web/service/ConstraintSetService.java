@@ -26,7 +26,9 @@ public class ConstraintSetService {
     @Transactional(readOnly = true)
     public Page<ConstraintSetResponse> list(String keyword, Pageable pageable) {
         Specification<ConstraintSet> spec = ObjectClassService.byKeyword(keyword);
-        return repository.findAll(spec, pageable).map(this::toResponse);
+        var page0 = ItemListSorts.findAll(repository, spec, pageable);
+        var preload0 = itemAdministrationService.preloadItemMeta(page0.getContent());
+        return page0.map(entity -> toResponse(entity, preload0));
     }
 
     @Transactional(readOnly = true)
@@ -49,9 +51,11 @@ public class ConstraintSetService {
     }
 
     public void delete(UUID id) {
-        if (!repository.existsById(id)) {
-            throw new ResourceNotFoundException("ConstraintSet", id);
-        }
+        ConstraintSet entity = loadOrThrow(id);
+        // Recorded 及之后的注册状态已纳入版本控制，只能走 Retired，不允许直接删除
+        itemAdministrationService.assertDeletable(entity);
+        // 解除提交记录连接；关联条目删光后空的 SubmissionRecord 一并删除
+        itemAdministrationService.removeFromSubmissionRecords(entity);
         repository.deleteById(id);
     }
 
@@ -80,6 +84,16 @@ public class ConstraintSetService {
     }
 
     private ConstraintSetResponse toResponse(ConstraintSet entity) {
+
+
+        return toResponse(entity, null);
+
+
+    }
+
+
+
+    private ConstraintSetResponse toResponse(ConstraintSet entity, ItemAdministrationService.ItemMetaPreload preload) {
         return new ConstraintSetResponse(
                 entity.getId(),
                 ItemNamingHelper.preferredDesignation(entity),
@@ -88,6 +102,6 @@ public class ConstraintSetService {
                 entity.getItemShallBeClassifiedIndicator(),
                 itemAdministrationService.mapDesignations(entity),
                 itemAdministrationService.mapDefinitions(entity),
-                itemAdministrationService.buildItemMeta(entity));
+                itemAdministrationService.buildItemMeta(entity, preload));
     }
 }

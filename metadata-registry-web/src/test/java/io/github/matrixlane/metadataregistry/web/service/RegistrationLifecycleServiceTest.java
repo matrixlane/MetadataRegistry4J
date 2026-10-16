@@ -20,6 +20,7 @@ import io.github.matrixlane.metadataregistry.web.repository.ContactRepository;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Account;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Contact;
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.basicclasses.Role;
+import java.time.LocalDateTime;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -89,6 +90,7 @@ class RegistrationLifecycleServiceTest {
     void setUp() {
         itemId = UUID.randomUUID();
         item = new AdministeredItem();
+        item.setCreationDateTime(LocalDateTime.now());
         item.setId(itemId);
     }
 

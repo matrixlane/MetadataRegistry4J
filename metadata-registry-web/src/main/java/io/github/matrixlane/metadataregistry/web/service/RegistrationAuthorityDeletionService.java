@@ -85,13 +85,13 @@ public class RegistrationAuthorityDeletionService {
         requireExists(registrationAuthorityId);
 
         // ===== 1. 该 RA 下全部 AdministeredItem 的 Item 图 =====
-        // identified_item.id(=registered_item.id=administered_item.id) 与 item.id 是分离的，需先查后删。
+        // registered_item.id(=administered_item.id) 与 item.id 是分离的，需先查后删。
         List<UUID> aiIds = administeredItemIds(registrationAuthorityId);
         List<UUID> attachedIds = queryUuidsByIds(
                 "SELECT id FROM " + t("attached_item") + " WHERE administered_item_id IN (", aiIds);
         List<UUID> allRegIds = concat(aiIds, attachedIds);
         List<UUID> itemIds = queryUuidsByIds(
-                "SELECT item_id FROM " + t("identified_item") + " WHERE id IN (", allRegIds);
+                "SELECT item_id FROM " + t("registered_item") + " WHERE id IN (", allRegIds);
         // 松散 UUID 引用（ satellite 只存裸 UUID、无 JPA 关联）的并集：Item id ∪ RegisteredItem id
         List<UUID> itemRefIds = concat(itemIds, allRegIds);
         List<UUID> siIds = queryUuidsByIds(
@@ -160,8 +160,10 @@ public class RegistrationAuthorityDeletionService {
         deleteByIds(t("attached_item"), "id", attachedIds);
         deleteByIds(t("administered_item"), "id", aiIds);
         deleteByIds(t("registered_item_reference_document"), "registered_item_id", allRegIds);
+        // 2026-10-09 表合并：identified_item 已并入 registered_item，原先针对
+        // identified_item 的删除不再单独执行——这些行现在就是 registered_item 行，
+        // 由下面这一行统一删除（顺序在 attached_item / administered_item 之后）。
         deleteByIds(t("registered_item"), "id", allRegIds);
-        deleteByIds(t("identified_item"), "id", allRegIds);
         deleteByIds(t("item"), "id", itemIds);
 
         // ===== 2. StewardshipRecord（organization_id = RA） =====
@@ -230,14 +232,14 @@ public class RegistrationAuthorityDeletionService {
 
     // ---------- 内部步骤 ----------
 
-    /** 删除命名空间图：命名空间自身是 Item，含其 identified_item / 指称 / 定义 / 标识及其卫星。 */
+    /** 删除命名空间图：命名空间自身是 Item，含其 registered_item / 指称 / 定义 / 标识及其卫星。 */
     private void deleteNamespaceGraph(List<UUID> namespaceIds) {
         if (namespaceIds.isEmpty()) {
             return;
         }
         // 命名空间自身的 identified_item 行（注册过的命名空间才有）
         List<UUID> nsIdentifiedIds = queryUuidsByIds(
-                "SELECT id FROM " + t("identified_item") + " WHERE item_id IN (", namespaceIds);
+                "SELECT id FROM " + t("registered_item") + " WHERE item_id IN (", namespaceIds);
         // 两类标识：指向该命名空间内对象的（namespace_id）、命名空间自身的（identified_item_id）
         List<UUID> siInNs = queryUuidsByIds(
                 "SELECT id FROM " + t("scoped_identifier") + " WHERE namespace_id IN (", namespaceIds);
@@ -273,7 +275,7 @@ public class RegistrationAuthorityDeletionService {
 
         // 命名空间 Item 行与子类行
         deleteByIds(t("namespace"), "id", namespaceIds);
-        deleteByIds(t("identified_item"), "id", nsIdentifiedIds);
+        deleteByIds(t("registered_item"), "id", nsIdentifiedIds);
         deleteByIds(t("item"), "id", namespaceIds);
     }
 

@@ -370,6 +370,7 @@ class MetadataExportServiceTest {
                                              String identifier, String version,
                                              LocalDateTime createdDate) {
         AdministeredItem ai = new AdministeredItem();
+        ai.setCreationDateTime(LocalDateTime.now());
         ai.setId(UUID.randomUUID());
 
         // Item - use Context as a concrete Item subclass

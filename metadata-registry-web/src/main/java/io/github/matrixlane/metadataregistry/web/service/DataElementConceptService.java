@@ -46,7 +46,9 @@ public class DataElementConceptService {
     @Transactional(readOnly = true)
     public Page<DataElementConceptResponse> list(String keyword, Pageable pageable) {
         Specification<DataElementConcept> spec = ObjectClassService.byKeyword(keyword);
-        return repository.findAll(spec, pageable).map(this::toResponse);
+        var page0 = ItemListSorts.findAll(repository, spec, pageable);
+        var preload0 = itemAdministrationService.preloadItemMeta(page0.getContent());
+        return page0.map(entity -> toResponse(entity, preload0));
     }
 
     @Transactional(readOnly = true)
@@ -76,9 +78,13 @@ public class DataElementConceptService {
     public void delete(UUID id) {
         DataElementConcept entity = repository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("DataElementConcept", id));
+        // Recorded 及之后的注册状态已纳入版本控制，只能走 Retired，不允许直接删除
+        itemAdministrationService.assertDeletable(entity);
         // 先清理多对多反向引用，再删除实体
         clearConceptualDomainLinks(entity);
         versionHistoryService.recordSnapshot(entity, "DELETE", toResponse(entity));
+        // 解除提交记录连接；关联条目删光后空的 SubmissionRecord 一并删除
+        itemAdministrationService.removeFromSubmissionRecords(entity);
         repository.deleteById(id);
     }
 
@@ -153,6 +159,16 @@ public class DataElementConceptService {
     }
 
     private DataElementConceptResponse toResponse(DataElementConcept entity) {
+
+
+        return toResponse(entity, null);
+
+
+    }
+
+
+
+    private DataElementConceptResponse toResponse(DataElementConcept entity, ItemAdministrationService.ItemMetaPreload preload) {
         ObjectClass oc = entity.getObjectClass();
         Property prop = entity.getProperty();
         List<ConceptualDomain> domains = entity.getConceptualDomains();
@@ -179,7 +195,7 @@ public class DataElementConceptService {
                 cdLabels,
                 itemAdministrationService.mapDesignations(entity),
                 itemAdministrationService.mapDefinitions(entity),
-                itemAdministrationService.buildItemMeta(entity));
+                itemAdministrationService.buildItemMeta(entity, preload));
     }
 
     private ConceptualDomainType inferConceptualDomainType(ConceptualDomain cd) {

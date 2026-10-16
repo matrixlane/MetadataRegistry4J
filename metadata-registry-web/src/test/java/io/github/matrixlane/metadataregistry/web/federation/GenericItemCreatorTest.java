@@ -18,6 +18,7 @@ import io.github.matrixlane.metadataregistry.web.repository.NamespaceRepository;
 import io.github.matrixlane.metadataregistry.web.repository.RegistrationAuthorityRepository;
 import io.github.matrixlane.metadataregistry.web.repository.ScopedIdentifierRepository;
 import io.github.matrixlane.metadataregistry.web.service.ItemAdministrationService;
+import java.time.LocalDateTime;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -91,6 +92,7 @@ class GenericItemCreatorTest {
                     Item item = inv.getArgument(0);
                     ItemRegistrationRequest req = inv.getArgument(1);
                     AdministeredItem ai = new AdministeredItem(item);
+                    ai.setCreationDateTime(LocalDateTime.now());
                     ScopedIdentifier si = new ScopedIdentifier(req.identifier(), sourceCopy, ai);
                     si.setVersion(req.version());
                     ai.getScopedIdentifiers().add(si);
@@ -158,6 +160,7 @@ class GenericItemCreatorTest {
                     Item item = inv.getArgument(0);
                     ItemRegistrationRequest req = inv.getArgument(1);
                     AdministeredItem ai = new AdministeredItem(item);
+                    ai.setCreationDateTime(LocalDateTime.now());
                     ScopedIdentifier si = new ScopedIdentifier(req.identifier(), sourceCopy, ai);
                     ai.getScopedIdentifiers().add(si);
                     item.setIdentifiedItem(ai);

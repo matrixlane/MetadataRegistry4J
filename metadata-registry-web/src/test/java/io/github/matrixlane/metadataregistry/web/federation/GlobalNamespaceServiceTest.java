@@ -14,6 +14,7 @@ import io.github.matrixlane.metadataregistry.web.repository.LanguageIdentificati
 import io.github.matrixlane.metadataregistry.web.repository.NamespaceRepository;
 import io.github.matrixlane.metadataregistry.web.repository.OrganizationRepository;
 import io.github.matrixlane.metadataregistry.web.repository.ScopedIdentifierRepository;
+import java.time.LocalDateTime;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -226,6 +227,7 @@ class GlobalNamespaceServiceTest {
         Namespace copy = new Namespace();
         copy.setId(UUID.randomUUID());
         AdministeredItem wrapper = new AdministeredItem(copy);
+        wrapper.setCreationDateTime(LocalDateTime.now());
         ScopedIdentifier si = new ScopedIdentifier("uuid-x", global, wrapper);
         when(scopedIdentifierRepository.findByNamespaceIdAndIdentifier(global.getId(), "uuid-x"))
                 .thenReturn(Optional.of(si));

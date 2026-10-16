@@ -1,7 +1,7 @@
 package io.github.matrixlane.metadataregistry.web.repository;
 
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core.Item;
-import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifiedItem;
+import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegisteredItem;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -13,15 +13,21 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-public interface IdentifiedItemRepository extends JpaRepository<IdentifiedItem, UUID> {
+/**
+ * 注册项仓储（2026-10-09 表合并后由 {@code IdentifiedItemRepository} 更名改挂）。
+ *
+ * <p>{@code IdentifiedItem} 已由 {@code @Entity} 降为 {@code @MappedSuperclass}，
+ * Spring Data 无法以其为泛型参数建仓；本仓改挂唯一实体层 {@link RegisteredItem}。</p>
+ */
+public interface RegisteredItemRepository extends JpaRepository<RegisteredItem, UUID> {
 
-    Optional<IdentifiedItem> findByItem(Item item);
+    Optional<RegisteredItem> findByItem(Item item);
 
     /**
      * 只读关联 Item 的外键：to-one 的 id 取值直接走 FK 列，不产生 join，
      * 也不会加载 Item 联合子类对象图。item 为空时返回空。
      */
-    @Query("select ii.item.id from IdentifiedItem ii where ii.id = :id")
+    @Query("select ii.item.id from RegisteredItem ii where ii.id = :id")
     Optional<UUID> findItemIdById(@Param("id") UUID id);
 
     /**
@@ -39,7 +45,7 @@ public interface IdentifiedItemRepository extends JpaRepository<IdentifiedItem, 
      */
     @Modifying
     @Transactional
-    @Query("delete from IdentifiedItem ii where ii.id in :ids")
+    @Query("delete from RegisteredItem ii where ii.id in :ids")
     void deleteAllByIdIn(@Param("ids") Collection<UUID> ids);
 
     /**

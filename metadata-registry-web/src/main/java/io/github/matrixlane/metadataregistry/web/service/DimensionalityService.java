@@ -11,13 +11,11 @@ import io.github.matrixlane.metadataregistry.web.dto.dimensionality.MeasureClass
 import io.github.matrixlane.metadataregistry.web.repository.ConceptualDomainRepository;
 import io.github.matrixlane.metadataregistry.web.repository.DimensionalityRepository;
 import io.github.matrixlane.metadataregistry.web.repository.MeasureClassRepository;
-import io.github.matrixlane.metadataregistry.web.service.database.DatabaseEnvironment;
 import io.github.matrixlane.metadataregistry.web.repository.SubmissionRecordRepository;
 import io.github.matrixlane.metadataregistry.web.util.ItemNamingHelper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -40,12 +38,11 @@ public class DimensionalityService {
     private final ConceptContentApplier conceptContentApplier;
     private final ItemAdministrationService itemAdministrationService;
     private final SubmissionRecordRepository submissionRecordRepository;
-    private final DatabaseEnvironment databaseEnvironment;
-    private final JdbcTemplate jdbcTemplate;
 
     @Transactional(readOnly = true)
     public Page<DimensionalityResponse> list(String keyword, Pageable pageable) {
-        return repository.findAll(MeasureClassService.byKeyword(keyword), pageable).map(this::toResponse);
+        return ItemListSorts.findAll(repository, MeasureClassService.byKeyword(keyword), pageable)
+                .map(this::toResponse);
     }
 
     @Transactional(readOnly = true)
@@ -74,25 +71,17 @@ public class DimensionalityService {
     }
 
     public void delete(UUID id) {
-        if (!repository.existsById(id)) {
-            throw new ResourceNotFoundException("Dimensionality", id);
-        }
+        Dimensionality entity = loadOrThrow(id);
+        // Recorded 及之后的注册状态已纳入版本控制，只能走 Retired，不允许直接删除
+        itemAdministrationService.assertDeletable(entity);
         long references = conceptualDomainRepository.countByDimensionality_Id(id);
         if (references > 0) {
             throw new BusinessException(ApiCodes.CONFLICT,
                     "维度正被 %d 个概念域引用，无法删除".formatted(references));
         }
-        // registered_item_submission_record.registered_item_id 外键指向 registered_item.id，
-        // 而 registered_item.id 与 item.id（即 dimensionality.id）是 JOINED 继承下的不同 id：
-        // 需先用 item_id 找到对应的 identified_item.id(=registered_item.id) 再清理。
-        // 否则 JPA 级联删除会在 administered_item 处被外键 FKcs... 拦下报 409。
-        //（参见 ContextTestDataInitializer.deleteAllContextsViaJdbc 同构写法）
-        jdbcTemplate.update(
-                "DELETE FROM " + databaseEnvironment.qualify("registered_item_submission_record")
-                        + " WHERE registered_item_id IN ("
-                        + "SELECT id FROM " + databaseEnvironment.qualify("identified_item")
-                        + " WHERE item_id = ?)",
-                id);
+        // 解除提交记录连接（registered_item_submission_record 外键）；
+        // 关联条目删光后空的 SubmissionRecord 一并删除
+        itemAdministrationService.removeFromSubmissionRecords(entity);
         repository.deleteById(id);
     }
 
@@ -120,6 +109,16 @@ public class DimensionalityService {
     }
 
     private DimensionalityResponse toResponse(Dimensionality entity) {
+
+
+        return toResponse(entity, null);
+
+
+    }
+
+
+
+    private DimensionalityResponse toResponse(Dimensionality entity, ItemAdministrationService.ItemMetaPreload preload) {
         List<MeasureClassRef> measureClasses = entity.getMeasureClasses().stream()
                 .map(mc -> new MeasureClassRef(mc.getId(), ItemNamingHelper.preferredDesignation(mc)))
                 .toList();
@@ -129,7 +128,7 @@ public class DimensionalityService {
                 entity.getSourceUri(),
                 itemAdministrationService.mapDesignations(entity),
                 itemAdministrationService.mapDefinitions(entity),
-                itemAdministrationService.buildItemMeta(entity),
+                itemAdministrationService.buildItemMeta(entity, preload),
                 entity.getCoordinateIndicator(),
                 measureClasses);
     }

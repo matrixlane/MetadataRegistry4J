@@ -156,6 +156,7 @@ class NamingConventionServiceTest {
                 null, null, null, null,
                 null, null, null, null,
                 null, null, null, null,
-                null, null, java.util.List.of());
+                null, null, java.util.List.of(),
+                List.of());
     }
 }

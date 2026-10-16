@@ -122,6 +122,7 @@ class FederationBundleServiceTest {
         DataElement item = new DataElement();
         item.setId(UUID.randomUUID());
         AdministeredItem ai = new AdministeredItem(item);
+        ai.setCreationDateTime(LocalDateTime.now());
         ai.setId(UUID.randomUUID());
         ScopedIdentifier raSi = new ScopedIdentifier("OWN-1", raNs, ai);
         raSi.setVersion("7");
@@ -163,6 +164,7 @@ class FederationBundleServiceTest {
         DataElement item = new DataElement();
         item.setId(UUID.randomUUID());
         AdministeredItem ai = new AdministeredItem(item);
+        ai.setCreationDateTime(LocalDateTime.now());
         ai.setId(UUID.randomUUID());
         ScopedIdentifier extSi = new ScopedIdentifier("EXT-1", externalNs, ai);
         extSi.setVersion("2");
@@ -192,9 +194,11 @@ class FederationBundleServiceTest {
         DataElement item = new DataElement();
         item.setId(UUID.randomUUID());
         AdministeredItem noIdentifier = new AdministeredItem(item);
+        noIdentifier.setCreationDateTime(LocalDateTime.now());
         assertThat(service.toSnapshot(noIdentifier, node("RAI-1"), Map.of())).isNull();
 
         AdministeredItem globalOnly = new AdministeredItem(item);
+        globalOnly.setCreationDateTime(LocalDateTime.now());
         Namespace global = new Namespace();
         global.setId(UUID.randomUUID());
         global.setSchemeReference(Sign.of(GlobalNamespaceService.GLOBAL_NAMESPACE_SCHEME));

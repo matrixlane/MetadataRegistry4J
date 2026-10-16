@@ -7,38 +7,33 @@ import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.prede
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.SubmissionRecord;
 import io.github.matrixlane.metadataregistry.web.dto.common.SubmissionRecordSummary;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
 /**
  * SubmissionRecord → SubmissionRecordSummary 转换（align-submission-record-to-iso）。
  *
- * <p>不触碰懒加载关联实体；registeredItems 通过实体已加载的 List 取 ID。
- * Contact 名称优先取所关联 Individual 的 {@code name}（Sign.value），否则 Contact.id；
+ * <p>Contact 名称优先取所关联 Individual 的 {@code name}（Sign.value），否则 Contact.id；
  * Organization 名称取 {@code name}（{@code List<Sign>}）第一条。</p>
+ *
+ * <p><b>registeredItemCount 由调用方提供</b>（2026-10-09）：原实现走
+ * {@code sr.getRegisteredItems()}，那会把关联的每个 {@code RegisteredItem} 实体物化出来，
+ * 而 RegisteredItem 是 Item 子类的 JOINED 继承根——一条提交记录关联上万条目时，
+ * 每个条目的响应都要把上万实体全部加载（叠加 buildItemMeta 的逐条调用即数十秒级超时）。
+ * 现改为由调用方按 {@code registered_item_submission_record} 做窄 COUNT 后传入，
+ * 完全不触碰受管项侧的继承映射，也不内联上万条 ID。</p>
  */
 final class SubmissionRecordMapper {
 
     private SubmissionRecordMapper() {
     }
 
-    static SubmissionRecordSummary toSummary(SubmissionRecord sr) {
-        String contactLabel = contactLabel(sr.getContact());
-        String organizationLabel = organizationLabel(sr.getOrganization());
-        List<UUID> registeredItemIds = sr.getRegisteredItems() == null
-                ? List.of()
-                : sr.getRegisteredItems().stream()
-                .map(ri -> ri == null || ri.getItem() == null ? null : ri.getItem().getId())
-                .filter(java.util.Objects::nonNull)
-                .toList();
-        int count = registeredItemIds.size();
+    static SubmissionRecordSummary toSummary(SubmissionRecord sr, long registeredItemCount) {
         return new SubmissionRecordSummary(
                 sr.getId(),
-                contactLabel,
-                organizationLabel,
-                count,
-                new ArrayList<>(registeredItemIds));
+                contactLabel(sr.getContact()),
+                organizationLabel(sr.getOrganization()),
+                registeredItemCount);
     }
 
     private static String contactLabel(Contact contact) {

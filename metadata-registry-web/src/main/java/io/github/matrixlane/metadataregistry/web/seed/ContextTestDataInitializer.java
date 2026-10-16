@@ -86,7 +86,7 @@ public class ContextTestDataInitializer implements CommandLineRunner {
 
     /**
      * 通过 JDBC 按外键依赖顺序级联删除所有 Context 数据。
-     * identified_item.id 与 item.id 是分离的，需先查后删。
+     * registered_item.id 与 item.id 是分离的，需先查后删。
      */
     private void deleteAllContextsViaJdbc() {
         List<UUID> itemIds = queryUuids("SELECT id FROM " + t("context"));
@@ -94,7 +94,7 @@ public class ContextTestDataInitializer implements CommandLineRunner {
 
         String itemIn = inClause(itemIds.size());
         List<UUID> identifiedItemIds = queryUuids(
-                "SELECT id FROM " + t("identified_item") + " WHERE item_id IN (" + itemIn + ")", uuidParams(itemIds));
+                "SELECT id FROM " + t("registered_item") + " WHERE item_id IN (" + itemIn + ")", uuidParams(itemIds));
         String identifiedIn = identifiedItemIds.isEmpty() ? null : inClause(identifiedItemIds.size());
 
         // 子表 -> 父表，遵循 FK 约束顺序
@@ -115,7 +115,7 @@ public class ContextTestDataInitializer implements CommandLineRunner {
         deleteWhereIn(t("administered_item"), "id", identifiedItemIds, identifiedIn);
         deleteWhereIn(t("registered_item"), "id", identifiedItemIds, identifiedIn);
         deleteWhereIn(t("registration_state"), "id", stateIds, stateIn);
-        deleteWhereIn(t("identified_item"), "id", identifiedItemIds, identifiedIn);
+        deleteWhereIn(t("registered_item"), "id", identifiedItemIds, identifiedIn);
         deleteWhereIn(t("context"), "id", itemIds, itemIn);
         deleteWhereIn(t("item"), "id", itemIds, itemIn);
     }

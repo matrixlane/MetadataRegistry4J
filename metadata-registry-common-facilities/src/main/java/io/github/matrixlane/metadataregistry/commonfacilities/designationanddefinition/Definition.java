@@ -49,7 +49,9 @@ public class Definition extends Entity {
     @OneToMany(mappedBy = "definition", cascade = jakarta.persistence.CascadeType.ALL, orphanRemoval = true)
     private List<DefinitionContext> definitionContexts = new ArrayList<>();
 
-    @OneToMany(mappedBy = "definition")
+    // 与 Designation.designationDefinitionPairings 同理：配对行随定义一并级联删除，
+    // 否则条目删除时 designation_definition_pairing.definition_id 外键冲突（409）。
+    @OneToMany(mappedBy = "definition", cascade = jakarta.persistence.CascadeType.ALL, orphanRemoval = true)
     private List<DesignationDefinitionPairing> designationDefinitionPairings = new ArrayList<>();
 
     @Override

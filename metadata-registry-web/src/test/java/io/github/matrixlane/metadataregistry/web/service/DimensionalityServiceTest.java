@@ -141,7 +141,7 @@ class DimensionalityServiceTest {
     @Test
     void delete_referencedByConceptualDomain_throwsConflict() {
         UUID id = UUID.randomUUID();
-        when(repository.existsById(id)).thenReturn(true);
+        when(repository.findById(id)).thenReturn(Optional.of(new Dimensionality()));
         when(conceptualDomainRepository.countByDimensionality_Id(id)).thenReturn(2L);
 
         assertThatThrownBy(() -> service.delete(id))
@@ -155,27 +155,20 @@ class DimensionalityServiceTest {
     @Test
     void delete_unreferenced_deletes() {
         UUID id = UUID.randomUUID();
-        when(repository.existsById(id)).thenReturn(true);
+        Dimensionality entity = new Dimensionality();
+        when(repository.findById(id)).thenReturn(Optional.of(entity));
         when(conceptualDomainRepository.countByDimensionality_Id(id)).thenReturn(0L);
-        lenient().when(databaseEnvironment.qualify("registered_item_submission_record"))
-                .thenReturn("registered_item_submission_record");
-        lenient().when(databaseEnvironment.qualify("identified_item"))
-                .thenReturn("identified_item");
-        lenient().when(databaseEnvironment.toJdbcUuid(id)).thenReturn(id);
 
         service.delete(id);
 
-        verify(jdbcTemplate).update(
-                "DELETE FROM registered_item_submission_record "
-                        + "WHERE registered_item_id IN (SELECT id FROM identified_item WHERE item_id = ?)",
-                id);
+        verify(itemAdministrationService).removeFromSubmissionRecords(entity);
         verify(repository).deleteById(id);
     }
 
     @Test
     void delete_unknownId_throwsNotFound() {
         UUID id = UUID.randomUUID();
-        when(repository.existsById(id)).thenReturn(false);
+        when(repository.findById(id)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.delete(id))
                 .isInstanceOf(ResourceNotFoundException.class);

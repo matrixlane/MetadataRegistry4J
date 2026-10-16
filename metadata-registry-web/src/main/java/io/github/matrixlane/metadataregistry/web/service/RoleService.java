@@ -32,6 +32,12 @@ public class RoleService {
     private final RoleRepository roleRepository;
     private final ContactRepository contactRepository;
 
+    /**
+     * 角色列表，关键词按 roleName 检索。
+     *
+     * <p>维持仅名称匹配：Role 是独立根实体（{@code Role extends Entity}），不在受管链上，
+     * 不存在 Scoped_Identifier 行；roleName 即其全部可检索属性。</p>
+     */
     @Transactional(readOnly = true)
     public Page<RoleResponse> list(String q, Pageable pageable) {
         if (q == null || q.isBlank()) {

@@ -168,11 +168,14 @@ public class ActiveRegistrarService {
         if (accountId == null) {
             return;
         }
-        AdministeredItem ai = administeredItemRepository.findByItem_Id(itemId).orElse(null);
-        if (ai == null || ai.getRegistrationAuthority() == null) {
+        // 只取归属注册机构标识的投影查询，不加载受管项实体图：
+        // findByItem_Id 会把 Item 全部子类表与整个关联对象图拼进同一条 SQL 的 join，
+        // SQLite 侧必超 64 表上限（KNOWN_FAILURES failure-2026-09-21-sqlite-64-table-join-limit）。
+        UUID ownerId = administeredItemRepository.findRegistrationAuthorityIdByItemId(itemId).orElse(null);
+        if (ownerId == null) {
             return;
         }
-        assertActiveIdentityOf(ai.getRegistrationAuthority(), accountId);
+        assertActiveIdentityOf(ownerId, accountId);
     }
 
     /**
@@ -191,16 +194,20 @@ public class ActiveRegistrarService {
     }
 
     private void assertActiveIdentityOf(RegistrationAuthority owner, UUID accountId) {
+        assertActiveIdentityOf(owner.getId(), accountId);
+    }
+
+    private void assertActiveIdentityOf(UUID ownerId, UUID accountId) {
         Optional<Registrar> active = resolveActiveRegistrar(accountId);
         boolean allowed = active.isPresent()
                 && active.get().getRegistrationAuthority() != null
-                && owner.getId().equals(active.get().getRegistrationAuthority().getId());
+                && ownerId.equals(active.get().getRegistrationAuthority().getId());
         // Submitter 通道（add-submitter-contact-identity）：无活动 Registrar 但已登记
         // 为 Contact 的账号，对归属系统唯一注册机构的条目放行写操作（当系统中
         // 恰好只有一个注册机构时按该唯一机构归属）。
         if (!allowed && contactAccountService.hasAnyContact(accountId)) {
             List<RegistrationAuthority> all = registrationAuthorityRepository.findAll();
-            allowed = all.size() == 1 && all.get(0).getId().equals(owner.getId());
+            allowed = all.size() == 1 && all.get(0).getId().equals(ownerId);
         }
         if (!allowed) {
             throw new AccessDeniedException(

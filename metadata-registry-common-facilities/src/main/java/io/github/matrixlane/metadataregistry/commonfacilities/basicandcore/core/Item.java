@@ -3,7 +3,7 @@ package io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.core
 import io.github.matrixlane.metadataregistry.commonfacilities.basicandcore.StandardReference;
 import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.Definition;
 import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.Designation;
-import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifiedItem;
+import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegisteredItem;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Inheritance;
 import jakarta.persistence.InheritanceType;
@@ -42,13 +42,13 @@ public abstract class Item extends Entity {
      * Item identification 关联(11179-3:2023 7.4.1):0..1。
      */
     @jakarta.persistence.OneToOne(mappedBy = "item", cascade = CascadeType.ALL, orphanRemoval = true, fetch = jakarta.persistence.FetchType.LAZY)
-    private IdentifiedItem identifiedItem;
+    private RegisteredItem identifiedItem;
 
-    public IdentifiedItem getIdentifiedItem() {
+    public RegisteredItem getIdentifiedItem() {
         return identifiedItem;
     }
 
-    public void setIdentifiedItem(IdentifiedItem identifiedItem) {
+    public void setIdentifiedItem(RegisteredItem identifiedItem) {
         this.identifiedItem = identifiedItem;
         if (identifiedItem != null) {
             identifiedItem.setItem(this);

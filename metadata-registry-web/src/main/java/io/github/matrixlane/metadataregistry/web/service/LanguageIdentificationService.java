@@ -25,6 +25,13 @@ public class LanguageIdentificationService {
     private final LanguageGovernanceService governanceService;
     private final LanguageExtensionService extensionService;
 
+    /**
+     * 语言列表，关键词按语言/文字/地区标识符检索。
+     *
+     * <p>三列本身就是该实体的标识属性，已满足"标识符可搜"；LanguageIdentification 是
+     * 独立根实体（{@code LanguageIdentification extends Entity}），不在受管链上，
+     * 无 Scoped_Identifier 行，故无需再补受管链标识符匹配。</p>
+     */
     @Transactional(readOnly = true)
     public Page<LanguageResponse> list(String keyword, Boolean enabled, Pageable pageable) {
         Specification<LanguageIdentification> spec = Specification.where(null);

@@ -30,7 +30,9 @@ public class DataTypeService {
     @Transactional(readOnly = true)
     public Page<DataTypeResponse> list(String keyword, Pageable pageable) {
         Specification<DataType> spec = ObjectClassService.byKeyword(keyword);
-        return repository.findAll(spec, pageable).map(this::toResponse);
+        var page0 = ItemListSorts.findAll(repository, spec, pageable);
+        var preload0 = itemAdministrationService.preloadItemMeta(page0.getContent());
+        return page0.map(entity -> toResponse(entity, preload0));
     }
 
     @Transactional(readOnly = true)
@@ -58,7 +60,11 @@ public class DataTypeService {
     public void delete(UUID id) {
         DataType entity = repository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("DataType", id));
+        // Recorded 及之后的注册状态已纳入版本控制，只能走 Retired，不允许直接删除
+        itemAdministrationService.assertDeletable(entity);
         versionHistoryService.recordSnapshot(entity, "DELETE", toResponse(entity));
+        // 解除提交记录连接；关联条目删光后空的 SubmissionRecord 一并删除
+        itemAdministrationService.removeFromSubmissionRecords(entity);
         repository.deleteById(id);
     }
 
@@ -87,6 +93,16 @@ public class DataTypeService {
     }
 
     private DataTypeResponse toResponse(DataType entity) {
+
+
+        return toResponse(entity, null);
+
+
+    }
+
+
+
+    private DataTypeResponse toResponse(DataType entity, ItemAdministrationService.ItemMetaPreload preload) {
         DataTypeScheme scheme = entity.getDataTypeScheme();
         return new DataTypeResponse(
                 entity.getId(),
@@ -96,6 +112,6 @@ public class DataTypeService {
                 entity.getAnnotation(),
                 itemAdministrationService.mapDesignations(entity),
                 itemAdministrationService.mapDefinitions(entity),
-                itemAdministrationService.buildItemMeta(entity));
+                itemAdministrationService.buildItemMeta(entity, preload));
     }
 }

@@ -1,7 +1,7 @@
 package io.github.matrixlane.metadataregistry.web.service;
 
 import io.github.matrixlane.metadataregistry.ext.identification.IdentifierVersionHistory;
-import io.github.matrixlane.metadataregistry.commonfacilities.identification.IdentifiedItem;
+import io.github.matrixlane.metadataregistry.commonfacilities.registration.AdministeredItem;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.Namespace;
 import io.github.matrixlane.metadataregistry.commonfacilities.identification.ScopedIdentifier;
 import io.github.matrixlane.metadataregistry.ext.identification.VersionStatus;
@@ -12,7 +12,7 @@ import io.github.matrixlane.metadataregistry.web.dto.scopedidentifier.ScopedIden
 import io.github.matrixlane.metadataregistry.web.dto.scopedidentifier.ScopedIdentifierResponse;
 import io.github.matrixlane.metadataregistry.web.dto.scopedidentifier.VersionTransitionRequest;
 import io.github.matrixlane.metadataregistry.web.repository.IdentifierVersionHistoryRepository;
-import io.github.matrixlane.metadataregistry.web.repository.IdentifiedItemRepository;
+import io.github.matrixlane.metadataregistry.web.repository.RegisteredItemRepository;
 import io.github.matrixlane.metadataregistry.web.repository.NamespaceRepository;
 import io.github.matrixlane.metadataregistry.web.repository.ScopedIdentifierRepository;
 import io.github.matrixlane.metadataregistry.web.service.identifier.IdentifierInputPolicyService;
@@ -50,7 +50,7 @@ class ScopedIdentifierServiceTest {
     @Mock
     private NamespaceRepository namespaceRepository;
     @Mock
-    private IdentifiedItemRepository identifiedItemRepository;
+    private RegisteredItemRepository registeredItemRepository;
     @Mock
     private IdentifierInputPolicyService identifierInputPolicyService;
 
@@ -66,7 +66,7 @@ class ScopedIdentifierServiceTest {
     private UUID identifiedItemId;
     private UUID scopedIdentifierId;
     private Namespace namespace;
-    private IdentifiedItem identifiedItem;
+    private AdministeredItem identifiedItem;
 
     @BeforeEach
     void setUp() {
@@ -77,7 +77,8 @@ class ScopedIdentifierServiceTest {
         namespace = new Namespace();
         namespace.setId(namespaceId);
 
-        identifiedItem = new IdentifiedItem();
+        identifiedItem = new AdministeredItem();
+        identifiedItem.setCreationDateTime(LocalDateTime.now());
         identifiedItem.setId(identifiedItemId);
 
         // 卫星实体默认行为：无卫星行时返回默认值(语义同字段时代初始值)
@@ -118,9 +119,9 @@ class ScopedIdentifierServiceTest {
     @Test
     void create_shouldGenerateIdentifierWhenBlank() {
         when(namespaceRepository.findById(namespaceId)).thenReturn(Optional.of(namespace));
-        when(identifiedItemRepository.existsById(identifiedItemId)).thenReturn(true);
-        when(identifiedItemRepository.findItemIdById(identifiedItemId)).thenReturn(Optional.empty());
-        when(identifiedItemRepository.getReferenceById(identifiedItemId)).thenReturn(identifiedItem);
+        when(registeredItemRepository.existsById(identifiedItemId)).thenReturn(true);
+        when(registeredItemRepository.findItemIdById(identifiedItemId)).thenReturn(Optional.empty());
+        when(registeredItemRepository.getReferenceById(identifiedItemId)).thenReturn(identifiedItem);
         when(identifierInputPolicyService.resolveIdentifier(eq(namespace), isNull(), anyString(), any()))
                 .thenReturn("gen-id-123");
         when(identifierInputPolicyService.resolveVersion(eq(namespace), isNull())).thenReturn("1.0.0");
@@ -145,9 +146,9 @@ class ScopedIdentifierServiceTest {
     @Test
     void create_shouldUseProvidedIdentifier() {
         when(namespaceRepository.findById(namespaceId)).thenReturn(Optional.of(namespace));
-        when(identifiedItemRepository.existsById(identifiedItemId)).thenReturn(true);
-        when(identifiedItemRepository.findItemIdById(identifiedItemId)).thenReturn(Optional.empty());
-        when(identifiedItemRepository.getReferenceById(identifiedItemId)).thenReturn(identifiedItem);
+        when(registeredItemRepository.existsById(identifiedItemId)).thenReturn(true);
+        when(registeredItemRepository.findItemIdById(identifiedItemId)).thenReturn(Optional.empty());
+        when(registeredItemRepository.getReferenceById(identifiedItemId)).thenReturn(identifiedItem);
         when(identifierInputPolicyService.resolveIdentifier(eq(namespace), eq("custom-id"), anyString(), any()))
                 .thenReturn("custom-id");
         when(identifierInputPolicyService.resolveVersion(namespace, "2.0.0")).thenReturn("2.0.0");
@@ -171,9 +172,9 @@ class ScopedIdentifierServiceTest {
     @Test
     void create_shouldThrowWhenDuplicateIdentifier() {
         when(namespaceRepository.findById(namespaceId)).thenReturn(Optional.of(namespace));
-        when(identifiedItemRepository.existsById(identifiedItemId)).thenReturn(true);
-        when(identifiedItemRepository.findItemIdById(identifiedItemId)).thenReturn(Optional.empty());
-        when(identifiedItemRepository.getReferenceById(identifiedItemId)).thenReturn(identifiedItem);
+        when(registeredItemRepository.existsById(identifiedItemId)).thenReturn(true);
+        when(registeredItemRepository.findItemIdById(identifiedItemId)).thenReturn(Optional.empty());
+        when(registeredItemRepository.getReferenceById(identifiedItemId)).thenReturn(identifiedItem);
         when(identifierInputPolicyService.resolveIdentifier(eq(namespace), eq("dup-id"), anyString(), any()))
                 .thenReturn("dup-id");
         when(scopedIdentifierRepository.existsByNamespaceIdAndIdentifier(namespaceId, "dup-id")).thenReturn(true);
@@ -189,9 +190,9 @@ class ScopedIdentifierServiceTest {
     @Test
     void create_shouldHandleConcurrentConflict() {
         when(namespaceRepository.findById(namespaceId)).thenReturn(Optional.of(namespace));
-        when(identifiedItemRepository.existsById(identifiedItemId)).thenReturn(true);
-        when(identifiedItemRepository.findItemIdById(identifiedItemId)).thenReturn(Optional.empty());
-        when(identifiedItemRepository.getReferenceById(identifiedItemId)).thenReturn(identifiedItem);
+        when(registeredItemRepository.existsById(identifiedItemId)).thenReturn(true);
+        when(registeredItemRepository.findItemIdById(identifiedItemId)).thenReturn(Optional.empty());
+        when(registeredItemRepository.getReferenceById(identifiedItemId)).thenReturn(identifiedItem);
         when(scopedIdentifierRepository.existsByNamespaceIdAndIdentifier(any(), any())).thenReturn(false);
         when(scopedIdentifierRepository.save(any())).thenThrow(new DataIntegrityViolationException("dup"));
 
@@ -217,7 +218,7 @@ class ScopedIdentifierServiceTest {
     @Test
     void create_shouldThrowWhenIdentifiedItemNotFound() {
         when(namespaceRepository.findById(namespaceId)).thenReturn(Optional.of(namespace));
-        when(identifiedItemRepository.existsById(identifiedItemId)).thenReturn(false);
+        when(registeredItemRepository.existsById(identifiedItemId)).thenReturn(false);
 
         ScopedIdentifierCreateRequest request = new ScopedIdentifierCreateRequest(
                 namespaceId, "id", "1.0.0", identifiedItemId, null);
@@ -229,9 +230,9 @@ class ScopedIdentifierServiceTest {
     @Test
     void create_shouldThrowForInvalidVersion() {
         when(namespaceRepository.findById(namespaceId)).thenReturn(Optional.of(namespace));
-        when(identifiedItemRepository.existsById(identifiedItemId)).thenReturn(true);
-        when(identifiedItemRepository.findItemIdById(identifiedItemId)).thenReturn(Optional.empty());
-        when(identifiedItemRepository.getReferenceById(identifiedItemId)).thenReturn(identifiedItem);
+        when(registeredItemRepository.existsById(identifiedItemId)).thenReturn(true);
+        when(registeredItemRepository.findItemIdById(identifiedItemId)).thenReturn(Optional.empty());
+        when(registeredItemRepository.getReferenceById(identifiedItemId)).thenReturn(identifiedItem);
         when(identifierInputPolicyService.resolveIdentifier(eq(namespace), eq("id"), anyString(), any()))
                 .thenReturn("id");
         when(identifierInputPolicyService.resolveVersion(namespace, "invalid"))

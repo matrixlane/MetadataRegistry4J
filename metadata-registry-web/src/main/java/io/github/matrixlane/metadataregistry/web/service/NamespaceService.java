@@ -79,20 +79,13 @@ public class NamespaceService {
     }
 
     /**
-     * 分页列出命名空间。
+     * 分页列出命名空间。关键词同时匹配名称（指称）与标识符，见
+     * {@link ObjectClassService#byKeyword}。
      */
     @Transactional(readOnly = true)
     public Page<NamespaceResponse> list(String keyword, Pageable pageable) {
-        Specification<Namespace> spec = Specification.where(null);
-        if (keyword != null && !keyword.isBlank()) {
-            String like = "%" + keyword.toLowerCase() + "%";
-            spec = spec.and((root, q, cb) -> {
-                if (q != null) q.distinct(true);
-                var d = root.join("designations", jakarta.persistence.criteria.JoinType.LEFT);
-                return cb.like(cb.lower(d.get("sign").get("value")), like);
-            });
-        }
-        return repository.findAll(spec, pageable).map(this::toResponse);
+        Specification<Namespace> spec = ObjectClassService.byKeyword(keyword);
+        return ItemListSorts.findAll(repository, spec, pageable).map(this::toResponse);
     }
 
     @Transactional(readOnly = true)
@@ -121,9 +114,11 @@ public class NamespaceService {
     }
 
     public void delete(UUID id) {
-        if (!repository.existsById(id)) {
-            throw new ResourceNotFoundException("Namespace", id);
-        }
+        Namespace entity = loadOrThrow(id);
+        // Recorded 及之后的注册状态已纳入版本控制，只能走 Retired，不允许直接删除
+        itemAdministrationService.assertDeletable(entity);
+        // 解除提交记录连接；关联条目删光后空的 SubmissionRecord 一并删除
+        itemAdministrationService.removeFromSubmissionRecords(entity);
         repository.deleteById(id);
     }
 
@@ -253,6 +248,12 @@ public class NamespaceService {
         // 收到 SEGMENT_TEMPLATE 时保持现状（不禁用、不重建）。此前此路径会把
         // buildConfigJson 无法构造的 "{}" 直接发布，导致该命名空间标识生成失败
         if ("SEGMENT_TEMPLATE".equalsIgnoreCase(type)) {
+            return;
+        }
+        // UUID 是内置兜底策略，无需配置行；旧版表单把 identifierStrategy 默认值
+        // "UUID" 随命名空间保存回传，此路径曾据此禁用（含刚发布的）段模板策略，
+        // 导致设计器保存后随即丢失。UUID 一律保持现状，不做任何配置变更。
+        if ("UUID".equalsIgnoreCase(type)) {
             return;
         }
         List<IdentifierStrategyConfig> existing =

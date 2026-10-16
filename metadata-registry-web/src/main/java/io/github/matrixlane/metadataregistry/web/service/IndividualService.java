@@ -25,6 +25,12 @@ public class IndividualService {
 
     private final IndividualRepository repository;
 
+    /**
+     * 个人列表（排除已绑定停用账号的 Individual），关键词按姓名与称谓检索。
+     *
+     * <p>维持不加标识符匹配：Individual 是独立根实体（{@code Individual extends Entity}），
+     * 不在受管链上，不存在 Scoped_Identifier 行。</p>
+     */
     @Transactional(readOnly = true)
     public Page<IndividualResponse> list(String keyword, Pageable pageable) {
         Specification<Individual> spec = Specification.where((root, query, cb) -> {
