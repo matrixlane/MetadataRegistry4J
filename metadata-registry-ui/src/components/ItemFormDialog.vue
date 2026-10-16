@@ -135,6 +135,24 @@
           <slot name="associations" :form="form" />
         </el-tab-pane>
 
+        <!-- Reference Documents Tab：引用关联（11179-3:2023 §9.5.2）挂在受管项上，
+             故仅在条目已有 AdministeredItem 实例时渲染 -->
+        <el-tab-pane v-if="showReferenceDocuments" name="referenceDocuments">
+          <template #label>
+            <span class="tab-label-container">
+              <span>{{ $t('itemForm.referenceDocumentsTab') }}</span>
+              <el-icon v-if="hasTabError('referenceDocuments')" class="tab-error-icon"><Warning /></el-icon>
+            </span>
+          </template>
+          <ItemReferenceDocumentsSection
+            :model-value="referenceDocumentIds"
+            :readonly="!isEditing"
+            @update:model-value="syncReferenceDocumentIds"
+            @add="addReferenceDocuments"
+            @remove="removeReferenceDocuments"
+          />
+        </el-tab-pane>
+
         <!-- Registration_State Tab：11179-3:2023 表 22 注册状态属性 -->
         <el-tab-pane v-if="showRegistration" name="registrationState">
           <template #label>
@@ -156,10 +174,10 @@
           </template>
           <el-collapse v-if="contacts.length > 0" v-model="registrationRecordsCollapse" style="margin-top: 16px;">
             <el-collapse-item :title="$t('itemForm.stewardshipInfo.title')" name="stewardship">
-              <el-form-item :label="$t('itemForm.submissionInfo.organization')">
+              <el-form-item :label="$t('itemForm.stewardshipInfo.organization')">
                 <el-select
                   v-model="form.registration.stewardship.organizationId"
-                  :placeholder="$t('itemForm.submissionInfo.organizationPlaceholder')"
+                  :placeholder="$t('itemForm.stewardshipInfo.organizationPlaceholder')"
                   clearable
                   filterable
                   style="width: 100%;"
@@ -178,14 +196,13 @@
                   />
                 </el-select>
               </el-form-item>
-              <el-form-item :label="$t('itemForm.submissionInfo.contact')">
+              <el-form-item :label="$t('itemForm.stewardshipInfo.contact')">
                 <el-select
                   v-model="form.registration.stewardship.contactId"
-                  :placeholder="$t('itemForm.submissionInfo.contactPlaceholder')"
+                  :placeholder="$t('itemForm.stewardshipInfo.contactPlaceholder')"
                   clearable
                   style="width: 100%;"
                   data-testid="stewardship-contact-select"
-                  @change="onStewardshipContactChange"
                 >
                   <template #label="{ label, value }">
                     <span v-if="isPendingOption(value, contacts, contactsLoaded)">…</span>
@@ -208,26 +225,20 @@
                 :image-size="60"
                 data-testid="submission-records-empty"
               />
-              <div v-else class="submission-records-list" data-testid="submission-records-list">
-                <div
-                  v-for="sr in form.registration.submissionRecordSummaries"
-                  :key="sr.id"
-                  class="submission-record-row"
-                  data-testid="submission-record-row"
-                >
-                  <el-descriptions :column="1" size="small" border>
-                    <el-descriptions-item :label="$t('itemForm.submissionRecords.contact')">
-                      {{ sr.contactLabel || '—' }}
-                    </el-descriptions-item>
-                    <el-descriptions-item :label="$t('itemForm.submissionRecords.organization')">
-                      {{ sr.organizationLabel || '—' }}
-                    </el-descriptions-item>
-                    <el-descriptions-item :label="$t('itemForm.submissionRecords.itemCount')">
-                      {{ sr.registeredItemCount }}
-                    </el-descriptions-item>
-                  </el-descriptions>
-                </div>
-              </div>
+              <el-table
+                v-else
+                :data="form.registration.submissionRecordSummaries"
+                size="small"
+                border
+                data-testid="submission-records-list"
+              >
+                <el-table-column :label="$t('itemForm.submissionRecords.organization')" min-width="200">
+                  <template #default="{ row }">{{ row.organizationLabel || '—' }}</template>
+                </el-table-column>
+                <el-table-column :label="$t('itemForm.submissionRecords.contact')" min-width="200">
+                  <template #default="{ row }">{{ row.contactLabel || '—' }}</template>
+                </el-table-column>
+              </el-table>
             </el-collapse-item>
           </el-collapse>
           <el-alert
@@ -357,9 +368,10 @@ import MultilingualTextEditor from './MultilingualTextEditor.vue';
 import DesignationDefinitionPairingEditor from './DesignationDefinitionPairingEditor.vue';
 import ItemRegistrationSection from './ItemRegistrationSection.vue';
 import ItemRegistrationStateSection from './ItemRegistrationStateSection.vue';
+import ItemReferenceDocumentsSection from './ItemReferenceDocumentsSection.vue';
 import AiCandidatePopover from './assistant/AiCandidatePopover.vue';
 import type { FieldCandidate, AiDraft } from './assistant/AiCandidatePopover.vue';
-import { namingConventionApi, namespaceApi, pairingApi, myContactApi, organizationApi } from '@/api/resources';
+import { namingConventionApi, namespaceApi, pairingApi, myContactApi, organizationApi, administeredItemReferenceApi } from '@/api/resources';
 import { languageApi } from '@/api/resources';
 import { useRegistryDefaultLanguage } from '@/composables/useRegistryDefaultLanguage';
 import { useAuthStore } from '@/stores/auth';
@@ -381,7 +393,7 @@ interface RegistrationForm {
   unresolvedIssue?: string;
   /** 条目解释性注释（explanatory comment）；null/undefined = 不变更，空串 = 清空 */
   explanatoryComment?: string;
-  /** 主管信息（所属组织 + 联系人），编辑表单可维护。 */
+  /** 主管信息（主管机构 + 主管人员），编辑表单可维护。 */
   stewardship: { contactId: string | null; organizationId: string | null };
   /** 关联 SubmissionRecord 列表（align-submission-record-to-iso 只读展示用）。
    *  编辑表单展示历史提交记录；后端 ItemMetaResponse.submissionRecordSummaries 填充。 */
@@ -625,6 +637,41 @@ const designationNamingConventionOptions = computed(() =>
 
 const isEditing = computed(() => !!form.id);
 
+/** 引用关联挂在 AdministeredItem 上；无受管实例的条目（如新建态）不渲染参考文档页签。 */
+const administeredItemId = computed<string | null>(
+  () => (form.meta?.administeredItemId as string | undefined) ?? null,
+);
+const showReferenceDocuments = computed(
+  () => props.showRegistration && isEditing.value && !!administeredItemId.value,
+);
+const referenceDocumentIds = computed<string[]>(() => (form.meta?.referenceDocumentIds as string[]) ?? []);
+
+/** 子区块先 emit update:modelValue（局部乐观变更），这里把它写回 form.meta 驱动列表刷新。 */
+function syncReferenceDocumentIds(ids: string[]) {
+  form.meta = { ...(form.meta ?? ({} as any)), referenceDocumentIds: ids };
+}
+
+async function addReferenceDocuments(ids: string[]) {
+  if (!administeredItemId.value || ids.length === 0) return;
+  // update:modelValue 已先把 ids 并入列表；接口失败则回滚这部分变更。
+  const current = referenceDocumentIds.value;
+  try {
+    await administeredItemReferenceApi.add(administeredItemId.value, ids);
+  } catch {
+    syncReferenceDocumentIds(current.filter((id) => !ids.includes(id)));
+  }
+}
+
+async function removeReferenceDocuments(ids: string[]) {
+  if (!administeredItemId.value || ids.length === 0) return;
+  const current = referenceDocumentIds.value;
+  try {
+    await administeredItemReferenceApi.remove(administeredItemId.value, ids);
+  } catch {
+    syncReferenceDocumentIds([...current, ...ids]);
+  }
+}
+
 watch(() => form.registration.namespaceId, (namespaceId) => {
   loadNamespaceDetail(namespaceId);
 });
@@ -699,7 +746,7 @@ const contactsLoaded = ref(false);
 const organizationOptions = ref<{ id: string; label: string }[]>([]);
 const organizationsLoaded = ref(false);
 const submissionCollapse = ref<string[]>(['submission']);
-const registrationRecordsCollapse = ref<string[]>(['stewardship']);
+const registrationRecordsCollapse = ref<string[]>(['stewardship', 'submissionRecords']);
 
 /** 选项加载完成前，未命中的选中值显示占位而非原始 id */
 function isPendingOption(value: unknown, options: { id: string }[], done: boolean): boolean {
@@ -717,11 +764,10 @@ function isUnresolvedOption(value: unknown, options: { id: string }[]): boolean 
 function contactLabel(contact: MyContactResponse): string {
   const parts = [
     contact.individualName || contact.organizationName,
-    contact.organizationName && contact.individualName ? `(${contact.organizationName})` : undefined,
+    contact.organizationName && contact.individualName ? contact.organizationName : undefined,
     contact.roleName,
   ].filter(Boolean);
-  const label = parts.join(' · ') || '—';
-  return contact.isDefault ? `${label} (${t('contactIdentity.default')})` : label;
+  return parts.join(' · ') || '—';
 }
 
 async function loadContacts() {
@@ -748,11 +794,6 @@ async function loadOrganizations() {
   } finally {
     organizationsLoaded.value = true;
   }
-}
-
-function onStewardshipContactChange(contactId: string) {
-  const contact = contacts.value.find((c) => c.id === contactId);
-  form.registration.stewardship.organizationId = contact?.organizationId || null;
 }
 
 async function loadNamespaceDetail(namespaceId: string | undefined) {
@@ -855,7 +896,7 @@ function reset() {
   contacts.value = [];
   contactsLoaded.value = false;
   submissionCollapse.value = ['submission'];
-  registrationRecordsCollapse.value = ['stewardship'];
+  registrationRecordsCollapse.value = ['stewardship', 'submissionRecords'];
   registrationSectionRef.value?.reset();
   formRef.value?.resetFields();
   // 对话框关闭/重开：行级候选缓存、进行中/失败态与会话内悬停态一并失效
@@ -1365,18 +1406,6 @@ async function syncPairings(itemId: string, result?: unknown) {
 // form 一并暴露：视图在 open() 后需要回写类型/默认值（值域、概念域的 kind 预置与有效期预填）
 defineExpose({ open, form });
 </script>
-
-<style scoped>
-.submission-records-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.submission-record-row {
-  padding: 8px 0;
-}
-</style>
 
 <style scoped>
 /* "指称与定义"内嵌二级 Tab：弱化边框，避免与外层 border-card 叠加过重 */

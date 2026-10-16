@@ -184,7 +184,15 @@ const generationModeOptions = [
 const templateVariables = ref<TemplateVariable[]>([]);
 const variableValues = reactive<Record<string, string>>({});
 
-const ownershipLabel = computed(() => props.registrationAuthorityName || activeRaName.value);
+const ownershipLabel = computed(() =>
+  // 编辑态只显示条目自身登记的注册机构（props，来自后端 meta.registrationAuthorityName）。
+  // 不可回退到"当前登录用户的活动 Registrar 所属机构"——那是查看者是谁，不是条目归谁管；
+  // 回退会让任何无归属条目在界面上显示成查看者的机构（2026-10-09 事故：导入的 WS 363/364
+  // 条目补齐受管项后 RA 为空，界面却显示卫宁健康，掩盖了归属缺失）。
+  // 新建态条目尚未存在，其归属在保存时由活动 Registrar 推导（resolveOwnershipForCreate），
+  // 故此处显示活动机构是"将写入什么"的合理预览。
+  props.isEditing ? props.registrationAuthorityName : activeRaName.value
+);
 
 const selectedNamespace = computed(() =>
   namespaces.value.find((ns) => ns.id === model.value.namespaceId)
@@ -245,7 +253,7 @@ const identifierPlaceholder = computed(() => {
 
 const versionPlaceholder = computed(() => {
   if (props.isEditing) {
-    return wasVersionAuto.value ? '自动生成，不可编辑' : '留空则按命名空间策略自动递增';
+    return wasVersionAuto.value ? '自动生成，不可编辑' : '留空则保持当前版本';
   }
   if (versionAutoInEffect.value) return '保存后自动生成';
   switch (selectedNamespace.value?.versioningPolicy) {

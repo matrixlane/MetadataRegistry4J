@@ -7,22 +7,20 @@
       </p>
     </div>
 
-    <el-row :gutter="16">
-      <el-col :span="6" v-for="item in stats" :key="item.label">
-        <el-card shadow="never" class="stat-card--dark">
-          <div class="stat-card__label">{{ item.label }}</div>
-          <span class="stat-card__badge">{{ item.badge }}</span>
-          <div class="stat-card__value">
-            {{ item.value }}<span class="stat-card__unit">{{ item.unit }}</span>
-          </div>
-          <div class="stat-card__sub">{{ item.sub }}</div>
-          <span
-            class="stat-card__trend"
-            :class="item.trendDown ? 'stat-card__trend--down' : 'stat-card__trend--up'"
-          >{{ item.trend }}</span>
-        </el-card>
-      </el-col>
-    </el-row>
+    <div class="stat-row">
+      <el-card v-for="item in stats" :key="item.label" shadow="never" class="stat-card--dark stat-row__item">
+        <div class="stat-card__label">{{ item.label }}</div>
+        <span class="stat-card__badge">{{ item.badge }}</span>
+        <div class="stat-card__value">
+          {{ item.value }}<span class="stat-card__unit">{{ item.unit }}</span>
+        </div>
+        <div class="stat-card__sub">{{ item.sub }}</div>
+        <span
+          class="stat-card__trend"
+          :class="item.trendDown ? 'stat-card__trend--down' : 'stat-card__trend--up'"
+        >{{ item.trend }}</span>
+      </el-card>
+    </div>
 
     <el-row :gutter="16" style="margin-top: 20px;">
       <el-col :span="12">
@@ -44,7 +42,7 @@
               <span>近期注册项变更</span>
             </div>
           </template>
-          <el-timeline class="activity-timeline">
+          <el-timeline v-if="activities.length" class="activity-timeline">
             <el-timeline-item
               v-for="(activity, index) in activities"
               :key="index"
@@ -54,6 +52,7 @@
               <div class="timeline-content">{{ activity.content }}</div>
             </el-timeline-item>
           </el-timeline>
+          <el-empty v-else description="暂无注册项变更记录" :image-size="80" />
         </el-card>
       </el-col>
     </el-row>
@@ -63,39 +62,46 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue';
 import * as echarts from 'echarts';
+import { ElMessage } from 'element-plus';
+import { useI18n } from 'vue-i18n';
 import { useAuthStore } from '@/stores/auth';
+import { dashboardApi } from '@/api/system';
 import { PieChart, Clock } from '@element-plus/icons-vue';
 
 const auth = useAuthStore();
+const { t } = useI18n();
 
-const stats = ref([
-  { label: '数据元', value: 4, unit: '项', sub: 'Data Element', badge: '正常', trend: '+1 本周', trendDown: false },
-  { label: '对象类', value: 3, unit: '项', sub: 'Object Class', badge: '正常', trend: '+0 本周', trendDown: false },
-  { label: '特性', value: 6, unit: '项', sub: 'Property', badge: '正常', trend: '+2 本周', trendDown: false },
-  { label: '注册项', value: 16, unit: '项', sub: 'Administered Item', badge: '关注', trend: '+4 本周', trendDown: false },
-]);
+interface StatCard {
+  label: string;
+  value: number;
+  unit: string;
+  sub: string;
+  badge: string;
+  trend: string;
+  trendDown: boolean;
+}
 
-const activities = ref([
-  { content: '管理员创建数据元 DE-ORDER-STATUS', timestamp: '2026-05-08 10:30', type: 'primary' as const },
-  { content: '注册机构 示例注册机构 完成初始化', timestamp: '2026-05-08 10:00', type: 'success' as const },
-  { content: '系统初始化完成', timestamp: '2026-05-08 09:55', type: 'info' as const },
-]);
+const stats = ref<StatCard[]>([]);
+
+interface ActivityItem {
+  content: string;
+  timestamp: string;
+  type: 'primary' | 'success' | 'info' | 'warning' | 'danger';
+}
+
+const activities = ref<ActivityItem[]>([]);
 
 // 注册状态分布甜甜圈图：同色系多阶绿（参照 EMS demo 单色相递进）
 const donutRef = ref<HTMLDivElement>();
 let donutChart: echarts.ECharts | null = null;
 
-const statusDistribution = [
-  { name: '首选', value: 8 },
-  { name: '合格', value: 4 },
-  { name: '已记录', value: 3 },
-  { name: '草稿', value: 1 },
-];
+const statusDistribution = ref<{ name: string; value: number }[]>([]);
+const DONUT_COLORS = ['#16a34a', '#4ade80', '#2d5a3d', '#86efac', '#15803d', '#22c55e', '#365314', '#14532d', '#052e16', '#6ee7b7'];
 
 function buildDonutOption(): echarts.EChartsOption {
-  const total = statusDistribution.reduce((sum, item) => sum + item.value, 0);
+  const total = statusDistribution.value.reduce((sum, item) => sum + item.value, 0);
   return {
-    color: ['#16a34a', '#4ade80', '#2d5a3d', '#86efac'],
+    color: DONUT_COLORS,
     title: {
       text: String(total),
       subtext: '注册项总数',
@@ -118,10 +124,43 @@ function buildDonutOption(): echarts.EChartsOption {
         center: ['50%', '44%'],
         label: { show: false },
         emphasis: { scaleSize: 4 },
-        data: statusDistribution,
+        data: statusDistribution.value,
       },
     ],
   };
+}
+
+function formatDateTime(value: string): string {
+  // 后端 LocalDateTime 序列化为 ISO 本地时间（无时区），截取到分钟
+  return value ? value.slice(0, 16).replace('T', ' ') : '';
+}
+
+async function loadDashboard() {
+  try {
+    const d = await dashboardApi.getStats();
+    const trendOf = (n: number) => `+${n} 本周`;
+    stats.value = [
+      { label: '受管项', value: d.administeredItems, unit: '项', sub: 'Administered Item', badge: '正常', trend: trendOf(d.administeredItemsCreatedThisWeek), trendDown: false },
+      { label: '数据元', value: d.dataElements, unit: '项', sub: 'Data Element', badge: '正常', trend: trendOf(d.dataElementsCreatedThisWeek), trendDown: false },
+      { label: '值域', value: d.valueDomains, unit: '项', sub: 'Value Domain', badge: '正常', trend: trendOf(d.valueDomainsCreatedThisWeek), trendDown: false },
+      { label: '数据元概念', value: d.dataElementConcepts, unit: '项', sub: 'Data Element Concept', badge: '正常', trend: trendOf(d.dataElementConceptsCreatedThisWeek), trendDown: false },
+      { label: '概念域', value: d.conceptualDomains, unit: '项', sub: 'Conceptual Domain', badge: '正常', trend: trendOf(d.conceptualDomainsCreatedThisWeek), trendDown: false },
+    ];
+    statusDistribution.value = d.registrationStatusDistribution.map((s) => ({
+      name: s.status ? t(`registrationStatus.${s.status}`) : '无状态',
+      value: s.count,
+    }));
+    activities.value = d.recentChanges.map((r) => ({
+      content: r.changeDescription
+        ? `${r.name ?? '未命名条目'}：${r.changeDescription}`
+        : `更新 ${r.name ?? '未命名条目'}`,
+      timestamp: formatDateTime(r.changedAt),
+      type: 'primary',
+    }));
+    donutChart?.setOption(buildDonutOption());
+  } catch {
+    ElMessage.error('概览统计数据加载失败');
+  }
 }
 
 onMounted(() => {
@@ -129,6 +168,7 @@ onMounted(() => {
     donutChart = echarts.init(donutRef.value);
     donutChart.setOption(buildDonutOption());
   }
+  loadDashboard();
 });
 
 onBeforeUnmount(() => {
@@ -140,6 +180,17 @@ onBeforeUnmount(() => {
 <style scoped lang="scss">
 .welcome-section {
   margin-bottom: 24px;
+}
+
+// 五张统计卡片等宽排列（24 栅格不能被 5 整除，用 flex 取代 el-row/el-col）
+.stat-row {
+  display: flex;
+  gap: 16px;
+
+  &__item {
+    flex: 1;
+    min-width: 0;
+  }
 }
 
 .donut-chart {

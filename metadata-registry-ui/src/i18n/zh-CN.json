@@ -169,6 +169,7 @@
     "noSubsets": "无下层映射",
     "setSuperset": "设置上层映射",
     "supersetPlaceholder": "从当前列表中选择上层映射（留空清除）",
+    "remove": "移除关联",
     "empty": "暂无项目映射，点击「新建映射」开始创建",
     "confirmDelete": "确认删除映射「{summary}」？此操作不可恢复。",
     "subjectRequired": "请选择主体项目",
@@ -334,9 +335,23 @@
     "filterAll": "全部",
     "loadTransitionsError": "加载可用迁移失败"
   },
+  "itemReferenceDocuments": {
+    "searchPlaceholder": "搜索参考文档（标识符或标题）",
+    "identifierColumn": "标识符",
+    "titleColumn": "标题",
+    "add": "新增",
+    "remove": "移除",
+    "empty": "尚未关联参考文档",
+    "notFound": "文档不存在，请重新指定有效的参考文档URI"
+  },
   "itemRegistrationState": {
-    "editHint": "注册状态只读展示；状态推进请在注册项列表的推进流程中执行。",
-    "effectiveAt": "生效于 {date}"
+    "registrationStatusPlaceholder": "以该注册状态注册的受管理项在注册生命周期中所处状态的指称",
+    "administrativeStatusPlaceholder": "负责该受管理项的注册机构在处理注册请求的行政审批流程中，对该受管理项所处状态的指称",
+    "effectiveDatePlaceholder": "以该注册状态注册的受管理项变得对注册库用户可用的日期和时间",
+    "untilDatePlaceholder": "以该注册状态注册的受管理项在注册库中由注册机构进行的注册不再生效的日期和时间",
+    "administrativeNotePlaceholder": "关于以该注册状态注册的受管理项之注册的一般备注",
+    "unresolvedIssuePlaceholder": "关于以该注册状态注册的受管理项之恰当文档化的任何未解决问题",
+    "explanatoryCommentPlaceholder": "关于该受管理项的描述性注释"
   },
   "administrativeStatus": {
     "hint": "注册机构对本次注册的管理项在行政管理流程中的状态的指称。",
@@ -493,7 +508,7 @@
     "modeManualOnly": "手动输入",
     "modeManualOnlyHint": "手动模式适用于外部标准命名空间：创建时必须显式填写标识符与版本号，系统不做自动生成。",
     "versioningPolicy": "版本化策略",
-    "versioningPolicyTip": "自动生成初始版本号的规则：语义化版本生成 1.0.0，顺序整数生成 1，日期版本生成当天日期（yyyy-MM-dd）",
+    "versioningPolicyTip": "版本号的生成/校验规则：自动模式下语义化版本生成 1.0.0、顺序整数生成 1、日期版本生成当天日期（yyyy-MM-dd）；手动输入模式下仅提供语义化版本与自由文本，自由文本不做格式校验",
     "manualIdentifierPattern": "手动标识校验正则",
     "manualIdentifierPatternTip": "可选。配置后，手动填写的标识符必须匹配该正则，否则拒绝保存",
     "groupStrategy": "生成策略",
@@ -708,6 +723,7 @@
     "inferenceApplied": "候选已填入表单，请确认后保存",
     "saveFailed": "保存失败：{message}",
     "registrationRecordsTab": "注册记录",
+    "referenceDocumentsTab": "参考文档",
     "submissionInfo": {
       "title": "提交记录",
       "contact": "联系人",
@@ -719,12 +735,15 @@
     "submissionRecords": {
       "title": "提交记录",
       "empty": "暂无提交记录。条目需通过工作空间提交才会生成提交记录。",
-      "contact": "联系人",
-      "organization": "所属组织",
-      "itemCount": "关联条目数"
+      "contact": "提交人员",
+      "organization": "提交机构"
     },
     "stewardshipInfo": {
       "title": "主管记录",
+      "organization": "主管机构",
+      "organizationPlaceholder": "请选择主管机构",
+      "contact": "主管人员",
+      "contactPlaceholder": "请选择主管人员",
       "noContact": "请先在「我的」中登记联系人身份，再指定主管记录。"
     }
   },
@@ -760,8 +779,7 @@
     "commandRequired": "启动命令不能为空"
   },
   "assistant": {
-    "explanatoryComment": "解释性注释",
-    "explanatoryCommentPlaceholder": "项目解释性注释（留空不变更）"
+    "explanatoryComment": "解释性注释"
   },
   "smartPicker": {
     "placeholder": {

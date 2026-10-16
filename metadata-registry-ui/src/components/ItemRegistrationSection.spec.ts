@@ -75,6 +75,7 @@ const Host = defineComponent({
     isEditing: { type: Boolean, default: false },
     identifierCreationMode: { type: String as () => string | null, default: null },
     versionCreationMode: { type: String as () => string | null, default: null },
+    registrationAuthorityName: { type: String as () => string | null, default: null },
   },
   setup(props) {
     const form = reactive({ registration: {} as Record<string, any> });
@@ -88,6 +89,7 @@ const Host = defineComponent({
         :is-editing="props.isEditing"
         :identifier-creation-mode="props.identifierCreationMode"
         :version-creation-mode="props.versionCreationMode"
+        :registration-authority-name="props.registrationAuthorityName"
       />
     </el-form>
   `,
@@ -98,9 +100,10 @@ async function mountSection(
   isEditing = false,
   identifierCreationMode: 'AUTO' | 'MANUAL' | null = null,
   versionCreationMode: 'AUTO' | 'MANUAL' | null = null,
+  registrationAuthorityName: string | null = null,
 ) {
   const wrapper = mount(Host, {
-    props: { isEditing, identifierCreationMode, versionCreationMode },
+    props: { isEditing, identifierCreationMode, versionCreationMode, registrationAuthorityName },
     global: { plugins: [ElementPlus] },
   });
   const section = wrapper.findComponent(ItemRegistrationSection);
@@ -306,7 +309,7 @@ describe('ItemRegistrationSection 命名空间输入模式', () => {
     const [identifierInput, versionInput] = inputs(section);
     expect(identifierInput.props('disabled')).toBe(false);
     expect(versionInput.props('disabled')).toBe(false);
-    expect(versionInput.props('placeholder')).toBe('留空则按命名空间策略自动递增');
+    expect(versionInput.props('placeholder')).toBe('留空则保持当前版本');
   });
 
   it('编辑 AUTO 模式：标识符 / 版本输入框禁用、inline 控件不显示', async () => {
@@ -326,7 +329,7 @@ describe('ItemRegistrationSection 命名空间输入模式', () => {
     const [identifierInput, versionInput] = inputs(section);
     expect(identifierInput.props('disabled')).toBe(false);
     expect(versionInput.props('disabled')).toBe(false);
-    expect(versionInput.props('placeholder')).toBe('留空则按命名空间策略自动递增');
+    expect(versionInput.props('placeholder')).toBe('留空则保持当前版本');
   });
 
   it('编辑既存记录（mode 为 null）：等价 MANUAL，标识符与版本均启用', async () => {
@@ -383,13 +386,30 @@ describe('ItemRegistrationSection 注册机构归属提示', () => {
     strategyView.value = null;
   });
 
-  it('有活动 Registrar 身份：显示注册机构名称标签', async () => {
+  it('新建态：无既有条目，显示活动 Registrar 机构作为归属预览', async () => {
     const { section } = await mountSection('ns-awo');
     await vi.waitFor(() => {
       expect(section.text()).toContain('测试注册机构');
     });
     expect(section.text()).not.toContain('无活动 Registrar 身份');
     expect(section.text()).not.toContain('查询失败');
+  });
+
+  it('编辑态：只显示条目自身的注册机构，不回退到查看者的活动 Registrar 机构', async () => {
+    const { section } = await mountSection('ns-awo', true, null, null, '国家卫生健康标准委员会卫生健康信息标准专业委员会');
+    await vi.waitFor(() => {
+      expect(section.text()).toContain('国家卫生健康标准委员会卫生健康信息标准专业委员会');
+    });
+    // 查看者自己的机构不得顶替条目归属
+    expect(section.text()).not.toContain('测试注册机构');
+  });
+
+  it('编辑态：条目无归属时显示为空，不得显示查看者的活动 Registrar 机构', async () => {
+    const { section } = await mountSection('ns-awo', true, null, null, null);
+    await vi.waitFor(() => {
+      expect((section.vm as any).loaded).toBeTruthy();
+    });
+    expect(section.text()).not.toContain('测试注册机构');
   });
 
   it('身份查询接口失败：提示查询失败，而非误报无身份', async () => {

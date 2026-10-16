@@ -156,6 +156,16 @@ export const myContactApi = {
   setDefault: (id: string) => request.post<MyContactResponse>(`/my/contacts/${id}/set-default`),
 };
 export const referenceDocumentApi = crud('/reference-documents');
+
+/** 受管项的参考文档关联（引用关联，11179-3:2023 §9.5.2）增删。 */
+export const administeredItemReferenceApi = {
+  add: (itemId: string, referenceDocumentIds: string[]) =>
+    request.post(`/administered-items/${itemId}/reference-documents`, { referenceDocumentIds }),
+  // 后端 DELETE 端点用请求体收 id 列表（ReferenceDocumentLinkRequest），
+  // 故走 axios 的 data 字段而非 query params。
+  remove: (itemId: string, referenceDocumentIds: string[]) =>
+    request.delete(`/administered-items/${itemId}/reference-documents`, { data: { referenceDocumentIds } }),
+};
 export const objectClassApi = crud('/object-classes');
 export const propertyApi = crud('/properties');
 export const dataElementConceptApi = crud('/data-element-concepts');

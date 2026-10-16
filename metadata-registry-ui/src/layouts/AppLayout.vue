@@ -779,7 +779,11 @@ function goToSystem() {
 }
 
 // ── Password Change Dialog for forceChangePassword ─────────────────
-const showChangePasswordDialog = computed(() => !!auth.user?.forceChangePassword);
+// 个人版无密码概念（personal-no-login-registrar-default）：免登录会话不渲染改密弹窗，
+// 否则一次陈旧令牌留下的标志就会弹出无法完成的对话框并锁死界面。
+const showChangePasswordDialog = computed(
+  () => !auth.bypassLogin && !!auth.user?.forceChangePassword,
+);
 
 // ── First-login profile prompt (contact-identity-management) ────────
 function profilePromptStorageKey(userId: string): string {

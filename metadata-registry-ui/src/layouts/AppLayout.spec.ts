@@ -307,6 +307,29 @@ describe('AppLayout 退出按钮（个人版免登录隐藏）', () => {
   });
 });
 
+describe('AppLayout 强制改密弹窗（个人版免登录隐藏）', () => {
+  beforeEach(() => {
+    state.bypassLogin = false;
+    state.user = { id: 'user-1', username: 'admin', forceChangePassword: true } as any;
+  });
+
+  afterEach(() => {
+    state.bypassLogin = false;
+    state.user = { id: 'user-1', username: 'registrar-1', displayName: '注册员' } as any;
+  });
+
+  it('团队版 forceChangePassword=true 时显示改密弹窗', async () => {
+    const { wrapper } = await mountLayout();
+    expect((wrapper.vm as any).showChangePasswordDialog).toBe(true);
+  });
+
+  it('个人版即便会话带 forceChangePassword 标志也不显示改密弹窗', async () => {
+    state.bypassLogin = true;
+    const { wrapper } = await mountLayout();
+    expect((wrapper.vm as any).showChangePasswordDialog).toBe(false);
+  });
+});
+
 describe('AppLayout 活动 Registrar（浏览器端激活，personal-no-login-registrar-default）', () => {
   const identityA = { registrarId: 'reg-1', registrationAuthorityId: 'ra-1', registrationAuthorityName: '甲注册机构' };
   const identityB = { registrarId: 'reg-2', registrationAuthorityId: 'ra-2', registrationAuthorityName: '乙注册机构' };

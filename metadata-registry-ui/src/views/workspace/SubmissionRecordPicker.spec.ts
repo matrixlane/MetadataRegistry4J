@@ -229,6 +229,19 @@ describe('SubmissionRecordPicker（acg-submission 组织下拉）', () => {
     expect(wrapper.emitted('confirm')).toBeUndefined();
   });
 
+  it('close() 关闭弹窗（供父组件在提交成功后调用）', async () => {
+    const wrapper = mountPicker();
+    mounted.push(wrapper);
+
+    (wrapper.vm as any).open();
+    await flushPromises();
+    expect(wrapper.findComponent({ name: 'ElDialog' }).props('modelValue')).toBe(true);
+
+    (wrapper.vm as any).close();
+    await flushPromises();
+    expect(wrapper.findComponent({ name: 'ElDialog' }).props('modelValue')).toBe(false);
+  });
+
   it('确认时抛出该组织下本人身份 id 与所选组织', async () => {
     const wrapper = mountPicker();
     mounted.push(wrapper);

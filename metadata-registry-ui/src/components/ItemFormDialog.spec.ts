@@ -2,14 +2,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
 import ElementPlus from 'element-plus';
 import ItemFormDialog from './ItemFormDialog.vue';
-import { myContactApi } from '@/api/resources';
+import { myContactApi, administeredItemReferenceApi } from '@/api/resources';
 import type { MyContactResponse } from '@/types/common';
 
 type DialogVm = InstanceType<typeof ItemFormDialog> & {
   contacts: MyContactResponse[];
-  form: { registration: { stewardship: { contactId: string | null; organizationId: string | null }; submissionRecordSummaries?: Array<{ id: string; contactLabel?: string | null; organizationLabel?: string | null; registeredItemCount: number; registeredItemIds: string[] }> } };
+  form: { registration: { stewardship: { contactId: string | null; organizationId: string | null }; submissionRecordSummaries?: Array<{ id: string; contactLabel?: string | null; organizationLabel?: string | null; registeredItemCount: number }> } };
   onContactChange: (id: string) => void;
-  onStewardshipContactChange: (id: string) => void;
   handleSubmit: () => Promise<void>;
   activeTab: string;
   activeSubTab: string;
@@ -69,7 +68,10 @@ vi.mock('@/api/resources', () => ({
   registrationAuthorityApi: { list: vi.fn().mockResolvedValue({ content: [] }) },
   languageApi: { list: vi.fn().mockResolvedValue({ content: [] }) },
   contextApi: { options: vi.fn().mockResolvedValue([]) },
-  referenceDocumentApi: { list: vi.fn().mockResolvedValue({ content: [] }) },
+  referenceDocumentApi: {
+    list: vi.fn().mockResolvedValue({ content: [] }),
+    get: vi.fn().mockResolvedValue(null),
+  },
   namingConventionApi: { list: vi.fn().mockResolvedValue({ content: [] }) },
   pairingApi: {
     list: vi.fn().mockResolvedValue([]),
@@ -88,6 +90,7 @@ vi.mock('@/api/resources', () => ({
       ],
     }),
   },
+  administeredItemReferenceApi: { add: vi.fn(), remove: vi.fn() },
 }));
 
 vi.mock('vue-router', () => ({
@@ -664,16 +667,19 @@ describe('ItemFormDialog 提交信息预填', () => {
             contactLabel: '张三',
             organizationLabel: '示例组织',
             registeredItemCount: 1,
-            registeredItemIds: ['item-1'],
           },
         ],
       },
     });
-    await wrapper.vm.$nextTick();
-    expect(wrapper.find('[data-testid="submission-records-list"]').exists()).toBe(true);
+    await flushPromises();
+    const list = wrapper.find('[data-testid="submission-records-list"]');
+    expect(list.exists()).toBe(true);
     expect(wrapper.find('[data-testid="submission-records-empty"]').exists()).toBe(false);
-    const rows = wrapper.findAll('[data-testid="submission-record-row"]');
-    expect(rows.length).toBe(1);
+    expect(list.text()).toContain('itemForm.submissionRecords.organization');
+    expect(list.text()).toContain('itemForm.submissionRecords.contact');
+    expect(list.text()).toContain('示例组织');
+    expect(list.text()).toContain('张三');
+    expect(list.text()).not.toContain('itemForm.submissionRecords.itemCount');
     wrapper.unmount();
   });
 
@@ -718,14 +724,18 @@ describe('ItemFormDialog 提交信息预填', () => {
     wrapper.unmount();
   });
 
-  it('stewardship 切换联系人时所属组织联动更新', async () => {
+  it('stewardship 切换联系人时不会联动更新主管机构', async () => {
     const wrapper = await mountWithContacts();
     const vm = wrapper.vm as unknown as DialogVm;
-    vm.form.registration.stewardship.contactId = 'contact-2';
+    vm.form.registration.stewardship.organizationId = 'org-1';
     await wrapper.vm.$nextTick();
-    vm.onStewardshipContactChange('contact-2');
+    const contactSelect = wrapper
+      .findAllComponents({ name: 'ElSelect' })
+      .find((s) => s.attributes('data-testid') === 'stewardship-contact-select');
+    expect(contactSelect).toBeDefined();
+    contactSelect!.vm.$emit('change', 'contact-2');
     await wrapper.vm.$nextTick();
-    expect(vm.form.registration.stewardship.organizationId).toBe('org-2');
+    expect(vm.form.registration.stewardship.organizationId).toBe('org-1');
     wrapper.unmount();
   });
 
@@ -801,6 +811,133 @@ describe('ItemFormDialog 指称与定义合并 Tab', () => {
     vm.activateNamingTab('pairings');
     expect(vm.activeTab).toBe('designationDefinition');
     expect(vm.activeSubTab).toBe('pairings');
+    wrapper.unmount();
+  });
+});
+
+describe('ItemFormDialog 参考文档页签', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('条目已有受管项实例时渲染「参考文档」页签', async () => {
+    const wrapper = mount(ItemFormDialog, {
+      props: {
+        itemType: 'dataElement',
+        submitFn: vi.fn().mockResolvedValue({}),
+        showRegistration: true,
+      } as any,
+      global: { plugins: [ElementPlus], mocks: { $t: (k: string) => k } },
+    });
+    await (wrapper.vm as any).open({
+      id: 'item-1',
+      designations: [{ id: 'd1', value: '测试数据元' }],
+      definitions: [],
+      meta: { administeredItemId: 'ai-1', referenceDocumentIds: ['rd-1'] },
+    });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(wrapper.find('[data-test="reference-documents-section"]').exists()).toBe(true);
+    wrapper.unmount();
+  });
+
+  it('「参考文档」页签位于「注册状态」页签之前', async () => {
+    const wrapper = mount(ItemFormDialog, {
+      props: {
+        itemType: 'dataElement',
+        submitFn: vi.fn().mockResolvedValue({}),
+        showRegistration: true,
+      } as any,
+      global: { plugins: [ElementPlus], mocks: { $t: (k: string) => k } },
+    });
+    await (wrapper.vm as any).open({
+      id: 'item-1',
+      designations: [{ id: 'd1', value: '测试数据元' }],
+      definitions: [],
+      meta: { administeredItemId: 'ai-1', referenceDocumentIds: ['rd-1'] },
+    });
+    await new Promise((r) => setTimeout(r, 0));
+    const labels = wrapper.findAll('.el-tabs__item').map((t) => t.text());
+    const refIdx = labels.findIndex((l) => l.includes('itemForm.referenceDocumentsTab'));
+    const regIdx = labels.findIndex((l) => l.includes('注册状态'));
+    expect(refIdx).toBeGreaterThan(-1);
+    expect(regIdx).toBeGreaterThan(-1);
+    expect(refIdx).toBeLessThan(regIdx);
+    wrapper.unmount();
+  });
+
+  it('点击「移除」调用解除关联接口并同步列表', async () => {
+    const removeMock = administeredItemReferenceApi.remove as unknown as ReturnType<typeof vi.fn>;
+    removeMock.mockResolvedValue(undefined);
+    const wrapper = mount(ItemFormDialog, {
+      props: {
+        itemType: 'dataElement',
+        submitFn: vi.fn().mockResolvedValue({}),
+        showRegistration: true,
+      } as any,
+      global: { plugins: [ElementPlus], mocks: { $t: (k: string) => k } },
+    });
+    await (wrapper.vm as any).open({
+      id: 'item-1',
+      designations: [{ id: 'd1', value: '测试数据元' }],
+      definitions: [],
+      meta: { administeredItemId: 'ai-1', referenceDocumentIds: ['rd-1'] },
+    });
+    await new Promise((r) => setTimeout(r, 0));
+    await new Promise((r) => setTimeout(r, 0));
+    const btn = wrapper.find('[data-test="reference-document-remove"]');
+    expect(btn.exists()).toBe(true);
+    await btn.trigger('click');
+    await new Promise((r) => setTimeout(r, 0));
+    expect(removeMock).toHaveBeenCalledWith('ai-1', ['rd-1']);
+    expect((wrapper.vm as any).form.meta.referenceDocumentIds).toEqual([]);
+    wrapper.unmount();
+  });
+
+  it('解除关联接口失败时回滚列表，保留该参考文档', async () => {
+    const removeMock = administeredItemReferenceApi.remove as unknown as ReturnType<typeof vi.fn>;
+    removeMock.mockRejectedValue(new Error('boom'));
+    const wrapper = mount(ItemFormDialog, {
+      props: {
+        itemType: 'dataElement',
+        submitFn: vi.fn().mockResolvedValue({}),
+        showRegistration: true,
+      } as any,
+      global: { plugins: [ElementPlus], mocks: { $t: (k: string) => k } },
+    });
+    await (wrapper.vm as any).open({
+      id: 'item-1',
+      designations: [{ id: 'd1', value: '测试数据元' }],
+      definitions: [],
+      meta: { administeredItemId: 'ai-1', referenceDocumentIds: ['rd-1'] },
+    });
+    await new Promise((r) => setTimeout(r, 0));
+    await new Promise((r) => setTimeout(r, 0));
+    const btn = wrapper.find('[data-test="reference-document-remove"]');
+    expect(btn.exists()).toBe(true);
+    await btn.trigger('click');
+    await new Promise((r) => setTimeout(r, 0));
+    expect(removeMock).toHaveBeenCalledWith('ai-1', ['rd-1']);
+    expect((wrapper.vm as any).form.meta.referenceDocumentIds).toEqual(['rd-1']);
+    wrapper.unmount();
+  });
+
+  it('条目无受管项实例时不渲染该页签', async () => {
+    const wrapper = mount(ItemFormDialog, {
+      props: {
+        itemType: 'dataElement',
+        submitFn: vi.fn().mockResolvedValue({}),
+        showRegistration: true,
+      } as any,
+      global: { plugins: [ElementPlus], mocks: { $t: (k: string) => k } },
+    });
+    await (wrapper.vm as any).open({
+      id: 'item-2',
+      designations: [],
+      definitions: [],
+      meta: {},
+    });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(wrapper.find('[data-test="reference-documents-section"]').exists()).toBe(false);
     wrapper.unmount();
   });
 });

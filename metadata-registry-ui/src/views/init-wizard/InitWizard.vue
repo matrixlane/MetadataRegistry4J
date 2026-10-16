@@ -351,7 +351,7 @@
 
             <el-divider content-position="left">版本生成策略</el-divider>
             <el-form-item label="输入模式" prop="versionInputMode">
-              <el-radio-group v-model="form.versionInputMode">
+              <el-radio-group v-model="form.versionInputMode" @change="onVersionInputModeChange">
                 <el-radio-button value="AUTO_ONLY">自动生成</el-radio-button>
                 <el-radio-button value="AUTO_WITH_OVERRIDE">自动生成（允许手动编辑）</el-radio-button>
                 <el-radio-button value="MANUAL_ONLY">手动输入</el-radio-button>
@@ -366,10 +366,16 @@
               style="margin-bottom: 12px;"
             />
             <el-form-item label="版本生成策略" prop="versionPolicy">
-              <el-select v-model="form.versionPolicy" size="large" placeholder="请选择版本生成策略" style="width: 100%;" :disabled="form.versionInputMode === 'MANUAL_ONLY'">
-                <el-option label="语义化版本 (X.Y.Z)" value="SEMVER" />
-                <el-option label="顺序整数 (1, 2, 3, ...)" value="SEQUENTIAL" />
-                <el-option label="日期版本 (YYYY-MM-DD)" value="DATE" />
+              <el-select v-model="form.versionPolicy" size="large" placeholder="请选择版本生成策略" style="width: 100%;">
+                <template v-if="form.versionInputMode === 'MANUAL_ONLY'">
+                  <el-option label="自由文本" value="FREE_TEXT" />
+                  <el-option label="语义化版本 (X.Y.Z)" value="SEMVER" />
+                </template>
+                <template v-else>
+                  <el-option label="语义化版本 (X.Y.Z)" value="SEMVER" />
+                  <el-option label="顺序整数 (1, 2, 3, ...)" value="SEQUENTIAL" />
+                  <el-option label="日期版本 (YYYY-MM-DD)" value="DATE" />
+                </template>
               </el-select>
             </el-form-item>
           </el-form>
@@ -685,6 +691,20 @@ const rulesStep3 = reactive<FormRules>({
     { validator: timeZoneValidator, trigger: 'blur' }
   ]
 });
+
+/**
+ * 版本输入模式切换：手动输入下版本化策略选项仅语义化版本/自由文本，
+ * 切到手动时非语义化策略回落为自由文本；切回自动模式时自由文本回落为语义化版本。
+ */
+function onVersionInputModeChange(mode: string | number | boolean | undefined) {
+  if (mode === 'MANUAL_ONLY') {
+    if (form.versionPolicy !== 'SEMVER') {
+      form.versionPolicy = 'FREE_TEXT';
+    }
+  } else if (form.versionPolicy === 'FREE_TEXT') {
+    form.versionPolicy = 'SEMVER';
+  }
+}
 
 /**
  * 标识模板校验：手动录入模式下豁免；自动模式下模板必须可解析，

@@ -20,6 +20,8 @@ export interface PageQuery {
   enabled?: boolean;
   /** 注册状态过滤（注册项列表，后端 GET /administered-items 已支持） */
   status?: string;
+  /** 关键词搜索（参考文档选择器远程搜索用） */
+  keyword?: string;
 }
 
 export interface ScopedIdentifierDto {
@@ -239,6 +241,8 @@ export interface ItemMetaResponse {
   version?: string;
   registrationStatus?: string;
   administeredItemId?: string;
+  /** 经引用关联（11179-3:2023 §9.5.2）关联的参考文档 id；未建立受管链时为空。 */
+  referenceDocumentIds?: string[];
   registrationAuthorityId?: string;
   registrationAuthorityName?: string;
   /** Registration_State（ISO/IEC 11179-3:2023 表 22）回显字段 */
@@ -267,6 +271,7 @@ export interface TextLineResponse {
   sourceId?: string;
   sourceTitle?: string;
   contexts?: TextLineContextResponse[];
+  namingConventionIds?: string[];
 }
 
 export interface ItemRegistrationRequest {
@@ -488,7 +493,6 @@ export interface SubmissionRecordSummary {
   contactLabel: string | null;
   organizationLabel: string | null;
   registeredItemCount: number;
-  registeredItemIds: string[];
 }
 
 // ─── smart-item-picker ────────────────────────────────────────────────
@@ -610,4 +614,15 @@ export interface ItemMappingRequest {
 export interface ItemMappingHierarchyResponse {
   supersetMappingId: string | null;
   subsetMappingIds: string[];
+}
+
+
+/** 参考文档（11179-3:2023 §6.3.8 Reference_Document）。 */
+export interface ReferenceDocument {
+  id: string;
+  identifier: string;
+  title?: string | null;
+  notation?: string | null;
+  uri?: string | null;
+  typeDescriptionLabel?: string | null;
 }

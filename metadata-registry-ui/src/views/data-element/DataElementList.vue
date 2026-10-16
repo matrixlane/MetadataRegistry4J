@@ -16,7 +16,7 @@
     >
       <template #columns>
         <el-table-column prop="meta.identifier" label="标识符" width="160" sortable />
-        <!-- meta.label 为虚拟排序键:后端 ItemSortPageableResolver 改写为 designations.sign.value -->
+        <!-- meta.label 为虚拟排序键:后端 ItemListSorts 改写为 designation 标量子查询排序 -->
         <el-table-column prop="meta.label" label="名称" sortable>
           <template #default="{ row }">
             {{ row.designations?.find((d: any) => d.languageCode === 'zh-CN')?.value || row.designations?.[0]?.value || '-' }}
@@ -91,8 +91,12 @@ function submitFn(data: Record<string, unknown>) {
 }
 
 async function handleDelete(row: Record<string, unknown>) {
-  await dataElementApi.delete(row.id as string);
-  tableRef.value?.fetchData();
+  try {
+    await dataElementApi.delete(row.id as string);
+    tableRef.value?.fetchData();
+  } catch {
+    // 失败提示已由 axios 拦截器统一弹出；此处吞掉避免未处理拒绝冒泡到错误边界导致整页崩溃
+  }
 }
 
 async function handleCreate() {

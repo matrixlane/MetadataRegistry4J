@@ -64,11 +64,11 @@ request.interceptors.response.use(
         window.location.href = '/init-wizard';
       }
     } else if ((error.response?.data as any)?.code === 498 || error.response?.status === 498) {
-      // Session is in force-change-password state (e.g. wizard session token,
-      // temp password, emergency login). Surface the dialog in AppLayout so
-      // the user can set a new password without being kicked back to login.
       const auth = useAuthStore();
-      if (auth.user) {
+      // 个人版免登录：无密码概念，会话永不进入强制改密状态。498 一律按普通错误处理，
+      // 绝不能把 forceChangePassword 置位——该标志只进不退，置位即弹出无法完成的
+      // 改密框并锁死整个界面。
+      if (!auth.bypassLogin && auth.user) {
         auth.user.forceChangePassword = true;
       }
       ElMessage.warning('当前会话需要先修改密码才能继续操作');

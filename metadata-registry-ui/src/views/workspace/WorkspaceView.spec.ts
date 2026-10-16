@@ -6,6 +6,7 @@ import { createPinia } from 'pinia';
 import { createI18n } from 'vue-i18n';
 import type { VueWrapper } from '@vue/test-utils';
 import WorkspaceView from './WorkspaceView.vue';
+import SubmissionRecordPicker from './SubmissionRecordPicker.vue';
 import {
   workspaceApi,
   myContactApi,
@@ -303,6 +304,36 @@ describe('WorkspaceView', () => {
     await flushPromises();
 
     expect(mockedSubmit).toHaveBeenCalledWith(['item-1'], { contactId: 'contact-1', organizationId: 'org-1' });
+    // 提交成功后 picker 应关闭（此前弹窗残留）
+    const pickerDialog = wrapper.findComponent(SubmissionRecordPicker).findComponent({ name: 'ElDialog' });
+    expect(pickerDialog.props('modelValue')).toBe(false);
+  });
+
+  it('行级提交失败时 picker 保持打开，便于重试', async () => {
+    const wrapper = mountWorkspace();
+    mounted.push(wrapper);
+    await flushPromises();
+
+    vi.mocked(myContactApi.list).mockResolvedValue([
+      {
+        id: 'contact-1',
+        organizationId: 'org-1',
+        organizationName: '组织 A',
+        individualName: '张三',
+        isRegistrar: false,
+        isDefault: true,
+      },
+    ] as any);
+    mockedSubmit.mockRejectedValue(new Error('network'));
+
+    await wrapper.find('[data-testid="row-submit"]').trigger('click');
+    await flushPromises();
+
+    await wrapper.find('[data-testid="submission-confirm"]').trigger('click');
+    await flushPromises();
+
+    const pickerDialog = wrapper.findComponent(SubmissionRecordPicker).findComponent({ name: 'ElDialog' });
+    expect(pickerDialog.props('modelValue')).toBe(true);
   });
 
   it('请求成为候选打开 picker并调用 requestCandidate', async () => {

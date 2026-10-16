@@ -594,6 +594,8 @@ body {
     margin-top: 4px;
     font-size: 13px;
     color: #9db8a6;
+    // 为右下角趋势徽章预留宽度，避免五列等宽的窄卡片下文本与徽章重叠
+    padding-right: 60px;
   }
 
   .stat-card__trend {

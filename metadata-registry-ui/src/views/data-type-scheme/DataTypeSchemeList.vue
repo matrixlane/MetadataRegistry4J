@@ -30,16 +30,28 @@
       :submit-fn="submitFn"
       @success="tableRef?.fetchData()"
     >
-      <template #fields />
+      <template #fields="{ form }">
+        <el-form-item>
+          <template #label>
+            <span>方案引用</span>
+            <el-tooltip content="定义：对数据类型方案规范的引用。引用方式由注册机构规定。" placement="top">
+              <el-icon style="margin-left: 4px;"><QuestionFilled /></el-icon>
+            </el-tooltip>
+          </template>
+          <SchemeReferenceSelect v-model="form.schemeReferenceId" />
+        </el-form-item>
+      </template>
     </ItemFormDialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref } from 'vue';
+import { QuestionFilled } from '@element-plus/icons-vue';
 import { dataTypeSchemeApi } from '@/api/resources';
 import DataTablePage from '@/components/DataTablePage.vue';
 import ItemFormDialog from '@/components/ItemFormDialog.vue';
+import SchemeReferenceSelect from '@/components/SchemeReferenceSelect.vue';
 
 const tableRef = ref<InstanceType<typeof DataTablePage>>();
 const dialog = ref<InstanceType<typeof ItemFormDialog>>();
@@ -50,7 +62,11 @@ function submitFn(data: Record<string, unknown>) {
 }
 
 async function handleDelete(row: Record<string, unknown>) {
-  await dataTypeSchemeApi.delete(row.id as string);
-  tableRef.value?.fetchData();
+  try {
+    await dataTypeSchemeApi.delete(row.id as string);
+    tableRef.value?.fetchData();
+  } catch {
+    // 失败提示已由 axios 拦截器统一弹出；此处吞掉避免未处理拒绝冒泡到错误边界导致整页崩溃
+  }
 }
 </script>

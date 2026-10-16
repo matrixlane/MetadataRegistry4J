@@ -77,8 +77,12 @@ function submitFn(data: Record<string, unknown>) {
 }
 
 async function handleDelete(row: Record<string, unknown>) {
-  await languageApi.delete(row.id as string);
-  tableRef.value?.fetchData();
+  try {
+    await languageApi.delete(row.id as string);
+    tableRef.value?.fetchData();
+  } catch {
+    // 失败提示已由 axios 拦截器统一弹出；此处吞掉避免未处理拒绝冒泡到错误边界导致整页崩溃
+  }
 }
 
 // 切换启用状态:开关用 model-value 单向绑定,仅在后端保存成功后刷新列表;失败时行数据不变,开关随 model-value 自动回滚

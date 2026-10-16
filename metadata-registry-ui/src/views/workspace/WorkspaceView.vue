@@ -407,6 +407,7 @@ async function onPickerConfirm(submission: SubmissionInfo) {
       await workspaceApi.requestCandidate(pickerTargetRow.value.itemId, submission);
       ElMessage.success(t('workspace.requestCandidateSuccess'));
     }
+    pickerRef.value?.close();
     refreshAll();
   } catch {
     // request interceptor already shows error

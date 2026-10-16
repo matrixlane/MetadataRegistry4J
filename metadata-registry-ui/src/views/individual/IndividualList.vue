@@ -52,7 +52,11 @@ function submitFn(data: Record<string, unknown>) {
 }
 
 async function handleDelete(row: Record<string, unknown>) {
-  await individualApi.delete(row.id as string);
-  tableRef.value?.fetchData();
+  try {
+    await individualApi.delete(row.id as string);
+    tableRef.value?.fetchData();
+  } catch {
+    // 失败提示已由 axios 拦截器统一弹出；此处吞掉避免未处理拒绝冒泡到错误边界导致整页崩溃
+  }
 }
 </script>

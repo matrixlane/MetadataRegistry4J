@@ -45,6 +45,20 @@ export const systemApi = {
     request.put<void>('/system/settings/allow-user-registration', null, { params: { allowRegistration } }),
 };
 
+export interface DashboardStatusCount {
+  /** RegistrationStatus 枚举名；状态缺失为 null */
+  status: string | null;
+  count: number;
+}
+
+export interface DashboardRecentChange {
+  itemId: string;
+  /** 条目首选指称；无指称时为 null */
+  name: string | null;
+  changedAt: string;
+  changeDescription: string | null;
+}
+
 export interface DashboardStats {
   dataElements: number;
   objectClasses: number;
@@ -54,6 +68,17 @@ export interface DashboardStats {
   dataTypes: number;
   organizations: number;
   contexts: number;
+  administeredItems: number;
+  dataElementConcepts: number;
+  dataElementsCreatedThisWeek: number;
+  objectClassesCreatedThisWeek: number;
+  propertiesCreatedThisWeek: number;
+  valueDomainsCreatedThisWeek: number;
+  conceptualDomainsCreatedThisWeek: number;
+  dataElementConceptsCreatedThisWeek: number;
+  administeredItemsCreatedThisWeek: number;
+  registrationStatusDistribution: DashboardStatusCount[];
+  recentChanges: DashboardRecentChange[];
 }
 
 export const dashboardApi = {

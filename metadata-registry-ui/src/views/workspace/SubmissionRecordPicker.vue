@@ -188,6 +188,10 @@ function open() {
   visible.value = true;
 }
 
+function close() {
+  visible.value = false;
+}
+
 async function confirm() {
   if (!formRef.value) return;
   await formRef.value.validate((valid) => {
@@ -204,7 +208,7 @@ async function confirm() {
   });
 }
 
-defineExpose({ open });
+defineExpose({ open, close });
 </script>
 
 <style scoped>

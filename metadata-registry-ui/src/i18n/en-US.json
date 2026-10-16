@@ -169,6 +169,7 @@
     "noSubsets": "No subset mappings",
     "setSuperset": "Set Superset",
     "supersetPlaceholder": "Pick a superset from the current list (clear to remove)",
+    "remove": "Unlink",
     "empty": "No item mappings yet. Click \"Create Mapping\" to start.",
     "confirmDelete": "Delete mapping \"{summary}\"? This cannot be undone.",
     "subjectRequired": "Please select the subject item",
@@ -316,9 +317,23 @@
     "filterAll": "All",
     "loadTransitionsError": "Failed to load available transitions"
   },
+  "itemReferenceDocuments": {
+    "searchPlaceholder": "Search reference documents by identifier or title",
+    "identifierColumn": "Identifier",
+    "titleColumn": "Title",
+    "add": "Add",
+    "remove": "Remove",
+    "empty": "No reference documents linked",
+    "notFound": "Document does not exist. Please specify a valid reference document URI."
+  },
   "itemRegistrationState": {
-    "editHint": "Registration status is read-only here; execute status progressions via Process Workflow in the Administered Items list.",
-    "effectiveAt": "Effective since {date}"
+    "registrationStatusPlaceholder": "Designation of the status in the registration life-cycle of the administered item that is the subject of the registration with this registration status",
+    "administrativeStatusPlaceholder": "Designation of the status in the administrative process of the registration authority responsible for the administered item that is the subject of the registration with this registration status",
+    "effectiveDatePlaceholder": "Date and time the administered item that is the subject of the registration with this registration status became or becomes available to registry users",
+    "untilDatePlaceholder": "Date and time the registration by the registration authority in the registry of the administered item that is the subject of the registration with this registration status was, or will be, no longer effective",
+    "administrativeNotePlaceholder": "General note(s) about the registration of the administered item that is the subject of the registration with this registration status",
+    "unresolvedIssuePlaceholder": "Any problem(s) that remains unresolved regarding proper documentation of the administered item that is the subject of the registration with this registration status",
+    "explanatoryCommentPlaceholder": "Descriptive comments about the administered item"
   },
   "administrativeStatus": {
     "hint": "The designation by the registration authority of the status of the administered item in this registration in the administrative process.",
@@ -589,6 +604,7 @@
     "inferenceApplied": "Candidate filled into the form. Review it and save.",
     "saveFailed": "Save failed: {message}",
     "registrationRecordsTab": "Registration Records",
+    "referenceDocumentsTab": "Reference Documents",
     "submissionInfo": {
       "title": "Submission Record",
       "contact": "Contact",
@@ -597,8 +613,18 @@
       "organizationPlaceholder": "Select the submitting organization",
       "noContact": "No contact identities are available. Submission information will be available after you complete your contact details."
     },
+    "submissionRecords": {
+      "title": "Submission Records",
+      "empty": "No submission records yet. Records are created when the item is submitted from a workspace.",
+      "contact": "Submitter",
+      "organization": "Submitting Organization"
+    },
     "stewardshipInfo": {
       "title": "Stewardship Record",
+      "organization": "Steward Organization",
+      "organizationPlaceholder": "Select the steward organization",
+      "contact": "Steward Contact",
+      "contactPlaceholder": "Select the steward contact",
       "noContact": "Please register a contact identity in \"My\" first."
     }
   },
@@ -634,8 +660,7 @@
     "commandRequired": "Start command is required"
   },
   "assistant": {
-    "explanatoryComment": "Explanatory comment",
-    "explanatoryCommentPlaceholder": "Explanatory comment for the item (leave empty to keep unchanged)"
+    "explanatoryComment": "Explanatory comment"
   },
   "smartPicker": {
     "placeholder": {
