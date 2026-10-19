@@ -103,7 +103,7 @@ cd metadata-registry-ui
 pnpm dev
 ```
 
-启动时应用会先执行 `DatasourceConfigService.migrateLegacyConfigIfNeeded()` 完成旧版数据源配置迁移，再进入 Spring 环境准备阶段。数据库结构由 Flyway 迁移管理，首次启动会自动建表。
+启动时应用会先执行 `DatasourceConfigService.migrateLegacyConfigIfNeeded()` 完成旧版数据源配置迁移，并剥离旧格式配置中的行为开关键（`flyway.enabled` / `ddl-auto`）。随后 `FreshDatabaseEnvironmentPostProcessor` 在 Spring 环境准备阶段识别全新 SQLite 空库：仅对空库先由 ORM 建表、再以共同基线版本记录 Flyway 基线（既有库完全不受影响）。数据库结构由 Flyway 迁移管理，基线之后的迁移按三方言共同版本序列执行。
 
 ### 配置说明
 

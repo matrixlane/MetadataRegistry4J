@@ -1,10 +1,12 @@
+# 用户保存的数据源配置（~/.metadata-registry/application-local.yml）不经
+# spring.config.import 加载：profile 特定文档内声明的 import 不生效，而声明在
+# application.yml 中又会被 profile 文件覆盖（profile 文档优先级更高）。现由
+# LocalConfigBootstrapInitializer 在上下文刷新前显式加载，并插入到
+# systemEnvironment 之后、一切 config data 之前——保存的配置优先于所有 profile
+# 默认值，且仍低于环境变量/命令行（见 sqlite-empty-db-bootstrap）。
 spring:
   application:
     name: metadata-registry
-  config:
-    # 固定从用户主目录下的 .metadata-registry 加载本地配置，避免依赖 JVM 启动
-    # 工作目录（user.dir）导致保存的配置在重启后无法生效。
-    import: optional:${user.home}/.metadata-registry/application-local.yml
   datasource:
     url: ${DB_URL:jdbc:sqlite:./metadata_registry.db}
     driver-class-name: ${DB_DRIVER:org.sqlite.JDBC}

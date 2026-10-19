@@ -137,9 +137,76 @@ class DatasourceConfigServiceTest {
         service.saveConfig(request);
 
         String written = Files.readString(localConfig);
-        String home = System.getProperty("user.home");
+        Path expected = Paths.get(System.getProperty("user.home"))
+                .resolve(".metadata-registry/data/metadata-registry.db");
         assertThat(written)
-                .as("~/ 前缀应展开为用户主目录")
-                .contains("jdbc:sqlite:" + home + "/.metadata-registry/data/metadata-registry.db");
+                .as("~/ 前缀应展开为用户主目录并规整为绝对路径")
+                .contains("jdbc:sqlite:" + expected);
+    }
+
+    @Test
+    void saveConfigSqliteWritesMainFlywaySchemaAndEnvWrappedValues(@TempDir Path tempDir) throws IOException {
+        Path dbFile = tempDir.resolve("nested dir with space").resolve("app.db");
+        DatasourceConfigRequest request = new DatasourceConfigRequest(
+                "sqlite", null, null, null,
+                dbFile.toString(),
+                null, null, null, "PERSONAL");
+
+        service.saveConfig(request);
+
+        String written = Files.readString(localConfig);
+        // SQLite 下 Flyway 必须显式落到 main，否则重启后 Flyway 无法在 SQLite 定位历史表
+        assertThat(written).contains("schemas: ${FLYWAY_SCHEMAS:main}");
+        assertThat(written).contains("default-schema: ${FLYWAY_DEFAULT_SCHEMA:main}");
+        // 保存值以 ${ENV:值} 落盘：重启后对 profile 默认生效，环境变量仍可覆盖
+        assertThat(written).contains("url: ${DB_URL:jdbc:sqlite:");
+        assertThat(written).contains("driver-class-name: ${DB_DRIVER:org.sqlite.JDBC}");
+        assertThat(written).contains("dialect: ${HIBERNATE_DIALECT:org.hibernate.community.dialect.SQLiteDialect}");
+        assertThat(written).contains("locations: ${DB_VENDOR:classpath:db/migration/sqlite}");
+        // 路径含空格时 SnakeYAML 需要加引号才能保持标量完整
+        assertThat(written).contains("app.db");
+    }
+
+    @Test
+    void sanitizeLegacyBehaviorKeysStripsLegacySwitches(@TempDir Path tempDir) throws IOException {
+        Path legacy = tempDir.resolve("application-local.yml");
+        Files.writeString(legacy, """
+                spring:
+                  datasource:
+                    url: jdbc:sqlite:./data/metadata-registry.db
+                  flyway:
+                    enabled: false
+                    locations: classpath:db/migration/sqlite
+                  jpa:
+                    hibernate:
+                      ddl-auto: update
+                """);
+
+        DatasourceConfigService.sanitizeLegacyBehaviorKeys(legacy);
+
+        String sanitized = Files.readString(legacy);
+        assertThat(sanitized).doesNotContain("enabled:");
+        assertThat(sanitized).doesNotContain("ddl-auto");
+        // 数据源连接键原样保留
+        assertThat(sanitized).contains("url: jdbc:sqlite:./data/metadata-registry.db");
+        assertThat(sanitized).contains("locations: classpath:db/migration/sqlite");
+    }
+
+    @Test
+    void sanitizeLegacyBehaviorKeysKeepsCurrentFormatUntouched(@TempDir Path tempDir) throws IOException {
+        Path current = tempDir.resolve("application-local.yml");
+        String body = """
+                spring:
+                  datasource:
+                    url: ${DB_URL:jdbc:sqlite:./data/metadata-registry.db}
+                  flyway:
+                    locations: ${DB_VENDOR:classpath:db/migration/sqlite}
+                    schemas: ${FLYWAY_SCHEMAS:main}
+                """;
+        Files.writeString(current, body);
+
+        DatasourceConfigService.sanitizeLegacyBehaviorKeys(current);
+
+        assertThat(Files.readString(current)).isEqualTo(body);
     }
 }

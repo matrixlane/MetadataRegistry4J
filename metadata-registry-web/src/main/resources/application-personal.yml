@@ -1,6 +1,9 @@
 # 个人版 profile：默认 SQLite 文件库，零外部依赖。
 # 用法：java -jar metadata-registry-web.jar --spring.profiles.active=personal
 spring:
+  # 用户保存的数据源配置（~/.metadata-registry/application-local.yml）由
+  # LocalConfigBootstrapInitializer 在启动时加载，优先级高于本 profile 的默认键
+  # （profile 文件内的 spring.config.import 不生效，故不用 import 方式）。
   datasource:
     url: ${DB_URL:jdbc:sqlite:./data/metadata-registry.db}
     # sqlite-jdbc 不在 Spring Boot DatabaseDriver 枚举中，Hikari 无法从 URL
@@ -41,10 +44,11 @@ spring:
     # 外部导入配置为 SQL Server 设定了 default-schema: ext；SQLite 无 schema 概念，
     # 显式置空避免 Flyway 把 SQLite 历史表指向不存在的 ext schema。
     default-schema: ${FLYWAY_DEFAULT_SCHEMA:}
-    # 基线版本继承 application.yml 的 20260918002(既有库经 baseline-on-migrate 基线化,
-    # 只应用两个带幂等守卫的新迁移;既有 personal 库由此获得预置名称)。
-    # 已知限制:全新 personal 空库无核心表,而全量重放老迁移在 V20260727001 即失败
-    # (SQLite 不支持 DROP COLUMN IF EXISTS,该脚本从未可在空库重放),全新库启动失败属既有问题。
+    # 基线版本默认继承 application.yml 的 20260918002（无 Flyway 历史但有业务表的
+    # 旧 ddl-auto 库，经 baseline-on-migrate 走幂等守卫迁移兼容链）。
+    # 全新空库由 FreshDatabaseEnvironmentPostProcessor 识别后改为以共同基线
+    # 20261009012 基线化（ORM 先建表，见 sqlite-empty-db-bootstrap），
+    # 不重放不可在空库执行的历史迁移。
 
 app:
   cors:

@@ -87,6 +87,15 @@ public class DatasourceConfigService {
     }
 
     /**
+     * 本地配置文件路径（用户主目录下，或经 {@code metadata.registry.config.file}
+     * 系统属性覆盖）。供 {@code LocalConfigBootstrapInitializer} 与启动迁移逻辑共享，
+     * 保证"保存"与"加载"指向同一文件。
+     */
+    public static Path localConfigPath() {
+        return resolveLocalConfig();
+    }
+
+    /**
      * 当前数据源只读视图（不回传口令）。
      */
     public DatasourceConfigView currentConfig() {
@@ -196,8 +205,11 @@ public class DatasourceConfigService {
         Map<String, Object> root = loadExisting();
         Map<String, Object> spring = child(root, "spring");
         Map<String, Object> datasource = child(spring, "datasource");
-        datasource.put("url", url);
-        datasource.put("driver-class-name", driverClass(vendor));
+        // 以 ${ENV:值} 形式落盘：保存值在重启后对 profile 默认值生效
+        // （profile 经 spring.config.import 让位于本文件，见 application-personal.yml），
+        // 环境变量仍可覆盖已保存值（占位符在属性绑定时对整体 Environment 解析）。
+        datasource.put("url", envWrapped("DB_URL", url));
+        datasource.put("driver-class-name", envWrapped("DB_DRIVER", driverClass(vendor)));
         // SQLite 无认证概念：凭据一律不落盘（浏览器自动填充/表单残留也会随请求提交）
         if (vendor != DatabaseVendor.SQLITE && hasText(request.username())) {
             datasource.put("username", request.username());
@@ -215,16 +227,23 @@ public class DatasourceConfigService {
         Map<String, Object> jpa = child(spring, "jpa");
         Map<String, Object> jpaProps = child(jpa, "properties");
         Map<String, Object> hibernate = child(jpaProps, "hibernate");
-        hibernate.put("default_schema", defaultSchemaFor(vendor, request.schema()));
+        hibernate.put("default_schema", envWrapped("DB_DEFAULT_SCHEMA", defaultSchemaFor(vendor, request.schema())));
         hibernate.remove("globally_quoted_identifiers");
-        hibernate.put("dialect", dialectClass(vendor));
+        hibernate.put("dialect", envWrapped("HIBERNATE_DIALECT", dialectClass(vendor)));
         if (vendor == DatabaseVendor.DM) {
             // context 为 DM 保留字，需全局引用标识符
             hibernate.put("globally_quoted_identifiers", true);
         }
 
         Map<String, Object> flyway = child(spring, "flyway");
-        flyway.put("locations", "classpath:db/migration/" + flywayDir(vendor));
+        flyway.put("locations", envWrapped("DB_VENDOR", "classpath:db/migration/" + flywayDir(vendor)));
+        if (vendor == DatabaseVendor.SQLITE) {
+            // SQLite 下 Flyway 必须显式落到 main schema：personal profile 的
+            // flyway.schemas 默认留空（规避 SQL Server 导入配置的副作用），保存过的
+            // SQLite 配置若不写 main，重启后 Flyway 无法在 SQLite 上定位历史表。
+            flyway.put("schemas", envWrapped("FLYWAY_SCHEMAS", "main"));
+            flyway.put("default-schema", envWrapped("FLYWAY_DEFAULT_SCHEMA", "main"));
+        }
 
         writeBack(root);
         log.warn("数据源配置已写入 {}（vendor={}），需重启生效", localConfig.toAbsolutePath(), vendor);
@@ -263,13 +282,10 @@ public class DatasourceConfigService {
      * "path to db: dir does not exist"。
      */
     private void prepareFilePath(DatabaseVendor vendor, DatasourceConfigRequest request) {
-        if (vendor != DatabaseVendor.SQLITE) {
+        if (vendor != DatabaseVendor.SQLITE || !hasText(request.filePath())) {
             return;
         }
-        if (!hasText(request.filePath())) {
-            return;
-        }
-        Path file = Paths.get(request.filePath()).toAbsolutePath().normalize();
+        Path file = Paths.get(resolveSqliteFilePath(request.filePath()));
         Path parent = file.getParent();
         if (parent != null && !Files.exists(parent)) {
             try {
@@ -280,14 +296,30 @@ public class DatasourceConfigService {
         }
     }
 
+    /**
+     * SQLite 文件路径规整：展开 {@code ~} 前缀、转为绝对路径并规范化，
+     * 保证落盘 JDBC URL 指向唯一确定位置（相对路径会随 JVM 启动目录漂移）。
+     */
+    private String resolveSqliteFilePath(String filePath) {
+        if (!hasText(filePath)) {
+            throw new BusinessException(ApiCodes.VALIDATION_FAILED, "SQLite 需要指定数据库文件路径");
+        }
+        String expanded = filePath.equals("~") || filePath.startsWith("~/") || filePath.startsWith("~\\")
+                ? System.getProperty("user.home") + filePath.substring(1)
+                : filePath;
+        return Paths.get(expanded).toAbsolutePath().normalize().toString();
+    }
+
+    /**
+     * 生成 {@code ${ENV:值}} 占位包装串；值为 null 时落空默认。
+     */
+    private static String envWrapped(String envKey, String value) {
+        return "${" + envKey + ":" + (value == null ? "" : value) + "}";
+    }
+
     private String buildJdbcUrl(DatabaseVendor vendor, DatasourceConfigRequest request) {
         return switch (vendor) {
-            case SQLITE -> {
-                if (!hasText(request.filePath())) {
-                    throw new BusinessException(ApiCodes.VALIDATION_FAILED, "SQLite 需要指定数据库文件路径");
-                }
-                yield "jdbc:sqlite:" + request.filePath();
-            }
+            case SQLITE -> "jdbc:sqlite:" + resolveSqliteFilePath(request.filePath());
             case SQLSERVER -> {
                 requireHostDatabase(request);
                 StringBuilder sb = new StringBuilder("jdbc:sqlserver://")
@@ -397,6 +429,75 @@ public class DatasourceConfigService {
      */
     public static void migrateLegacyConfigIfNeeded() {
         migrateTo(resolveLocalConfig());
+        sanitizeLegacyBehaviorKeys(resolveLocalConfig());
+    }
+
+    /**
+     * 剥离旧格式 application-local.yml 中的行为开关键（sqlite-empty-db-bootstrap）。
+     *
+     * <p>profile 文件改为经 {@code spring.config.import} 让位给本文件后（见
+     * application-personal.yml），旧文件里遗留的 {@code spring.flyway.enabled=false}
+     * 或 {@code spring.jpa.hibernate.ddl-auto} 会从"被 profile 覆盖"翻转为"覆盖 profile"，
+     * 导致 Flyway 被关闭或在既有 SQLite 库上触发批量元数据读取失败。这些键只可能由
+     * 远古版本写入（当前保存服务从不写它们），直接剥离并告警；数据源连接键
+     * （url/driver/dialect/locations）原样保留。
+     */
+    public static void sanitizeLegacyBehaviorKeys(Path target) {
+        if (!Files.exists(target)) {
+            return;
+        }
+        Map<String, Object> root;
+        try (InputStream in = Files.newInputStream(target)) {
+            root = new Yaml().load(in);
+        } catch (IOException e) {
+            log.warn("清理旧格式本地配置失败（保持原文件）: {}", e.getMessage());
+            return;
+        }
+        if (root == null) {
+            return;
+        }
+        boolean stripped = false;
+        stripped |= removeNested(root, "spring", "flyway", "enabled");
+        stripped |= removeNested(root, "spring", "jpa", "hibernate", "ddl-auto");
+        if (!stripped) {
+            return;
+        }
+        DumperOptions options = new DumperOptions();
+        options.setDefaultFlowStyle(DumperOptions.FlowStyle.BLOCK);
+        options.setPrettyFlow(true);
+        try (Writer writer = Files.newBufferedWriter(target)) {
+            new Yaml(options).dump(root, writer);
+        } catch (IOException e) {
+            log.warn("回写清理后的本地配置失败: {}", e.getMessage());
+        }
+        log.warn("已从 {} 剥离旧版行为开关键（flyway.enabled / jpa.hibernate.ddl-auto）；"
+                + "这些键在旧版本中会被 profile 覆盖，新配置优先级下会错误地覆盖 profile 行为。", target);
+    }
+
+    /** 删除嵌套 Map 中的键；变空的父 Map 一并清理。返回是否有键被删除。 */
+    private static boolean removeNested(Map<String, Object> root, String... keys) {
+        return removeNested(root, keys, 0);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static boolean removeNested(Map<String, Object> node, String[] keys, int depth) {
+        if (depth == keys.length - 1) {
+            if (!node.containsKey(keys[depth])) {
+                return false;
+            }
+            node.remove(keys[depth]);
+            return true;
+        }
+        Object next = node.get(keys[depth]);
+        if (!(next instanceof Map<?, ?>)) {
+            return false;
+        }
+        Map<String, Object> child = (Map<String, Object>) next;
+        boolean removed = removeNested(child, keys, depth + 1);
+        if (removed && child.isEmpty()) {
+            node.remove(keys[depth]);
+        }
+        return removed;
     }
 
     private static void migrateTo(Path target) {

@@ -2,6 +2,8 @@
 # 注意：团队版不支持 SQLite（由数据源配置校验强制，见 datasource-configuration 能力）。
 # 用法：java -jar metadata-registry-web.jar --spring.profiles.active=team
 spring:
+  # 同 application-personal.yml：用户保存的数据源配置（application-local.yml）
+  # 由 LocalConfigBootstrapInitializer 加载，优先级高于本 profile 默认值。
   datasource:
     url: ${DB_URL:jdbc:sqlserver://localhost:1433;databaseName=metadata_registry;encrypt=true;trustServerCertificate=true;integratedSecurity=true}
     driver-class-name: ${DB_DRIVER:com.microsoft.sqlserver.jdbc.SQLServerDriver}

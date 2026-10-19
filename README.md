@@ -80,10 +80,24 @@ mvn spring-boot:run
 mvn -pl metadata-registry-web -am spring-boot:run
 ```
 
-首次启动时：
-- Hibernate 自动创建 60+ 张表。
-- `DataInitializer` 自动写入种子数据（演示账号、语言、注册机构、命名空间、数据类型、对象类、特性、数据元素等）。
+首次启动时（团队版 SQL Server / 达梦）：
+- Hibernate 自动创建 60+ 张表（`mdr` 标准层 + `ext` 扩展卫星层）。
+- `StaticDataPresetService` 自动写入静态预置数据（语言、全局默认标识策略、占位管理员、标准流转规则等；演示数据由 `app.seed.demo-data.enabled` 单独开关）。
+- Flyway 按 `db/migration/<方言>/` 管理基线之后的迁移，三方言共用 SQL Server 版本号序列。
 - 初始化向导完成（setup 并 commit）后自动创建 **Registry Context**（注册表上下文，归属向导创建的注册机构，命名空间为注册机构自有命名空间，标识/版本由命名空间生成策略产出；指称 `Registry Context`/`注册表上下文` 及其定义的语境自指），并回填注册规范的默认上下文；已初始化系统升级后首次启动自动补建。
+
+### 个人版（SQLite）首次启动
+
+个人版零外部依赖，默认使用本地 SQLite 文件库，无需上述建库步骤：
+
+```bash
+java -jar metadata-registry-web.jar --spring.profiles.active=personal
+```
+
+- 默认数据库文件为 `./data/metadata-registry.db`（可用 `DB_URL` 环境变量覆盖）。文件及其父目录不存在时会自动创建。
+- 全新空库首次启动时自动初始化：先由 ORM 创建当前版本全部表结构，Flyway 再以共同基线版本（当前 `20261009012`，以 SQL Server 版本序列为准）记录基线，随后执行静态预置，最后开放初始化向导——无需手工导入基准库。
+- 在系统设置（或初始化向导）中保存新的 SQLite 文件路径后**重启生效**：应用会连接所选路径并自动完成同样的结构初始化；SQLite 不保存账号口令。
+- 既有数据库文件完全不受影响：Flyway 历史、数据与校验和原样保留。
 
 ### 4. 启动前端
 
