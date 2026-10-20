@@ -40,7 +40,9 @@ import java.util.Map;
  * （含表）完全不受影响；有业务表但无 Flyway 历史的旧库维持既有
  * baseline-on-migrate 兼容链并输出明确警告。
  *
- * <p>Flyway 关闭（测试/本地开发）或非 SQLite 方言时不做任何事。
+ * <p>非 SQLite 方言时不做任何事。"Flyway 关闭"仅对非全新库生效（测试/本地开发）；
+ * 全新空库仍强制启用 Flyway 完成基线化（2026-10-20 修正：旧格式本地配置的
+ * flyway.enabled=false 不再阻断全新库基线化）。
  *
  * <p>注：未采用 {@code META-INF/spring/*.imports} 注册 EnvironmentPostProcessor，
  * Spring Boot 3.5 的 repackage 不会把应用自身的 META-INF/spring 目录迁入
@@ -70,9 +72,6 @@ public class FreshDatabaseInitializer implements ApplicationContextInitializer<C
      * 空库识别与属性注入。单独抽出便于测试直接调用。
      */
     public void apply(ConfigurableEnvironment environment) {
-        if (!environment.getProperty("spring.flyway.enabled", Boolean.class, true)) {
-            return;
-        }
         String url = environment.getProperty("spring.datasource.url");
         if (url == null || !url.startsWith(SQLITE_URL_PREFIX)) {
             return;
@@ -86,8 +85,16 @@ public class FreshDatabaseInitializer implements ApplicationContextInitializer<C
 
         Freshness freshness = detectFreshness(dbFile);
         if (freshness == Freshness.FRESH) {
+            // 全新库必须启用 Flyway 完成基线化：即便旧格式本地配置显式关闭了 Flyway
+            // （该关闭语义针对无 Flyway 历史的既有漂移库），全新空库不受其影响。
             applyFreshOverrides(environment, dbFile);
-        } else if (freshness == Freshness.LEGACY_UNHISTORIED) {
+            return;
+        }
+        if (!environment.getProperty("spring.flyway.enabled", Boolean.class, true)) {
+            // Flyway 关闭且非全新库（测试/本地开发）：无引导动作。
+            return;
+        }
+        if (freshness == Freshness.LEGACY_UNHISTORIED) {
             log.warn("SQLite 库 {} 存在业务表但没有 Flyway 历史表：维持既有兼容链"
                             + "（baseline-on-migrate 按 application.yml 基线版本处理，重放带幂等守卫的迁移）。"
                             + "若启动失败说明该库来源无法自动识别，请人工核对迁移历史。",
@@ -179,5 +186,7 @@ public class FreshDatabaseInitializer implements ApplicationContextInitializer<C
         return q >= 0 ? pathPart.substring(0, q) : pathPart;
     }
 }
+
+
 
 

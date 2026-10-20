@@ -110,11 +110,30 @@ class FreshDatabaseInitializerTest {
     }
 
     @Test
-    void flywayDisabledIsIgnored(@TempDir Path tempDir) {
-        ConfigurableEnvironment env = environment("jdbc:sqlite:" + tempDir.resolve("x.db"),
+    void flywayDisabledIsIgnoredForExistingDatabase(@TempDir Path tempDir) throws Exception {
+        Path dbFile = tempDir.resolve("existing.db");
+        try (Connection conn = DriverManager.getConnection("jdbc:sqlite:" + dbFile);
+             Statement st = conn.createStatement()) {
+            st.execute("CREATE TABLE some_business_table (id INTEGER)");
+        }
+        ConfigurableEnvironment env = environment("jdbc:sqlite:" + dbFile,
                 "spring.flyway.enabled", false);
         initializer.apply(env);
-        assertThat(freshSource(env)).isNull();
+        assertThat(freshSource(env)).as("Flyway 关闭的既有库不得被重新基线化").isNull();
+    }
+
+    @Test
+    void flywayDisabledDoesNotBlockFreshBootstrap(@TempDir Path tempDir) {
+        // 旧格式本地配置显式关闭的 Flyway 只针对既有漂移库；全新空库必须强制
+        // 启用 Flyway 完成基线化（2026-10-20 修正，见 FreshDatabaseInitializer javadoc）。
+        // 本地配置源模拟生产位置：systemEnvironment 之后（低于全新库引导覆盖）。
+        ConfigurableEnvironment env = environment("jdbc:sqlite:" + tempDir.resolve("fresh.db"));
+        env.getPropertySources().addAfter(
+                StandardEnvironment.SYSTEM_ENVIRONMENT_PROPERTY_SOURCE_NAME,
+                new MapPropertySource("localConfig", Map.of("spring.flyway.enabled", false)));
+        initializer.apply(env);
+        assertThat(freshSource(env)).as("全新库不得被 flyway.enabled=false 阻断基线化").isNotNull();
+        assertThat(env.getProperty("spring.flyway.enabled")).isEqualTo("true");
     }
 
     @Test
@@ -129,3 +148,5 @@ class FreshDatabaseInitializerTest {
         assertThat(env.getProperty("spring.jpa.hibernate.ddl-auto")).isEqualTo("validate");
     }
 }
+
+
