@@ -5,6 +5,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.ResourceLoader;
+import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
@@ -44,6 +45,12 @@ public class LanguagePresetSeeder {
 
     /**
      * 重新应用语言预置脚本（幂等，可重复调用）。
+     *
+     * <p>schema 漂移容忍：远古 ddl-auto 时代建库的 {@code language_identification}
+     * 表带 NOT NULL 且无默认值的 {@code language_id} 列，与预置 INSERT 的列清单不
+     * 兼容（2026-10-19/20 实测：NOT NULL constraint failed 导致启动失败）。单条
+     * 语句失败仅 WARN 并跳过该语句，不中断整轮预置——预置语句均带幂等守卫，跳过
+     * 后既有数据原样保留，下轮启动自动重试。
      */
     public void reapplyPreset() {
         for (String template : SCRIPT_TEMPLATES) {
@@ -54,11 +61,28 @@ public class LanguagePresetSeeder {
             }
             String sql = readScript(resource);
             List<String> statements = splitStatements(sql);
+            int skipped = 0;
             for (String statement : statements) {
-                jdbcTemplate.execute(statement);
+                try {
+                    jdbcTemplate.execute(statement);
+                } catch (DataAccessException e) {
+                    skipped++;
+                    log.warn("语言预置语句执行失败（通常为既有库 schema 漂移，已跳过该语句）：{}；原因：{}",
+                            abbreviate(statement), e.getMostSpecificCause().getMessage());
+                }
             }
-            log.info("已重新应用语言预置脚本 {}（{} 条语句）", path, statements.size());
+            if (skipped == 0) {
+                log.info("已重新应用语言预置脚本 {}（{} 条语句）", path, statements.size());
+            } else {
+                log.warn("语言预置脚本 {} 完成：{} 条成功，{} 条因 schema 漂移跳过（既有库保留原数据）",
+                        path, statements.size() - skipped, skipped);
+            }
         }
+    }
+
+    private String abbreviate(String statement) {
+        String singleLine = statement.replaceAll("\\s+", " ").trim();
+        return singleLine.length() <= 120 ? singleLine : singleLine.substring(0, 117) + "...";
     }
 
     private String vendorDir() {

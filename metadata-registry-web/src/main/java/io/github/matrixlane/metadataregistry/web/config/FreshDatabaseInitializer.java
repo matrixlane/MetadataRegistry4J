@@ -156,6 +156,10 @@ public class FreshDatabaseInitializer implements ApplicationContextInitializer<C
 
     private void applyFreshOverrides(ConfigurableEnvironment environment, Path dbFile) {
         Map<String, Object> overrides = new LinkedHashMap<>();
+        // flyway.enabled 强制为 true：旧格式 application-local.yml 里用户显式关掉的
+        // Flyway 只对既有库生效；全新库必须启用 Flyway 才能完成基线化。本属性源位于
+        // 本地配置源之上（main() 中后注册），故覆盖生效。
+        overrides.put("spring.flyway.enabled", "true");
         overrides.put("spring.jpa.hibernate.ddl-auto", "update");
         overrides.put("spring.flyway.baseline-on-migrate", "true");
         overrides.put("spring.flyway.baseline-version", FRESH_BASELINE_VERSION);

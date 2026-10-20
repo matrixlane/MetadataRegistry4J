@@ -85,7 +85,9 @@ rem so no lingering "Backend" window (cmd /c would wait on the javapath shim
 rem and keep the window for the whole backend lifetime - verified).
 rem The logs are truncated on each start; they grow during a run (app logs)
 rem and are meant for startup troubleshooting - safe to delete anytime.
-powershell -NoProfile -Command "Start-Process '%JAVA_HOME%\bin\javaw.exe' -ArgumentList '-jar','%~dp0metadata-registry-web\target\metadata-registry-web-0.1.0-SNAPSHOT.jar' -RedirectStandardOutput '%~dp0logs\backend-stdout.log' -RedirectStandardError '%~dp0logs\backend-stderr.log'"
+rem 个人版 profile：默认 profile 不带 orm-sqlite.xml，同名 EXT 实体与标准表导出冲突，启动必失败。
+rem 团队版部署请改为 --spring.profiles.active=team（见 application-team.yml）。
+powershell -NoProfile -Command "Start-Process '%JAVA_HOME%\bin\javaw.exe' -ArgumentList '-jar','%~dp0metadata-registry-web\target\metadata-registry-web-0.1.0-SNAPSHOT.jar','--spring.profiles.active=personal' -RedirectStandardOutput '%~dp0logs\backend-stdout.log' -RedirectStandardError '%~dp0logs\backend-stderr.log'"
 
 :frontend
 rem ---------- Frontend on :5173 ----------

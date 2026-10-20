@@ -48,6 +48,8 @@ class FreshDatabaseInitializerTest {
         initializer.apply(env);
 
         assertThat(freshSource(env)).as("缺文件的全新库应注入引导属性").isNotNull();
+        // 旧格式本地配置显式关闭的 Flyway 不得阻断全新库基线化
+        assertThat(env.getProperty("spring.flyway.enabled")).isEqualTo("true");
         assertThat(env.getProperty("spring.jpa.hibernate.ddl-auto")).isEqualTo("update");
         assertThat(env.getProperty("spring.flyway.baseline-version"))
                 .isEqualTo(FreshDatabaseInitializer.FRESH_BASELINE_VERSION);

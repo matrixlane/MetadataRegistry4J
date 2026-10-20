@@ -433,14 +433,19 @@ public class DatasourceConfigService {
     }
 
     /**
-     * 剥离旧格式 application-local.yml 中的行为开关键（sqlite-empty-db-bootstrap）。
+     * 剥离旧格式 application-local.yml 中的 {@code spring.jpa.hibernate.ddl-auto}
+     *（sqlite-empty-db-bootstrap）。
      *
-     * <p>profile 文件改为经 {@code spring.config.import} 让位给本文件后（见
-     * application-personal.yml），旧文件里遗留的 {@code spring.flyway.enabled=false}
-     * 或 {@code spring.jpa.hibernate.ddl-auto} 会从"被 profile 覆盖"翻转为"覆盖 profile"，
-     * 导致 Flyway 被关闭或在既有 SQLite 库上触发批量元数据读取失败。这些键只可能由
-     * 远古版本写入（当前保存服务从不写它们），直接剥离并告警；数据源连接键
-     * （url/driver/dialect/locations）原样保留。
+     * <p>本地配置经 {@link io.github.matrixlane.metadataregistry.web.config.LocalConfigBootstrapInitializer}
+     * 提升到 profile 之上后，旧文件里远古版本写入的 {@code ddl-auto=update} 会在
+     * personal profile 的 SQLite 上触发批量元数据读取失败（既有库 ddl-auto 必须为
+     * none，见 application-personal.yml），必须剥离。
+     *
+     * <p>注意：{@code spring.flyway.enabled} 刻意<strong>不剥离</strong>——旧部署依赖
+     * 它关闭 Flyway 来启动"schema 已漂移、无 Flyway 历史"的既有库（实测 2026-10-20：
+     * 此类库重放 V20260919003 会因旧 ddl-auto 建表结构与迁移假设不符而启动失败）。
+     * 该键是用户侧显式选择，且全新空库由 FreshDatabaseInitializer 强制启用 Flyway，
+     * 不受其影响。
      */
     public static void sanitizeLegacyBehaviorKeys(Path target) {
         if (!Files.exists(target)) {
@@ -456,10 +461,7 @@ public class DatasourceConfigService {
         if (root == null) {
             return;
         }
-        boolean stripped = false;
-        stripped |= removeNested(root, "spring", "flyway", "enabled");
-        stripped |= removeNested(root, "spring", "jpa", "hibernate", "ddl-auto");
-        if (!stripped) {
+        if (!removeNested(root, "spring", "jpa", "hibernate", "ddl-auto")) {
             return;
         }
         DumperOptions options = new DumperOptions();
@@ -470,8 +472,8 @@ public class DatasourceConfigService {
         } catch (IOException e) {
             log.warn("回写清理后的本地配置失败: {}", e.getMessage());
         }
-        log.warn("已从 {} 剥离旧版行为开关键（flyway.enabled / jpa.hibernate.ddl-auto）；"
-                + "这些键在旧版本中会被 profile 覆盖，新配置优先级下会错误地覆盖 profile 行为。", target);
+        log.warn("已从 {} 剥离旧版 jpa.hibernate.ddl-auto（旧值 update 在新配置优先级下会"
+                + "覆盖 personal profile 的 none，导致既有 SQLite 库批量元数据读取失败）。", target);
     }
 
     /** 删除嵌套 Map 中的键；变空的父 Map 一并清理。返回是否有键被删除。 */

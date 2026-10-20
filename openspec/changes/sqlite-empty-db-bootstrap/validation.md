@@ -39,3 +39,32 @@
 - 按 AGENTS.md 对 UNKNOWN 风险的要求完成人工核实：`saveConfig`/`testConnection` 唯一生产调用方为 `DatasourceConfigController`（文本检索）；全量 `git diff` 自审。
 - 新增/变更单测 19 项全绿（DatasourceConfigServiceTest 9、FreshDatabaseInitializerTest 7、LocalConfigBootstrapInitializerTest 2、CommonBaselineGuardTest 1）。
 - 全量 web 套件存在 **4 个 master 既有失败类**（PersonalEditionAuthenticationFilterTest 2F/4E、RegistrySpecificationServiceTest 1F、WorkspaceRollbackServiceIntegrationTest 2F、WorkspaceServiceIntegrationTest 6F/3E），经干净 HEAD 对比确认与本次变更无关；另 metadata-registry-ext 的 IdentifierMetadataTest 在 HEAD 提交中期望 3 个枚举值而 VersioningPolicy 已有 4 个（FREE_TEXT），工作区中另有一处未提交的单行修复（非本次变更产物，未纳入本次提交）。
+
+## 6. 2026-10-20 生产启动失败事件与追加修复（同日）
+
+**现象**：本机部署 start.bat 启动后前端始终"应用正在启动"（后端实际崩溃）。
+
+**时间线（仓库 logs/ 实证，均早于 sqlite-empty-db-bootstrap 首次提交 05:40）**：
+- 10-18 03:48 起：默认 profile 启动必崩——不带 orm-sqlite.xml，同名 EXT 实体
+  （language_identification 等）与标准表 Hibernate 导出冲突
+  （Export identifier encountered more than once）。
+- 10-19 05:45 起：personal profile 启动亦崩——LanguagePresetSeeder 重放
+  V20260919003 预置 INSERT 命中漂移空库（远古 ddl-auto 残留的
+  `language_id NOT NULL` 列），NOT NULL constraint failed。
+
+**追加修复**：
+1. `start.bat`/`run.ps1` 增加 `--spring.profiles.active=personal`（默认 profile
+   + SQLite 是历史上从未可用的组合；个人版启动脚本与 README 快速开始一致）。
+2. `sanitizeLegacyBehaviorKeys` 不再剥离 `spring.flyway.enabled`：无 Flyway 历史
+   且 schema 漂移的既有库重放 V20260919003 即失败（实测），关闭 Flyway 是这类库
+   唯一能启动的方式，属用户显式选择；全新空库由 FreshDatabaseInitializer 强制
+   `spring.flyway.enabled=true`，不受旧配置影响。
+3. `LanguagePresetSeeder.reapplyPreset` 增加 schema 漂移容忍：单条语句失败仅
+   WARN 跳过，不中断启动（预置语句幂等，下轮自动重试）。
+4. 用户本机 `~/.metadata-registry/application-local.yml` 恢复 `flyway.enabled: false`
+   并注释原因（此前被 sanitize 剥离）。
+
+**验证**：25 项相关单测全绿；真实库（`./data/metadata-registry.db`，空 schema、
+111 表、无历史无数据）后端启动成功，health UP，语言预置 INSERT 按预期跳过，
+向导端点 initialized=false 可用。该库业务表全空，属未完成初始化的安装——
+经初始化向导 setup/commit 即可使用。

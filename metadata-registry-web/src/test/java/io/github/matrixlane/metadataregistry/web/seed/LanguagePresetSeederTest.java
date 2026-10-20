@@ -44,6 +44,37 @@ class LanguagePresetSeederTest {
     }
 
     @Test
+    @DisplayName("reapplyPreset:标准表带漂移的 NOT NULL language_id 列时跳过 INSERT 不抛异常,UPDATE 仍生效")
+    void toleratesDriftedLegacySchema() throws Exception {
+        // 远古 ddl-auto 建库的漂移形态：标准表残留 NOT NULL 且无默认值的 language_id 列，
+        // 预置 INSERT 的列清单不含该列，重放即 SQLITE_CONSTRAINT_NOTNULL（2026-10-19/20
+        // 生产库实测）。期望：INSERT 被跳过、启动不被阻断，UPDATE 语句照常生效。
+        com.zaxxer.hikari.HikariDataSource ds = new com.zaxxer.hikari.HikariDataSource();
+        ds.setDriverClassName("org.sqlite.JDBC");
+        ds.setJdbcUrl("jdbc:sqlite::memory:");
+        ds.setMaximumPoolSize(1);
+        ds.setMinimumIdle(1);
+        JdbcTemplate jdbc = new JdbcTemplate(ds);
+        jdbc.execute("CREATE TABLE language_identification ("
+                + "id blob not null, language_id blob not null,"
+                + " language_identifier varchar(255), script_identifier varchar(255),"
+                + " geopolitical_territory_identifier varchar(255), primary key (id))");
+        jdbc.execute("CREATE TABLE ext_language_identification ("
+                + "id blob not null, language_id blob not null,"
+                + " language_name varchar(255), territory_name varchar(255), primary key (id))");
+
+        newSeeder(ds).reapplyPreset();
+
+        // 漂移表无插入（INSERT 被跳过），但名称 UPDATE 已生效
+        Integer languages = jdbc.queryForObject("SELECT COUNT(*) FROM language_identification", Integer.class);
+        assertThat(languages).isZero();
+        Integer names = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM ext_language_identification WHERE language_name IS NOT NULL", Integer.class);
+        assertThat(names).isZero();
+        ds.close();
+    }
+
+    @Test
     @DisplayName("reapplyPreset:空库执行脚本清单得到 22 条语言代码与 22 条名称,zh-CN 名称为简体中文")
     void seeds22LanguagesAndNamesFromScript() throws Exception {
         javax.sql.DataSource ds = newDb();

@@ -20,7 +20,8 @@ if (-not (Test-Path )) {
 }
 
 Write-Host "[1/2] Starting Backend (Spring Boot :8081)..." -ForegroundColor Green
- = Start-Process cmd -ArgumentList "/k cd /d "" ^&^& java -jar metadata-registry-web\target\metadata-registry-web-0.1.0-SNAPSHOT.jar" -PassThru
+# 个人版 profile：默认 profile 不带 orm-sqlite.xml，同名 EXT 实体与标准表导出冲突，启动必失败。
+ = Start-Process cmd -ArgumentList "/k cd /d "" ^&^& java -jar metadata-registry-web\target\metadata-registry-web-0.1.0-SNAPSHOT.jar --spring.profiles.active=personal" -PassThru
 
 Write-Host "[2/2] Starting Frontend (Vite + Vue :5173)..." -ForegroundColor Green
  = Start-Process cmd -ArgumentList "/k cd /d "\metadata-registry-ui" ^&^& npm run dev" -PassThru

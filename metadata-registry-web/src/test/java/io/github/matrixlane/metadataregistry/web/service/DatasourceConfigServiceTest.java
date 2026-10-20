@@ -168,7 +168,7 @@ class DatasourceConfigServiceTest {
     }
 
     @Test
-    void sanitizeLegacyBehaviorKeysStripsLegacySwitches(@TempDir Path tempDir) throws IOException {
+    void sanitizeLegacyBehaviorKeysStripsDdlAutoButKeepsFlywaySwitch(@TempDir Path tempDir) throws IOException {
         Path legacy = tempDir.resolve("application-local.yml");
         Files.writeString(legacy, """
                 spring:
@@ -185,8 +185,13 @@ class DatasourceConfigServiceTest {
         DatasourceConfigService.sanitizeLegacyBehaviorKeys(legacy);
 
         String sanitized = Files.readString(legacy);
-        assertThat(sanitized).doesNotContain("enabled:");
+        // ddl-auto 必须剥离：update 在新优先级下会覆盖 personal profile 的 none
         assertThat(sanitized).doesNotContain("ddl-auto");
+        // flyway.enabled 刻意保留：既有"无 Flyway 历史且 schema 漂移"的库依赖它关闭
+        // Flyway 才能启动（V20260919003 等迁移假设 ddl-auto 建表结构，重放即失败）；
+        // 全新空库由 FreshDatabaseInitializer 强制启用 Flyway，不受其影响。
+        assertThat(sanitized).contains("enabled:");
+        assertThat(sanitized).contains("false");
         // 数据源连接键原样保留
         assertThat(sanitized).contains("url: jdbc:sqlite:./data/metadata-registry.db");
         assertThat(sanitized).contains("locations: classpath:db/migration/sqlite");
