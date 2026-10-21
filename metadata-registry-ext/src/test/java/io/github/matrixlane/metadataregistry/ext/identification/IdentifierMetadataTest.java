@@ -24,7 +24,8 @@ class IdentifierMetadataTest {
                 .containsExactly(
                         VersioningPolicy.SEMVER,
                         VersioningPolicy.SEQUENTIAL,
-                        VersioningPolicy.DATE);
+                        VersioningPolicy.DATE,
+                        VersioningPolicy.FREE_TEXT);
     }
 
     @Test

@@ -69,11 +69,14 @@ public interface AdministeredItemRepository
                    rs.administrativeStatus,
                    rs.administrativeNote,
                    rs.unresolvedIssue,
-                   ai.stewardshipRecord.id,
-                   ai.stewardshipRecord.contact.id,
-                   ai.stewardshipRecord.organization.id
+                   sr.id,
+                   c.id,
+                   o.id
             FROM AdministeredItem ai
             LEFT JOIN ai.registrationState rs
+            LEFT JOIN ai.stewardshipRecord sr
+            LEFT JOIN sr.contact c
+            LEFT JOIN sr.organization o
             WHERE ai.item.id = :itemId
             """)
     List<Object[]> findMetaByItemId(@Param("itemId") UUID itemId);
@@ -92,11 +95,14 @@ public interface AdministeredItemRepository
                    rs.administrativeStatus,
                    rs.administrativeNote,
                    rs.unresolvedIssue,
-                   ai.stewardshipRecord.id,
-                   ai.stewardshipRecord.contact.id,
-                   ai.stewardshipRecord.organization.id
+                   sr.id,
+                   c.id,
+                   o.id
             FROM AdministeredItem ai
             LEFT JOIN ai.registrationState rs
+            LEFT JOIN ai.stewardshipRecord sr
+            LEFT JOIN sr.contact c
+            LEFT JOIN sr.organization o
             WHERE ai.item.id IN :itemIds
             """)
     List<Object[]> findMetaByItemIds(@Param("itemIds") Collection<UUID> itemIds);

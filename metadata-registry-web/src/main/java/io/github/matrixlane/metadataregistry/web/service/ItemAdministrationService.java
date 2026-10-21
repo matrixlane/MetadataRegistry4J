@@ -1122,7 +1122,7 @@ public class ItemAdministrationService {
                 identifierCreationMode = siLifecycle.getIdentifierCreationMode();
                 versionCreationMode = siLifecycle.getVersionCreationMode();
             }
-            Namespace ns = preload.namespacesById().get(nsId);
+            Namespace ns = nsId == null ? null : preload.namespacesById().get(nsId);
             nsLabel = ns == null ? null : ItemNamingHelper.preferredDesignation(ns);
             scopedIdentifierStr = buildScopedIdentifierStr(nsLabel, identifier, version);
         } else if (!batched) {
@@ -1191,11 +1191,15 @@ public class ItemAdministrationService {
      */
     private static Object[] preferPrimaryScalarIdentifier(List<Object[]> siRows, Map<UUID, Namespace> namespaces) {
         return siRows.stream()
-                .filter(r -> namespaces.get((UUID) r[4]) != null
+                .filter(r -> r[4] != null
+                        && namespaces.get((UUID) r[4]) != null
                         && namespaces.get((UUID) r[4]).getRegistrationAuthority() != null)
                 .findFirst()
                 .orElseGet(() -> siRows.stream()
                         .filter(r -> {
+                            if (r[4] == null) {
+                                return false;
+                            }
                             Namespace ns = namespaces.get((UUID) r[4]);
                             return ns != null
                                     && !GlobalNamespaceService.isGlobalNamespace(ns)

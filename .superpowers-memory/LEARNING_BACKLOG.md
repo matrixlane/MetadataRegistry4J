@@ -142,3 +142,78 @@ Use this file to track reusable lessons that may deserve a future workflow, skil
   → `db-baseline/README.md` 中"本目录被 git 跟踪"的表述在验证期内与实际不符，
   已在该文件开头加注（见 README「⚠️ 还原需两步」小节）。
 - linked_entries: openspec/changes/repair-administered-item-closure；db-baseline/README.md
+
+### BL-2026-10-20-01 关联表（registered_item_*_record/document）收紧 UNIQUE 约束前须先验证存量
+- status: PROPOSED
+- last_updated: 2026-10-20
+- source: administered-item-reference-documents-ui 任务 2.x/7.5
+- owner: matrixlane
+- review_after: 2026-12-20
+- trigger: 对 registered_item_submission_record / registered_item_reference_document 施加唯一约束
+- repeated_pattern: 两表语义以 (两侧列) 组合为唯一键；V20261009011 只补了索引未加 UNIQUE
+  （存量 11,182/23,449 行未验证无重复，贸然加约束会在存量库失败）
+- impact: 中——不加约束，脚本/并发写入可能产生重复关联，查询去重靠 DISTINCT
+- evidence_count: 1
+- suggested_artifact: 新变更：先 GROUP BY 双侧列查重 → 去重规则（保留确定性一行 + 重定向引用）
+  → 三方言 UNIQUE 迁移（幂等可重入），对齐 database-portability「收紧前先验证」要求
+- linked_entries: openspec/changes/administered-item-reference-documents-ui（spec delta 已写入）
+
+### BL-2026-10-20-02 workspace owner 判定慢路径（WorkspaceService 基线 9 失败同源）
+- status: PROPOSED
+- last_updated: 2026-10-20
+- source: administered-item-reference-documents-ui 7.2 全量比对（5a5453ee 与 master 同口径 6F+3E）
+- owner: matrixlane
+- review_after: 2026-12-20
+- trigger: 工作空间 drafts/rejected 视图与批量提交在 SQLite 上慢/失败；flags_* 用例 ArrayIndexOutOfBounds
+- repeated_pattern: WorkspaceService 的 owner 归属判定与视图计数走深实体关联；SQLite 64 表 join
+  上限缓解后仍有个别路径触顶/超时（既有基线失败，非本次变更引入）
+- impact: 中——SQLite 部署下工作空间页签加载与批量操作不可用
+- evidence_count: 2（10-09 基线 + 10-20 复测同口径）
+- suggested_artifact: 对齐 64 表上限的治理方式：owner 判定改标量投影 + 视图计数改聚合子查询
+- linked_entries: KNOWN_FAILURES failure-2026-09-21-sqlite-64-table-join-limit（resolved 后的残余路径）
+
+### BL-2026-10-20-03 JPQL 标量投影的隐式路径 join 会被 Hibernate 生成为 INNER JOIN
+- status: PROPOSED
+- last_updated: 2026-10-20
+- source: administered-item-reference-documents-ui 回归修复（1bd2699d 引入、本会话修复）
+- owner: matrixlane
+- review_after: 2026-12-20
+- trigger: JPQL select 列表写多段点路径（如 ai.stewardshipRecord.contact.id）做标量取值
+- repeated_pattern: Hibernate 对路径链生成 INNER JOIN——任一环为空的行整体丢行（不是该列 null）。
+  AdministeredItemRepository.findMetaByItemId(s) 因此对无主管记录条目 meta 全 null，
+  且掩盖了批量标识符路径的 NPE（路径不可达），10-17 注释自述"在途重构"即此
+- impact: 高——静默丢行类 bug，集成测试少断言 meta 时不可见
+- evidence_count: 1（事故级：列表/详情 meta 全空 + 两个潜伏 NPE）
+- suggested_artifact: 项目约定：标量投影禁用多段点路径，一律显式 LEFT JOIN + 别名取列；
+  可入 AGENTS.md「正交链完整性规则」配套查询形状约定
+- linked_entries: 本会话纪要 2026-10-20-administered-item-reference-documents-ui
+
+### BL-2026-10-20-04 Java 9+ 不可变 Map（Map.of/Map.copyOf）.get(null) 抛 NPE
+- status: PROPOSED
+- last_updated: 2026-10-20
+- source: 同上回归修复（preferPrimaryScalarIdentifier / buildItemMeta 批量路径）
+- owner: matrixlane
+- review_after: 2026-12-20
+- trigger: 用 Map.of() 兜底空 map，下游以可能为 null 的键查询
+- repeated_pattern: ImmutableCollections$MapN.get 先 requireNonNull(key)——HashMap 返回 null 的
+  宽容语义在不可变 map 上变成 NPE；防御习惯须改为先判空键
+- impact: 中——仅批量/新路径受影响，但定位需看完整堆栈（findFirst 行号有误导性）
+- evidence_count: 1
+- suggested_artifact: 代码评审 checklist 一条；或统一用 HashMap 兜底代替 Map.of()
+- linked_entries: 本会话纪要 2026-10-20-administered-item-reference-documents-ui
+
+### BL-2026-10-20-05 多 Agent 并发同一仓库：验证必须在隔离 worktree，严禁共享 target/ 与 .m2 时段
+- status: PROPOSED
+- last_updated: 2026-10-20
+- source: 本会话与 sqlite-empty-db-bootstrap 并行会话互踩的连环事故
+- owner: matrixlane
+- review_after: 2026-12-20
+- trigger: 同一仓库两个以上 Agent/终端同时 mvn 构建
+- repeated_pattern: 对方 clean 删我方 classes（NoClassDefFoundError 风暴）、.m2 SNAPSHOT 被
+  基线实验覆盖（IdentifiedItem/RegisteredItem 编译错）、JVM 孤儿占文件锁、PowerShell 后台
+  任务/管道提前返回制造"假完成"
+- impact: 高——本会话为此消耗数小时排查环境假象
+- evidence_count: 2（10-20 本会话多轮；历史 session-journal 亦有并行会话记录）
+- suggested_artifact: AGENTS.md 或用户级规则：需要全量验证时先 git worktree add 隔离目录，
+  Start-Process 显式 -WorkingDirectory，轮询 java PID 而非管道返回码，开工前 Get-Process java 清点
+- linked_entries: 本会话纪要 2026-10-20-administered-item-reference-documents-ui
