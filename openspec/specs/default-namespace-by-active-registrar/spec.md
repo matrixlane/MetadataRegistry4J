@@ -5,7 +5,7 @@ TBD - created by archiving change add-default-namespace-by-active-registrar. Upd
 ## Requirements
 ### Requirement: 新建 Item 时按活动 Registrar 归属注册机构默认命名空间
 
-新建任何受管项（Administered_Item，包括数据元、对象类、特性、数据元素概念、值含义、计量单位、值域、概念域、数据类型等 Item 子类，下称"新建 Item"）时，若调用方未在 `ItemRegistrationRequest` 中显式携带 `namespaceId`，后端 MUST 按当前活动 Registrar 所属 Registration_Authority 推导默认命名空间：取唯一满足 `n.registrationAuthority != null` 且 `n.registrationAuthority == activeRegistrar.registrationAuthority` 且 `n.namespaceKind != EXTERNAL` 且 `n.schemeReference != 'urn:metadata-registry:system-default'` 的命名空间。该默认值仅在调用方完全未传 `namespaceId` 时使用；调用方显式传入的值始终优先。前端创建对话框在命名空间选择器上 MUST 以同一推导结果预选；用户可在保存前自由调整，默认值不锁定。联邦/合并路径以 `explicitAuthority` 为权威，本要求 MUST NOT 在该路径上覆写。
+新建任何受管项（Administered_Item，包括数据元、对象类、特性、数据元素概念、值含义、计量单位、值域、概念域、数据类型等 Item 子类，下称"新建 Item"）时，若调用方未在 `ItemRegistrationRequest` 中显式携带 `namespaceId`，后端 MUST 按当前活动 Registrar 所属 Registration_Authority 推导默认命名空间：取唯一满足 `n.registrationAuthority != null` 且 `n.registrationAuthority == activeRegistrar.registrationAuthority` 且 `n.namespaceKind != EXTERNAL` 的命名空间。该默认值仅在调用方完全未传 `namespaceId` 时使用；调用方显式传入的值始终优先。前端创建对话框在命名空间选择器上 MUST 以同一推导结果预选；用户可在保存前自由调整，默认值不锁定。联邦/合并路径以 `explicitAuthority` 为权威，本要求 MUST NOT 在该路径上覆写。
 
 #### Scenario: 活动 Registrar 命中自有命名空间
 
@@ -31,8 +31,8 @@ TBD - created by archiving change add-default-namespace-by-active-registrar. Upd
 
 #### Scenario: 外部命名空间与 system-default 不参与默认
 
-- **WHEN** 系统中存在与活动 Registrar RA 无关的 `EXTERNAL` 命名空间或 `urn:metadata-registry:system-default` 命名空间
-- **THEN** 这些命名空间 MUST NOT 被推导为默认；外部/system-default 创建路径继续由既有前置门槛管控
+- **WHEN** 系统中存在与活动 Registrar RA 无关的 `EXTERNAL` 命名空间
+- **THEN** 这些命名空间 MUST NOT 被推导为默认；外部命名空间创建路径继续由既有前置门槛管控
 
 #### Scenario: 活动 Registrar 切换后默认切换
 
@@ -42,7 +42,7 @@ TBD - created by archiving change add-default-namespace-by-active-registrar. Upd
 #### Scenario: 多身份账号唯一自有命名空间被严格唯一选定
 
 - **WHEN** 活动 Registrar 所属 RA 同时存在多条满足 `n.registrationAuthority == RA` 的命名空间
-- **THEN** 后端 MUST 视为数据/一致性错误并按既有一对一一对一不变量拒绝默认推导（MUST NOT 任选其一）；运维侧需修复命名空间归属后方可重试
+- **THEN** 后端 MUST 视为数据/一致性错误并按既有一对一不变量拒绝默认推导（MUST NOT 任选其一）；运维侧需修复命名空间归属后方可重试
 
 #### Scenario: 系统以单一活动 Registrar 持久化偏好时不得将默认命名空间持久化
 

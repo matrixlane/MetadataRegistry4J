@@ -3,9 +3,7 @@
 ## Purpose
 
 本能力定义系统初始化向导在不同部署版本（PERSONAL / TEAM）下的差异化流程、数据库配置步骤、初始化接口契约、幂等与可恢复语义、提交语义以及未初始化状态下的访问控制规则。
-
 ## Requirements
-
 ### Requirement: 向导流程按版本差异化
 初始化向导 SHALL 以版本选择为第一步，数据库配置为第二步（语义见"初始化向导中的数据库配置"）。两个版本 MUST 均包含治理配置步骤，且步骤顺序为：注册规范 → 注册机构 → 命名空间。管理员角色分配 SHALL 并入注册机构步骤。版本差异仅体现在默认值策略：选择 `PERSONAL` 时，向导 SHALL 为治理字段预填合理默认值以保持精简体验；选择 `TEAM` 时，向导 MUST 要求显式填写必填治理字段。注册规范、注册机构与命名空间在两个版本中 MUST 均为必选：初始化必须先创建注册规范，再创建注册机构与注册人员，最后创建命名空间；初始化必须创建注册机构关联的自有命名空间；仅导入/访问外部组织数据标准的使用场景 SHALL 通过初始化完成后创建外部命名空间来支持，而非跳过自有命名空间。
 
@@ -56,7 +54,7 @@
 
 #### Scenario: 重复提交 setup
 - **WHEN** 管理员完成一次 `setup` 后未提交，又以不同配置再次调用 `setup`
-- **THEN** 系统 SHALL 清理上一次写入的业务数据并以新配置重建，不产生重复注册机构或命名空间，且静态预置数据（语言及名称、系统默认命名空间、全局默认策略）保持完整
+- **THEN** 系统 SHALL 清理上一次写入的业务数据并以新配置重建，不产生重复注册机构或命名空间，且静态预置数据（语言及名称、全局默认策略）保持完整
 
 #### Scenario: 出厂后再次走初始化向导
 - **WHEN** 恢复出厂设置后管理员重新执行初始化向导
@@ -236,9 +234,9 @@
 - **THEN** setup MUST NOT 因所属组织缺失而返回校验错误，注册机构步骤 MUST 正常进入下一步
 
 ### Requirement: 静态预置数据的统一定义与时机
-系统 SHALL 将全部静态预置数据收敛到单一幂等入口 `StaticDataPresetService.presetAll()`，数据值仅以 SQL 预置脚本为数据源（2026-09-19 用户裁定：应用代码 MUST NOT 包含名称预置数据、不做运行时 Locale 解析）。静态预置集合 MUST 包含：G20 语言代码（22 条，固定 UUID）、语言中文名称与地区名称（22 条）、系统组织与 `sys:` 系统默认命名空间（含中英双指称）、`identifier_strategy_config` 全局默认行（`UUID`/`INTERNAL`/`is_global_default=1`）、占位超级管理员（`admin` / `NO_PASSWORD`）、每注册机构的标准注册流转规则（调和语义，不覆盖用户定制规则）。`presetAll()` MUST 幂等：连续执行两次结果集不变。
+系统 SHALL 将全部静态预置数据收敛到单一幂等入口 `StaticDataPresetService.presetAll()`，数据值仅以 SQL 预置脚本为数据源（2026-09-19 用户裁定：应用代码 MUST NOT 包含名称预置数据、不做运行时 Locale 解析）。静态预置集合 MUST 包含：G20 语言代码（22 条，固定 UUID）、语言中文名称与地区名称（22 条）、`identifier_strategy_config` 全局默认行（`UUID`/`INTERNAL`/`is_global_default=1`）、占位超级管理员（`admin` / `NO_PASSWORD`）、每注册机构的标准注册流转规则（调和语义，不覆盖用户定制规则）。`presetAll()` MUST 幂等：连续执行两次结果集不变。
 
-系统组织不再是预置数据：`sys:` 系统默认命名空间的 NamingAuthority MUST 为初始化向导创建的注册机构（如"默认注册机构"）；初始化完成前无注册机构时 NamingAuthority 留空，setup MUST 在创建注册机构后完成挂接。历史系统组织（固定 UUID `00000000-0000-0000-0000-000000000001`）不再创建；存量库由启动调和改挂注册机构，并在无任何引用（命名空间 NamingAuthority、联系人所属组织）时移除该行。用户可见的组织列表与组织下拉选项 MUST NOT 包含系统组织；系统组织 MUST NOT 被删除（删除会破坏 `sys:` 命名空间所属关系）。
+系统组织与系统默认命名空间均不再是预置数据：系统 SHALL NOT 预置 `sys:` 系统默认命名空间；历史系统组织（固定 UUID `00000000-0000-0000-0000-000000000001`）不再创建，存量库中无引用（命名空间 NamingAuthority、联系人所属组织）的历史系统组织行由数据迁移移除。用户可见的组织列表与组织下拉选项 MUST NOT 包含系统组织。
 
 #### Scenario: 数据库设置完成后静态数据全部就绪
 - **WHEN** 管理员在向导数据库步骤保存数据源配置并重启
@@ -246,7 +244,7 @@
 
 #### Scenario: 幂等重复执行
 - **WHEN** `presetAll()` 在同一数据库上连续执行两次
-- **THEN** 两张语言表行数、系统组织与命名空间、全局默认策略、占位管理员均保持不变，不产生重复行
+- **THEN** 两张语言表行数、全局默认策略、占位管理员均保持不变，不产生重复行
 
 #### Scenario: 三方言一致
 - **WHEN** 分别在 SQLite、SQL Server、达梦全新库上完成上述流程
@@ -340,3 +338,36 @@ MUST NOT 因此产生 schema 变更行为。
   迁移导出
 - **THEN** flyway_schema_history 仍按裸表名被保留/排除，与其位于哪个
   schema 无关；SQLite 与达梦部署不产生任何 schema 变更
+
+### Requirement: 全新 SQLite 库启动后可进入初始化向导
+
+个人版使用全新 SQLite 文件库启动时，系统 SHALL 先创建当前应用数据库结构，再执行 Flyway 新库基线和静态预置，然后开放初始化向导状态查询。该流程 MUST NOT 依赖预先存在的数据库文件或手动导入基准库。基线之后的初始化 SHALL 使用既有 `setup`/`commit` 服务建立治理数据和完整注册项关联链。
+
+#### Scenario: 新检出无数据库文件时读取初始化状态
+
+- **GIVEN** 本地 SQLite 数据库文件不存在
+- **WHEN** 个人版应用启动并请求 `/api/v1/init-wizard/status`
+- **THEN** 应用 SHALL 正常响应未初始化状态，SQLite 文件、schema、共同 Flyway 基线和静态预置均已就绪
+
+#### Scenario: 新库完成初始化
+
+- **GIVEN** 全新 SQLite 库的初始化向导可用
+- **WHEN** 个人版执行 `setup` 后执行 `commit`
+- **THEN** 系统 SHALL 标记为已初始化，且初始化生成的已标识条目满足受管链语义闭环
+
+### Requirement: 遗留漂移库启动修复先于静态预置
+
+启动期静态预置数据（`StaticDataPresetService.presetAll()`，含语言预置重放）执行之前，系统 MUST 先完成遗留漂移 SQLite 库的 `language_identification` 修复（若该库命中漂移签名，判定与修复语义见 `legacy-schema-repair` 能力）。修复器与静态预置 Runner 的执行顺序 MUST 显式保证（修复器 `@Order` 先于静态预置 Runner），不得依赖 Runner 注册顺序的隐式行为。该顺序保证 MUST 使初始化向导的语言数据源在任何来源的库（全新库、迁移库、遗留漂移库）上均可用于向导治理配置。
+
+#### Scenario: 遗留漂移库初始化向导语言可用
+
+- **GIVEN** 一个遗留漂移 SQLite 库（`language_identification` 含 `language_id NOT NULL` 等遗留列，语言表为空）
+- **WHEN** 应用启动完成（修复器先于静态预置执行）并进入初始化向导
+- **THEN** `/api/v1/languages` 返回 22 条内置语言（含 `zh-CN`"简体中文"），向导"文档语言"可选择
+
+#### Scenario: 全新库顺序不受影响
+
+- **GIVEN** 一个全新 SQLite 空库（FreshDatabaseInitializer FRESH 路径）
+- **WHEN** 应用启动完成
+- **THEN** 修复器判定不命中直接跳过，静态预置按既有顺序执行，初始化流程与 sqlite-empty-db-bootstrap 行为一致
+

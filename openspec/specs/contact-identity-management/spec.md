@@ -2,9 +2,7 @@
 
 ## Purpose
 本能力允许注册用户为自己的账号登记并维护一个或多个联系人身份（Contact），设置默认联系人，并在"我的"入口统一查看与管理联系人身份及 Registrar 身份；联系人身份是 Submitter 提交元数据资格与 SubmissionRecord 默认预填的来源。
-
 ## Requirements
-
 ### Requirement: 多联系人身份与默认联系人
 
 系统 SHALL 允许注册用户为自己的账号创建、编辑、删除多个联系人身份；`kind=REGISTRAR` 的注册人员身份 SHALL 仅允许超级管理员（SUPER_ADMIN）为自己创建，非超级管理员的注册人员身份创建请求 MUST 被拒绝（团队版与个人版一致）。Contact 与账号的绑定关系 MUST 存放于 ext schema 卫星表（与 `mdr.contact` 按 id 一一对应，含 `account_id` 列）；一个 Contact MUST 至多绑定一个账号，一个账号 MAY 绑定多个 Contact。默认身份概念收窄为"默认注册人员"（标志存于 registrar 卫星表，见 `active-registrar-ownership` 能力）：每个账号 SHALL 至多有一个默认注册人员身份；用户将某 Registrar 身份设为默认时，系统 MUST 在同一事务内取消该账号其他 Registrar 的默认标记；普通 Contact 身份 MUST NOT 被设为默认（请求返回业务校验错误）。删除默认 Registrar 身份后，系统 SHALL 自动把该账号剩余 Registrar 中的首个设为默认；删除最后一条身份后，该账号失去 Submitter 能力。
@@ -65,17 +63,17 @@ Registrar 行 SHALL 同时允许修改 Role、Individual、Organization 三要�
 
 ### Requirement: 身份列表可见性
 
-"我的"入口 SHALL 展示当前账号的全部联系人身份与 Registrar 身份：包括每个身份的名称、所属组织、角色、是否为 Registrar、Registrar 所属注册机构（如适用）及是否为默认注册人员。用户 SHALL 能区分自建联系人身份与 Registrar 身份。列表 SHALL 按绑定顺序展示，默认注册人员 MUST NOT 因默认标记而改变展示位置。
+"我的"入口 SHALL 展示当前账号的全部联系人身份与 Registrar 身份：包括每个身份的名称、所属组织、角色、是否为 Registrar、Registrar 所属注册机构（如适用）及是否默认。用户 SHALL 能区分自建联系人身份与 Registrar 身份。列表 SHALL 按绑定顺序展示，默认身份 MUST NOT 因默认标记而改变展示位置。
 
 #### Scenario: 多身份同列展示
 
 - **WHEN** 同时拥有自建联系人身份与 Registrar 身份的用户打开"我的"页
-- **THEN** 列表同时展示两类身份，Registrar 身份标注其注册机构，默认注册人员以默认标记区分
+- **THEN** 列表同时展示两类身份，Registrar 身份标注其注册机构
 
 #### Scenario: 默认身份置顶
 
-- **WHEN** 用户的默认注册人员身份不是最早绑定的一条
-- **THEN** 列表仍按绑定顺序展示，默认注册人员不置顶（仅以默认标记区分）
+- **WHEN** 用户的默认联系人身份不是最早绑定的一条
+- **THEN** 列表仍按绑定顺序展示，默认身份不置顶（仅以默认标记区分）
 
 ### Requirement: 首登完善联系人提示
 
@@ -100,3 +98,4 @@ Registrar 行 SHALL 同时允许修改 Role、Individual、Organization 三要�
 
 - **WHEN** 用户曾在首登时跳过完善联系人提示
 - **THEN** 后续登录不再重复弹出该提示
+

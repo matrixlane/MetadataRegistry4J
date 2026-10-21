@@ -2,27 +2,25 @@
 
 ## Purpose
 定义"活动 Registrar"会话状态及其硬约束：一名用户可作为多个注册机构的 Registrar，但同一时间必须激活一个且仅一个 Registrar 身份才能进行注册工作。命名空间"自有/外部"的判定基于当前激活的 Registrar，该判定是标识生成闸门与命名空间设置分支的输入。受委托签发通过"授权组织外用户成为本注册机构下的 Registrar"表达，无需第三态。
-
 ## Requirements
-
 ### Requirement: 活动 Registrar 硬约束
 
-账号进行注册工作（注册受管项、生成或编辑 `Scoped_Identifier`、编辑标识/版本生成策略、推进注册状态）前，系统 MUST 要求该账号已激活一个且仅一个 Registrar 身份。激活状态 SHALL 保存在浏览器端（客户端本地存储），随请求以 `X-Active-Registrar-Id` 头传递给服务端；服务端解析目标身份 = 请求头所选身份（属于当前账号且关联注册机构，否则忽略）→ 账号默认注册人员身份（`ext.registrar.is_default`，见"默认注册人员标志"）→ 首个有效 Registrar 身份。解析 MUST 为纯读，MUST NOT 写回任何持久化缓存或状态。注册人员身份必有默认（首个 Registrar 身份自动设为默认）。不具有任何 Registrar 身份的账号（含 SUPER_ADMIN）MUST NOT 执行上述注册工作，但已登记为 Contact 的 Submitter 账号 SHALL 有权提交元数据（创建/编辑条目内容），其行为约束由"注册权限与所有权归属"与"变更权限约束"规约。系统 MUST NOT 要求用户显式选择激活身份。
+账号进行注册工作（注册受管项、生成或编辑 `Scoped_Identifier`、编辑标识/版本生成策略、推进注册状态）前，系统 MUST 要求该账号已激活一个且仅一个 Registrar 身份。激活 SHALL **恒随账号的默认注册人员身份**（activation-follows-default）：每次解析的目标身份 MUST 为账号默认绑定对应的有效 Registrar 身份（默认绑定缺失或非 Registrar 时回退首个有效 Registrar 身份）；`active_registrar_id` 仅作同步缓存，与目标不一致时系统 SHALL 写回。用户变更默认注册人员身份后，下一次解析 MUST 自动跟随新默认身份激活。注册人员身份必有默认（首个身份自动设为默认）。不具有任何 Registrar 身份的账号（含 SUPER_ADMIN）MUST NOT 执行上述注册工作，但已登记为 Contact 的 Submitter 账号 SHALL 有权提交元数据（创建/编辑条目内容），其行为约束由"注册权限与所有权归属"与"变更权限约束"规约。系统 MUST NOT 要求用户显式选择激活身份。
 
 #### Scenario: 单一身份自动激活
 
-- **WHEN** 仅拥有一个 Registrar 身份的账号使用系统
-- **THEN** 系统自动解析并激活该身份，账号可直接进行注册工作
+- **WHEN** 仅拥有一个 Registrar 身份的账号登录系统
+- **THEN** 系统自动激活该身份，账号可直接进行注册工作
 
 #### Scenario: 多身份必须显式选择
 
-- **WHEN** 拥有多个 Registrar 身份的账号发起请求且浏览器端未选择激活身份
+- **WHEN** 拥有多个 Registrar 身份的账号登录系统
 - **THEN** 系统按账号默认注册人员身份自动激活（默认缺失时回退首个有效身份），无需任何显式选择即可进行注册工作
 
 #### Scenario: 变更默认身份后激活跟随
 
-- **WHEN** 用户将另一个 Registrar 身份设为默认后，在未携带浏览器端激活选择的会话（新浏览器/清空本地存储）中再次发起请求
-- **THEN** 系统激活新默认注册人员身份；激活跟随仅由默认标志驱动，无任何持久化写回
+- **WHEN** 用户将另一个 Registrar 身份设为默认后再次发起请求
+- **THEN** 系统激活新默认身份（与持久化缓存不一致时写回），顶栏等处的活动机构展示随之更新
 
 #### Scenario: 无 Registrar 身份的 Submitter 可提交元数据但不可治理状态
 
@@ -117,7 +115,7 @@
 
 ### Requirement: 注册权限与所有权归属
 
-注册 Administered_Item 的权限对两类账号开放：Registrar 与 Submitter（已登记为 Contact 的注册用户）；既非 Registrar 也非 Contact 的账号 MUST NOT 注册 Administered_Item。Registrar 注册的 Administered_Item MUST 关联其活动 Registrar 身份所在的 Registration_Authority；Submitter（无活动 Registrar）注册的 Administered_Item MUST 归属系统唯一的注册机构（单注册表模式下由注册表隐式推导）。任何新建的 Administered_Item 的 `registration_authority_id` MUST NOT 为空。在注册机构自有命名空间下创建条目时，命名空间所属机构与活动身份所在机构不一致的，系统 SHALL 拒绝。在外部命名空间（无关联注册机构、非 system-default）下通过导入或手工编目创建的条目，同样 SHALL 归属活动 Registrar 身份所在的注册机构；外部命名空间本身 MUST NOT 关联任何注册机构，其 Naming_Authority SHALL 记录该外部标准的真实来源机构。请求体 MUST NOT 接受 `registrationAuthorityId` 或等效字段。
+注册 Administered_Item 的权限对两类账号开放：Registrar 与 Submitter（已登记为 Contact 的注册用户）；既非 Registrar 也非 Contact 的账号 MUST NOT 注册 Administered_Item。Registrar 注册的 Administered_Item MUST 关联其活动 Registrar 身份所在的 Registration_Authority；Submitter（无活动 Registrar）注册的 Administered_Item MUST 归属系统唯一的注册机构（单注册表模式下由注册表隐式推导）。任何新建的 Administered_Item 的 `registration_authority_id` MUST NOT 为空。在注册机构自有命名空间下创建条目时，命名空间所属机构与活动身份所在机构不一致的，系统 SHALL 拒绝。在外部命名空间（无关联注册机构）下通过导入或手工编目创建的条目，同样 SHALL 归属活动 Registrar 身份所在的注册机构；外部命名空间本身 MUST NOT 关联任何注册机构，其 Naming_Authority SHALL 记录该外部标准的真实来源机构。请求体 MUST NOT 接受 `registrationAuthorityId` 或等效字段。
 
 #### Scenario: Registrar 在自有命名空间注册条目
 
@@ -248,3 +246,4 @@
 
 - **WHEN** 早于本能力的存量库执行迁移
 - **THEN** 每账号至多一个 Registrar 被标默认：原 `active_registrar_id` 有效则取其；否则取原默认绑定对应的 Registrar；再否则取该账号首个 Registrar
+

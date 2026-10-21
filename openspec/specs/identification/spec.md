@@ -2,9 +2,7 @@
 
 ## Purpose
 TBD - created by archiving change cleanup-identifier-type-and-simplify-strategy-routing. Update Purpose after archive.
-
 ## Requirements
-
 ### Requirement: ScopedIdentifier 不应包含 identifierType 字段
 ISO/IEC 11179-3:2023 Clause 7（Identification）定义的 `Scoped_Identifier` 不包含"标识符类型"作为分类属性。本规约规定 `ScopedIdentifier` 实体 SHALL 不包含 `identifierType` 字段。
 
@@ -98,7 +96,7 @@ archive 目录中引用 IdentifierType 的历史变更 SHALL 标注清理指向�
 - **THEN** 系统 MUST NOT 创建任何命名空间级 `IdentifierStrategyConfig`
 
 ### Requirement: 自有数据标准的命名空间前置条件
-在注册机构下创建自有数据标准（注册受管项并在命名空间下生成 `Scoped_Identifier`）前，系统 MUST 存在至少一个与该注册机构关联的命名空间。缺失时系统 SHALL 阻止创建操作并返回业务校验错误，错误信息引导用户先创建命名空间；前端 SHALL 禁用相关创建入口并展示补建引导。导入或访问外部组织数据标准（外部命名空间，无关联注册机构）MUST NOT 受此限制。系统内部命名空间（system-default）SHALL NOT 计入该前置条件。
+在注册机构下创建自有数据标准（注册受管项并在命名空间下生成 `Scoped_Identifier`）前，系统 MUST 存在至少一个与该注册机构关联的命名空间。缺失时系统 SHALL 阻止创建操作并返回业务校验错误，错误信息引导用户先创建命名空间；前端 SHALL 禁用相关创建入口并展示补建引导。导入或访问外部组织数据标准（外部命名空间，无关联注册机构）MUST NOT 受此限制。
 
 #### Scenario: 无注册机构关联命名空间时创建自有数据标准被阻止
 - **WHEN** 用户在系统中尚无任何与注册机构关联的命名空间时，尝试注册受管项或创建自有数据标准
@@ -234,3 +232,4 @@ archive 目录中引用 IdentifierType 的历史变更 SHALL 标注清理指向�
 
 - **WHEN** 联邦合并产生双标识条目（本地 + 来源）
 - **THEN** 每条 ScopedIdentifier 独立保留自己的 `identifierCreationMode` / `versionCreationMode`，互不影响
+
