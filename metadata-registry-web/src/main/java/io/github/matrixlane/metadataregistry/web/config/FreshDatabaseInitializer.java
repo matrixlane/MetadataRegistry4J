@@ -57,7 +57,7 @@ public class FreshDatabaseInitializer implements ApplicationContextInitializer<C
      * sqlite-empty-db-bootstrap）。后续新增迁移在三方言使用相同版本号时，
      * 需同步提高本常量——CommonBaselineGuardTest 扫描三个迁移目录做静态守卫。
      */
-    public static final String FRESH_BASELINE_VERSION = "20261009012";
+    public static final String FRESH_BASELINE_VERSION = "20261028001";
 
     private static final String SQLITE_URL_PREFIX = "jdbc:sqlite:";
     private static final String PROPERTY_SOURCE_NAME = "mdrFreshDatabase";

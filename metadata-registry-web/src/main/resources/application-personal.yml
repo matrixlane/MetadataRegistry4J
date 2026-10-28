@@ -47,7 +47,8 @@ spring:
     # 基线版本默认继承 application.yml 的 20260918002（无 Flyway 历史但有业务表的
     # 旧 ddl-auto 库，经 baseline-on-migrate 走幂等守卫迁移兼容链）。
     # 全新空库由 FreshDatabaseEnvironmentPostProcessor 识别后改为以共同基线
-    # 20261009012 基线化（ORM 先建表，见 sqlite-empty-db-bootstrap），
+    # 20261028001 基线化（ORM 先建表，见 sqlite-empty-db-bootstrap；共同基线常量
+    # 见 FreshDatabaseInitializer.FRESH_BASELINE_VERSION，由 CommonBaselineGuardTest 守卫），
     # 不重放不可在空库执行的历史迁移。
 
 app:
