@@ -21,6 +21,13 @@ data/
         sqlserver/
           10-main.sql          标准数据本体（WS/T 363/364-2023）
           20-derived.sql       受管链/注册状态/来源参考文档与 URI/关联
+        sqlite/
+          10-main.sql          同上，SQLite 方言
+          20-derived.sql       同上，SQLite 方言
+    governance/              注册治理数据包
+      README.md              治理数据说明
+      sqlserver/30-governance.sql  注册规范/默认注册机构/CTX 命名空间/注册人员
+      sqlite/30-governance.sql     同上，SQLite 方言
   docs/
     data-standards/
       ws/
@@ -35,8 +42,9 @@ data/
 | `00-common` | 通用基准（G20 语言标识 22 条及中文名称） | **必选**：系统初始化链路（启动/向导/恢复出厂）自动导入 |
 | `10-main` | WS/T 363-2023、WS/T 364-2023 标准数据本体（数据元、值域、允许值、数据类型、命名空间、注册/提交/主管机构等） | 可选：批处理或手工执行 |
 | `20-derived` | 衍生管理/操作元数据（受管链与注册状态、来源参考文档及 URI、条目-文档关联、指称/定义来源、指称-定义配对） | 可选：随 10 之后执行 |
+| `30-governance` | 注册治理基准（注册规范、默认注册机构、CTX 命名空间、默认注册人员/角色/联系人） | 可选：须在 20 之后执行（依赖 Registry Context）；缺此层注册模块不可用 |
 
-脚本均**幂等**（存在性守卫，重复执行不产生重复数据，中途失败重跑可补齐）。批处理按 `common` → `data-standards/ws` 的数据包顺序执行，每个包内按文件名字典序执行。
+脚本均**幂等**（存在性守卫，重复执行不产生重复数据，中途失败重跑可补齐）。批处理按 `common` → `data-standards/ws` → `governance` 的数据包顺序执行，每个包内按文件名字典序执行。
 
 ## 一键初始化（init-baseline.bat）
 
@@ -81,16 +89,20 @@ rem SQL Server（Windows 集成认证示例）
 sqlcmd -E -S localhost,1433 -d metadata_registry -l 30 -t 0 -f 65001 -b -I -i data\scripts\common\sqlserver\00-common.sql
 sqlcmd -E -S localhost,1433 -d metadata_registry -l 30 -t 0 -f 65001 -b -I -i data\scripts\data-standards\ws\sqlserver\10-main.sql
 sqlcmd -E -S localhost,1433 -d metadata_registry -l 30 -t 0 -f 65001 -b -I -i data\scripts\data-standards\ws\sqlserver\20-derived.sql
+sqlcmd -E -S localhost,1433 -d metadata_registry -l 30 -t 0 -f 65001 -b -I -i data\scripts\governance\sqlserver\30-governance.sql
 
 rem SQLite
 sqlite3 "<实际库文件路径>" ".read data/scripts/common/sqlite/00-common.sql"
 ```
+
+手工执行也必须保持 `00` → `10` → `20` → `30` 的顺序（30 依赖 20 产出的 Registry Context）。
 
 ## 脚本再生成
 
 基准脚本由生成管线产出（权威来源：34 份 WS/T 363/364-2023 最新重印版标准文档）：
 
 - 变换：`scratch/baseline-rebuild/transform_golden_v3.py`（旧金库 → 当前 schema 新金库）
+- 治理包注入：`scratch/baseline-rebuild/seed_governance.py`（线上治理配置 → 金库，一次性）
 - 导出：`scratch/baseline-rebuild/gen_scripts_sqlserver.py`（新金库 → 本目录脚本）
 - 核验：`scratch/baseline-rebuild/verification-report.md`
 

@@ -5,7 +5,7 @@
 --
 -- 数据来源: scratch/baseline-rebuild/golden-new.db（transform_golden_v3.py 产物，
 --   与 db/migration 的 V20260919003 种子同集同 id；ext 行 id 为金库固定值）。
--- 生成: 2026-10-23，scratch/baseline-rebuild/gen_scripts_sqlserver.py。
+-- 生成: 2026-11-05，scratch/baseline-rebuild/gen_scripts_sqlserver.py。
 --
 -- 契约: 纯 DML——只含注释与 INSERT INTO ... SELECT ... WHERE NOT EXISTS(...)
 --   （部分方言含 SELECT/WHERE 续行）；不含 DDL、过程块、事务与 SET/GO 指令，

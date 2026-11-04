@@ -22,7 +22,7 @@
 --     DE08.50.003.00 的 value_domain_id 置 NULL（364 无对应代码表或被
 --     标准删除，属标准 dangling 引用，不再以空壳占位）
 --
--- 生成: 2026-10-29，由 scratch/baseline-rebuild/gen_scripts_sqlserver.py
+-- 生成: 2026-11-05，由 scratch/baseline-rebuild/gen_scripts_sqlserver.py
 --   自 scratch/baseline-rebuild/golden-new.db（transform_golden_v3.py 产物，
 --   全部不变式通过）导出；行序按主键/业务键固定，同日重跑字节一致。
 --

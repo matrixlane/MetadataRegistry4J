@@ -77,7 +77,7 @@ else {
     Write-Host "无法识别的数据源方言：$url" -ForegroundColor Red
     Pause-Exit 1
 }
-$packageDirs = @('common', 'data-standards/ws')
+$packageDirs = @('common', 'data-standards/ws', 'governance')
 $files = @()
 foreach ($packageDir in $packageDirs) {
     $dir = Join-Path (Join-Path $scriptsRoot $packageDir) $dialect
@@ -87,7 +87,7 @@ foreach ($packageDir in $packageDirs) {
 }
 if ($files.Count -eq 0) {
     Write-Host "基准脚本目录 $scriptsRoot 下没有当前方言可执行的脚本。" -ForegroundColor Red
-    Write-Host '（sqlite/dm 的 WS 标准数据脚本将由 sqlserver 版转换产出，当前迭代仅 00-common 就位。）'
+    Write-Host '（dm 的 WS 标准数据脚本尚未产出；sqlite 版 10/20 已就位，随 common 一并自动执行。）'
     Pause-Exit 1
 }
 Write-Host "方言：$dialect，待执行脚本 $($files.Count) 个："

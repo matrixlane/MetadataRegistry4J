@@ -13,7 +13,7 @@
 
 ## 方言支持状态
 
-当前仅提供 SQL Server 的 `10-main.sql` 与 `20-derived.sql`。SQLite、达梦 DM8 的 WS 层脚本尚未提供，后续以 SQL Server 版本为基准转换生成；通用基准不受此限制。
+SQL Server 与 SQLite 的 `10-main.sql`、`20-derived.sql` 均已提供（双方言同源同行序，由 `scratch/baseline-rebuild/gen_scripts_sqlserver.py` 自金库一次生成）。达梦 DM8 的 WS 层脚本尚未提供，后续以 SQL Server 版本为基准转换生成；通用基准（00-common）三方言均已就位。
 
 ## 导入方式
 
