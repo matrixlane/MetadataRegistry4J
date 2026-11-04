@@ -1,57 +1,59 @@
-> 本文档由 GitNexus wiki 生成于 2026-09-13（kimi-for-coding，--lang chinese）。内容变化时请重新运行 `gitnexus wiki --lang chinese` 生成，勿手工改写。
+# metadata-registry-web
 
 # metadata-registry-web
 
-`metadata-registry-web` 是 MetadataRegistry4j 的 Web 交付入口，负责把通用设施、数据规范等领域模块以及安全、持久化、报表导出、FHIR 互操作等能力组装成可运行的 Spring Boot 应用。顶层模块的依赖结构、可执行 JAR 打包和整体定位见 [metadata-registry-web](metadata-registry-web.md)；启动流程、配置体系、REST API、静态前端资源和源码包结构见 [src](metadata-registry-web-src.md)。
+`metadata-registry-web` 是 MetadataRegistry4j 的 Spring Boot Web 接入模块，负责将元数据规范、数据集注册、条目映射、权限控制及外部集成能力统一暴露为 REST API。模块基于 `/api/v1/**` 提供接口，并以 `ApiResponse<T>` 作为统一响应结构。
 
-## 子模块协作方式
+## 子模块分工
 
-- **可执行应用组装**：`MetadataRegistryApplication` 是应用主类。启动前调用 `DatasourceConfigService.migrateLegacyConfigIfNeeded()`，先完成旧版数据源配置迁移，再进入 Spring `Environment` 准备阶段。
-- **统一 Web 契约**：Controller、Service、Repository 与工具类之间通过 `ApiResponse`、`ApiCodes`、`GlobalExceptionHandler` 和 `BusinessException` 形成一致的响应与错误处理约定。
-- **安全与控制平面**：JWT 配置由 `AppProperties.Jwt` 管理，并关联 `AppProperties.Cors`、`AppProperties.Seed`；`AuthenticatedUser`、首次登录、应急登录码、临时密码、初始化向导、强制改密、维护模式和命名空间权限切面共同构成请求准入链路。
-- **持久化与部署适配**：JPA 配置、大小写不敏感枚举、达梦 DM8 方言和 SQL Server catalog 锁定使同一应用能够适配不同部署环境。
-- **前后端集成**：后端 REST API 与构建后的静态前端资源共同发布；SPA 路由回退保证浏览器直接访问前端路由时仍能返回应用页面。静态资源内部的组件引用属于前端构建产物，扩展功能时应优先通过后端 API 契约接入。
+- [metadata-registry-web](metadata-registry-web.md)：定义模块边界、技术基线及主要依赖，包括 Spring MVC、Spring Security、Spring Data JPA、Bean Validation、OpenAPI、Actuator、FHIR、邮件及文件导出能力。
+- [src](src.md)：承载具体 Web 适配实现，包括 Controller、Service、Repository、DTO、JPA 实体、认证授权、MVC 拦截器、数据库兼容和运行时配置。
+
+领域实体与部分核心算法由 `commonfacilities`、`itemmapping`、`ext.identification` 等相邻模块提供；本模块主要负责请求编排、安全接入、持久化访问和接口输出。
+
+## 总体协作关系
 
 ```mermaid
-flowchart TB
-    APP["MetadataRegistryApplication"] --> MIGRATE["数据源配置迁移"]
-    APP --> CONFIG["AppProperties / JPA / CORS"]
-    CONFIG --> SECURITY["JWT 与认证授权"]
-    SECURITY --> WEBCHAIN["拦截器与命名空间权限"]
-    WEBCHAIN --> API["REST API 统一响应"]
-    API --> SERVICE["领域服务"]
-    SERVICE --> REPO["Repository 与数据库方言"]
-    API --> STATIC["静态前端资源与 SPA 回退"]
+flowchart LR
+    C["客户端 / SPA"] --> S["安全过滤与 JWT 鉴权<br/>JwtAuthenticationFilter"]
+    S --> I["MVC 拦截器<br/>初始化、改密、维护模式、API 日志"]
+    I --> CT["Controller"]
+    CT --> SV["Web Service"]
+    SV --> D["领域、标识与命名模块"]
+    SV --> R["Spring Data JPA Repository"]
+    R --> DB["SQL Server / SQLite / DM8"]
+    SV --> MP["DTO 映射与语言偏好处理"]
+    SV --> EX["FHIR、Excel、CSV、PDF 与邮件集成"]
+    CT --> OA["OpenAPI、Swagger 与 Actuator"]
 ```
 
-## 跨模块关键工作流
+## 关键跨模块流程
 
-### 查询列表并按语言选择首选名称
+### REST 请求处理
 
-`ConceptualDomainController.list()` 和 `ConstraintSetController.list()` 共享同一条命名处理链路：
+请求经 Spring Security 和 `JwtAuthenticationFilter` 完成认证后进入 MVC 拦截器与 Controller。Controller 调用 `DataElementService`、`ValueDomainService`、`ConceptualDomainService` 等 Service，由 Service 协调 Repository 和领域模块完成业务操作，最后转换为 DTO 或统一响应返回。
 
-`Controller.list()` → `Service.list()` → `ObjectClassService.byKeyword()/get()/toResponse()` → `ItemAdministrationService.mapDefinitions()/mapDefinitionContexts()` → `ItemNamingHelper.preferredDesignation()` → `pickByLanguage()`。
+### 登录、授权与配置
 
-该流程把领域对象查询、定义与上下文映射，以及按语言挑选首选名称连接起来，保证不同管理项列表使用一致的展示语义。
+`JwtService` 负责令牌签发和解析，认证主体由 `AuthenticatedUser` 承载。系统角色与业务身份共同参与访问控制；用户名密码登录、强制改密和个人版隐式登录均在这一安全链路中完成。`AppProperties` 集中提供 CORS、JWT 和初始化种子等运行参数。
 
-### 创建管理项并解析命名空间标识策略
+### 元数据读取与语言偏好
 
-创建类请求沿以下链路完成对象创建、内容应用和标识解析：
+概念域查询以 `ConceptualDomainController` 为入口：
 
-`MeasureClassController.create()` → `MeasureClassService.create()` → `ConceptContentApplier.applyConcept()/apply()` → `ItemAdministrationService.ensureAdministeredItem()` → `IdentifierInputPolicyService.resolveIdentifier()` → `NamespaceIdentifierPolicyResolver.resolve()` → `NamespaceIdentifierSettingsService.getOrDefault()` → `NamespaceIdentifierSettingsRepository.findByNamespaceId()`。
+- 单项查询经过 `ConceptualDomainService.get` 和 `toResponse`；
+- 列表查询还会调用 `ObjectClassService.byKeyword`、`get` 和 `toResponse`；
+- `ItemAdministrationService.mapDefinitions` 与 `mapDefinitionContexts` 整理定义及上下文；
+- `ItemNamingHelper.preferredDesignation` 和 `pickByLanguage` 根据 `Definition`、`Designation` 的语言信息选择首选名称。
 
-这条链路体现了模块的核心协作方式：Web 层接收请求，领域服务协调业务对象创建，标识策略服务根据命名空间配置决定或回退到默认规则，最终由持久层读取策略并保存结果。
+### 注册与关联治理
 
-### 工作空间（Workspace）流程
+`DataElementService`、`DataElementConceptService`、`ItemAssociationService` 和 `ValueDomainService` 共同复用 `MetadataObjectAssociationService.withDefaults`，统一关联对象的默认处理。注册过程中，`NamingConventionEngine` 调用字符集、包含、长度和正则规则检查名称约定；`NamespaceIdentifierPolicy` 与 `ScopedIdentifierCreateRequest` 支持命名空间标识的生成和约束。
 
-工作空间为提交者与注册人员提供三视图（草稿 / 待审核 / 已拒绝）与行级操作：
+### 初始化与数据库适配
 
-`WorkspaceController` → `WorkspaceService` → `AdministeredItemRepository` / `RegistrationProcessService` / `WorkspaceRollbackService`。
+`InitWizardController` 负责初始化流程，相关 MVC 拦截器阻止未完成初始化的请求，并支持强制改密、迁移维护模式和 API 日志。运行时数据源由 `DatasourceConfigService` 解析，`DatabaseEnvironment` 根据 `DatabaseVendor` 适配不同数据库；`DatabaseCleaner` 使用相应的外键清理策略。
 
-关键端点包括：
-- `GET /api/v1/workspace/summary` 与 `GET /api/v1/workspace/items?view=DRAFTS|PENDING|REJECTED` 返回计数与分页行；
-- `POST /api/v1/workspace/submit` 将草稿批量提交为 INITIAL 并生成 SubmissionRecord；
-- `POST /api/v1/workspace/request-candidate/{itemId}` 在 INCOMPLETE 且具备主管记录时推进为 CANDIDATE；
-- `POST /api/v1/workspace/rollback/{itemId}` 将 RECORDED/QUALIFIED 等可回退状态下的 DRAFT/REJECTED 项恢复到最近 BASELINE 快照。
+### 外部能力
 
-行级标志（`canSubmit`、`canRequestCandidate`、`canRequestQualification`、`canApprove`、`canReject`、`canRollback`）在 `WorkspaceService.computeFlags` 中按注册状态、管理状态、所有权/主管关系/审核人权限计算，供前端按钮显隐。
+Web 层可在注册和导出流程中调用 FHIR、Excel、CSV、PDF 及邮件能力；`DataDictionaryPdfExportService` 等服务负责具体文件生成。OpenAPI、Swagger 和 Spring Boot Actuator 则为接口发现、调试及运行监控提供统一入口。

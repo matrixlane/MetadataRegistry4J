@@ -29,8 +29,24 @@ public class IdentifierStrategyLoader implements CommandLineRunner {
     private final SequenceRegistryService sequenceRegistryService;
     private final IdentifierStrategyConfigService strategyConfigService;
 
+    /**
+     * 新架构模式（null 表示关闭）。开启时数据库初始化由 DatabaseBootstrapService
+     * 统一执行（含策略装载步骤），本 Runner 跳过。
+     */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private io.github.matrixlane.metadataregistry.web.bootstrap.BootstrapMode bootstrapMode;
+
     @Override
     public void run(String... args) {
+        if (bootstrapMode != null && bootstrapMode.enabled()) {
+            log.debug("新架构模式下数据库初始化由引导服务统一执行，跳过策略装载 Runner");
+            return;
+        }
+        loadStrategies();
+    }
+
+    /** 装载入口：启动期 Runner 与数据库初始化引导共用（幂等，可重复调用）。 */
+    public void loadStrategies() {
         log.info("[IdentifierStrategyLoader] Initializing strategies and setting sequence provider");
         strategyConfigService.setSequenceProvider(sequenceRegistryService);
         refreshRegistry();

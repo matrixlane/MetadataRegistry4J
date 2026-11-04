@@ -80,6 +80,7 @@ import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
 import { referenceDocumentApi } from '../api/resources';
 import { useAuthStore } from '../stores/auth';
+import { isLocalFileUri, isRepoRelativePath } from '../utils/refdocUri';
 import type { ReferenceDocument } from '../types/common';
 
 const props = defineProps<{
@@ -168,8 +169,8 @@ function remove(id: string) {
 
 /**
  * 点击参考文档行时按 URI 打开文档。
- * 本地文件路径（Windows 盘符/UNC/file://）经后端代理读取后在新标签页打开；
- * http(s) 先用 HEAD 探测资源是否存在，存在则新标签页打开；
+ * 本地文件路径（Windows 盘符/UNC/file://）与仓库内相对路径（随包标准文档）
+ * 经后端代理读取后在新标签页打开；http(s) 先用 HEAD 探测资源是否存在，存在则新标签页打开；
  * 资源不存在、URI 缺失/非法或网络不可达时提示重新指定有效的参考文档 URI。
  */
 async function openDocument(doc: ReferenceDocument) {
@@ -178,7 +179,7 @@ async function openDocument(doc: ReferenceDocument) {
     ElMessage.error(t('itemReferenceDocuments.notFound'));
     return;
   }
-  if (isLocalFileUri(raw)) {
+  if (isLocalFileUri(raw) || isRepoRelativePath(raw)) {
     await openLocalDocument(doc.id);
     return;
   }
@@ -205,13 +206,8 @@ async function openDocument(doc: ReferenceDocument) {
   ElMessage.error(t('itemReferenceDocuments.notFound'));
 }
 
-/** Windows 盘符路径（E:\...）、UNC（\\server\share）或 file:// URI。 */
-function isLocalFileUri(raw: string): boolean {
-  return /^[a-zA-Z]:[\\/]/.test(raw) || raw.startsWith('\\\\') || /^file:\/\//i.test(raw);
-}
-
 /**
- * 本地文件经后端代理（GET /reference-documents/{id}/content）读取为 Blob 后在新标签页打开。
+ * 本地文件与仓库内相对路径经后端代理（GET /reference-documents/{id}/content）读取为 Blob 后在新标签页打开。
  * 用 fetch 而非 axios：响应是文件流而非 ApiResponse 信封，且需携带鉴权头；
  * 404/异常时落到统一提示。
  */

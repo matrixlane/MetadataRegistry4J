@@ -24,8 +24,11 @@ import io.github.matrixlane.metadataregistry.web.repository.RegistrationAuthorit
 import io.github.matrixlane.metadataregistry.web.repository.RegistrationAuthorityRepository;
 import io.github.matrixlane.metadataregistry.web.seed.StaticDataPresetService;
 import io.github.matrixlane.metadataregistry.web.service.database.DatabaseCleaner;
+import io.github.matrixlane.metadataregistry.web.service.database.DatabaseEnvironment;
+import io.github.matrixlane.metadataregistry.web.service.database.DatabaseVendor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -52,6 +55,7 @@ import java.util.UUID;
 public class InitWizardService {
 
     private final SystemSettingService systemSettingService;
+    private final io.github.matrixlane.metadataregistry.web.bootstrap.InitializationStatusProvider statusProvider;
     private final RegistrarService registrarService;
     private final AccountRepository accountRepository;
     private final RegistrationAuthorityRepository registrationAuthorityRepository;
@@ -67,12 +71,70 @@ public class InitWizardService {
     private final DatabaseCleaner databaseCleaner;
     private final RegistryContextBootstrapService registryContextBootstrapService;
     private final jakarta.persistence.EntityManager entityManager;
+    private final JdbcTemplate jdbcTemplate;
+    private final DatabaseEnvironment databaseEnvironment;
 
-    @Transactional(readOnly = true)
+    /**
+     * WS 基准治理常量（baseline-data-init-rebuild，与 data/scripts 基准脚本同值）：
+     * {@code ws-} 命名空间、WJW 标委会与统计信息中心两家机构；基准注册机构
+     * （WJW）与同名 organization 行同 id。
+     */
+    private static final UUID BASELINE_WS_NAMESPACE_ID =
+            UUID.fromString("2ACC2197-2BE5-49E4-BB16-3BFBEC5746F4");
+    private static final UUID BASELINE_ORG_WJW_ID =
+            UUID.fromString("6E486DAE-E5B0-42D7-A8E7-3C9C511BFD93");
+    private static final UUID BASELINE_ORG_STATS_ID =
+            UUID.fromString("9F649768-513A-4E42-910D-41B588F68E19");
+
+    /**
+     * 向导清理保留集（baseline-data-init-rebuild）：静态预置表 + 基准脚本
+     * （通用 {@code data/scripts/common/<方言>/00-common.sql}；WS
+     * {@code data/scripts/data-standards/ws/<方言>/10-main.sql + 20-derived.sql}）
+     * 承载的内容链与衍生表 + 同链 FK 相关表 + 需排除式清空的治理表
+     * （organization/registration_authority/namespace 系，其非基准行由
+     * {@link #purgeNonBaselineGovernanceRows()} 清除）。
+     *
+     * <p>未初始化前所有写 API 被 498 拦截，向导窗口内这些表只可能存在基准行，
+     * 整表保留不危及用户数据。</p>
+     */
+    private static final Set<String> WIZARD_CLEANUP_PRESERVED_TABLES = Set.of(
+            // 静态预置与系统表
+            "account", "system_setting", "flyway_schema_history",
+            "language_identification", "ext_language_identification",
+            // 内容链（基准脚本实际写入 + 同链 FK 相关表）
+            "item", "concept", "conceptual_domain", "described_conceptual_domain",
+            "enumerated_conceptual_domain", "local_enumerated_conceptual_domain",
+            "value_domain", "described_value_domain", "enumerated_value_domain",
+            "local_enumerated_value_domain", "data_element", "data_element_concept",
+            "object_class", "property", "data_type", "data_type_scheme",
+            "value_meaning", "permissible_value", "permissible_value_set",
+            "permissible_value_meaning", "permissible_value_pvm",
+            "designation", "designation_context", "designation_namespace",
+            "definition", "definition_context", "designation_definition_pairing",
+            "slot", "slot_value", "context",
+            // 受管链与衍生
+            "registered_item", "administered_item", "attached_item", "registration_state",
+            "reference_document", "reference_document_language", "reference_document_provider",
+            "registered_item_reference_document",
+            "stewardship_record", "submission_record", "registered_item_submission_record",
+            "contact", "scoped_identifier", "scoped_identifier_lifecycle",
+            // 治理表：基准常量行保留，非基准行由 purge 补刀
+            "organization", "organization_name", "organization_email", "organization_phone",
+            "registration_authority", "registration_authority_doc_language",
+            "ext_registration_authority",
+            "namespace", "namespace_identifier_settings");
+
+    /**
+     * 查询初始化状态。新架构下判定来自本地状态记录（零数据库行为），
+     * 因此本方法 MUST NOT 声明事务——@Transactional 会在进入方法时即向
+     * 连接池取连接，破坏"向导相零数据库连接"的不变量。
+     */
     public InitWizardStatusResponse getStatus() {
-        DeploymentEdition edition = systemSettingService.getEdition();
+        // 状态判定经 statusProvider：新架构下读本地状态记录（零数据库查询），
+        // 关闭时退化为数据库判定。setup/commit/abort 等完整相操作仍读库。
+        DeploymentEdition edition = statusProvider.getEdition();
         return new InitWizardStatusResponse(
-                systemSettingService.isInitialized(),
+                statusProvider.isInitialized(),
                 edition == null ? null : edition.name()
         );
     }
@@ -94,8 +156,14 @@ public class InitWizardService {
         // We treat "in progress" as: no business RA / namespace / spec yet,
         // but the admin account exists (which it always does after the first
         // DataInitializer run, so this heuristic is "is there any RA row?")
-        long raCount = registrationAuthorityRepository.count();
-        long nsCount = namespaceRepository.count();
+        // 预置基准库的基准治理常量行（ws- 命名空间 / WJW 注册机构）不构成
+        // "向导进行中"（baseline-data-init-rebuild）：计数时排除基准常量 id。
+        long raCount = registrationAuthorityRepository.findAll().stream()
+                .filter(ra -> !BASELINE_ORG_WJW_ID.equals(ra.getId()))
+                .count();
+        long nsCount = namespaceRepository.findAll().stream()
+                .filter(ns -> !BASELINE_WS_NAMESPACE_ID.equals(ns.getId()))
+                .count();
         boolean specExists = registrySpecificationService.exists();
         if (raCount > 0 || nsCount > 0 || specExists) {
             return "IN_PROGRESS";
@@ -344,6 +412,7 @@ public class InitWizardService {
         if (edition == DeploymentEdition.PERSONAL) {
             // 个人版：密码概念不存在——忽略请求体中的密码字段（即便携带也不落库）。
             systemSettingService.setInitialized(true);
+            markInitializedInStateRecord(edition);
             return;
         }
 
@@ -381,6 +450,27 @@ public class InitWizardService {
         accountRepository.save(admin);
 
         systemSettingService.setInitialized(true);
+        markInitializedInStateRecord(edition);
+    }
+
+    /**
+     * commit 成功后同步本地初始化状态记录（init-phase-database-free）：
+     * "是否已初始化"由此不再依赖数据库查询。写入失败不阻断提交，但下次启动
+     * 会按未初始化处理（用户重新提交一次即可，幂等）。
+     */
+    private void markInitializedInStateRecord(DeploymentEdition edition) {
+        try {
+            io.github.matrixlane.metadataregistry.web.bootstrap.InitializationStateStore store =
+                    new io.github.matrixlane.metadataregistry.web.bootstrap.InitializationStateStore(
+                            DatasourceConfigService.localConfigPath().resolveSibling("initialization-state.yml"));
+            io.github.matrixlane.metadataregistry.web.bootstrap.InitializationState current =
+                    store.read().orElse(io.github.matrixlane.metadataregistry.web.bootstrap.InitializationState.fresh());
+            store.write(current
+                    .withInitialized(true)
+                    .withEdition(edition == null ? null : edition.name()));
+        } catch (Exception e) {
+            log.warn("初始化状态记录写入失败（下次启动将按未初始化处理）: {}", e.getMessage());
+        }
     }
 
     /**
@@ -448,9 +538,14 @@ public class InitWizardService {
 
     /**
      * Remove business data created by setup() while preserving the admin
-     * account and the Flyway schema history. Used by both {@link #setup}
-     * (to clear dirty state from previous aborted attempts) and
-     * {@link #abort} (the user-driven interrupt path).
+     * account, the Flyway schema history, and the WS baseline data carried by
+     * 预置基准库 / 基准脚本（baseline-data-init-rebuild）。Used by both
+     * {@link #setup} (to clear dirty state from previous aborted attempts)
+     * and {@link #abort} (the user-driven interrupt path).
+     *
+     * <p>内容链/衍生表整表保留（未初始化前写 API 均被 498 拦截，向导窗口内
+     * 这些表只可能存在基准行）；治理表（organization/registration_authority/
+     * namespace 系）带基准常量排除清空，见 {@link #purgeNonBaselineGovernanceRows()}。</p>
      */
     private void clearBusinessDataOnly() {
         // account 是保留表，但其 individual_id 外键指向被清空的 individual 业务表。
@@ -462,15 +557,96 @@ public class InitWizardService {
         detachAccountIndividualReferences();
         // Dialect-portable cleanup: table discovery via JDBC metadata and
         // FK handling via the active vendor's strategy (see DatabaseCleaner).
-        // 纯静态预置表（语言代码与名称）不在清理范围内，避免抹掉数据库设置完成后
-        // 已就绪的静态预置；其余业务表清空后由 presetAll() 幂等兜底恢复静态行。
-        databaseCleaner.clearTables(Set.of("account", "system_setting", "flyway_schema_history",
-                "language_identification", "ext_language_identification"));
+        // 保留集见 WIZARD_CLEANUP_PRESERVED_TABLES：语言/系统表、基准内容与衍生表、
+        // 待排除式清空的治理表；其余业务表清空后由 presetAll() 幂等兜底恢复静态行。
+        databaseCleaner.clearTables(WIZARD_CLEANUP_PRESERVED_TABLES);
+        purgeNonBaselineGovernanceRows();
         // 裸 JDBC DELETE 绕开持久化上下文：被清空表中的托管实体不会随之脱离。
         // 残留实例既可能在同一事务内重复 setup 时以相同 id 阻塞 re-persist
         // （SQLite rowid 清空后复用，典型如 IdentifierStrategyConfig），也会让
         // 后续读取拿到已删除的行。清空后统一驱逐，后续代码全部按全新状态加载。
         entityManager.clear();
+    }
+
+    /**
+     * 治理表的排除式清空（baseline-data-init-rebuild）：删除向导 setup/半途留下的
+     * 非基准治理行，保留基准常量行（ws- 命名空间、WJW/统计信息中心机构、WJW 注册机构）。
+     *
+     * <p>FK 顺序约束：Namespace extends Item（JOINED，item 父行须连带删除）；
+     * registration_authority.namespace_id → namespace 且 namespace.registration_authority_id
+     * → registration_authority 形成环，先删 RA 侧解除对 namespace 的引用；registration_authority
+     * 与 organization JOINED 共主键，RA 删净后方可删 organization。方言感知经
+     * {@link DatabaseEnvironment} 限定表名与 UUID 绑定（SQLite/达梦 BLOB、SQL Server 字符串）。</p>
+     */
+    private void purgeNonBaselineGovernanceRows() {
+        Object keepNs = databaseEnvironment.toJdbcUuid(BASELINE_WS_NAMESPACE_ID);
+        Object keepRa = databaseEnvironment.toJdbcUuid(BASELINE_ORG_WJW_ID);
+        Object keepOrgWjw = databaseEnvironment.toJdbcUuid(BASELINE_ORG_WJW_ID);
+        Object keepOrgStats = databaseEnvironment.toJdbcUuid(BASELINE_ORG_STATS_ID);
+
+        // 1. 非基准 namespace（先捕获 id 清单：namespace 主行删除后 item 父行仍须按
+        //    同一清单补删，子查询届时已查不到行）
+        List<Object> deadNsIds = jdbcTemplate.queryForList(
+                "SELECT id FROM " + tStd("namespace") + " WHERE id <> ?", Object.class, keepNs);
+        if (!deadNsIds.isEmpty()) {
+            String in = String.join(", ", java.util.Collections.nCopies(deadNsIds.size(), "?"));
+            Object[] nsArgs = deadNsIds.toArray();
+            // designation/definition/slot 整表在保留集内：只删 item_id 指向死
+            // namespace 的行，基准 ws- 命名空间的指称/槽不受影响
+            jdbcTemplate.update("DELETE FROM " + tStd("designation") + " WHERE item_id IN (" + in + ")", nsArgs);
+            jdbcTemplate.update("DELETE FROM " + tStd("definition") + " WHERE item_id IN (" + in + ")", nsArgs);
+            jdbcTemplate.update("DELETE FROM " + tStd("slot") + " WHERE item_id IN (" + in + ")", nsArgs);
+            jdbcTemplate.update("DELETE FROM " + tAuto("namespace_identifier_settings")
+                    + " WHERE namespace_id IN (" + in + ")", nsArgs);
+        }
+
+        // 2. 非基准 RA 侧（registration_authority.namespace_id → namespace，先删 RA
+        //    解除其对 namespace 的引用；集合表与 ext 卫星先行）
+        String deadRa = "SELECT id FROM " + tStd("registration_authority") + " WHERE id <> ?";
+        jdbcTemplate.update("DELETE FROM " + tStd("registration_authority_doc_language")
+                + " WHERE registration_authority_id IN (" + deadRa + ")", keepRa);
+        jdbcTemplate.update("DELETE FROM " + tRaExtension() + " WHERE id IN (" + deadRa + ")", keepRa);
+        jdbcTemplate.update("DELETE FROM " + tStd("registration_authority") + " WHERE id <> ?", keepRa);
+
+        // 3. 非基准 namespace 主行与 item 父行（ns.registration_authority_id → RA 已清）
+        if (!deadNsIds.isEmpty()) {
+            String in = String.join(", ", java.util.Collections.nCopies(deadNsIds.size(), "?"));
+            Object[] nsArgs = deadNsIds.toArray();
+            jdbcTemplate.update("DELETE FROM " + tStd("namespace") + " WHERE id IN (" + in + ")", nsArgs);
+            jdbcTemplate.update("DELETE FROM " + tStd("item") + " WHERE id IN (" + in + ")", nsArgs);
+        }
+
+        // 4. 非基准 organization 侧（RA 已删，JOINED 共主键不再阻塞；集合表先行）
+        String deadOrg = "SELECT id FROM " + tStd("organization") + " WHERE id NOT IN (?, ?)";
+        jdbcTemplate.update("DELETE FROM " + tStd("organization_name")
+                + " WHERE organization_id IN (" + deadOrg + ")", keepOrgWjw, keepOrgStats);
+        jdbcTemplate.update("DELETE FROM " + tStd("organization_email")
+                + " WHERE organization_id IN (" + deadOrg + ")", keepOrgWjw, keepOrgStats);
+        jdbcTemplate.update("DELETE FROM " + tStd("organization_phone")
+                + " WHERE organization_id IN (" + deadOrg + ")", keepOrgWjw, keepOrgStats);
+        jdbcTemplate.update("DELETE FROM " + tStd("organization") + " WHERE id NOT IN (?, ?)",
+                keepOrgWjw, keepOrgStats);
+    }
+
+    /** 标准 schema 表限定名（SQLite 为裸名）。 */
+    private String tStd(String table) {
+        return databaseEnvironment.qualifyStandard(table);
+    }
+
+    /** EXT 表限定名（ext schema 路由；SQLite 为裸名）。 */
+    private String tAuto(String table) {
+        return databaseEnvironment.qualifyAuto(table);
+    }
+
+    /**
+     * RA Primary 标志卫星表限定名（V20261008001）：团队库与标准表同名
+     * （ext.registration_authority），SQLite 物理名 ext_registration_authority。
+     * 与 RegistrationAuthorityDeletionService 同名表路由约束一致。
+     */
+    private String tRaExtension() {
+        return databaseEnvironment.vendor() == DatabaseVendor.SQLITE
+                ? databaseEnvironment.qualify("ext_registration_authority")
+                : databaseEnvironment.qualifyExt("registration_authority");
     }
 
     private void detachAccountIndividualReferences() {

@@ -27,8 +27,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.UUID;
 
@@ -52,6 +56,25 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @Transactional
 @ActiveProfiles("test")
 class InitWizardServiceIntegrationTest {
+
+    /**
+     * 通用基准脚本（data/scripts/common/<方言>/00-common.sql）是语言预置的单一事实源
+     * （baseline-data-init-rebuild）；surefire 工作目录为模块目录，默认
+     * {@code <user.dir>/data/scripts} 缺失会 WARN 跳过，此处向上查找仓库根显式指定。
+     */
+    @DynamicPropertySource
+    static void baselineScriptsDir(DynamicPropertyRegistry registry) {
+        registry.add("app.baseline-scripts-dir", () -> {
+            Path dir = Path.of(System.getProperty("user.dir")).toAbsolutePath().normalize();
+            while (dir != null && !Files.isRegularFile(dir.resolve("data/scripts/common/sqlite/00-common.sql"))) {
+                dir = dir.getParent();
+            }
+            if (dir == null) {
+                throw new IllegalStateException("向上查找未找到仓库 data/scripts 目录");
+            }
+            return dir.resolve("data/scripts").toString();
+        });
+    }
 
     @Autowired
     private InitWizardService initWizardService;
@@ -101,6 +124,12 @@ class InitWizardServiceIntegrationTest {
 
     @Autowired
     private ScopedIdentifierRepository scopedIdentifierRepository;
+
+    @Autowired
+    private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private io.github.matrixlane.metadataregistry.web.service.database.DatabaseEnvironment databaseEnvironment;
 
     private UUID appUserId;
 
@@ -591,5 +620,166 @@ class InitWizardServiceIntegrationTest {
 
         assertThat(findCreatedRa()).isNotNull();
         assertThat(registrarRepository.findAll()).isEmpty();
+    }
+
+    // ── 预置基准库拷贝即用：向导清理保留基准数据（baseline-data-init-rebuild）────
+
+    private static final UUID WS_NS = UUID.fromString("2ACC2197-2BE5-49E4-BB16-3BFBEC5746F4");
+    private static final UUID ORG_WJW = UUID.fromString("6E486DAE-E5B0-42D7-A8E7-3C9C511BFD93");
+    private static final UUID ORG_STATS = UUID.fromString("9F649768-513A-4E42-910D-41B588F68E19");
+    private static final UUID DIRTY_NS = UUID.fromString("11111111-1111-4111-8111-111111111111");
+    private static final UUID DIRTY_ORG_RA = UUID.fromString("22222222-2222-4222-8222-222222222222");
+
+    private Object uuid(UUID id) {
+        return databaseEnvironment.toJdbcUuid(id);
+    }
+
+    private int countWhere(String sql, Object... args) {
+        Integer count = jdbcTemplate.queryForObject(sql, Integer.class, args);
+        return count == null ? -1 : count;
+    }
+
+    /**
+     * 预置基准形态夹具：基准内容行（ws- namespace 的 item 父行 + designation、context、
+     * reference_document）、基准治理常量行（ws- namespace、WJW/统计信息中心 organization、
+     * WJW registration_authority + ext 卫星）、上次 setup 半途脏治理行（dirty namespace
+     * 全链 + dirty organization/RA 全链）。
+     */
+    private void seedBaselineFixture() {
+        seedBaselineGovernanceRows();
+        seedDirtyGovernanceRows();
+    }
+
+    /** 仅基准侧：预置库原样（内容行 + 基准治理常量行），无向导脏行。 */
+    private void seedBaselineGovernanceRows() {
+        Object rnd = databaseEnvironment.toJdbcUuid(UUID.randomUUID());
+        // 基准内容行
+        jdbcTemplate.update("INSERT INTO item (id) VALUES (?)", uuid(WS_NS));
+        jdbcTemplate.update("INSERT INTO namespace (id) VALUES (?)", uuid(WS_NS));
+        jdbcTemplate.update("INSERT INTO designation (id, item_id, value) VALUES (?, ?, 'ws-')", rnd, uuid(WS_NS));
+        jdbcTemplate.update("INSERT INTO context (id) VALUES (?)",
+                databaseEnvironment.toJdbcUuid(UUID.randomUUID()));
+        jdbcTemplate.update("INSERT INTO reference_document (id) VALUES (?)",
+                databaseEnvironment.toJdbcUuid(UUID.randomUUID()));
+        // 基准治理常量行
+        jdbcTemplate.update("INSERT INTO organization (id) VALUES (?)", uuid(ORG_WJW));
+        jdbcTemplate.update("INSERT INTO organization (id) VALUES (?)", uuid(ORG_STATS));
+        jdbcTemplate.update("INSERT INTO organization_name (organization_id, value) VALUES (?, 'WJW 标委会')",
+                uuid(ORG_WJW));
+        jdbcTemplate.update("INSERT INTO registration_authority"
+                + " (id, international_code_designator, organization_identifier) VALUES (?, '0000', 'WJW')",
+                uuid(ORG_WJW));
+        jdbcTemplate.update("INSERT INTO ext_registration_authority (id, is_primary) VALUES (?, false)",
+                uuid(ORG_WJW));
+    }
+
+    /** 上次 setup 半途的脏治理行（dirty namespace 全链 + dirty organization/RA 全链）。 */
+    private void seedDirtyGovernanceRows() {
+        jdbcTemplate.update("INSERT INTO item (id) VALUES (?)", uuid(DIRTY_NS));
+        jdbcTemplate.update("INSERT INTO namespace (id) VALUES (?)", uuid(DIRTY_NS));
+        jdbcTemplate.update("INSERT INTO designation (id, item_id, value) VALUES (?, ?, '脏命名空间')",
+                databaseEnvironment.toJdbcUuid(UUID.randomUUID()), uuid(DIRTY_NS));
+        jdbcTemplate.update("INSERT INTO namespace_identifier_settings (id, namespace_id) VALUES (?, ?)",
+                databaseEnvironment.toJdbcUuid(UUID.randomUUID()), uuid(DIRTY_NS));
+        jdbcTemplate.update("INSERT INTO organization (id) VALUES (?)", uuid(DIRTY_ORG_RA));
+        jdbcTemplate.update("INSERT INTO organization_name (organization_id, value) VALUES (?, '脏机构')",
+                uuid(DIRTY_ORG_RA));
+        jdbcTemplate.update("INSERT INTO registration_authority"
+                + " (id, international_code_designator, organization_identifier) VALUES (?, '9999', 'DIRTY')",
+                uuid(DIRTY_ORG_RA));
+        jdbcTemplate.update("INSERT INTO ext_registration_authority (id, is_primary) VALUES (?, true)",
+                uuid(DIRTY_ORG_RA));
+    }
+
+    private void assertBaselineIntact() {
+        // 基准内容行全保留
+        assertThat(countWhere("SELECT COUNT(*) FROM item WHERE id = ?", uuid(WS_NS))).isOne();
+        assertThat(countWhere("SELECT COUNT(*) FROM context")).isOne();
+        assertThat(countWhere("SELECT COUNT(*) FROM reference_document")).isOne();
+        // 基准治理常量行全保留
+        assertThat(countWhere("SELECT COUNT(*) FROM namespace WHERE id = ?", uuid(WS_NS))).isOne();
+        assertThat(countWhere("SELECT COUNT(*) FROM designation WHERE item_id = ?", uuid(WS_NS))).isOne();
+        assertThat(countWhere("SELECT COUNT(*) FROM organization WHERE id IN (?, ?)",
+                uuid(ORG_WJW), uuid(ORG_STATS))).isEqualTo(2);
+        assertThat(countWhere("SELECT COUNT(*) FROM organization_name WHERE organization_id = ?",
+                uuid(ORG_WJW))).isOne();
+        assertThat(countWhere("SELECT COUNT(*) FROM registration_authority WHERE id = ?",
+                uuid(ORG_WJW))).isOne();
+        assertThat(countWhere("SELECT COUNT(*) FROM ext_registration_authority WHERE id = ?",
+                uuid(ORG_WJW))).isOne();
+        // 语言 22 条在位
+        assertThat(languageRepository.count()).isGreaterThanOrEqualTo(22);
+    }
+
+    private void assertDirtyGovernancePurged() {
+        assertThat(countWhere("SELECT COUNT(*) FROM namespace WHERE id = ?", uuid(DIRTY_NS))).isZero();
+        // Namespace extends Item（JOINED）：item 父行连带删除
+        assertThat(countWhere("SELECT COUNT(*) FROM item WHERE id = ?", uuid(DIRTY_NS))).isZero();
+        assertThat(countWhere("SELECT COUNT(*) FROM designation WHERE item_id = ?", uuid(DIRTY_NS))).isZero();
+        assertThat(countWhere("SELECT COUNT(*) FROM namespace_identifier_settings WHERE namespace_id = ?",
+                uuid(DIRTY_NS))).isZero();
+        assertThat(countWhere("SELECT COUNT(*) FROM organization WHERE id = ?", uuid(DIRTY_ORG_RA))).isZero();
+        assertThat(countWhere("SELECT COUNT(*) FROM organization_name WHERE organization_id = ?",
+                uuid(DIRTY_ORG_RA))).isZero();
+        assertThat(countWhere("SELECT COUNT(*) FROM registration_authority WHERE id = ?",
+                uuid(DIRTY_ORG_RA))).isZero();
+        assertThat(countWhere("SELECT COUNT(*) FROM ext_registration_authority WHERE id = ?",
+                uuid(DIRTY_ORG_RA))).isZero();
+    }
+
+    @Test
+    void setup_preservesBaselineDataAndPurgesDirtyGovernanceRows() {
+        seedBaselineFixture();
+
+        initWizardService.setup(teamSetupRequest(false, null, null), appUserId);
+
+        assertBaselineIntact();
+        assertDirtyGovernancePurged();
+        // 向导新建的 RA/namespace 在位且唯一（基准常量各 1 + 向导各 1）
+        assertThat(registrationAuthorityRepository.count()).isEqualTo(2);
+        assertThat(namespaceRepository.count()).isEqualTo(2);
+    }
+
+    @Test
+    void abort_preservesBaselineDataAndPurgesWizardRows() {
+        seedBaselineFixture();
+        initWizardService.setup(teamSetupRequest(false, null, null), appUserId);
+
+        initWizardService.abort();
+
+        assertBaselineIntact();
+        assertDirtyGovernancePurged();
+        // abort 后向导行清净：只剩基准常量
+        assertThat(registrationAuthorityRepository.count()).isOne();
+        assertThat(namespaceRepository.count()).isOne();
+    }
+
+    @Test
+    void setup_rerunIsIdempotentWithoutDuplicateGovernanceRows() {
+        seedBaselineFixture();
+        initWizardService.setup(teamSetupRequest(false, null, null), appUserId);
+
+        initWizardService.setup(teamSetupRequest(false, null, null), appUserId);
+
+        assertBaselineIntact();
+        // 重跑不产生重复 RA/namespace（基准 1 + 本次向导 1）
+        assertThat(registrationAuthorityRepository.count()).isEqualTo(2);
+        assertThat(namespaceRepository.count()).isEqualTo(2);
+    }
+
+    @Test
+    void wizardState_readyWhenOnlyBaselineGovernanceRowsExist() {
+        // 预置基准库拷贝即用：仅含基准治理常量行的未初始化库不得误报「向导进行中」
+        seedBaselineGovernanceRows();
+
+        assertThat(initWizardService.getWizardState()).isEqualTo("READY");
+    }
+
+    @Test
+    void wizardState_inProgressWhenNonBaselineGovernanceRowsExist() {
+        // 基准常量 + 半途脏治理行：脏行仍按既有语义判定 IN_PROGRESS
+        seedBaselineFixture();
+
+        assertThat(initWizardService.getWizardState()).isEqualTo("IN_PROGRESS");
     }
 }

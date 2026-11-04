@@ -5,7 +5,7 @@ spring:
   # LocalConfigBootstrapInitializer 在启动时加载，优先级高于本 profile 的默认键
   # （profile 文件内的 spring.config.import 不生效，故不用 import 方式）。
   datasource:
-    url: ${DB_URL:jdbc:sqlite:./data/metadata-registry.db}
+    url: ${DB_URL:jdbc:sqlite:${user.home}/.metadata-registry/data/metadata-registry.db}
     # sqlite-jdbc 不在 Spring Boot DatabaseDriver 枚举中，Hikari 无法从 URL
     # 推断驱动类，必须显式指定（否则启动报 Failed to determine a suitable driver class）。
     driver-class-name: org.sqlite.JDBC
@@ -26,9 +26,14 @@ spring:
         # SQLite 无 schema 概念；DatabaseEnvironment 对 SQLITE 一律返回 null
         default_schema: ${DB_DEFAULT_SCHEMA:}
         # 避免启动时批量读取 JDBC 元数据（既有库上 SQLite 方言的
-        # 复合 SELECT 会超出 SQLITE_LIMIT_COMPOUND_SELECT 导致启动失败）
+        # 复合 SELECT 会超出 SQLITE_LIMIT_COMPOUND_SELECT 导致启动失败）。
+        # temp.use_jdbc_metadata_defaults 在 Hibernate 6.6 已废弃
+        # （HHH90000021），新属性 boot.allow_jdbc_metadata_access 才是
+        # 生效键；两个都写，向后兼容并确保向导相零数据库连接。
         temp:
           use_jdbc_metadata_defaults: false
+        boot:
+          allow_jdbc_metadata_access: false
     hibernate:
       # SQLite 上 ddl-auto=update 在既有库会因批量表元数据读取
       # （too many terms in compound SELECT）失败；表结构改由 Flyway 基线管理
@@ -52,5 +57,8 @@ spring:
     # 不重放不可在空库执行的历史迁移。
 
 app:
+  bootstrap:
+    # 个人版生产部署开启"初始化阶段数据库依赖延后"（init-phase-database-free）。
+    enabled: true
   cors:
     allowed-origins: ${CORS_ORIGINS:http://localhost:5173}

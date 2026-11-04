@@ -13,11 +13,12 @@ target/
 Thumbs.db
 
 # 本地运行/测试生成的 SQLite 数据库文件
+# data/ 下的基准脚本、主题 README、标准原文与批处理入库跟踪；数据库文件本体忽略
 metadata_registry.db
-data/
-
-# 未核准的基准数据快照，不得签入（需重新核准后再放行）
-db-baseline/
+data/*.db
+data/*.db.*
+data/federation/
+data/migration-export.json
 
 # Runtime logs
 *.log
@@ -67,3 +68,6 @@ iso11179-*.txt
 
 # 临时 classpath 导出文件
 cp.txt
+
+# 误以 ~ 为工作目录启动产生的流浪目录（含意外创建的 SQLite 库）
+~

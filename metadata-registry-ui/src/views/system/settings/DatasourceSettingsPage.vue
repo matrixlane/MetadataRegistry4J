@@ -40,7 +40,7 @@
             </el-select>
           </el-form-item>
           <el-form-item v-if="dbForm.vendor === 'sqlite'" label="数据库文件路径" required>
-            <el-input v-model="dbForm.filePath" placeholder="./data/metadata-registry.db" />
+            <el-input v-model="dbForm.filePath" placeholder="~/.metadata-registry/data/metadata-registry.db" />
           </el-form-item>
           <template v-else>
             <el-form-item label="主机" required>
@@ -131,7 +131,7 @@ const dbForm = ref({
   host: 'localhost',
   port: 1433,
   database: 'metadata_registry',
-  filePath: './data/metadata-registry.db',
+  filePath: '~/.metadata-registry/data/metadata-registry.db',
   username: '',
   password: '',
 });

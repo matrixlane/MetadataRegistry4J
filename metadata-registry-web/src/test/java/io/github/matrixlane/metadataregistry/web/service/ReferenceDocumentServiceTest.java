@@ -186,4 +186,39 @@ class ReferenceDocumentServiceTest {
         assertThatThrownBy(() -> service.content(doc.getId()))
                 .isInstanceOf(BusinessException.class);
     }
+
+    @Test
+    @DisplayName("内容:仓库内相对路径按应用工作目录解析")
+    void contentResolvesRepoRelativePath() throws IOException {
+        // 相对路径相对 user.dir（模块目录）解析；文件写到 target/ 下避免污染源码树
+        Path file = Path.of(System.getProperty("user.dir"), "target",
+                "refdoc-test-" + UUID.randomUUID(), "文档.pdf");
+        Files.createDirectories(file.getParent());
+        Files.write(file, new byte[]{4, 5, 6});
+        try {
+            ReferenceDocument doc = documentWith();
+            doc.setUri(Path.of(System.getProperty("user.dir")).relativize(file).toString()
+                    .replace('\\', '/'));
+            when(repository.findById(doc.getId())).thenReturn(Optional.of(doc));
+
+            ResponseEntity<Resource> response = service.content(doc.getId());
+
+            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+            assertThat(response.getHeaders().getContentLength()).isEqualTo(3);
+        } finally {
+            Files.deleteIfExists(file);
+            Files.deleteIfExists(file.getParent());
+        }
+    }
+
+    @Test
+    @DisplayName("内容:相对路径越出工作目录(..逃逸)被拒绝")
+    void contentRejectsRelativeEscape() {
+        ReferenceDocument doc = documentWith();
+        doc.setUri("../outside.pdf");
+        when(repository.findById(doc.getId())).thenReturn(Optional.of(doc));
+
+        assertThatThrownBy(() -> service.content(doc.getId()))
+                .isInstanceOf(BusinessException.class);
+    }
 }

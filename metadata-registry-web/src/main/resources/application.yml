@@ -8,7 +8,7 @@ spring:
   application:
     name: metadata-registry
   datasource:
-    url: ${DB_URL:jdbc:sqlite:./metadata_registry.db}
+    url: ${DB_URL:jdbc:sqlite:${user.home}/.metadata-registry/data/metadata-registry.db}
     driver-class-name: ${DB_DRIVER:org.sqlite.JDBC}
     hikari:
       maximum-pool-size: 20
@@ -96,6 +96,10 @@ logging:
     org.hibernate.orm.jdbc.bind: WARN
 
 app:
+  bootstrap:
+    # 初始化阶段数据库依赖延后总开关：默认关闭（集成测试等自行管理 schema 的
+    # 环境不受影响）；个人版/团队版 profile 显式开启。
+    enabled: ${BOOTSTRAP_ENABLED:false}
   jwt:
     secret: ${JWT_SECRET:please-replace-with-a-long-random-string-of-at-least-32-bytes-XYZ}
     expires-minutes: ${JWT_EXPIRES_MINUTES:480}

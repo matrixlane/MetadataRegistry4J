@@ -28,8 +28,8 @@ import java.util.List;
  *
  * <p>步骤序（全部幂等，可重复执行）：</p>
  * <ol>
- *   <li>重放语言预置 SQL 脚本清单（语言代码 22 + 中文名称/地区名 22，
- *       含 zh-CN=简体中文 口径修正）——{@link LanguagePresetSeeder}；</li>
+ *   <li>执行当前方言的通用基准脚本 {@code data/scripts/common/<方言>/00-common.sql}
+ *       （语言代码 22 + 中文名称/地区名 22，zh-CN=简体中文）——{@link BaselineScriptPresetService}；</li>
  *   <li>{@code identifier_strategy_config} 全局默认行（UUID / INTERNAL /
  *       is_global_default=1，三方言补齐）；</li>
  *   <li>占位超级管理员 {@code admin / NO_PASSWORD}（账户表非空即跳过）；</li>
@@ -44,7 +44,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class StaticDataPresetService {
 
-    private final LanguagePresetSeeder languagePresetSeeder;
+    private final BaselineScriptPresetService baselineScriptPresetService;
     private final RegistrationProcessService registrationProcessService;
     private final RegistrationAuthorityRepository registrationAuthorityRepository;
     private final AccountRepository accountRepository;
@@ -58,7 +58,7 @@ public class StaticDataPresetService {
      */
     @Transactional
     public void presetAll() {
-        languagePresetSeeder.reapplyPreset();
+        baselineScriptPresetService.applyCommonBaseline();
         ensureGlobalDefaultIdentifierStrategy();
         ensurePlaceholderAdmin();
         reconcileRegistrationTransitionRules();

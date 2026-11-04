@@ -6,7 +6,7 @@ spring:
     # 避免本文件（file:./ 优先级高于 classpath）把相对路径的旧配置重新引入。
     import: optional:${user.home}/.metadata-registry/application-local.yml
   datasource:
-    url: ${DB_URL:jdbc:sqlite:./metadata_registry.db}
+    url: ${DB_URL:jdbc:sqlite:${user.home}/.metadata-registry/data/metadata-registry.db}
     driver-class-name: ${DB_DRIVER:org.sqlite.JDBC}
     hikari:
       maximum-pool-size: 20

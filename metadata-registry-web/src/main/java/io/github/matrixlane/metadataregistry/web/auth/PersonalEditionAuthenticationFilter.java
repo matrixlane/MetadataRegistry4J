@@ -62,6 +62,14 @@ public class PersonalEditionAuthenticationFilter extends OncePerRequestFilter {
     private final ObjectProvider<AccountRepository> accountRepository;
     private final ObjectProvider<ContactAccountService> contactAccountService;
 
+    /**
+     * 初始化状态提供者（init-phase-database-free）：新架构开启时版本判定走
+     * 本地状态记录，向导相因此零数据库查询。required=false 保持 @WebMvcTest
+     * 切片可加载；缺失时回退 SystemSettingService 的数据库判定（既有行为）。
+     */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private io.github.matrixlane.metadataregistry.web.bootstrap.InitializationStatusProvider statusProvider;
+
     public PersonalEditionAuthenticationFilter(ObjectProvider<SystemSettingService> systemSettingService,
                                                ObjectProvider<AccountRepository> accountRepository,
                                                ObjectProvider<ContactAccountService> contactAccountService) {
@@ -112,6 +120,12 @@ public class PersonalEditionAuthenticationFilter extends OncePerRequestFilter {
     }
 
     private boolean isPersonalEdition() {
+        // 新架构：版本判定走本地状态记录（向导相零数据库查询；与数据库判定在
+        // 未初始化时同为 null → 非个人版，行为一致）
+        io.github.matrixlane.metadataregistry.web.bootstrap.InitializationStatusProvider provider = statusProvider;
+        if (provider != null) {
+            return provider.getEdition() == DeploymentEdition.PERSONAL;
+        }
         SystemSettingService settings = systemSettingService.getIfAvailable();
         if (settings == null) {
             log.warn("个人版自动认证过滤器缺少 SystemSettingService，隐式管理员认证降级为 no-op");

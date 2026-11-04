@@ -120,6 +120,7 @@ Use this file to track reusable lessons that may deserve a future workflow, skil
 - linked_entries: openspec/changes/repair-administered-item-closure
 
 ### BL-2026-10-09-06 db-baseline/ 实际未被 git 跟踪（用户确认为有意暂缓）
+- **2026-10-23 已解决**：baseline-data-init-rebuild 将 db-baseline/ 更名重构为 data/scripts/，.gitignore 收窄（data/*.db* 忽略、脚本/README/批处理入库跟踪），git check-ignore 双向断言通过
 - status: ON_HOLD（用户 2026-10-09 明确裁定：忽略是有意为之，待本地数据验证完成后另行要求签入）
 - last_updated: 2026-10-09
 - source: 2026-10-09 repair-administered-item-closure 实施期发现
@@ -217,3 +218,93 @@ Use this file to track reusable lessons that may deserve a future workflow, skil
 - suggested_artifact: AGENTS.md 或用户级规则：需要全量验证时先 git worktree add 隔离目录，
   Start-Process 显式 -WorkingDirectory，轮询 java PID 而非管道返回码，开工前 Get-Process java 清点
 - linked_entries: 本会话纪要 2026-10-20-administered-item-reference-documents-ui
+
+### BL-2026-10-22-01 sqlcmd 执行 UTF-8 SQL 脚本必须 `-f 65001`；Git Bash 传路径必须 `cygpath -w`
+- status: PROPOSED
+- last_updated: 2026-10-22
+- source: administered-item-reference-documents-ui 收官会话（本机两次踩坑）
+- owner: matrixlane
+- review_after: 2026-12-22
+- trigger: 用 sqlcmd `-i` 执行含中文注释/全角标点的 UTF-8 脚本，或从 Git Bash 传文件路径
+- repeated_pattern: ①不带 `-f 65001` 时 sqlcmd 按 ANSI/GBK 代码页解读 UTF-8 字节，
+  中文注释内全角括号/引号被误读 → 报 102「附近有语法错误」（错误行号指向注释，极具迷惑性）；
+  ②Git Bash 的 `/e/...` POSIX 路径传给 Windows 版 sqlcmd 报「拒绝访问」
+- impact: 中——报错信息与真实原因（编码/路径）完全无关，排错成本高
+- evidence_count: 2（本日 reference-link NOEXEC 102、final_session 拒绝访问）
+- suggested_artifact: db-baseline/README.md 增补「执行通则」一节；scratch 脚本模板头注
+- linked_entries: 2026-10-22-administered-item-refdocs-realdb.md 环境备忘
+
+### BL-2026-10-22-02 Hibernate 6 join elimination 使「JOIN 实体仅取其 id」的 JPQL 不再触碰该表
+- status: PROPOSED
+- last_updated: 2026-10-22
+- source: 1.3 红态复现失败排查（show-sql 取证）
+- owner: matrixlane
+- review_after: 2026-12-22
+- trigger: JPQL `JOIN e.association a WHERE a.id = :x` 且 select 列表只用 e 的字段
+- repeated_pattern: Hibernate 把对端实体 join 折叠为 join 表外键列比较——
+  `SubmissionRecord` 案例实际 SQL 只 join `registered_item_submission_record`，
+  完全不触 `registered_item`（30+ 子类继承展开不存在）。
+  2026-10-10 的 40s+ 事故态（空库无统计信息+无索引+旧计划）在当前库上不可复现
+- impact: 低（对运行时是好事）——但「回退某查询复现历史性能事故」类验证会因此拿不到红态，
+  证据口径必须改凭事故时记录
+- evidence_count: 1（红绿对照 + show-sql）
+- suggested_artifact: 性能回退验证方法论入 superpowers 会话模板：先抓 show-sql 确认查询形状，再谈复现
+- linked_entries: tasks.md 1.3 收官记录
+
+### BL-2026-10-22-03 列表接口大页触发 JDBC 2100 参数上限（既有约束）
+- status: PROPOSED
+- last_updated: 2026-10-22
+- source: 6.4 边界实测 data-elements?size=10000 → HTTP 500
+- owner: matrixlane
+- review_after: 2026-12-22
+- trigger: 分页 size 超过约 2000（IN 列表参数超 SQL Server 2100 上限）
+- repeated_pattern: designation 批量查询 `WHERE item_id IN (10000 个参数)` 直接由驱动拒绝；
+  与本次变更无关，属既有上限
+- impact: 中——「查看全部」类前端诉求在 SQL Server 下不可用
+- evidence_count: 1
+- suggested_artifact: 新变更：批量 IN 改 chunked（≤1000/批）或临时表 join；前端分页上限联动
+- linked_entries: 2026-10-22-administered-item-refdocs-realdb.md
+
+### BL-2026-10-22-04 ItemReferenceDocumentsSection 增删为即时 API 调用，与 4.4「保存时 diff」描述不同步
+- status: PROPOSED
+- last_updated: 2026-10-22
+- source: 6.5 验收实测（新增/移除均即时落库，乐观更新+失败回滚）
+- owner: matrixlane
+- review_after: 2026-12-22
+- trigger: 阅读 tasks/spec 预期「保存时对比差异集提交」，实际实现走即时 POST/DELETE
+- repeated_pattern: ItemFormDialog addReferenceDocuments/removeReferenceDocuments 立即调用
+  administeredItemReferenceApi 并在失败时回滚乐观变更；表格行数据在即时新增后不刷新，
+  重开对话框前需重新拉取（脚本里表现为列表不带新行）
+- impact: 低——行为更即时可用，但文档与实现两处事实源不一致，后续改动易误判
+- evidence_count: 1（UI 全流程 + API 计数验证）
+- suggested_artifact: 轻量对齐：改 4.4 描述或改实现为保存时 diff（建议改描述，保留即时交互）
+- linked_entries: 2026-10-22-administered-item-refdocs-realdb.md
+
+### BL-2026-10-23-01 旁路实例数据源隔离的正确姿势
+- status: READY
+- last_updated: 2026-10-23
+- source: baseline-data-init-rebuild 会话（三次误连活库事故）
+- 要点：LocalConfigBootstrapInitializer 无条件加载 ~/.metadata-registry/application-local.yml（字面量 url 压过 profile 占位符里的 DB_URL 环境变量）；隔离须用 JAVA_TOOL_OPTIONS="-Dmetadata.registry.config.file=<side.yml>"（spring-boot:run 的 -Dspring-boot.run.jvmArguments 引号经 mvnw.cmd+bash 传递不可靠）；side yml 对 sqlite 必须自带 flyway.schemas/default-schema=main（EXISTING 态无 FRESH 注入，空 schemas 会让 flyway 查 "".flyway_schema_history 炸掉）；TaskStop 杀不掉 fork 的 java 进程，须按端口杀 PID。
+- linked_entries: 2026-10-23-baseline-data-init-rebuild.md
+
+### BL-2026-10-23-02 sqlite 时间戳存储形态必须与 sqlite-jdbc 运行时一致
+- status: READY
+- last_updated: 2026-10-23
+- source: baseline-data-init-rebuild 会话（预置库列表页 500 实测）
+- 要点：sqlite-jdbc 3.49 setTimestamp 落库 epoch 毫秒 INTEGER；getTimestamp 可读 INTEGER 与空格分隔 TEXT，T 分隔 ISO TEXT 必炸（"Error parsing time stamp"）。裸 SQL 脚本写时间戳必须写 epoch 毫秒 INTEGER；历史 T 分隔残留（12,581 值）已在基准重建时归一。
+- linked_entries: 2026-10-23-baseline-data-init-rebuild.md；scratch/baseline-rebuild/verification-report.md §5.2
+
+### BL-2026-10-23-03 Windows 单文件 bat+PowerShell 混合脚本工程要点
+- status: READY
+- last_updated: 2026-10-23
+- source: baseline-data-init-rebuild 会话（init-baseline.bat 五轮调试）
+- 要点：bat 必须 CRLF（LF 下 cmd 解析错乱执行注释碎片）；bat 头注释保持纯 ASCII（UTF-8 中文 rem 被 cmd 按 GBK 误读可产生 & 碎片）；PS 5.1 不支持 ?? 运算符；PS 5.1 调原生程序吞参数内双引号（python -c 内嵌 SQL 惨案）→ 临时 .py 助手文件/sqlite3 stdin 喂入；split 标记不得在提取命令行自身出现；sqlcmd 用 host,port 逗号（JDBC 是冒号）。
+- linked_entries: 2026-10-23-baseline-data-init-rebuild.md
+
+### BL-2026-10-23-04 fresh schema（纯 ddl-auto）与迁移库 schema 存在多处发散
+- status: READY
+- last_updated: 2026-10-23
+- source: baseline-data-init-rebuild 会话的活库 vs fresh 库 INFORMATION_SCHEMA 全量比对（scratch/baseline-rebuild/diff-live-vs-scripts.md 配套审计）
+- 已修复：`DataType.annotation`/`PermissibleValue.permittedValue` 加 @Nationalized（迁移产物 NVARCHAR vs fresh VARCHAR 致数据丢失）。
+- 待跟进（本次未扩 scope）：① fresh 库缺 `ext.identifier_sequence_registry`（RegistrationAuthorityDeletionService 的 qualifyAuto 裸 SQL 路径在 fresh SQL Server 库会踩空表）；② `registration_transition_rule_approver`（@ElementCollection 集合表无法经 orm.xml 登记）fresh 落 mdr 而迁移库在 ext，裸 SQL 路径同险；③ 16 列可空性 fresh 更严（NOT NULL），与迁移库 nullable 不一致（基准数据已实证满足 NOT NULL，影响仅在未来迁移写入路径）。建议：新开平台级变更做「fresh schema 与迁移链产物全量对齐」或确立「fresh 即以 ddl-auto 为准、迁移仅服务存量」的原则并补齐守护测试。
+- linked_entries: 2026-10-23-baseline-data-init-rebuild.md

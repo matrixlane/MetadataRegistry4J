@@ -37,7 +37,7 @@ import static org.mockito.Mockito.when;
 class StaticDataPresetServiceTest {
 
     @Mock
-    private LanguagePresetSeeder languagePresetSeeder;
+    private BaselineScriptPresetService baselineScriptPresetService;
     @Mock
     private RegistrationProcessService registrationProcessService;
     @Mock
@@ -72,9 +72,9 @@ class StaticDataPresetServiceTest {
 
         presetService.presetAll();
 
-        InOrder order = inOrder(languagePresetSeeder,
+        InOrder order = inOrder(baselineScriptPresetService,
                 jdbcTemplate, accountRepository, registrationProcessService, identifierStrategyLoader);
-        order.verify(languagePresetSeeder).reapplyPreset();
+        order.verify(baselineScriptPresetService).applyCommonBaseline();
         order.verify(jdbcTemplate).queryForObject(
                 containsSql("SELECT COUNT(*) FROM ext.identifier_strategy_config"), eq(Integer.class));
         order.verify(accountRepository).count();

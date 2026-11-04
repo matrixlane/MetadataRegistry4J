@@ -98,6 +98,24 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  /**
+   * 强制刷新初始化状态，返回**本次**刷新的结论：成功返回新的布尔值，失败返回 null。
+   *
+   * checkInitialized 在后端不可达时降级返回 true 并保留旧缓存，而重启窗口里的旧缓存
+   * 可能是上一套数据库的结论。调用方若直接用它的返回值做分支判断，会在探测失败时把
+   * 用户误送到"已初始化"的首页，因此需要一个能区分"取到了新值"与"没取到"的接口。
+   */
+  async function refreshInitialized(): Promise<boolean | null> {
+    try {
+      const status = await fetchInitStatusWithRetry();
+      initialized.value = status.initialized;
+      edition.value = status.edition ?? null;
+      return status.initialized;
+    } catch {
+      return null;
+    }
+  }
+
   /** 查询初始化状态，失败或响应非法时间隔 800ms 重试一次（静默，不触发错误提示）。 */
   async function fetchInitStatusWithRetry(): Promise<InitWizardStatus> {
     try {
@@ -161,7 +179,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   return {
     token, user, isLoggedIn, bypassLogin, isAdmin, isRegistrar, isRegistrarUser, initialized,
-    hasRole, setInitialized, setEdition, checkInitialized, login, fetchMe, logout, adoptSession,
+    hasRole, setInitialized, setEdition, checkInitialized, refreshInitialized, login, fetchMe, logout, adoptSession,
     edition,
   };
 });

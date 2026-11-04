@@ -25,7 +25,12 @@ public class PermissibleValue extends Item {
      * <p>ISO/IEC 11179-31:2023 表 6(7.4.2.12.4):permitted_value 多重性 1,数据类型
      * Value(ISO/IEC 11179-3:2023, 6.2.13)。标准 NOTE:即使父 Item 可有多个
      * Designation.sign,permitted_value 仍为必备,以指定唯一的取值。
+     *
+     * <p>@Nationalized:SQL Server/达梦落 NVARCHAR,与既有库迁移产物对齐（既有库该列为
+     * NVARCHAR(255)）;允许值虽多为 ASCII 码值,但标准文本字符（如 GBK 码页外字符）在
+     * VARCHAR 下会被排序规则转换吞掉。
      */
+    @org.hibernate.annotations.Nationalized
     @Column(name = "permitted_value", nullable = false)
     private String permittedValue;
 

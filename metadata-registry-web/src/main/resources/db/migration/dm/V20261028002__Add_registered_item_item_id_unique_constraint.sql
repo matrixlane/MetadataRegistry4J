@@ -1,0 +1,18 @@
+-- registered_item.item_id 唯一约束（达梦侧）
+-- 强制 IdentifiedItem.item 的 @OneToOne 语义，防止同一 Item 被多条 registered_item 引用。
+-- 幂等：PL/SQL 块内先检查索引/约束是否存在。
+
+DECLARE
+  n NUMBER;
+BEGIN
+  SELECT COUNT(*) INTO n
+    FROM ALL_INDEXES
+   WHERE OWNER = 'MDR'
+     AND TABLE_NAME = 'REGISTERED_ITEM'
+     AND INDEX_NAME = 'UQ_REGISTERED_ITEM_ITEM_ID';
+  IF n = 0 THEN
+    EXECUTE IMMEDIATE 'ALTER TABLE MDR."REGISTERED_ITEM" ADD CONSTRAINT UQ_REGISTERED_ITEM_ITEM_ID UNIQUE ("ITEM_ID")';
+  END IF;
+EXCEPTION WHEN OTHERS THEN NULL;
+END;
+/

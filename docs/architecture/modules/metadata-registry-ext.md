@@ -1,51 +1,88 @@
-> 本文档由 GitNexus wiki 生成于 2026-09-13（kimi-for-coding，--lang chinese）。内容变化时请重新运行 `gitnexus wiki --lang chinese` 生成，勿手工改写。
+# metadata-registry-ext
 
 # metadata-registry-ext
 
-## 模块组定位
+`metadata-registry-ext` 是元数据注册表的扩展领域层，用于承载 ISO/IEC 11179 标准模型之外的治理能力，包括标识符策略、顺序号与版本管理、分类体系，以及与标准实体解耦的卫星信息。
 
-`metadata-registry-ext` 是元数据注册表系统中的**扩展能力承载层**，汇集所有超出 ISO/IEC 11179 标准元模型的功能。它与标准领域模块严格隔离：标准实体（如 `Contact`、`ScopedIdentifier`、`Namespace` 等）只保留标准属性，由 `commonfacilities` 按 ISO/IEC 11179-3:2023 实现；超出标准的治理能力——扩展属性、标识符生成策略、简化分类模型——全部收敛到本模块组，遵循 **MDR / EXT schema 拆分** 原则，避免污染标准模型。
+标准模型仍由 `commonfacilities` 提供，例如 `Namespace`、`ScopedIdentifier`、`LanguageIdentification` 和 `NamingConvention`；扩展模块通过 `namespace_id`、`scoped_identifier_id` 等外键关联标准对象，而不直接修改其定义。
 
-该模块组内的文档拆分为两个页面：
+## 子模块
 
-- [metadata-registry-ext](metadata-registry-ext.md) — 模块整体概述：定位、与父项目及 `metadata-registry-common-facilities` 的依赖关系、EXT schema 边界
-- [src](metadata-registry-ext-src.md) — 源码结构与内部组织：卫星实体、标识符体系、分类模型的包级布局
+| 子模块 | 作用 |
+|---|---|
+| [metadata-registry-ext](metadata-registry-ext.md) | 定义 Maven 坐标、打包方式和 `MDR/EXT` 能力边界；当前主要承载模块级配置。 |
+| [metadata-registry-ext/src](metadata-registry-ext-src.md) | 提供扩展领域实现，包括 JPA 实体、领域服务、标识策略注册表和分段模板引擎。 |
 
-## 核心能力
+## 组成部分
 
-扩展能力通过三类机制提供：
+`metadata-registry-ext/src` 按职责划分为以下领域：
 
-1. **卫星实体（Satellite Entities）** — 标准实体的扩展属性按主键一一对应剥离为独立表，物理上与标准实体隔离，包括 `ContactAccountBinding`、`LanguageGovernance`、`NamingConventionRules`、`NamespaceIdentifierSettings`、`ScopedIdentifierLifecycle`。
-2. **标识符生成体系** — 可插拔策略（`SequenceGenerationStrategy`、`TemplateGenerationStrategy`、`UrnGenerationStrategy`、`UuidGenerationStrategy`）、顺序号注册表（`SequenceRegistry`）、段模板引擎（`SegmentTemplateEngine`），以及配套的枚举与异常（如 `SequenceOverflowException` → `SegmentTemplateException` 的异常链）。
-3. **简化分类模型** — 未按标准第 10 章元模型重建的 `ClassificationScheme` / `ClassificationNode`。
+- `ext.basicandcore`：提供 `LanguageGovernance`、`ContactAccountBinding` 等基础治理属性。
+- `ext.classification`：维护分类方案、分类节点及分类关系。
+- `ext.identification`：负责标识符配置、生成、校验、解析、版本生命周期和顺序号分配。
+- 卫星实体：独立保存标准注册表对象的补充信息，避免加载扩展数据时触发完整标准 JPA 对象图。
 
-## 子模块如何协同
+标识生成由 `IdentifierGenerationStrategyRegistry` 统一注册和路由。目前的内置策略包括：
 
-两个页面描述的是同一模块的不同视角：概述页回答"为什么存在、依赖谁"，源码页回答"代码如何组织"。理解本模块组需要结合两者——前者界定 EXT 边界，后者展示三类能力在包结构中的落位。
+- `SequenceGenerationStrategy`
+- `TemplateGenerationStrategy`
+- `UrnGenerationStrategy`
+- `UuidGenerationStrategy`
 
-## 关键工作流：标识符策略的运行时治理
+`IdentifierStrategyConfigService` 负责读取和解析策略配置，并通过 `SegmentTemplateEngine` 执行模板校验与生成。`SegmentTemplateEngine` 从 `SegmentTypeRegistry` 获取对应分段处理器，包括校验和、字面量、对象缩写、分隔符、顺序号、时间戳、UUID 和变量处理器。顺序号状态及作用域由 `SequenceRegistry` 管理；超过可用范围时使用 `SequenceOverflowException` 表示失败。
 
-标识符体系内部组件高度协作，形成一个可插拔的注册—解析—生成流水线：
-
-- `IdentifierStrategyConfigService` 通过 `SegmentTemplateEngine` 渲染配置模板，并经由 `IdentifierGenerationStrategyRegistry.getInstance()` 获取策略注册表。
-- `SegmentTemplateEngine` 委托 `SegmentTypeRegistry` 按段类型分发到具体处理器：`ChecksumSegmentHandler`、`LiteralSegmentHandler`、`ObjectAbbreviationSegmentHandler`、`SeparatorSegmentHandler`、`SequenceSegmentHandler`、`TimestampSegmentHandler`、`UuidSegmentHandler`、`VariableSegmentHandler`。
-- 模板需满足结构约束（如缩写段必须命名、且须位于顺序号段之前），由引擎在 `validate` 阶段校验。
-
-跨模块的典型治理流程（"禁用策略 → 重新注册 → 类型解析"）贯穿 web 层与本模块组：
+## 协作关系
 
 ```mermaid
-sequenceDiagram
-    participant C as web 层<br/>IdentifierStrategyAdminController
-    participant S as 服务层<br/>IdentifierStrategyAdminService
-    participant L as web/config<br/>IdentifierStrategyLoader
-    participant R as ext 模块<br/>IdentifierGenerationStrategyRegistry
-    participant G as 具体策略<br/>Sequence/Template/Urn GenerationStrategy
+flowchart LR
+    A["commonfacilities<br/>Namespace、ScopedIdentifier 等标准实体"]
+    B["扩展领域模型<br/>卫星实体与分类模型"]
+    C["IdentifierStrategyConfigService"]
+    D["SegmentTemplateEngine"]
+    E["SegmentTypeRegistry"]
+    F["内置分段处理器"]
+    G["IdentifierGenerationStrategyRegistry"]
+    H["Sequence、Template、URN、UUID 策略"]
+    I["SequenceRegistry"]
 
-    C->>S: disable（禁用策略）
-    S->>L: refreshRegistry（刷新注册表）
-    L->>R: getInstance（获取注册表单例）
-    R->>R: registerBuiltInStrategies / register（注册内置策略）
-    R->>G: getType（解析策略类型）
+    A -->|"通过 ID 关联"| B
+    C --> D
+    D --> E
+    E --> F
+    G --> H
+    H --> D
+    H --> I
 ```
 
-该流程说明：`ext` 中的策略注册表是整个标识符治理链路的终点与状态中心——web 与服务层的管理操作最终都落到注册表的刷新与策略类型解析上。各策略与段处理器的详细契约，请见 [src](metadata-registry-ext-src.md) 页面包级文档。
+## 关键工作流
+
+### 策略注册与类型查询
+
+初始化或重置流程可以触发以下调用链：
+
+```text
+InitWizardController.abort
+  → InitWizardService.abort
+  → StaticDataPresetService.presetAll
+  → IdentifierStrategyLoader.refreshRegistry
+  → IdentifierGenerationStrategyRegistry.getInstance
+  → registerBuiltInStrategies / register
+  → IdentifierGenerationStrategy.getType
+```
+
+该流程先完成静态数据预置，再刷新策略注册表、注册内置策略，最后按照策略类型取得 `SequenceGenerationStrategy`、`TemplateGenerationStrategy` 或 `UrnGenerationStrategy` 等实现。
+
+### 模板标识符生成
+
+```text
+IdentifierStrategyConfigService
+  → SegmentTemplateEngine
+  → SegmentTypeRegistry
+  → 具体分段处理器
+```
+
+配置服务解析模板后，模板引擎负责校验分段结构和顺序，再按分段类型委托给对应处理器生成结果。顺序号分段依赖 `SequenceRegistry` 提供的分配状态和作用域。
+
+## 模块边界
+
+本模块主要提供领域模型、JPA 映射、服务和可扩展注册表，不负责事务边界、数据库行锁或 Web 请求编排。这些职责由 `web`、`service` 等上层模块处理。

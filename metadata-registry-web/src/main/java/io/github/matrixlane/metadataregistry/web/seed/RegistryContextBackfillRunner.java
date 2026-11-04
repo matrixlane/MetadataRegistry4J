@@ -27,8 +27,23 @@ public class RegistryContextBackfillRunner implements ApplicationRunner {
 
     private final RegistryContextBootstrapService registryContextBootstrapService;
 
+    /**
+     * 新架构模式（null 表示关闭）。开启时数据库初始化由 DatabaseBootstrapService
+     * 统一执行（含治理回填步骤），本 Runner 跳过。
+     */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private io.github.matrixlane.metadataregistry.web.bootstrap.BootstrapMode bootstrapMode;
+
     @Override
     public void run(ApplicationArguments args) {
+        if (bootstrapMode != null && bootstrapMode.enabled()) {
+            return;
+        }
+        backfill();
+    }
+
+    /** 回填入口：启动期 Runner 与数据库初始化引导共用（幂等，可重复调用）。 */
+    public void backfill() {
         registryContextBootstrapService.backfillIfInitialized();
     }
 }

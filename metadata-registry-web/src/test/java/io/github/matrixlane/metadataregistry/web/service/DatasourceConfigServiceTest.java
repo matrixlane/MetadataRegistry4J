@@ -163,8 +163,47 @@ class DatasourceConfigServiceTest {
         assertThat(written).contains("driver-class-name: ${DB_DRIVER:org.sqlite.JDBC}");
         assertThat(written).contains("dialect: ${HIBERNATE_DIALECT:org.hibernate.community.dialect.SQLiteDialect}");
         assertThat(written).contains("locations: ${DB_VENDOR:classpath:db/migration/sqlite}");
+        // 切换方言必须同步 ORM 映射：SQLite 下 orm-team.xml 的 ext 模式无法建表
+        assertThat(written).contains("mapping-resources: orm/orm-sqlite.xml");
         // 路径含空格时 SnakeYAML 需要加引号才能保持标量完整
         assertThat(written).contains("app.db");
+    }
+
+    @Test
+    void saveConfigServerVendorReplacesStaleSqliteFlywaySchemasWithMdrExt(@TempDir Path tempDir) throws IOException {
+        // 先落一份 SQLite 配置（模拟"从 SQLite 切换"时旧值残留的场景）
+        DatasourceConfigService sqliteSpy = org.mockito.Mockito.spy(service);
+        org.mockito.Mockito.doAnswer(invocation -> null).when(sqliteSpy)
+                .testConnection(org.mockito.ArgumentMatchers.any(DatasourceConfigRequest.class));
+        sqliteSpy.saveConfig(new DatasourceConfigRequest(
+                "sqlite", null, null, null, tempDir.resolve("old.db").toString(),
+                null, null, null, "PERSONAL"));
+        assertThat(Files.readString(localConfig)).contains("schemas: ${FLYWAY_SCHEMAS:main}");
+
+        // 切到 SQL Server：main 必须被替换为 mdr,ext——沿用会让 Flyway 在服务端库的
+        // [main] 找不到历史表，从头重放不可重放的老迁移（2026-10-27 真实事故）
+        DatasourceConfigService serverSpy = org.mockito.Mockito.spy(service);
+        org.mockito.Mockito.doAnswer(invocation -> null).when(serverSpy)
+                .testConnection(org.mockito.ArgumentMatchers.any(DatasourceConfigRequest.class));
+        serverSpy.saveConfig(new DatasourceConfigRequest(
+                "sqlserver", "localhost", 1433, "appdb", null,
+                null, null, null, "PERSONAL"));
+
+        String written = Files.readString(localConfig);
+        assertThat(written).doesNotContain("FLYWAY_SCHEMAS:main");
+        assertThat(written).doesNotContain("FLYWAY_DEFAULT_SCHEMA:main");
+        assertThat(written).contains("schemas: ${FLYWAY_SCHEMAS:mdr,ext}");
+        // flyway_schema_history 非 ISO/IEC 11179 内容，依分层规则落 ext（AGENTS.md）
+        assertThat(written).contains("default-schema: ${FLYWAY_DEFAULT_SCHEMA:ext}");
+        assertThat(written).contains("mapping-resources: orm/orm-team.xml");
+        assertThat(written).contains("locations: ${DB_VENDOR:classpath:db/migration/sqlserver}");
+    }
+
+    @Test
+    void mappingResourcesFollowVendor() {
+        assertThat(service.mappingResourcesFor(DatabaseVendor.SQLITE)).isEqualTo("orm/orm-sqlite.xml");
+        assertThat(service.mappingResourcesFor(DatabaseVendor.SQLSERVER)).isEqualTo("orm/orm-team.xml");
+        assertThat(service.mappingResourcesFor(DatabaseVendor.DM)).isEqualTo("orm/orm-team.xml");
     }
 
     @Test

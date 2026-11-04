@@ -71,7 +71,7 @@ public class FlywayHistoryRelocator {
         Connection conn = null;
         try {
             conn = DataSourceUtils.getConnection(dataSource);
-            relocate(conn);
+            relocate(flyway, conn);
         } catch (IllegalStateException e) {
             throw e;
         } catch (SQLException | RuntimeException e) {
@@ -83,7 +83,12 @@ public class FlywayHistoryRelocator {
         }
     }
 
-    private void relocate(Connection conn) throws SQLException {
+    /**
+     * 历史表搬迁核心：{@code @PostConstruct} 路径与数据库初始化引导的迁移步骤
+     * 共用。显式传入 Flyway 实例——新架构下 Flyway 自动配置关闭、本组件注入的
+     * {@code this.flyway} 为 null，引导用程序化构建的实例调用本方法。
+     */
+    public void relocate(Flyway flyway, Connection conn) throws SQLException {
         Configuration configuration = flyway.getConfiguration();
         String table = configuration.getTable();
         String targetSchema = configuration.getDefaultSchema();

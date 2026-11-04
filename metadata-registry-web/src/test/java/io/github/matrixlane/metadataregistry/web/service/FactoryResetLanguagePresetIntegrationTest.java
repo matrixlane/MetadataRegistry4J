@@ -14,7 +14,11 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -50,6 +54,25 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 })
 @ActiveProfiles("test")
 class FactoryResetLanguagePresetIntegrationTest {
+
+    /**
+     * 通用基准脚本（data/scripts/common/<方言>/00-common.sql）是语言预置的单一事实源
+     * （baseline-data-init-rebuild）；surefire 工作目录为模块目录，默认
+     * {@code <user.dir>/data/scripts} 缺失会 WARN 跳过，此处向上查找仓库根显式指定。
+     */
+    @DynamicPropertySource
+    static void baselineScriptsDir(DynamicPropertyRegistry registry) {
+        registry.add("app.baseline-scripts-dir", () -> {
+            Path dir = Path.of(System.getProperty("user.dir")).toAbsolutePath().normalize();
+            while (dir != null && !Files.isRegularFile(dir.resolve("data/scripts/common/sqlite/00-common.sql"))) {
+                dir = dir.getParent();
+            }
+            if (dir == null) {
+                throw new IllegalStateException("向上查找未找到仓库 data/scripts 目录");
+            }
+            return dir.resolve("data/scripts").toString();
+        });
+    }
 
     @Autowired
     private FactoryResetService factoryResetService;
@@ -134,7 +157,7 @@ class FactoryResetLanguagePresetIntegrationTest {
                 "SELECT e.language_name FROM ext_language_identification e"
                         + " JOIN language_identification l ON l.id = e.language_id"
                         + " WHERE l.language_identifier = 'zh-CN'", String.class);
-        // 简体中文：V20260919003 播种「中文」后由 localize-language-names.sql 口径修正
+        // 简体中文：00-common.sql 与金库同源，zh-CN 名称口径为「简体中文」
         assertThat(zhName).isEqualTo("简体中文");
     }
 }

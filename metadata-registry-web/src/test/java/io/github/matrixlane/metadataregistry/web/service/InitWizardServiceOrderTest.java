@@ -78,6 +78,10 @@ class InitWizardServiceOrderTest {
     private RegistryContextBootstrapService registryContextBootstrapService;
     @Mock
     private jakarta.persistence.EntityManager entityManager;
+    @Mock
+    private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+    @Mock
+    private io.github.matrixlane.metadataregistry.web.service.database.DatabaseEnvironment databaseEnvironment;
 
     @InjectMocks
     private InitWizardService initWizardService;

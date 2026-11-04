@@ -73,6 +73,14 @@ public class LegacyLanguageSchemaRepairer implements ApplicationRunner {
     private final DatabaseEnvironment databaseEnvironment;
     private final TransactionTemplate transactionTemplate;
 
+    /**
+     * 新架构模式（null 表示关闭，如集成测试自行管理 schema 的环境）。
+     * 开启时数据库初始化由 DatabaseBootstrapService 统一执行，本 Runner 跳过，
+     * 避免同一修复动作执行两次。
+     */
+    @Autowired(required = false)
+    private io.github.matrixlane.metadataregistry.web.bootstrap.BootstrapMode bootstrapMode;
+
     @Autowired
     public LegacyLanguageSchemaRepairer(JdbcTemplate jdbcTemplate,
                                         DataSource dataSource,
@@ -91,6 +99,15 @@ public class LegacyLanguageSchemaRepairer implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) {
+        if (bootstrapMode != null && bootstrapMode.enabled()) {
+            log.debug("新架构模式下数据库初始化由引导服务统一执行，跳过遗留修复 Runner");
+            return;
+        }
+        repairIfNeeded();
+    }
+
+    /** 修复入口：启动期 Runner 与数据库初始化引导共用（幂等，可重复调用）。 */
+    public void repairIfNeeded() {
         if (databaseEnvironment.vendor() != DatabaseVendor.SQLITE) {
             log.debug("非 SQLite 方言（{}），跳过遗留语言表漂移修复", databaseEnvironment.vendor());
             return;

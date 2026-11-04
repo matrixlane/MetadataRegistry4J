@@ -20,13 +20,27 @@ import org.springframework.stereotype.Component;
 @Slf4j
 @Component
 @Order(10)
-@RequiredArgsConstructor
 public class StaticDataPresetRunner implements ApplicationRunner {
 
     private final StaticDataPresetService staticDataPresetService;
 
+    /**
+     * 新架构模式（null 表示关闭）。开启时数据库初始化由 DatabaseBootstrapService
+     * 统一执行（含静态预置步骤），本 Runner 跳过，避免预置执行两次。
+     */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private io.github.matrixlane.metadataregistry.web.bootstrap.BootstrapMode bootstrapMode;
+
+    public StaticDataPresetRunner(StaticDataPresetService staticDataPresetService) {
+        this.staticDataPresetService = staticDataPresetService;
+    }
+
     @Override
     public void run(ApplicationArguments args) {
+        if (bootstrapMode != null && bootstrapMode.enabled()) {
+            log.debug("新架构模式下数据库初始化由引导服务统一执行，跳过静态预置 Runner");
+            return;
+        }
         staticDataPresetService.presetAll();
     }
 }

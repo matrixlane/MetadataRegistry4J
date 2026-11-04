@@ -23,6 +23,9 @@ spring:
   flyway:
     locations: classpath:db/migration/${DB_VENDOR:sqlserver}
     # Flyway 默认只看连接的默认 schema(dbo),而应用表在 mdr/ext 下;不显式指定时
-    # 既有库会被判定为空 schema 而跳过基线、从头重放老迁移(不可重放)。schema 历史
-    # 表落在首个 schema(mdr)。达梦以用户即模式,可用 FLYWAY_SCHEMAS 环境变量覆盖。
+    # 既有库会被判定为空 schema 而跳过基线、从头重放老迁移(不可重放)。
+    # default-schema=ext：flyway_schema_history 非 ISO/IEC 11179 内容，依项目
+    # schema 分层规则（AGENTS.md）历史表落 ext；Flyway 同时以 default-schema 为
+    # 会话默认 schema，故迁移脚本的表引用 MUST 全限定（mdr./ext.）。
     schemas: ${FLYWAY_SCHEMAS:mdr,ext}
+    default-schema: ${FLYWAY_DEFAULT_SCHEMA:ext}

@@ -1,6 +1,6 @@
 spring:
   datasource:
-    url: jdbc:sqlite:./data/metadata-registry.db
+    url: jdbc:sqlite:${user.home}/.metadata-registry/data/metadata-registry.db
     driver-class-name: org.sqlite.JDBC
     hikari:
       connection-timeout: 5000

@@ -113,4 +113,75 @@ describe('backendStartup 启动探测', () => {
 
     await expect(waitForBackendReady()).resolves.toBeUndefined();
   });
+
+  const FAILURE_BODY = {
+    code: 0,
+    message: 'OK',
+    data: {
+      ready: false,
+      failure: { stage: 'PRESET', code: 'PRESET_FAILED', message: '静态数据预置：no such table: ext_language_identification' },
+    },
+  };
+
+  function mountBootScreen() {
+    document.body.innerHTML = `
+      <div id="boot-screen">
+        <span id="boot-timer"></span>
+        <div id="boot-slow-tip" hidden></div>
+      </div>`;
+  }
+
+  it('探针报告初始化失败时展示失败面板（原因与两个动作），不再无限轮询', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, FAILURE_BODY));
+    vi.stubGlobal('fetch', fetchMock);
+    mountBootScreen();
+
+    const promise = waitForBackendReady();
+    await vi.advanceTimersByTimeAsync(0);
+
+    const screen = document.getElementById('boot-screen')!;
+    expect(screen.textContent).toContain('初始化系统失败');
+    expect(screen.textContent).toContain('ext_language_identification');
+    expect(document.getElementById('boot-retry')).not.toBeNull();
+    expect(document.getElementById('boot-exit')).not.toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    // 面板等待用户动作：清理挂起流程
+    document.getElementById('boot-exit')!.click();
+    await vi.advanceTimersByTimeAsync(0);
+    await expect(promise).resolves.toBeUndefined();
+    expect(fetchMock.mock.calls.some((c) => c[0] === '/api/v1/bootstrap/exit')).toBe(true);
+  });
+
+  it('重试初始化：调用 retry 端点后恢复轮询直至就绪', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(jsonResponse(200, FAILURE_BODY)) // 首轮：失败
+      .mockResolvedValueOnce(jsonResponse(200, { code: 0, message: 'OK', data: {} })) // retry 调用
+      .mockResolvedValueOnce(jsonResponse(200, READY_BODY)); // 重试后就绪
+    vi.stubGlobal('fetch', fetchMock);
+    mountBootScreen();
+
+    const promise = waitForBackendReady();
+    await vi.advanceTimersByTimeAsync(0);
+    document.getElementById('boot-retry')!.click();
+    await vi.advanceTimersByTimeAsync(1000);
+
+    await expect(promise).resolves.toBeUndefined();
+    expect(fetchMock.mock.calls.some((c) => c[0] === '/api/v1/bootstrap/retry')).toBe(true);
+    expect(fetchMock.mock.calls.filter((c) => c[0] === '/api/v1/startup/status')).toHaveLength(2);
+  });
+
+  it('退出应用后展示已退出提示', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, FAILURE_BODY));
+    vi.stubGlobal('fetch', fetchMock);
+    mountBootScreen();
+
+    const promise = waitForBackendReady();
+    await vi.advanceTimersByTimeAsync(0);
+    document.getElementById('boot-exit')!.click();
+    await vi.advanceTimersByTimeAsync(0);
+
+    await expect(promise).resolves.toBeUndefined();
+    expect(document.getElementById('boot-screen')!.textContent).toContain('应用已退出');
+  });
 });

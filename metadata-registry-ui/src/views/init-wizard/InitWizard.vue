@@ -69,13 +69,30 @@
             团队版需要配置独立数据库（SQL Server / 达梦），不支持内置 SQLite。
           </p>
 
-          <el-card v-if="currentDb" class="db-current-card" shadow="never">
+          <el-card v-if="currentDb && !restartPhase" class="db-current-card" shadow="never">
             <div class="db-current-title">当前数据源</div>
             <div class="db-current-line">方言：{{ currentDb.vendor }}</div>
             <div class="db-current-line">地址：{{ currentDb.jdbcUrl || '-' }}</div>
           </el-card>
 
-          <template v-if="!restartRequired">
+          <DatasourceRestartProgress
+            v-if="restartPhase"
+            :phase="restartPhase"
+            :started-at="restartStartedAt"
+            :reason-code="restartReasonCode"
+            @retry="retryRestartConnection"
+          />
+          <el-alert
+            v-else-if="restartNotice"
+            :type="restartNotice.type"
+            :title="restartNotice.title"
+            :description="restartNotice.description"
+            :closable="false"
+            show-icon
+            class="mb-4"
+          />
+
+          <template v-if="!restartRequired && !restartPhase">
             <el-radio-group v-model="dbChoice" class="db-choice">
               <el-radio value="keep">保持当前数据源并继续</el-radio>
               <el-radio value="change">配置新的数据源</el-radio>
@@ -461,7 +478,7 @@
 
       <div class="wizard-footer">
         <el-button
-          v-if="currentStep > 0"
+          v-if="currentStep > 0 && !restartPhase"
           size="large"
           style="width: 120px;"
           :disabled="loading"
@@ -470,27 +487,29 @@
           上一步
         </el-button>
         <el-button
-          v-if="currentStep < lastStepIndex && !restartRequired"
+          v-if="currentStep < lastStepIndex && !restartRequired && !restartPhase"
           type="primary"
           size="large"
           style="width: 120px; margin-left: auto;"
           :loading="loading"
+          :disabled="loading"
           @click="nextStep"
         >
          下一步
         </el-button>
         <el-button
-          v-else-if="!restartRequired"
+          v-else-if="!restartRequired && !restartPhase"
           type="success"
           size="large"
           :loading="loading"
+          :disabled="loading"
           style="width: 200px; margin-left: auto;"
           @click="handleCommit"
         >
           完成初始化
         </el-button>
         <el-button
-          v-else
+          v-else-if="restartRequired"
           size="large"
           style="width: 200px; margin-left: auto;"
           disabled
@@ -513,6 +532,22 @@ import { useAuthStore } from '@/stores/auth';
 import { languageApi } from '@/api/resources';
 import SegmentTemplateDesigner from '@/components/identifier/SegmentTemplateDesigner.vue';
 import { timeZoneValidator } from '@/views/registry-spec/registrySpecForm';
+import { datasourceRestartApi } from '@/api/datasourceRestart';
+import type { DatasourceConfigRequest, DatasourceRestartCapability } from '@/api/datasourceRestart';
+import DatasourceRestartProgress from './DatasourceRestartProgress.vue';
+import {
+  clearRestartSession,
+  createDatasourceRestartMonitor,
+  getOrCreateRestartSession,
+  readRestartSession,
+  writeRestartSession,
+} from '@/utils/datasourceRestart';
+import type {
+  DatasourceRestartMonitor,
+  DatasourceRestartPhase,
+  DatasourceRestartSession,
+  DatasourceRestartSnapshot,
+} from '@/utils/datasourceRestart';
 
 const router = useRouter();
 const auth = useAuthStore();
@@ -555,6 +590,19 @@ const dbTesting = ref(false);
 const dbSaving = ref(false);
 const dbTestResult = ref<DbTestResult | null>(null);
 const restartRequired = ref(false);
+const restartCapability = ref<DatasourceRestartCapability | null>(null);
+const restartPhase = ref<DatasourceRestartPhase | null>(null);
+const restartReasonCode = ref<string | null>(null);
+const restartStartedAt = ref(0);
+const restartNotice = ref<{
+  type: 'success' | 'warning' | 'error';
+  title: string;
+  description?: string;
+} | null>(null);
+let activeRestartId = '';
+let restartMonitor: DatasourceRestartMonitor | null = null;
+let restartCapabilityPromise: Promise<void> | null = null;
+let wizardActive = true;
 
 // SQLite 模式下凭据输入框只是隐藏不渲染，残留值（如浏览器自动填充）仍会随保存请求提交
 watch(() => dbForm.vendor, () => {
@@ -663,6 +711,10 @@ const form = reactive({
   adminIndividualName: '',
   adminRoleName: '',
 });
+
+const autoRestartSupported = computed(
+  () => form.edition === 'PERSONAL' && restartCapability.value?.supported === true
+);
 
 // ISO/IEC 11179-3:2023 表 6 推荐使用 ISO 639-2 三字母编码；
 // 实际可选范围取自已登记且启用的语言条目（value 为 BCP 47 标识符，label 为「中文名（标识符）」）。
@@ -903,21 +955,21 @@ async function callAbort(): Promise<void> {
 
 // ── Step navigation ────────────────────────────────────────────────
 function prevStep() {
+  if (restartPhase.value) return;
   if (currentStep.value > 0) {
     currentStep.value--;
   }
 }
 
 async function nextStep() {
+  if (loading.value || restartPhase.value) return;
   if (currentStep.value === 0) {
     currentStep.value = 1;
     return;
   }
 
   if (currentStep.value === 1) {
-    // 数据库步骤：保存待重启则阻止继续；选择"配置新的数据源"且修改过参数时，
-    // "下一步"即保存数据源配置（保存后需重启，由 restartRequired 接管界面）；
-    // 未做任何修改时与"保持当前数据源并继续"相同，直接进入下一步。
+    // 修改参数后，"下一步"保存；受管个人版自动应用，其他环境保留手工重启。
     if (restartRequired.value) return;
     if (dbChoice.value === 'change' && dbFormModified.value) {
       if (!dbTestResult.value?.success) {
@@ -928,7 +980,7 @@ async function nextStep() {
       try {
         await saveDbConfig();
       } catch {
-        // 拦截器已提示错误，留在本步骤
+        // 保存入口已提示错误，留在本步骤
       } finally {
         loading.value = false;
       }
@@ -936,6 +988,20 @@ async function nextStep() {
     }
     if (form.edition === 'TEAM' && currentDb.value?.vendor === 'sqlite') {
       ElMessage.error('团队版不支持 SQLite，请配置 SQL Server 或达梦数据库');
+      return;
+    }
+    // 保持当前数据源：受管个人版经"确认当前数据源"由后端判定是否需要一次
+    // 自动重启来完成数据库初始化（完整相已确认则直接放行，向导相重启后由
+    // 重启进度组件接管）；非受管环境维持原有直接前进。
+    if (autoRestartSupported.value && form.edition === 'PERSONAL') {
+      loading.value = true;
+      try {
+        await confirmCurrentAndMaybeRestart();
+      } catch {
+        // 入口已提示错误，留在本步骤
+      } finally {
+        loading.value = false;
+      }
       return;
     }
     currentStep.value = 2;
@@ -999,9 +1065,8 @@ async function nextStep() {
     // Submit the entire wizard configuration to the backend. The backend
     // writes business data (registry specification, registration authority,
     // and namespace) but does NOT flip system.initialized — that happens
-    // only on commit() in the final step. If anything below fails, the
-    // onBeforeRouteLeave / onBeforeUnmount abort() will roll back the
-    // business data.
+    // only on commit() in the final step. The route-leave guard aborts
+    // uncommitted data; datasource restart waits are an explicit exception.
     try {
       await callSetup();
       currentStep.value = 5;
@@ -1014,11 +1079,15 @@ async function nextStep() {
 }
 
 // ── Datasource step helpers ──────────────────────────────────────
-async function loadCurrentDb() {
+async function loadCurrentDb(): Promise<boolean> {
   try {
-    currentDb.value = await request.get<CurrentDb>('/datasource/config');
+    const db = await withSilentErrors(() => request.get<CurrentDb>('/datasource/config'));
+    if (!wizardActive) return false;
+    currentDb.value = db;
+    return true;
   } catch {
-    currentDb.value = null;
+    if (wizardActive) currentDb.value = null;
+    return false;
   }
 }
 
@@ -1048,23 +1117,254 @@ async function testDbConnection() {
   }
 }
 
+async function ensureRestartCapability(): Promise<void> {
+  if (restartCapability.value !== null) return;
+  if (!restartCapabilityPromise) {
+    restartCapabilityPromise = (async () => {
+      try {
+        const capability = await datasourceRestartApi.getCapability();
+        if (wizardActive) {
+          restartCapability.value = capability && typeof capability.supported === 'boolean'
+            ? capability
+            : { supported: false, reasonCode: 'INVALID_CAPABILITY_RESPONSE' };
+        }
+      } catch {
+        if (wizardActive) {
+          restartCapability.value = { supported: false, reasonCode: 'CAPABILITY_QUERY_FAILED' };
+        }
+      }
+    })().finally(() => {
+      restartCapabilityPromise = null;
+    });
+  }
+  await restartCapabilityPromise;
+}
+
+function buildDatasourceConfig(): DatasourceConfigRequest {
+  return {
+    vendor: dbForm.vendor,
+    host: dbForm.host,
+    port: dbForm.port,
+    database: dbForm.database,
+    filePath: dbForm.filePath,
+    username: dbForm.username || null,
+    password: dbForm.password || null,
+    edition: form.edition,
+  };
+}
+
+function isExpectedRestartWait(error: unknown): boolean {
+  const status = (error as { response?: { status?: number } })?.response?.status;
+  return status === undefined || status >= 500 || status === 408 || status === 429;
+}
+
+function startRestartMonitoring(session: DatasourceRestartSession): void {
+  restartMonitor?.stop();
+  restartMonitor = createDatasourceRestartMonitor({
+    restartId: session.restartId,
+    startedAt: session.startedAt,
+    onUpdate: handleRestartUpdate,
+  });
+  restartMonitor.start();
+}
+
+function handleRestartUpdate(snapshot: DatasourceRestartSnapshot): void {
+  if (!wizardActive) return;
+  restartPhase.value = snapshot.phase;
+  restartReasonCode.value = snapshot.reasonCode;
+  if (snapshot.phase === 'SUCCEEDED') {
+    void completeRestartSuccess();
+  } else if (snapshot.phase === 'ROLLED_BACK') {
+    void completeRestartRollback();
+  } else if (snapshot.phase === 'FAILED') {
+    handleRestartFailure(snapshot.reasonCode);
+  }
+}
+
+/**
+ * 失败后的收尾。除"事务根本不存在"外一律保留恢复标记：刷新后仍要能接上同一个
+ * 事务，一旦丢掉标记，用户再提交就会撞上后端的 409 冲突。
+ * 事务不存在说明设置从未写入应用，必须回到可编辑表单重新提交。
+ */
+function handleRestartFailure(reasonCode: string | null): void {
+  if (reasonCode !== 'RESTART_NOT_FOUND') {
+    return;
+  }
+  clearRestartSession();
+  activeRestartId = '';
+  currentStep.value = 1;
+  restartRequired.value = false;
+  dbChoice.value = 'change';
+  prefillDbFormFromCurrent();
+  dbFormSnapshot.value = JSON.stringify(dbForm);
+  dbTestResult.value = null;
+  restartPhase.value = null;
+  restartNotice.value = {
+    type: 'warning',
+    title: '设置未提交到应用',
+    description: '本次数据库设置没有写入应用配置，请检查后重新提交。',
+  };
+}
+
+async function applyDbConfigWithRestart(config: DatasourceConfigRequest): Promise<void> {
+  const session = getOrCreateRestartSession(form.edition);
+  activeRestartId = session.restartId;
+  restartStartedAt.value = session.startedAt;
+  restartReasonCode.value = null;
+  restartNotice.value = null;
+  restartPhase.value = 'SAVING';
+  try {
+    await datasourceRestartApi.apply(session.restartId, config);
+    if (!wizardActive) return;
+    restartPhase.value = 'RESTARTING';
+    startRestartMonitoring(session);
+  } catch (error) {
+    if (!wizardActive) return;
+    if (isExpectedRestartWait(error)) {
+      restartPhase.value = 'RESTARTING';
+      startRestartMonitoring(session);
+      return;
+    }
+    clearRestartSession();
+    activeRestartId = '';
+    restartPhase.value = null;
+    const detail = (error as { response?: { data?: { message?: string } } })?.response?.data?.message;
+    restartNotice.value = {
+      type: 'error',
+      title: '数据库设置未能保存，请检查设置后重试',
+      description: detail,
+    };
+    ElMessage.error(detail || '数据库设置未能保存，请检查设置后重试');
+    throw error;
+  }
+}
+
+async function completeRestartSuccess(): Promise<void> {
+  restartPhase.value = 'RESTORING';
+  try {
+    if (!await loadCurrentDb()) throw new Error('CURRENT_DATASOURCE_UNAVAILABLE');
+    // 必须用本次刷新的结论：checkInitialized 在后端不可达时降级返回 true 且保留
+    // 旧缓存，直接用它会把探测失败的用户误送到已初始化的首页。
+    const initialized = await auth.refreshInitialized();
+    if (!wizardActive) return;
+    if (initialized === null) throw new Error('INIT_STATUS_UNAVAILABLE');
+
+    clearRestartSession();
+    activeRestartId = '';
+    restartReasonCode.value = null;
+    restartPhase.value = null;
+    if (initialized) {
+      setupCommitted.value = true;
+      void router.push('/dashboard');
+      return;
+    }
+    currentStep.value = 1;
+    dbChoice.value = 'keep';
+    dbTestResult.value = null;
+    restartRequired.value = false;
+    restartNotice.value = {
+      type: 'success',
+      title: '新数据库设置已生效',
+      description: '已重新读取当前数据源，可以继续下一步初始化。',
+    };
+  } catch {
+    if (!wizardActive) return;
+    // 事务本身已经结束，但保留恢复标记：刷新后可以重新读取同一个事务的结论。
+    restartPhase.value = 'FAILED';
+    restartReasonCode.value = 'RESTORE_FAILED';
+  }
+}
+
+async function completeRestartRollback(): Promise<void> {
+  // 回滚路径不能用 RESTORING（那是"设置已生效"的文案），要如实显示"正在恢复原设置"。
+  restartPhase.value = 'RECOVERING';
+  if (!await loadCurrentDb()) {
+    if (wizardActive) {
+      restartPhase.value = 'FAILED';
+      restartReasonCode.value = 'RESTORE_FAILED';
+    }
+    return;
+  }
+  if (!wizardActive) return;
+  clearRestartSession();
+  activeRestartId = '';
+  restartReasonCode.value = null;
+  currentStep.value = 1;
+  restartRequired.value = false;
+  dbChoice.value = 'change';
+  prefillDbFormFromCurrent();
+  dbFormSnapshot.value = JSON.stringify(dbForm);
+  dbTestResult.value = null;
+  restartNotice.value = {
+    type: 'warning',
+    title: '新数据库设置未能应用，已恢复原设置',
+    description: '可以检查或修改数据库设置后重新尝试。',
+  };
+  restartPhase.value = null;
+}
+
+function retryRestartConnection(): void {
+  if (!activeRestartId || restartPhase.value !== 'FAILED') return;
+  const session = writeRestartSession({
+    restartId: activeRestartId,
+    edition: form.edition,
+    step: 1,
+    startedAt: Date.now(),
+  });
+  restartStartedAt.value = session.startedAt;
+  restartReasonCode.value = null;
+  restartNotice.value = null;
+  restartPhase.value = 'RESTARTING';
+  if (restartMonitor) {
+    restartMonitor.retry(session.startedAt);
+  } else {
+    startRestartMonitoring(session);
+  }
+}
+
 async function saveDbConfig() {
   dbSaving.value = true;
   try {
-    await request.put('/datasource/config', {
-      vendor: dbForm.vendor,
-      host: dbForm.host,
-      port: dbForm.port,
-      database: dbForm.database,
-      filePath: dbForm.filePath,
-      username: dbForm.username || null,
-      password: dbForm.password || null,
-      edition: form.edition,
-    });
-    restartRequired.value = true;
+    const config = buildDatasourceConfig();
+    if (form.edition === 'PERSONAL') await ensureRestartCapability();
+    if (!wizardActive) return;
+    if (autoRestartSupported.value) {
+      await applyDbConfigWithRestart(config);
+    } else {
+      await request.put('/datasource/config', config);
+      restartRequired.value = true;
+    }
   } finally {
     dbSaving.value = false;
   }
+}
+
+/**
+ * "保持当前数据源并继续"：经 confirm-current 由后端判定。
+ * 完整相（已确认）直接前进；向导相进入自动重启进度，由重启事务监控接管，
+ * 成功后 completeRestartSuccess 重新评估初始化状态并继续向导。
+ */
+async function confirmCurrentAndMaybeRestart() {
+  const confirm = await datasourceRestartApi.confirmCurrent(form.edition);
+  if (!wizardActive) return;
+  if (!confirm || !confirm.restartRequired) {
+    currentStep.value = 2;
+    return;
+  }
+  // 后端在 restartRequired=true 时必返回 restartId（apply 事务标识）
+  const restartId = confirm.restartId!;
+  writeRestartSession({ restartId, edition: form.edition, step: 1, startedAt: Date.now() });
+  activeRestartId = restartId;
+  restartStartedAt.value = Date.now();
+  restartReasonCode.value = null;
+  restartNotice.value = null;
+  restartPhase.value = 'RESTARTING';
+  startRestartMonitoring({
+    restartId,
+    edition: form.edition,
+    step: 1,
+    startedAt: Date.now(),
+  });
 }
 
 async function handleCommit() {
@@ -1129,17 +1429,10 @@ async function handleCommit() {
   }
 }
 
-// ── Interrupt detection: any leave path must abort the wizard ──────
-//
-// Three vectors:
-//   1) vue-router navigation away from /init-wizard
-//   2) browser tab close / refresh / back button
-//   3) tab switch (visibilitychange → hidden) — we don't auto-abort on
-//      visibilitychange alone (users often switch tabs), only when they
-//      return to the wizard and find stale data we ask them to confirm
-//      starting over.
+// ── Interrupt detection: restart waits are the explicit abort exception ──
 onBeforeRouteLeave(async () => {
   if (setupCommitted.value) return true;
+  if (restartPhase.value) return false;
   try {
     await ElMessageBox.confirm(
       '离开将放弃初始化并清除已写入的业务数据。确定离开吗？',
@@ -1155,22 +1448,32 @@ onBeforeRouteLeave(async () => {
   return true;
 });
 
-// Native beforeunload: browsers ignore the return value but show a
-// confirmation dialog. Combined with our onBeforeRouteLeave this gives
-// reasonable protection.
 function onBeforeUnload(e: BeforeUnloadEvent) {
-  if (setupCommitted.value) return;
+  if (setupCommitted.value || restartPhase.value) return;
   e.preventDefault();
   e.returnValue = '';
 }
 
 onMounted(async () => {
+  wizardActive = true;
   window.addEventListener('beforeunload', onBeforeUnload);
-  loadCurrentDb();
+  const session = readRestartSession();
+  if (session) {
+    form.edition = session.edition;
+    currentStep.value = session.step;
+    activeRestartId = session.restartId;
+    restartStartedAt.value = session.startedAt;
+    restartPhase.value = 'RESTARTING';
+    startRestartMonitoring(session);
+  } else {
+    void ensureRestartCapability();
+  }
+  void loadCurrentDb();
   // 加载可选语言（文档语言与默认语言共用；value 为 BCP 47 标识符，label 为「中文名（标识符）」）
   // 静默加载：拉取失败不阻塞向导，两个下拉留空由用户继续操作。
   try {
     const langRes = await withSilentErrors(async () => (await languageApi.list({ size: 200, enabled: true })) ?? null);
+    if (!wizardActive) return;
     languageOptions.value = (langRes?.content ?? [])
       .map((l: any) => ({
         languageIdentifier: l.languageIdentifier || '',
@@ -1178,11 +1481,13 @@ onMounted(async () => {
       }))
       .filter((l: LanguageOption) => !!l.languageIdentifier);
   } catch {
-    languageOptions.value = [];
+    if (wizardActive) languageOptions.value = [];
   }
 });
 
 onBeforeUnmount(() => {
+  wizardActive = false;
+  restartMonitor?.stop();
   window.removeEventListener('beforeunload', onBeforeUnload);
 });
 </script>

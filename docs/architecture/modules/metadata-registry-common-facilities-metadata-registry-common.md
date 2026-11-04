@@ -1,87 +1,138 @@
-> 本文档由 GitNexus wiki 生成于 2026-09-13（kimi-for-coding，--lang chinese）。内容变化时请重新运行 `gitnexus wiki --lang chinese` 生成，勿手工改写。
+# metadata-registry-common-facilities — metadata-registry-common-facilities
 
-# metadata-registry-common-facilities 模块
+# metadata-registry-common-facilities
 
-## 模块概述
+`metadata-registry-common-facilities` 是 `metadata-registry4j-parent` 多模块工程中的公共基础模块。它集中提供元数据注册场景常用的编译期契约，包括 Jakarta Persistence、Jakarta Annotation 和 Jackson，并允许实体类使用 Lombok 与 Hibernate 专有注解。
 
-`metadata-registry-common-facilities` 是 `metadata-registry4j-parent` 多模块工程下的一个基础支撑模块，承担"公共基础设施"（common facilities）的角色。它为上层模块提供跨模块共享的公共能力——基于其依赖声明，该模块面向以下场景：
+当前提供的源码仅包含 `pom.xml`，未包含 Java 源文件。静态调用图也未检测到模块内部调用、外部调用或执行流，因此该模块不包含可执行入口、请求处理流程或后台任务。现有实现主要承担公共依赖与编译边界的定义。
 
-- **JPA 实体与持久化基础设施**：以 `jakarta.persistence-api` 为核心依赖
-- **JSON 序列化/反序列化**：通过 Jackson 提供统一的数据转换支持
-- **编译期代码简化**：使用 Lombok 减少样板代码
-- **Hibernate 特定优化注解**：允许实体使用 `@BatchSize` 等 Hibernate 专有注解而不引入运行时硬依赖
+## 模块坐标与构建关系
 
-> **当前状态说明**：该模块目前仅包含构建描述文件（`pom.xml`），尚无 Java 源码。以下文档基于构建配置与依赖选型进行说明，描述了该模块的设计意图与使用约定。
+| 项目 | 值 |
+| --- | --- |
+| `groupId` | `io.github.matrixlane`，继承自父工程 |
+| `artifactId` | `metadata-registry-common-facilities` |
+| `version` | `0.1.0-SNAPSHOT`，继承自父工程 |
+| 父工程 | `io.github.matrixlane:metadata-registry4j-parent:0.1.0-SNAPSHOT` |
+| 打包类型 | 未显式声明，按 Maven 默认规则生成 JAR |
 
-## 在工程中的位置
+该模块没有自定义 Maven 插件或独立构建配置。编译插件、测试插件、依赖版本和通用属性均由父工程统一管理。依赖声明未指定版本，版本同样来自父工程的 `dependencyManagement`。
 
 ```mermaid
-graph TD
-    A[metadata-registry4j-parent<br/>父工程] --> B[metadata-registry-common-facilities<br/>公共基础设施模块]
-    B -.->|提供 JPA 实体 / Jackson 支持 / Lombok 工具| C[上层业务模块]
-    B -.->|编译期引用 Hibernate 注解| D[Hibernate ORM<br/>运行时由部署方提供]
+flowchart LR
+    P["metadata-registry4j-parent"] -->|"继承构建与版本管理"| B["metadata-registry-common-facilities"]
+    A["其他模块（可选消费者）"] -->|"Maven 依赖"| B
+    B -->|"编译期传递"| C["Jakarta Persistence API"]
+    B -->|"编译期传递"| D["Jakarta Annotation API"]
+    B -->|"编译期传递"| E["Jackson Databind"]
+    B -->|"仅编译与测试可见"| F["Lombok"]
+    B -->|"仅编译与测试可见"| G["Hibernate ORM"]
+    B -->|"仅测试可见"| H["JUnit Jupiter"]
+    B -->|"仅测试可见"| I["AssertJ 与 Mockito"]
 ```
 
-该模块位于依赖图的底层：它只依赖 Jakarta 标准 API 与通用工具库，不引用工程内其他业务模块，因此被设计为可被任意上层模块安全引用的公共底座。
+## 依赖边界
 
-## 依赖说明
+| 依赖 | Maven 作用域 | 用途与影响 |
+| --- | --- | --- |
+| `jakarta.persistence:jakarta.persistence-api` | `compile` | 提供 JPA 实体、映射及相关持久化契约的注解和类型。 |
+| `jakarta.annotation:jakarta.annotation-api` | `compile` | 提供 Jakarta 标准注解，例如生命周期和通用注解。 |
+| `com.fasterxml.jackson.core:jackson-databind` | `compile` | 为公共数据模型的 JSON 序列化、反序列化和对象映射提供运行时支持。 |
+| `org.projectlombok:lombok` | `provided` | 仅参与编译期代码生成，不应成为应用运行时的显式依赖。 |
+| `org.hibernate.orm:hibernate-core` | `provided` | 仅用于编译实体所需的 Hibernate 扩展注解，例如 `@BatchSize`；不在本模块中引入 Hibernate 运行时。 |
+| `org.junit.jupiter:junit-jupiter` | `test` | 编写 JUnit 5 单元测试和参数化测试。 |
+| `org.assertj:assertj-core` | `test` | 提供声明式断言。 |
+| `org.mockito:mockito-core` | `test` | 隔离单元测试中的协作对象。 |
 
-### 编译期依赖
+### `compile` 与 `provided` 的区别
 
-| 依赖 | 作用域 | 用途 |
-|------|--------|------|
-| `jakarta.persistence-api` | compile | 提供 JPA 标准注解（`@Entity`、`@Table`、`@Column` 等），供实体类定义使用 |
-| `jakarta.annotation-api` | compile | 提供 `@PostConstruct`、`@PreDestroy` 等通用注解 |
-| `com.fasterxml.jackson.core:jackson-databind` | compile | JSON 序列化与反序列化支持，常用于实体的 DTO 转换或元数据结构的存取 |
-| `org.projectlombok:lombok` | provided | 编译期注解处理器，简化 getter/setter/构造器等样板代码 |
+- `compile` 依赖会进入普通编译类路径，并作为传递依赖提供给下游模块。
+- `provided` 依赖只在当前模块的编译和测试阶段可见，不会被打包为运行时依赖，也不会传递给下游模块。
+- `jakarta.persistence-api` 和 `jakarta.annotation-api` 只定义规范，不包含持久化运行时实现。应用若实际使用 JPA，需要由应用或其他基础模块提供兼容的持久化 provider。
+- Hibernate 在此模块中明确属于编译期依赖，因此实体可以引用 Hibernate 专有注解，但公共模块本身不会强制应用采用 Hibernate。
 
-### 编译期限定依赖：Hibernate
+## 工作方式
+
+该模块没有检测到方法调用或执行流，其工作过程主要发生在构建阶段：
+
+1. Maven 根据父工程解析依赖版本和构建插件配置。
+2. Java 编译器可以访问 Jakarta、Jackson 和 Hibernate 类型。
+3. Lombok 在编译阶段执行注解处理并生成样板代码；具体处理器配置由父工程决定。
+4. Hibernate 专有注解可在实体源码中正常编译，但 Hibernate 不会因此成为下游应用的运行时依赖。
+5. JUnit、AssertJ 和 Mockito 仅在测试执行阶段加载。
+
+如果后续向该模块加入实体、DTO、序列化模型或工具类，应保持这一边界：公共 API 可以依赖 `compile` 作用域的规范库，而代码生成器和特定框架实现应保持为 `provided` 或放入专用实现模块。
+
+## 与代码库其他部分的连接
+
+从当前分析结果看：
+
+- 父工程通过 Maven 继承关系管理该模块的版本、依赖和构建生命周期。
+- 未检测到其他模块对该模块的静态方法调用。
+- 未检测到该模块对其他模块的静态方法调用。
+- 未检测到服务启动、事件处理、持久化操作或消息消费等运行时流程。
+
+这并不意味着该模块不能被其他模块使用。下游模块可以通过 Maven 依赖引用其中的公共类型；如果使用方式仅包含注解、反射、序列化元数据或类型引用，静态调用图也可能不会显示对应的源码级调用关系。
+
+在业务模块中引入该公共模块：
 
 ```xml
-<!-- 编译期引入：实体类可使用 @BatchSize 等 Hibernate 专有注解 -->
 <dependency>
-    <groupId>org.hibernate.orm</groupId>
-    <artifactId>hibernate-core</artifactId>
-    <scope>provided</scope>
+    <groupId>io.github.matrixlane</groupId>
+    <artifactId>metadata-registry-common-facilities</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
 </dependency>
 ```
 
-`hibernate-core` 被显式声明为 `provided` 作用域，这是一种刻意的架构决策：
+引入后应注意：
 
-- **编译期可见**：实体类可以直接使用 `@org.hibernate.annotations.BatchSize` 等优化注解，例如为集合关联配置批量抓取策略，避免 N+1 查询。
-- **运行时不传递**：上层模块或部署环境必须自行提供 Hibernate ORM 实现，该模块不会将具体 JPA 实现强加给使用者。这保证了模块对 JPA Provider 的可替换性。
+- 若公共类型包含 Jackson 注解或映射逻辑，运行时需要保留 Jackson 依赖。
+- 若公共类型包含 JPA 实体，应用仍需配置独立的持久化 provider、实体扫描和数据库连接。
+- 不应依赖本模块间接获得 Hibernate 运行时；需要 Hibernate 的应用或持久化实现模块应显式声明相应依赖。
 
-### 测试依赖
+## 测试与验证
 
-| 依赖 | 用途 |
-|------|------|
-| `junit-jupiter` | JUnit 5 测试框架 |
-| `assertj-core` | 流式断言 |
-| `mockito-core` | 单元测试中的 mock 支持 |
-
-测试三件套已就绪，后续向该模块添加代码时应配套单元测试。
-
-## 使用约定
-
-基于依赖选型，向该模块添加代码时应遵循以下约定：
-
-1. **实体类基于 Jakarta Persistence 标准**：使用 `jakarta.persistence.*` 包下的注解（注意是 Jakarta 命名空间，而非旧的 `javax.persistence`）。仅当确实需要 Hibernate 专有优化（如批量抓取）时才引入 `org.hibernate.annotations.*`。
-2. **JSON 处理统一走 Jackson**：涉及元数据注册结构（metadata registry structures）的序列化时，使用 `jackson-databind`，避免混用其他 JSON 库。
-3. **样板代码用 Lombok**：实体/DTO 类优先使用 `@Getter`、`@Setter`、`@Builder` 等 Lombok 注解。
-4. **不引入运行时强耦合**：新依赖若属于具体实现（如特定数据库驱动、具体 JPA Provider），应保持 `provided` 或 `optional` 作用域，延续当前设计。
-
-## 构建
-
-该模块继承父工程 `metadata-registry4j-parent`（版本 `0.1.0-SNAPSHOT`）的配置，版本管理与依赖版本号统一在父 POM 中维护。标准构建命令：
+从父工程根目录可以单独测试该模块：
 
 ```bash
-mvn clean install        # 构建并安装到本地仓库，供上层模块引用
-mvn test                 # 运行单元测试
+# 构建该模块及其必要的上游模块
+mvn -pl metadata-registry-common-facilities -am test
 ```
 
-## 模块边界
+也可以直接使用模块 POM：
 
-- **该模块做什么**：沉淀跨模块共享的持久化实体、注解配置、序列化辅助等基础设施代码。
-- **该模块不做什么**：不包含业务逻辑、不依赖其他业务模块、不绑定具体的 JPA 实现或部署环境。
+```bash
+# 执行该模块的完整测试生命周期
+mvn -f metadata-registry-common-facilities/pom.xml test
+```
 
-随着功能代码的落地（实体类、公共注解、Jackson 配置等），本文档应同步补充具体的类级 API 说明。
+建议根据代码性质补充以下测试：
+
+- Jackson 模型：验证 JSON 字段命名、未知属性处理、日期格式及多态映射。
+- JPA 映射：通过实际持久化 provider 的集成测试验证表结构、关联关系和批量配置。
+- Lombok 生成代码：测试应验证生成后的构造器、访问器和值对象语义。
+- 公共工具类：使用 JUnit 5、AssertJ 和 Mockito 隔离外部依赖。
+
+仅依赖 API 注解的模块适合使用轻量单元测试；涉及 Hibernate 专有映射时，应将数据库级验证放在集成测试模块中。
+
+## 贡献指南
+
+新增或修改该模块时，应遵守以下原则：
+
+1. **保持依赖作用域准确**  
+   Lombok 和 Hibernate 保持为 `provided`；不要为解决编译问题将实现依赖无意中改为 `compile`。
+
+2. **区分规范与实现**  
+   Jakarta API 和 Jackson 属于公共编译契约。数据库、消息代理或特定 ORM 的运行时实现应留在下游或专用实现模块。
+
+3. **评估下游兼容性**  
+   修改公共实体的字段、Jackson 可见性或 JPA 映射可能影响序列化格式、数据库结构和调用方的二进制兼容性。
+
+4. **为公共行为添加测试**  
+   新增 DTO、映射规则或工具方法时，应同时添加正常路径、边界条件和失败路径测试。
+
+5. **避免引入业务编排逻辑**  
+   该模块适合保存跨模块共享的模型、契约和轻量工具，不应承担注册流程编排、数据库访问流程或外部服务调用。
+
+6. **通过父工程验证版本兼容性**  
+   修改依赖后，应至少运行模块测试，并检查使用 Hibernate 专有注解的实体是否仍能在实际持久化 provider 中正确映射。

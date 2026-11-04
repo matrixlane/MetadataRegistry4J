@@ -1,36 +1,38 @@
-> 本文档由 GitNexus wiki 生成于 2026-09-13（kimi-for-coding，--lang chinese）。内容变化时请重新运行 `gitnexus wiki --lang chinese` 生成，勿手工改写。
+# metadata-registry-ui
 
 # metadata-registry-ui
 
-## 模块组概述
+`metadata-registry-ui` 是元数据注册中心的前端模块组，覆盖从工程启动、业务实现到端到端验证的完整链路。模块组包含三个相互配合的子模块：
 
-`metadata-registry-ui` 是**元数据注册中心（Metadata Registry）**的前端应用，基于 Vue 3 + TypeScript + Vite 构建，实现 ISO/IEC 11179 元数据注册库（MDR）的完整前端能力，包括注册实体的 CRUD 与生命周期管理、多语言指称/定义编辑、分类方案树浏览、段模板标识符策略配置、联邦节点合并评审、映射方案版本管理以及工作空间（Workspace）三视图与行级操作等。
+- [metadata-registry-ui（工程入口）](metadata-registry-ui.md)：提供 `index.html`、`main.ts` 等应用入口，以及 Vue、Vite、TypeScript、路由、状态管理和测试工具链配置。开发服务器将 `/api` 代理至 `http://localhost:8081`。
+- [src（业务源码）](src.md)：实现 Vue 应用主体，包括路由页面、Pinia 状态、领域 API 客户端和可复用业务组件，是实际业务逻辑的主要承载位置。
+- [e2e（测试与诊断）](e2e.md)：使用 Playwright 和 Python 探针验证登录、初始化、权限、分类、映射及表单等关键流程，并提供后端连通性和性能诊断能力。
 
-本模块组由三个子模块构成，覆盖「工程化配置 → 业务源码 → 端到端测试」的完整链路：
-
-| 子模块 | 职责 |
-|--------|------|
-| [metadata-registry-ui](metadata-registry-ui.md) | 根配置层：构建工具链（Vite）、类型检查、ESLint、Vitest 单元测试与 Playwright E2E 测试的工程化配置 |
-| [src](metadata-registry-ui-src.md) | 业务源码根目录：Vue 3 组合式 API + Element Plus + Pinia 实现的全部页面、组件与状态逻辑 |
-| [e2e](metadata-registry-ui-e2e.md) | 端到端测试：基于 Playwright，通过 `page.route` 拦截 mock 全部 `/api/v1/*` 请求，以真实前端代码驱动浏览器验证页面行为 |
-
-## 子模块协作关系
-
-根配置层（[metadata-registry-ui](metadata-registry-ui.md)）本身不含运行时代码，但它定义的构建、自动导入、代码规范与测试配置，决定了 `src/` 下所有源码的编译方式、导入约定（如 unplugin-auto-import 使 `ref`、`computed` 等无需显式 import）与质量门槛。业务源码（[src](metadata-registry-ui-src.md)）中的组件依赖此基础设施运行，例如 `DesignationDefinitionSection` 组合 `DefinitionEditor` 与 `DesignationDefinitionPairingEditor` 提供「指称-定义配对」编辑能力，`ItemFormDialog` 则整合 `MultilingualTextEditor` 与注册状态区块，形成注册实体的编辑入口。
-
-E2E 测试（[e2e](metadata-registry-ui-e2e.md)）位于链路末端：它不依赖 Spring 后端，而是通过 `page.route` 以统一响应格式 `{ code: 0, data, message: 'success' }` mock 全部 API 请求，并用 `page.addInitScript` 注入认证 token 模拟已登录状态，从而对 [src](metadata-registry-ui-src.md) 中的真实组件（路由守卫、表单交互、API 契约）进行浏览器级验证。
+## 协作关系
 
 ```mermaid
 flowchart TD
-    A[根配置层<br/>metadata-registry-ui] -->|构建 / 规范 / 工具链| B[业务源码 src<br/>组件 · 视图 · 状态]
-    B -->|被驱动验证| C[E2E 测试 e2e<br/>Playwright + API mock]
-    C -.->|"统一响应契约<br/>code: 0"| D[/api/v1/*]
-    B -->|axios 请求| D
+    A["浏览器加载 index.html"] --> B["main.ts 与 backendStartup 探测"]
+    B --> C["src 中的 Vue 应用"]
+    C --> D["路由页面与共享组件"]
+    D --> E["领域 API 客户端与 request"]
+    E --> F["开发代理 /api → localhost:8081"]
+
+    G["e2e：Playwright"] -->|"隔离模式：page.route 拦截"| E
+    G -->|"联调模式：直接访问"| H["Spring Boot API localhost:8181"]
+    I["e2e：Python urllib 探针"] -->|"Bearer Token"| H
 ```
 
-## 跨子模块的关键工作流
+## 关键工作流
 
-- **开发流程**：开发者在根配置层定义的工具链下编写 `src/` 源码（Vitest 承担组件单元测试，如 `ItemFormDialog.spec.ts`、`DefinitionEditor.spec.ts`），由 Vite dev server 提供本地运行环境。
-- **验证流程**：Playwright 的 `webServer` 自动拉起前端 dev server，E2E 用例拦截 API 并注入认证态后驱动真实页面——从 `AppLayout` 导航到 `BrowserView`、`ClassificationTreeBrowser` 等业务视图，验证渲染、路由守卫与表单交互是否符合后端契约。
+1. **应用启动**  
+   工程入口准备启动屏并通过 `backendStartup` 等待后端可用，随后挂载 Vue 应用。进入 `src` 后，`App.vue` 等待初始路由解析完成，再由 `ErrorBoundary.vue` 隔离页面渲染异常。
 
-各子模块的详细配置项、组件清单与测试策略请分别查阅子模块页面。
+2. **业务请求**  
+   页面通过 `src` 中的领域 API 和 `@/utils/request` 访问后端；共享组件、组合式函数与 Pinia 共同完成输入收集、状态流转和结果展示。开发环境统一使用 `/api`，由 Vite 代理到本地后端。
+
+3. **隔离验证**  
+   Playwright 可通过 `page.route()` 模拟 API，在不启动 Spring Boot 的情况下回归页面、路由守卫和交互逻辑，适合快速验证前端行为。
+
+4. **真实联调与诊断**  
+   真实模式绕过开发代理，直接连接 `http://localhost:8181/api/v1`；Python `urllib` 探针可携带 Bearer Token 检查接口连通性、分页性能和应急登录流程。该模式依赖真实后端，不应与隔离测试不加区分地批量执行。

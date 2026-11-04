@@ -225,6 +225,10 @@ public class DatasourceConfigService {
         }
 
         Map<String, Object> jpa = child(spring, "jpa");
+        // ORM 映射随方言切换：SQLite 用 ext_ 前缀的 orm-sqlite.xml，
+        // SQL Server/达梦用 schema="ext" 的 orm-team.xml。沿用上一方言的映射会让
+        // 新库建表失败（SQLite 无法创建 ext 模式表）。
+        jpa.put("mapping-resources", mappingResourcesFor(vendor));
         Map<String, Object> jpaProps = child(jpa, "properties");
         Map<String, Object> hibernate = child(jpaProps, "hibernate");
         hibernate.put("default_schema", envWrapped("DB_DEFAULT_SCHEMA", defaultSchemaFor(vendor, request.schema())));
@@ -237,16 +241,72 @@ public class DatasourceConfigService {
 
         Map<String, Object> flyway = child(spring, "flyway");
         flyway.put("locations", envWrapped("DB_VENDOR", "classpath:db/migration/" + flywayDir(vendor)));
+        // Flyway schemas/default-schema MUST 按方言落盘：SQLite 用 main；
+        // SQL Server/达梦用 schemas=mdr,ext + default-schema=ext——flyway_schema_history
+        // 非 ISO/IEC 11179 内容，依项目 schema 分层规则只能落 ext（AGENTS.md），
+        // Flyway 以 default-schema 为会话默认 schema，历史表随之落 ext。
+        // 只给 SQLite 写、切服务端方言时沿用旧值，会让 Flyway 在服务端库的
+        // [main] 里找不到历史表而从头重放不可重放的老迁移（2026-10-27 真实事故）。
         if (vendor == DatabaseVendor.SQLITE) {
-            // SQLite 下 Flyway 必须显式落到 main schema：personal profile 的
-            // flyway.schemas 默认留空（规避 SQL Server 导入配置的副作用），保存过的
-            // SQLite 配置若不写 main，重启后 Flyway 无法在 SQLite 上定位历史表。
             flyway.put("schemas", envWrapped("FLYWAY_SCHEMAS", "main"));
             flyway.put("default-schema", envWrapped("FLYWAY_DEFAULT_SCHEMA", "main"));
+        } else {
+            flyway.put("schemas", envWrapped("FLYWAY_SCHEMAS", "mdr,ext"));
+            flyway.put("default-schema", envWrapped("FLYWAY_DEFAULT_SCHEMA", "ext"));
         }
 
         writeBack(root);
+        recordDatasourceConfirmation(vendor, url, request);
         log.warn("数据源配置已写入 {}（vendor={}），需重启生效", localConfig.toAbsolutePath(), vendor);
+    }
+
+    /**
+     * 保存即确认（init-phase-database-free）：写本地初始化状态记录
+     * （datasourceConfigured=true 与当前配置指纹）。指纹的 6 项输入与
+     * {@code BootstrapPhaseResolver.currentFingerprint} 严格一致——全部取自
+     * saveConfig 对任何方言都会落盘的键，并对环境变量占位符按当前环境求值，
+     * 保证"保存时计算"与"下次启动时计算"结果相同。
+     *
+     * <p>写入失败不改变保存结果：下次启动因无确认记录而退回向导相，
+     * 用户重新确认一次即可。
+     */
+    private void recordDatasourceConfirmation(DatabaseVendor vendor, String url, DatasourceConfigRequest request) {
+        try {
+            String fingerprint = io.github.matrixlane.metadataregistry.web.bootstrap.DatasourceFingerprint.compute(
+                    vendor.name(),
+                    resolveEnvWrapped(url),
+                    resolveEnvWrapped(dialectClass(vendor)),
+                    mappingResourcesFor(vendor),
+                    resolveEnvWrapped("classpath:db/migration/" + flywayDir(vendor)),
+                    resolveEnvWrapped(defaultSchemaFor(vendor, request.schema())));
+            io.github.matrixlane.metadataregistry.web.bootstrap.InitializationStateStore store =
+                    new io.github.matrixlane.metadataregistry.web.bootstrap.InitializationStateStore(
+                            localConfig.resolveSibling("initialization-state.yml"));
+            io.github.matrixlane.metadataregistry.web.bootstrap.InitializationState current =
+                    store.read().orElse(io.github.matrixlane.metadataregistry.web.bootstrap.InitializationState.fresh());
+            store.write(current.withDatasourceConfirmed(fingerprint));
+        } catch (Exception e) {
+            log.warn("初始化状态记录写入失败（下次启动将要求重新确认数据源）: {}", e.getMessage());
+        }
+    }
+
+    /** 按保存时的环境解析 {@code ${ENV:默认值}} 占位符（环境变量优先，与启动期占位符语义一致）。 */
+    private static String resolveEnvWrapped(String value) {
+        if (value == null) {
+            return "";
+        }
+        String trimmed = value.trim();
+        if (trimmed.startsWith("${") && trimmed.endsWith("}")) {
+            String inner = trimmed.substring(2, trimmed.length() - 1);
+            int separator = inner.indexOf(':');
+            if (separator > 0) {
+                String envKey = inner.substring(0, separator);
+                String defaultValue = inner.substring(separator + 1);
+                String envValue = System.getenv(envKey);
+                return envValue != null && !envValue.isBlank() ? envValue : defaultValue;
+            }
+        }
+        return trimmed;
     }
 
     // ── 合法性校验 ──────────────────────────────────────────────
@@ -384,6 +444,10 @@ public class DatasourceConfigService {
             case SQLSERVER -> "sqlserver";
             case DM -> "dm";
         };
+    }
+
+    String mappingResourcesFor(DatabaseVendor vendor) {
+        return vendor == DatabaseVendor.SQLITE ? "orm/orm-sqlite.xml" : "orm/orm-team.xml";
     }
 
     private int portOr(Integer port, int defaultPort) {
@@ -589,21 +653,37 @@ public class DatasourceConfigService {
         return created;
     }
 
+    Path localConfig() {
+        return localConfig;
+    }
+
     private void writeBack(Map<String, Object> root) {
         DumperOptions options = new DumperOptions();
         options.setDefaultFlowStyle(DumperOptions.FlowStyle.BLOCK);
         options.setPrettyFlow(true);
         Yaml yaml = new Yaml(options);
+        Path target = localConfig.toAbsolutePath().normalize();
+        Path temp = null;
         try {
-            Path parent = localConfig.getParent();
-            if (parent != null) {
-                Files.createDirectories(parent);
-            }
-            try (Writer writer = Files.newBufferedWriter(localConfig)) {
+            Files.createDirectories(target.getParent());
+            temp = Files.createTempFile(target.getParent(), target.getFileName().toString(), ".tmp");
+            try (Writer writer = Files.newBufferedWriter(temp)) {
                 yaml.dump(root, writer);
+            }
+            try {
+                Files.move(temp, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            } catch (java.nio.file.AtomicMoveNotSupportedException e) {
+                Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING);
             }
         } catch (IOException e) {
             throw new BusinessException("写入 application-local.yml 失败: " + e.getMessage());
+        } finally {
+            if (temp != null) {
+                try {
+                    Files.deleteIfExists(temp);
+                } catch (IOException ignored) {
+                }
+            }
         }
     }
 }

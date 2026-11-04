@@ -1,363 +1,404 @@
-> 本文档由 GitNexus wiki 生成于 2026-09-13（kimi-for-coding，--lang chinese）。内容变化时请重新运行 `gitnexus wiki --lang chinese` 生成，勿手工改写。
+# metadata-registry-item-mapping — src
 
 # metadata-registry-item-mapping — src
 
-## 模块定位与职责
+## 模块职责
 
-`metadata-registry-item-mapping` 是元数据注册体系中的**映射域模块**，负责表达、存储、分析和辅助维护本地受管项（AdministeredItem / Item）与外部标准之间的映射关系。它对应 ISO/IEC 11179-3:2023 Clause 11 的 Item Mapping 概念，并在此基础上扩展了三类能力：
+`metadata-registry-item-mapping` 是元数据注册中心的映射领域模块，负责管理本地注册条目与其他数据语义之间的映射关系，主要覆盖四个领域：
 
-1. **通用项映射**：`ItemMapping` 连接两个内部受管项，或连接内部项与外部 URI。
-2. **FHIR 映射**：`FhirElementMapping` 将本地受管项映射到 FHIR R4 Element 路径，并记录 ConceptMap equivalence。
-3. **互操作匹配**：`InteropMapping` 与 `matching` 包提供候选匹配、置信度评分、人工确认/拒绝、批量操作与撤销支持。
-
-该模块偏向领域核心与算法组件：Web 控制器、异步包装、批量结果服务等位于其他模块；本模块通过 Spring Service、JPA Repository、Spring `ApplicationEvent` 和配置属性被上层组装调用。
-
-## 包结构与核心类型
-
-| 包 | 关键类型 | 职责 |
+| 领域 | 核心职责 | 主要类型 |
 |---|---|---|
-| `dto` | `FhirMappingConflictWarning` | FHIR 一对多/冲突场景下的警告 DTO，支持自动生成可读消息 |
-| `entity` | `ItemMapping`, `ItemMappingSubject`, `ItemMappingObject` | ISO 11179 风格映射关系、subject/object 端点 |
-| `entity` | `ItemMapping` | 条目映射（Item 子类），degree 14 标准值 + 转换规则/记法，1..* 主体/客体关联绑定 |
-| `entity` | `FhirElementMapping` | 本地项到 FHIR Element 的映射，含 path/resource/equivalence/type |
-| `entity` | `InteropMapping` | 匹配引擎产生的映射结果，保存置信度、策略、状态与撤销字段 |
-| `notification` | `MappingSubscription`, `MappingSubscriptionRepository` | 用户按 scheme 或 item 订阅映射变更 |
-| `enums` | `MappingType`, `MappingSchemeStatus`, `FhirMappingEquivalence`, `FhirMappingType`, `InteropMappingStatus` | 领域枚举与生命周期状态 |
-| `event` | `MappingChangedEvent` | 映射创建、修改、删除事件 |
-| `impact` | `ImpactAnalysisService`, `ImpactAnalysisResult`, `ImpactedItem`, `ImpactLevel`, `ImpactDirection` | 映射变更影响面分析，BFS 最大 3 层、500 节点 |
-| `matching` | `MatchingEngineService`, `CompositeMatchStrategy`, `ExactIdentifierMatchStrategy`, `NameSimilarityMatchStrategy` | 同步/异步匹配编排与策略实现 |
-| `matching` | `InteropElement`, `LocalItemInfo`, `MatchCandidate`, `MatchSuggestion` | 匹配过程中的轻量 DTO/record |
-| `matching` | `NameNormalizer`, `SimilarityCalculator`, `NameIndexCache` | 名称规范化、相似度计算、候选预过滤索引 |
-| `matching` | `MatchConfiguration`, `MatchConfigurationProperties` | 权重、阈值、归一化方式与候选数配置 |
+| ISO 11179 条目映射 | 建模映射条目、主体、客体及转换规则 | `ItemMapping`、`ItemMappingSubject`、`ItemMappingObject` |
+| FHIR R4 映射 | 将本地 `AdministeredItem` 映射到 FHIR Element 路径 | `FhirElementMapping`、`FhirElementMappingService` |
+| 互操作元素匹配 | 生成、持久化、确认和撤销互操作匹配建议 | `InteropMapping`、`MatchingEngineService`、`InteropMappingResultService` |
+| 映射影响分析 | 沿映射关系分析变更影响范围 | `ImpactAnalysisService`、`ImpactAnalysisResult` |
 
-## 总体架构与数据流
+模块依赖 `commonfacilities` 中的 `Item` 作为注册条目基类，同时被 Web 层的控制器和应用服务调用。
+
+该模块负责**描述、匹配和审计映射关系**，但不负责执行实际的 FHIR 数据转换。`ItemMapping.transformationRule` 仅保存规则文本，模块内没有规则解释器或 FHIR 客户端。
+
+## 总体架构
 
 ```mermaid
 flowchart LR
-    A[InteropElement<br/>互操作数据元素] --> B[MatchingEngineService<br/>匹配编排]
-    C[LocalItemInfo<br/>本地候选项] --> D[NameIndexCache<br/>名称预过滤]
-    D --> B
-    B --> E[CompositeMatchStrategy<br/>组合策略]
-    E --> F[ExactIdentifier<br/>精确标识符]
-    E --> G[NameSimilarity<br/>名称相似度]
-    F --> H[MatchCandidate<br/>候选结果]
-    G --> H
-    H --> I[MatchSuggestion<br/>Top-N 建议]
-    I --> J[InteropMapping<br/>持久化匹配结果]
-    K[ItemMapping 变更] --> L[ImpactAnalysisService<br/>BFS 影响分析]
-    L --> M[ImpactAnalysisResult<br/>影响结果]
-    J --> N[MappingChangedEvent / Subscription<br/>通知与订阅]
+    WEB["Web 控制器与应用服务"] --> IMS["ItemMappingService"]
+    WEB --> FMS["FhirElementMappingService"]
+    WEB --> MES["MatchingEngineService"]
+    WEB --> IAS["ImpactAnalysisService"]
+    IMS --> IMREPO["ItemMappingRepository"]
+    IAS --> IMREPO
+    FMS --> FHREPO["FhirElementMappingRepository"]
+    MES --> COMPOSITE["CompositeMatchStrategy"]
+    COMPOSITE --> STRATEGY["标识符精确匹配与名称相似度策略"]
+    IMREPO --> ITEM["commonfacilities 的 Item"]
 ```
 
-## 领域模型
+核心调用关系如下：
 
-### `ItemMapping`、`ItemMappingSubject`、`ItemMappingObject`
+- 创建条目映射时，`ItemMappingController.create` 调用 `ItemMappingCrudService.create`，再进入 `ItemMappingService.createMapping`，执行应用层校验并构造 `ItemMapping`。
+- 查询条目映射时，`ItemMappingCrudService.list` 使用 `ItemMappingRepository` 的标量投影查询装配主体和客体，不直接加载完整 `Item` 对象图。
+- 删除条目映射时，`ItemMappingService.deleteMapping` 同时调用 `MappingHierarchyRepository.deleteBySubsetMappingId` 和 `deleteBySupersetMappingId` 清理层级关系。
+- Web 层通过 `MappingImpactController` 调用 `ImpactAnalysisService.analyzeItemChange` 和 `analyzeMappingChange`。
+- `AsyncImpactAnalysisService` 包装同步影响分析，将异常转换为失败的 `CompletableFuture`。
+- 互操作映射控制器调用 `InteropMappingResultService.confirmMapping`、`batchConfirm`、`batchReject` 和 `countPendingByDataset`。
 
-`ItemMapping` 是通用映射关系实体，包含：
+---
 
-- `subject`：映射源，类型为 `ItemMappingSubject`。
-- `object`：映射目标，类型为 `ItemMappingObject`。
-- `mappingType`：映射关系类型，取值见 `MappingType`。
-- `description`：可选说明。
-- `transformationRule`：可选转换规则，长度 4000，适用于 `DERIVED`、`AGGREGATED`、`SUBDIVIDED` 等方向性关系。
-- `mappingScheme`：所属 `MappingScheme`。
-- `createdAt`：创建时间。
+## ISO 11179 条目映射模型
 
-`ItemMappingSubject` 与 `ItemMappingObject` 结构对称，均只允许以下两种引用之一：
+### `ItemMapping`
 
-- `itemId`：内部 `AdministeredItem.id`
-- `externalUri`：外部资源 URI
+`ItemMapping` 直接继承 `Item`，因此映射本身也是一个可识别、命名、分类并参与注册状态流转的注册条目。
 
-二者互斥由应用层 `isReferenceMutuallyExclusive()` 校验，也可通过数据库 CHECK 约束兜底。创建端点推荐静态工厂：
+映射实体使用 `JOINED` 继承策略，自身数据保存在 `item_mapping` 表中，继承自 `Item` 的字段保存在 `Item` 根表中。
+
+| 属性 | 数据库列 | 约束 | 含义 |
+|---|---|---|---|
+| `degree` | `degree` | 非空 | 映射度，由 `MappingDegree` 表达 |
+| `description` | `description` | 可空，最长 2000 | 映射的可读描述 |
+| `transformationRule` | `transformation_rule` | 可空，最长 4000 | 从主体转换到客体的规则文本 |
+| `transformationRuleNotation` | `transformation_rule_notation` | 可空，最长 255 | 规则表示法，例如 EBNF |
+
+`MappingDegree` 通过 `MappingDegreeConverter` 持久化标准值。`MappingDegree.isSymmetric()` 用于判断映射是否双向影响；其中 `SAME_AS` 和 `SEMANTICALLY_EQUIVALENT` 属于对称映射。
+
+转换规则可引用主体或客体绑定上的 `mappingVariableName`。例如，一个日期主体可以分别使用 `day`、`month` 和 `year` 变量名。
+
+### 主体和客体关联
+
+`ItemMapping` 与注册条目之间是多对多关系，由两个关联实体承载：
+
+- `ItemMappingSubject`：映射主体侧，包含 `itemMapping`、`item` 和 `mappingVariableName`。
+- `ItemMappingObject`：映射客体侧，包含 `itemMapping`、`item` 和 `mappingVariableName`。
+
+两侧关联都使用：
 
 ```java
-// 内部受管项作为映射源
-ItemMappingSubject subject = ItemMappingSubject.forItem(itemId);
-
-// 外部标准作为映射目标
-ItemMappingObject object = ItemMappingObject.forExternalUri("http://hl7.org/fhir/StructureDefinition/Patient");
-
-ItemMapping mapping = new ItemMapping(subject, object, MappingType.EQUIVALENT);
+@ManyToOne(optional = false, fetch = FetchType.LAZY)
 ```
 
-所有实体 `equals/hashCode` 均基于 `id`，且 `id == null` 时相等判断返回 `false`，符合 JPA 托管对象比较习惯。
+`ItemMapping` 通过以下关系持有集合：
 
-### `MappingScheme`
+```java
+@OneToMany(mappedBy = "itemMapping",
+           cascade = CascadeType.ALL,
+           orphanRemoval = true)
+```
 
-`ItemMapping` 是 Item 的直接子类（ISO/IEC 11179-3:2023 11.3.1），字段包括 `degree`（14 标准值）、`description`、`transformationRule`、`transformationRuleNotation`；主体/客体经 `ItemMappingSubject`/`ItemMappingObject` 关联类（各 1..*，携带 `mappingVariableName`）绑定注册条目，层级经 `MappingHierarchy`（superset/subset，防环）建模。
+因此：
 
-版本规则：
+- 从 `ItemMapping` 移除关联对象时，关联行会被删除。
+- 新增或删除 `ItemMappingSubject`、`ItemMappingObject` 时会触发级联持久化。
+- `mappingVariableName` 属于单个主体或客体绑定，而不是整个映射。
+- `ItemMappingSubject`、`ItemMappingObject` 使用数据库 UUID 作为实体标识，`equals` 和 `hashCode` 仅在实体已经具有 ID 时按 ID 比较。
 
-- 初始版本固定为 `0.1.0`，状态 `DRAFT`。
-- 发布时版本号不变，状态变为 `PUBLISHED`。
-- 基于已发布版本创建新草稿时，使用 `parentId` 指向前驱，`nextPatchVersion()` 自动增加 patch 位，例如 `0.1.0 → 0.1.1`。
-- 归档后进入 `ARCHIVED`，语义上只读。
+### 应用层约束
 
-`MappingSchemeStatus` 独立三态生命周期与 WI-007 的注册生命周期不同，不应混用。
+实体注释定义了以下业务约束，但数据库列本身没有全部实现这些约束：
 
-### `FhirElementMapping`
+- `degree` 必填。
+- `transformationRule` 存在时，`transformationRuleNotation` 必须由应用层补齐。
+- 一个映射至少应包含一个主体和一个客体。
+- `mappingVariableName` 在需要引用具体绑定时必须唯一且可读。
 
-`FhirElementMapping` 扩展 WI-011 通用映射框架，面向 WI-012-2 的本地元数据到 FHIR Element 映射。它不显式持有 `FhirElement` 外键，而是使用语义引用：
+这些规则主要由 `ItemMappingService.validate` 负责，而不是由 JPA Bean Validation 保证。
 
-- `localItemId`：本地受管项 UUID。
-- `fhirPath`：FHIR 路径，例如 `Patient.name.given`，最长 500。
-- `fhirResourceType`：资源类型，例如 `Patient`、`Observation`，用于过滤与 ConceptMap group 组织。
-- `fhirEquivalence`：FHIR R4 ConceptMap equivalence，字符串枚举存储。
-- `mappingType`：`ONE_TO_ONE` 或 `ONE_TO_MANY`。
-- `mappingVariable`：一对多映射时的组件名，例如本地“姓名”拆到 `family` 与 `given`；一对一映射时为空。
-- `mappingSchemeId`：归属方案，提供版本谱系。
-- 审计字段：`createdBy`、`updatedBy`、`createdAt`、`updatedAt`。
-- 乐观锁：`@Version version`。
+---
 
-构造器强制校验 `localItemId/fhirPath/fhirResourceType/fhirEquivalence/mappingType` 非空，其中字符串字段还要求非 blank。`update(...)` 采用“null 表示不变”的局部更新语义；`mappingVariable` 与 `description` 传入 blank 时会被规范化为 `null`。展示名由 `getDisplayName()` 生成：
+## FHIR R4 元素映射
 
-- 有 `mappingVariable`：`family → Patient.name.family`
-- 无 `mappingVariable`：`Patient.name.family`
+### 映射实体
+
+`FhirElementMapping` 保存本地 `AdministeredItem` 与 FHIR Element 的映射关系，对应表 `fhir_element_mapping`。
+
+| 属性 | 数据库列 | 说明 |
+|---|---|---|
+| `localItemId` | `local_item_id` | 本地条目的语义 UUID，不使用 JPA 外键 |
+| `fhirPath` | `fhir_path` | FHIR Element 路径，例如 `Patient.name.given` |
+| `fhirResourceType` | `fhir_resource_type` | FHIR Resource 类型，例如 `Patient` |
+| `fhirEquivalence` | `fhir_equivalence` | FHIR ConceptMap 等价关系 |
+| `mappingType` | `mapping_type` | 一对一或一对多映射 |
+| `mappingVariable` | `mapping_variable` | 一对多映射中的组件变量名 |
+| `description` | `description` | 可读说明 |
+| `createdBy`、`updatedBy` | `created_by`、`updated_by` | 创建和更新用户 UUID |
+| `createdAt`、`updatedAt` | `created_at`、`updated_at` | 审计时间戳 |
+| `version` | `version` | JPA 乐观锁版本 |
+
+`fhirPath` 是语义引用，而不是指向 `FhirElement` 表的外键。这样可以避免将映射生命周期与 FHIR 元素目录的生命周期耦合。
+
+表上建立了以下索引：
+
+- `idx_fem_local_item`
+- `idx_fem_fhir_path`
+- `idx_fem_fhir_resource_type`
+- `idx_fem_local_fhir`
+
+### 构造和更新规则
+
+完整构造函数会拒绝以下无效输入：
+
+- `localItemId` 为 `null`。
+- `fhirPath` 或 `fhirResourceType` 为空或纯空白。
+- `fhirEquivalence` 或 `mappingType` 为 `null`。
+
+`FhirElementMapping.update` 采用“`null` 表示保留原值”的更新约定：
+
+| 参数 | `null` | 空字符串或纯空白 |
+|---|---|---|
+| `fhirPath` | 保留原值 | 保留原值 |
+| `fhirEquivalence` | 保留原值 | 不适用 |
+| `mappingType` | 保留原值 | 不适用 |
+| `mappingVariable` | 保留原值 | 清空为 `null` |
+| `description` | 保留原值 | 清空为 `null` |
+
+无论字段是否实际变化，`update` 都会更新 `updatedBy` 和 `updatedAt`。
+
+其他业务辅助方法：
+
+- `isOneToMany()` 判断映射类型是否为 `ONE_TO_MANY`。
+- `getDisplayName()` 在存在变量名时返回 `变量名 → FHIR 路径`，否则只返回路径。
+
+### 映射类型
+
+`FhirMappingType` 定义两个值：
+
+- `ONE_TO_ONE`：一个本地条目对应一个 FHIR Element。
+- `ONE_TO_MANY`：一个本地条目拆分为多个 FHIR Element，例如姓名拆分为 `family` 和 `given`。
+
+一对多映射要求 `mappingVariable` 非空，该规则由 `FhirElementMappingService` 保证。
+
+### FHIR 等价关系
+
+`FhirMappingEquivalence` 覆盖 FHIR R4 ConceptMap 的十种标准关系：
+
+`EQUIVALENT`、`EQUAL`、`WIDER`、`NARROWER`、`SUBSUMES`、`SPECIALIZES`、`RELATEDTO`、`INEXACT`、`UNMATCHED`、`DISJOINT`。
+
+`toCode()` 返回小写标准代码，例如 `equivalent`；`fromCode(String)` 忽略大小写解析代码，遇到未知值时抛出 `IllegalArgumentException`。
+
+### 服务层约束
+
+`FhirElementMappingService` 使用类级 `@Transactional`，主要职责包括：
+
+- 创建一对一和一对多映射。
+- 防止同一个 `localItemId` 与 `fhirPath` 重复。
+- 更新映射并执行冲突检测。
+- 删除和查询映射。
+- 通过 `FhirMappingConflictDetector` 生成冲突检测结果。
+
+`createOneToOneMapping` 在持久化前调用重复校验，并记录 `createdBy`。一对一映射的 `mappingVariable` 为 `null`。
+
+### 冲突检测
+
+`FhirElementMappingRepository` 提供两种不同语义的冲突查询：
+
+- `findLocalItemIdsWithMultipleMappings()`：按映射行数统计，一个条目存在多行即返回。
+- `findConflictingLocalItemIds()`：按不同的 `fhirPath` 统计，真正识别一个条目映射到多个 FHIR 路径的情况。
+
+`FhirMappingConflictWarning.of(localItemId, conflictingPaths)` 生成标准警告消息：
+
+```text
+Local item {localItemId} is mapped to {count} FHIR Elements: {paths}
+```
+
+该记录直接持有传入的路径列表，调用方不应在创建后修改原始列表。
+
+---
+
+## 互操作映射与生命周期
 
 ### `InteropMapping`
 
-`InteropMapping` 保存匹配引擎产生的一条映射建议，核心字段包括：
+`InteropMapping` 保存匹配引擎为互操作数据元素生成的匹配结果，对应表 `interop_mapping`。
 
-- `interopDataElementId`：互操作数据元素。
-- `localItemId`：匹配到的本地项。
-- `confidenceScore`：`BigDecimal(3,2)`，范围 `[0.00, 1.00]`。
-- `strategy`：产生该结果策略名，例如 `EXACT_IDENTIFIER`、`NAME_SIMILARITY`。
-- `status`：`InteropMappingStatus`。
-- `reason`：人类可读原因或分数拆解。
-- `confirmedBy/confirmedAt`：人工确认或拒绝记录。
-- `datasetId`：按数据集分组。
-- 撤销支持：`batchOperationId`、`previousStatus`、`previousLocalItemId`。
+主要字段包括：
 
-生命周期方法：
+- `interopDataElementId`：互操作数据元素 UUID。
+- `localItemId`：匹配的本地条目 UUID。
+- `confidenceScore`：置信度，数据库精度为 `3,2`。
+- `strategy`：产生结果的策略，例如 `EXACT_IDENTIFIER`。
+- `status`：映射生命周期状态。
+- `reason`：可读的评分或匹配原因。
+- `confirmedBy`、`confirmedAt`：人工确认或拒绝的审计信息。
+- `datasetId`：互操作数据集分组。
+- `batchOperationId`：最后修改该映射的批次，用于撤销。
+- `previousStatus`、`previousLocalItemId`：撤销所需的旧状态和旧条目。
+- `version`：乐观锁版本。
 
-- `autoMatch()`：高置信自动匹配，置为 `AUTO_MATCHED`。
-- `confirm(UUID userId)`：置为 `CONFIRMED` 并记录确认人与时间。
-- `reject(UUID userId)`：置为 `REJECTED`。
-- `manualMap(UUID newLocalItemId, UUID userId)`：改绑到新的本地项，状态置为 `CONFIRMED`，同时保存 `previousLocalItemId` 便于撤销。
-- `undo()`：恢复 `previousStatus` 与 `previousLocalItemId`，清空确认信息与 `batchOperationId`。
-- `markUnmatched()`：标记未找到对应本地项。
+表上存在唯一约束：
 
-唯一约束为 `(interop_data_element_id, local_item_id)`。调用图显示上层 `InteropMappingController` 与 `InteropMappingResultService` 会组合使用 `confirm/reject`、批量确认/拒绝、`countPendingByDataset`、`findByDatasetIdAndStatusOrderByConfidenceScoreDesc` 等能力完成人工治理流程。
+```text
+interop_data_element_id + local_item_id
+```
 
-## 枚举语义
+因此同一个互操作元素不能同时对同一个本地条目保存多条映射记录。
 
-### `MappingType`
+### 状态与操作
 
-- `EQUIVALENT`：双向语义等价，与其他映射类型互斥。
-- `DERIVED`：subject 派生 object，方向为 subject → object。
-- `AGGREGATED`：object 聚合 subject，方向为 subject → object。
-- `SUBDIVIDED`：subject 拆分为 object，方向为 subject → object，方向上与 `AGGREGATED` 相反。
+| 方法 | 结果状态 | 审计行为 |
+|---|---|---|
+| `autoMatch()` | `AUTO_MATCHED` | 记录旧状态，不写确认人和确认时间 |
+| `confirm(userId)` | `CONFIRMED` | 记录旧状态、确认人和确认时间 |
+| `reject(userId)` | `REJECTED` | 记录旧状态、确认人和确认时间 |
+| `manualMap(newLocalItemId, userId)` | `CONFIRMED` | 同时保存旧条目 ID |
+| `markUnmatched()` | `UNMATCHED` | 记录旧状态 |
+| `undo()` | 恢复旧状态和旧条目 | 清除确认信息、批次 ID 和旧值 |
 
-互斥规则在服务层执行，例如 `EQUIVALENT` 不应与任何方向性映射并存；`DERIVED` 与 `AGGREGATED` 互斥；`AGGREGATED` 与 `SUBDIVIDED` 互斥。
+`undo()` 仅在 `previousStatus` 或 `previousLocalItemId` 存在时恢复相应字段；它不会恢复之前的 `batchOperationId`。
 
-### `FhirMappingEquivalence`
+### 状态分类
 
-对齐 FHIR R4 ConceptMap equivalence：`EQUIVALENT`、`EQUAL`、`WIDER`、`NARROWER`、`SUBSUMES`、`SPECIALIZES`、`RELATEDTO`、`INEXACT`、`UNMATCHED`、`DISJOINT`。
+`InteropMappingStatus` 定义：
 
-- `toCode()` 返回小写 FHIR code，如 `equivalent`。
-- `fromCode(String code)` 大小写不敏感解析，空值抛 `IllegalArgumentException`。
+- `AUTO_MATCHED`
+- `PENDING`
+- `CONFIRMED`
+- `REJECTED`
+- `UNMATCHED`
 
-### `FhirMappingType`
+`MatchingEngineService.classifyConfidence` 使用实际配置阈值分类：
 
-- `ONE_TO_ONE`：一个本地项对应一个 FHIR Element。
-- `ONE_TO_MANY`：一个本地项拆分映射到多个 FHIR Element，需 `mappingVariable` 区分目标组件。
+- `score >= highConfidenceThreshold`：`HIGH`
+- `score >= mediumConfidenceThreshold`：`MEDIUM`
+- 其他：`LOW`
 
-### `InteropMappingStatus`
+默认阈值下，`0.85` 本身属于 `HIGH`，`0.60` 本身属于 `MEDIUM`。
 
-- `AUTO_MATCHED`：置信度高于高阈值，自动匹配。
-- `PENDING`：中等置信度，待数据管理员确认。
-- `CONFIRMED`：人工确认。
-- `REJECTED`：人工拒绝。
-- `UNMATCHED`：无对应本地项。
+---
 
 ## 匹配引擎
 
-### 编排入口：`MatchingEngineService`
+### 输入模型
 
-`MatchingEngineService` 是匹配流程门面，主要职责：
+匹配引擎使用两个轻量模型，避免直接依赖完整 JPA 实体图：
 
-1. 将 `MatchConfigurationProperties` 转为运行时 `MatchConfiguration`。
-2. 构建默认 `CompositeMatchStrategy`。
-3. 维护 `NameIndexCache`，用于候选预过滤。
-4. 提供单条、批量、异步批量匹配。
-5. 按阈值将分数分类为 `HIGH/MEDIUM/LOW`。
+- `InteropElement`：包含 `id`、业务 `identifier` 和显示名称 `name`。
+- `LocalItemInfo`：包含 `itemId`、名称和 `ScopedIdentifier` 值列表。
 
-典型调用：
+`LocalItemInfo` 在构造时防御性复制标识符列表；`null` 名称转换为空字符串，`null` 标识符列表转换为空列表。
+
+### 策略接口
+
+所有匹配算法实现 `MatchStrategy`：
 
 ```java
-// 构建或刷新本地项索引
-matchingEngineService.buildIndex(localItems);
+List<MatchCandidate> match(InteropElement source,
+                            List<LocalItemInfo> candidates);
 
-// 单元素匹配
-MatchSuggestion suggestion = matchingEngineService.matchOne(interopElement, localItems);
-
-// 批量同步匹配
-List<MatchSuggestion> suggestions = matchingEngineService.matchAll(interopElements, localItems);
-
-// 批量异步匹配；当前 MVP 使用 CompletableFuture.supplyAsync
-CompletableFuture<List<MatchSuggestion>> future =
-        matchingEngineService.matchAllAsync(interopElements, localItems);
+MatchStrategyType getType();
 ```
 
-若索引尚未构建，`matchAll(...)` 会自动调用 `buildIndex(candidates)`。对于大数据集，建议显式管理索引生命周期，避免在每次批处理中重复构建。
+返回的候选按置信度降序排列。`MatchCandidate` 的自然顺序依次比较：
 
-### 策略链：`CompositeMatchStrategy`
+1. 置信度降序。
+2. `MatchStrategyType` 枚举顺序。
+3. `localItemId`，用于稳定排序。
 
-默认策略顺序固定：
+### 标识符精确匹配
+
+`ExactIdentifierMatchStrategy` 比较互操作元素标识符与本地条目的所有 `ScopedIdentifier`。
+
+`NameNormalizer.normalizeIdentifier` 的处理顺序为：
+
+1. Unicode NFKC 规范化。
+2. 删除空格、连字符、圆括号、斜杠和点。
+3. 使用 `Locale.ROOT` 转小写。
+
+因此以下标识符会被视为相同：
+
+```text
+DE01.01.001.00
+DE01-01-001-00
+de01 01 001 00
+```
+
+命中时置信度固定为 `1.00`，每个本地候选最多产生一个结果。
+
+### 名称相似度匹配
+
+`NameSimilarityMatchStrategy` 综合两种指标：
+
+```text
+score = (levenshteinWeight × levenshteinSimilarity
+       + jaccardWeight × jaccardSimilarity)
+       / (levenshteinWeight + jaccardWeight)
+```
+
+权重和为零时得分固定为 `0.0`。
+
+Levenshtein 相似度支持两种归一化方式：
+
+- `longer`：编辑距离除以两个字符串长度的最大值。
+- `sum`：编辑距离除以两个字符串长度之和。
+
+Jaccard 系数使用字符二元组，即连续两个字符组成的集合。
+
+名称会先经过 NFKC 规范化、首尾去空白、连续空白折叠和小写转换。最终得分使用 `HALF_UP` 保留两位小数，低于 `0.20` 的候选会被直接过滤。该 `0.20` 是策略内部的固定噪声阈值，与置信度分类阈值相互独立。
+
+### 复合策略
+
+`CompositeMatchStrategy` 默认按以下顺序配置子策略：
 
 1. `ExactIdentifierMatchStrategy`
 2. `NameSimilarityMatchStrategy`
 
-执行逻辑：
+执行时会运行所有子策略，而不是在精确匹配成功后立即短路。随后：
 
-- 先跑所有子策略。
-- 按 `localItemId` 去重，同一本地项被多个策略命中时保留更高 `confidenceScore`。
-- 最终按分数降序、策略名、 `localItemId` 排序，截取 `maxCandidatesPerElement`。
+- 按 `localItemId` 去重。
+- 同一本地条目保留置信度最高的候选。
+- 分数相同时保留先执行策略的结果。
+- 按置信度、策略类型和 UUID 稳定排序。
+- 按 `maxCandidatesPerElement` 截断。
 
-`MatchStrategyType` 中枚举顺序体现优先级：`EXACT_IDENTIFIER` 最高，`SEMANTIC` 预留给 V1。
+`MatchSuggestion` 在构造时复制候选列表，`bestCandidate()` 返回列表第一个元素，因此调用方应确保候选已经按期望顺序排列。
 
-### 精确标识符匹配
-
-`ExactIdentifierMatchStrategy` 对 `InteropElement.identifier` 与 `LocalItemInfo.identifiers` 做归一化后精确比较：
-
-- Unicode NFKC。
-- 去除空格、连字符、括号、斜杠、点号。
-- 英文小写。
-
-命中即产生 `confidenceScore = 1.00` 的 `MatchCandidate`，每个候选项只取首个命中标识符。
-
-### 名称相似度匹配
-
-`NameSimilarityMatchStrategy` 使用加权组合分：
-
-```text
-score = (levenshteinWeight * levSim + jaccardWeight * jacSim) / weightSum
-```
-
-其中：
-
-- `levSim` 来自 `SimilarityCalculator.levenshteinSimilarity(...)`。
-- `jacSim` 来自字符 bigram 的 Jaccard 相似度。
-- `weightSum = levenshteinWeight + jaccardWeight`，允许权重和不为 1，最后再归一化到 `[0.0, 1.0]`。
-- 结果用 `BigDecimal` 保留两位小数。
-- 小于 `0.20` 的噪声匹配会被丢弃。
-
-Levenshtein 归一化支持两种分母：
-
-- `longer`：默认，`max(len1, len2)`。
-- `sum`：`len1 + len2`。
-
-### 规范化与索引
-
-`NameNormalizer` 区分两类归一化：
-
-- `normalizeName`：NFKC、去首尾空白、压缩连续空格、小写。
-- `normalizeIdentifier`：NFKC、去除 `[\s\-()/.]+`、小写。
+### 名称索引和预过滤
 
 `NameIndexCache` 使用 `ConcurrentHashMap` 保存：
 
-- `nameToItemIds`：归一化名称 → itemId 集合。
-- `cachedItemIds`：已缓存 itemId 集合。
+```text
+规范化名称 → 本地条目 UUID 集合
+```
 
-`preFilter(name, allCandidates)` 对输入名称生成 bigram，并扫描索引名称的 bigram 是否有交集。MVP 实现是 O(索引大小) 扫描；V1 可替换为倒排 bigram 索引。若名称长度小于 2 或无法生成 bigram，则回退为全量候选。
+主要操作：
 
-## 影响分析
+- `buildIndex`：清空并重建全部索引。
+- `addItem`、`removeItem`：增量维护。
+- `lookup`：按规范化名称精确查找。
+- `preFilter`：保留至少共享一个字符二元组的候选。
+- `clear`：清空索引。
+- `itemCount`、`nameCount`：返回索引规模。
 
-`ImpactAnalysisService` 用于评估某个元数据项或某条映射发生 `UPDATED/DELETED/MODIFIED` 时的级联影响。类级配置：
+如果输入名称过短、无法生成二元组，或者没有任何条目共享二元组，`preFilter` 会回退到完整候选列表，避免过滤掉所有结果。
 
-- `@Transactional(readOnly = true)`
-- `MAX_DEPTH = 3`
-- `MAX_NODES = 500`
+`MatchingEngineService.matchAll` 仅在缓存为空时自动建立索引。候选集合发生变化后，应显式调用 `buildIndex`，否则服务可能继续使用旧索引。
 
-### `analyzeItemChange(UUID itemId, String changeType)`
+### 配置
 
-从变更项出发做 BFS：
-
-- 每层调用 `ItemMappingRepository.findByItemId(current.itemId)`。
-- 使用 `visitedItems/visitedMappings` 去重。
-- 跳过仅外部 URI 的映射，因为不存在可追踪内部项。
-- 若当前项是 subject，则邻居 object 为 `TARGET_AFFECTED`；若当前项是 object，则邻居 subject 为 `SOURCE_AFFECTED`。
-- `EQUIVALENT` 映射方向统一记为 `BOTH`。
-- 深度 1/2/3 映射为 `ImpactLevel.DIRECT/INDIRECT/CASCADE`。
-- 原始变更项本身不计入受影响结果。
-- 达到 `MAX_NODES` 时置 `truncated = true`。
-
-结果封装为 `ImpactAnalysisResult(changedItemId, changeType, impactedItems, totalImpacted, truncated)`。
-
-### `analyzeMappingChange(UUID mappingId, String changeType)`
-
-先加载触发分析的 `ItemMapping`。若不存在，返回空结果。若存在：
-
-- subject/object 均非空时，object 作为 `DIRECT` 受影响项；`EQUIVALENT` 记 `BOTH`，否则记 `TARGET_AFFECTED`。
-- 从 subject 与 object 两侧分别继续 BFS，但排除触发映射本身。
-- 起始深度设为 1，使得经由其他映射到达的邻居成为 `INDIRECT`。
-- 合并两侧结果后按 `ImpactedItem.itemId` 去重。
-
-调用图显示 web 层 `MappingImpactController` 与 `AsyncImpactAnalysisService` 分别同步/异步调用这两个入口。
-
-## 事件与订阅
-
-### `MappingChangedEvent`
-
-继承 Spring `ApplicationEvent`，字段：
-
-- `mappingId`
-- `changeType`：`CREATED`、`MODIFIED`、`DELETED`
-- `mapping`：删除事件时可能为 `null`
-
-V1 主要发布 `CREATED` 与 `DELETED`；`MODIFIED` 预留。订阅方可用于审计、站内通知、影响分析触发或联动缓存失效。
-
-### `MappingSubscription`
-
-支持两类订阅：
-
-- `SCHEME`：按 `MappingScheme` 订阅。
-- `ITEM`：按元数据项订阅。
-
-可见 repository 方法包括按用户查询、按 type/target 查询、判断订阅是否存在，以及批量查询 scheme 订阅。上层在发布 `MappingChangedEvent` 后，可依据事件中的 scheme/item 信息找到订阅者并生成站内通知；邮件与 Webhook 为后续扩展。
-
-## 配置
-
-匹配参数通过 Spring Boot 配置属性加载，前缀为 `mdr.matching`：
+`MatchConfigurationProperties` 使用前缀 `mdr.matching`：
 
 ```yaml
 mdr:
   matching:
-    levenshtein-weight: 0.6        # Levenshtein 权重，范围 [0.0, 1.0]
-    jaccard-weight: 0.4            # Jaccard 权重，范围 [0.0, 1.0]
-    high-confidence-threshold: 0.85 # 高于该值视为 HIGH，可自动匹配
-    medium-confidence-threshold: 0.60 # 高于该值视为 MEDIUM，需人工确认
-    levenshtein-normalization: longer # longer 或 sum
-    max-candidates-per-element: 3   # 每个互操作元素返回的最大候选数
+    levenshtein-weight: 0.6
+    jaccard-weight: 0.4
+    high-confidence-threshold: 0.85
+    medium-confidence-threshold: 0.60
+    levenshtein-normalization: longer
+    max-candidates-per-element: 3
 ```
 
-`MatchConfiguration` 对 setter 做校验：权重与阈值必须落在 `[0.0, 1.0]`，`levenshteinNormalization` 只允许 `longer/sum`，`maxCandidatesPerElement` 必须大于等于 1。`MatchConfigurationProperties.toMatchConfiguration()` 完成外部配置到运行时配置的转换。
+`toMatchConfiguration()` 将属性转换为带校验规则的 `MatchConfiguration`：
 
-## 并发、事务与性能注意事项
+| 配置 | 默认值 | 约束 |
+|---|---:|---|
+| `levenshteinWeight` | `0.6` | `[0.0, 1.0]` |
+| `jaccardWeight` | `0.4` | `[0.0, 1.0]` |
+| `highConfidenceThreshold` | `0.85` | `[0.0, 1.0]` |
+| `mediumConfidenceThreshold` | `0.60` | `[0.0, 1.0]` |
+| `levenshteinNormalization` | `longer` | 仅允许 `longer` 或 `sum` |
+| `maxCandidatesPerElement` | `3` | 必须大于等于 1 |
 
-- JPA 实体大量使用 Lombok `@Getter/@Setter/@NoArgsConstructor`；领域行为集中在实体方法中，避免把生命周期逻辑散落在 controller。
-- `FhirElementMapping` 与 `InteropMapping` 使用 `@Version` 乐观锁，适合并发更新与批量治理场景。
-- `MatchingEngineService` 当前为同步实现；异步能力用 `CompletableFuture` 包装，V1 可替换为 Spring `@Async` 与受控线程池。
-- `NameIndexCache` 线程安全，但 `removeItem(UUID)` 是 O(索引大小) 扫描；高频删除场景需要重建索引或升级为倒排索引。
-- 影响分析通过 `MAX_DEPTH` 与 `MAX_NODES` 限制爆炸半径；调用方应检查 `ImpactAnalysisResult.truncated()`，不能把截断结果当作完整影响面。
-- `analyzeMappingChange` 对已删除映射不抛错，而是返回空 `ImpactAnalysisResult`，上层如需区分“不存在”和“无影响”应额外校验。
+### 同步与异步入口
 
-## 与代码库其他部分的连接
-
-典型入向调用来自 web/controller 与 service 层：
-
-- `MappingImpactController` 调用 `ImpactAnalysisService.analyzeItemChange/analyzeMappingChange`。
-- `AsyncImpactAnalysisService` 将同步影响分析包装为异步 `CompletableFuture`。
-- `InteropMappingController` 调用 `InteropMappingResultService` 完成确认、拒绝、批量确认、批量拒绝与 pending 统计。
-- `MappingDiffService` 通过 `ItemMappingRepository.findByMappingSchemeId` 比较不同 scheme 版本下的映射差异。
-
-本模块向下主要依赖 JPA/Hibernate、Spring Context、Spring Boot ConfigurationProperties 与 SLF4J；源码片段中没有直接 outgoing 外部系统调用。集成时应将本模块视为纯领域与算法核心：URI、标识符、置信度阈值、状态机与影响策略都在这里定义，REST 语义、权限、异步执行策略和通知投递由外层模块补齐。
-
-## 开发建议与扩展点
-
-- 新增匹配策略时实现 `MatchStrategy`，并在 `MatchStrategyType` 中登记优先级，再按需扩展 `CompositeMatchStrategy` 的默认链。
-- 修改权重默认值时保持 `getWeightSum()` 语义清晰；不要假设权重和恒等于 1。
-- 增加 `MODIFIED` 映射事件时，需要同步评估 `ImpactAnalysisService.analyzeMappingChange` 的触发时机，避免与实体 `@Version` 更新产生循环事件。
-- 扩展 `FhirElementMapping` 到 `FhirElement` 强外键前，需要处理 WI-012-2 的 MVP 决策：当前是有意使用语义 `fhirPath`，不是遗漏 FK。
-- 将 `InteropMapping.undo()` 用于批量撤销时，必须保证 `batchOperationId`、`previousStatus`、`previousLocalItemId` 的写入与状态迁移同事务完成，否则撤销可能恢复到不完整状态。
-- 订阅通知建议消费 `MappingChangedEvent` 而非直接扫描映射表，这样能复用 V1 已定义的 `CREATED/DELETED/MODIFIED` 语义，并保留未来 webhook/email 扩展点。
+- `matchOne`：匹配单个互操作元素。
+- `matchAll`：顺序匹配一批元素。
+- `matchAllFiltered`：面向已筛选候选

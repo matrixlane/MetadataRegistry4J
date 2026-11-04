@@ -125,6 +125,11 @@ public class ReferenceDocumentService {
 
     /**
      * 把 URI 解析为本地文件路径；非本地路径（含空串）返回 null。
+     *
+     * <p>除 Windows 盘符/UNC/file:// 绝对路径外，还支持仓库内相对路径（基准数据随包
+     * 携带的标准文档，如 {@code data/docs/data-standards/ws/WS363/….pdf}）：相对应用
+     * 工作目录（user.dir）解析并归一化；越出工作目录（{@code ..} 逃逸）的相对路径
+     * 拒绝解析（返回 null）。</p>
      */
     private Path resolveLocalPath(String uri) {
         if (uri.isBlank()) {
@@ -148,6 +153,14 @@ public class ReferenceDocumentService {
         }
         if (hasDriveLetter(p) || p.startsWith("\\\\") || p.startsWith("/")) {
             return Path.of(p);
+        }
+        // 仓库内相对路径：相对应用工作目录解析，禁止越出
+        if (!p.matches("^[a-zA-Z][a-zA-Z0-9+.-]*:.*") && !p.startsWith("//")) {
+            Path base = Path.of(System.getProperty("user.dir")).toAbsolutePath().normalize();
+            Path resolved = base.resolve(p).normalize();
+            if (resolved.startsWith(base)) {
+                return resolved;
+            }
         }
         return null;
     }

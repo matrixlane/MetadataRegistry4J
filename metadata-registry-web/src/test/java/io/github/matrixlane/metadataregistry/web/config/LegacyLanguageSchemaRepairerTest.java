@@ -1,15 +1,16 @@
 package io.github.matrixlane.metadataregistry.web.config;
 
 import com.zaxxer.hikari.HikariDataSource;
-import io.github.matrixlane.metadataregistry.web.seed.LanguagePresetSeeder;
+import io.github.matrixlane.metadataregistry.web.seed.BaselineScriptPresetService;
 import io.github.matrixlane.metadataregistry.web.service.database.DatabaseEnvironment;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.core.io.DefaultResourceLoader;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -140,8 +141,23 @@ class LegacyLanguageSchemaRepairerTest {
         ds.close();
     }
 
+    /**
+     * 定位仓库根 {@code data/scripts} 目录：surefire 工作目录为模块目录，
+     * IDE 直跑多为仓库根，向上逐级查找两种方式均可命中。
+     */
+    private Path repoScriptsDir() {
+        Path dir = Path.of(System.getProperty("user.dir")).toAbsolutePath().normalize();
+        while (dir != null && !Files.isRegularFile(dir.resolve("data/scripts/common/sqlite/00-common.sql"))) {
+            dir = dir.getParent();
+        }
+        if (dir == null) {
+            throw new IllegalStateException("向上查找未找到仓库 data/scripts 目录");
+        }
+        return dir.resolve("data/scripts");
+    }
+
     @Test
-    @DisplayName("端到端：空漂移表修复后 LanguagePresetSeeder 种入 22 语言 + 22 名称（zh-CN=中文）")
+    @DisplayName("端到端：空漂移表修复后经 00-common.sql 通用基准脚本种入 22 语言 + 22 名称（zh-CN=简体中文）")
     void seedsTwentyTwoLanguagesAfterRepair() {
         HikariDataSource ds = newDataSource();
         JdbcTemplate jdbc = new JdbcTemplate(ds);
@@ -154,7 +170,7 @@ class LegacyLanguageSchemaRepairerTest {
         createExtTable(jdbc);
 
         newRepairer(ds, sqliteEnv()).run(null);
-        new LanguagePresetSeeder(new JdbcTemplate(ds), sqliteEnv(), new DefaultResourceLoader()).reapplyPreset();
+        new BaselineScriptPresetService(ds, sqliteEnv(), repoScriptsDir().toString()).applyCommonBaseline();
 
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM language_identification", Integer.class)).isEqualTo(22);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM ext_language_identification", Integer.class)).isEqualTo(22);
@@ -162,7 +178,7 @@ class LegacyLanguageSchemaRepairerTest {
                 "SELECT e.language_name FROM ext_language_identification e"
                         + " JOIN language_identification l ON l.id = e.language_id"
                         + " WHERE l.language_identifier = 'zh-CN'", String.class);
-        assertThat(zhName).isEqualTo("简体中文"); // V20260929001 口径修正后的最终名称
+        assertThat(zhName).isEqualTo("简体中文"); // 00-common.sql 口径（与金库一致）
         ds.close();
     }
 

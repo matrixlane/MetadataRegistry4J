@@ -48,9 +48,24 @@ public class ContextTestDataInitializer implements CommandLineRunner {
     private final JdbcTemplate jdbcTemplate;
     private final DatabaseEnvironment databaseEnvironment;
 
+    /**
+     * 新架构模式与引导进度：开启时仅在引导成功后执行（演示数据依赖预置完成的库）；
+     * 二者为 null 时（集成测试等自行管理 schema 的环境）维持既有行为。
+     */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private io.github.matrixlane.metadataregistry.web.bootstrap.BootstrapMode bootstrapMode;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private io.github.matrixlane.metadataregistry.web.bootstrap.BootstrapProgress bootstrapProgress;
+
     @Override
     @Transactional
     public void run(String... args) {
+        if (bootstrapMode != null && bootstrapMode.enabled()
+                && (bootstrapProgress == null || !bootstrapProgress.outcome().ready())) {
+            log.debug("新架构模式下数据库初始化引导未成功，跳过演示数据初始化");
+            return;
+        }
         long oldCount = contextRepository.count();
         if (oldCount > 0) {
             // 幂等：已有上下文数据时跳过，避免每次启动删除并重建用户/合并来的数据

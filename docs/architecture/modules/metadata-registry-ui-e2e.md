@@ -1,130 +1,501 @@
-> 本文档由 GitNexus wiki 生成于 2026-09-13（kimi-for-coding，--lang chinese）。内容变化时请重新运行 `gitnexus wiki --lang chinese` 生成，勿手工改写。
+# metadata-registry-ui — e2e
 
-# metadata-registry-ui/e2e — 端到端测试模块
+# metadata-registry-ui — e2e
 
-本模块基于 Playwright Test 为 `metadata-registry-ui`（Vue 3 + Element Plus 前端）提供端到端（E2E）测试。由于 E2E 环境无法依赖 Spring 后端，测试的核心策略是：**通过 `page.route` 拦截并 mock 全部 `/api/v1/*` 请求**，以真实的前端代码驱动浏览器，验证页面渲染、路由守卫、表单交互与 API 调用契约。
+## 模块定位
 
-## 整体架构
+`metadata-registry-ui/e2e` 是前端应用的端到端测试、回归测试和后端诊断脚本集合，主要验证以下能力：
+
+- 登录、首次登录强制改密、应急登录
+- 初始化向导及个人版、团队版分支
+- 恢复出厂设置与初始化路由守卫
+- 用户注册开关、用户列表、重置密码
+- 分类方案与分类节点管理
+- 侧边栏菜单重组、权限可见性和折叠行为
+- 映射网络查询、过滤和节点截断提示
+- 数据元创建表单的跨标签页校验
+- 真实 Spring Boot API 的连通性、分页性能和应急登录流程
+
+该目录包含两种执行模式：
+
+1. **隔离测试**：通过 Playwright `page.route()` 模拟 API，不要求 Spring 后端运行。
+2. **真实联调**：直接连接 `http://localhost:8181/api/v1`，用于调试真实页面或诊断后端性能。
+
+两种模式位于同一目录，但运行条件和风险差异较大，不应不加区分地执行整个目录。
+
+## 架构与代码库连接
 
 ```mermaid
-flowchart TD
-    A[Playwright 测试用例] -->|调用| B[auth.setup.ts<br/>setupAuthenticatedPage]
-    A -->|拦截| C[page.route<br/>**/api/v1/**]
-    C -->|统一响应格式| D[{ code: 0, data, message }]
-    A -->|启动| E[Playwright webServer<br/>前端 dev server]
-    F[Python 调试脚本<br/>check_*.py] -->|直连真实后端| G[localhost:8181]
-    A -.->|调试类用例直连| G
+flowchart LR
+    T["Playwright 页面操作"] --> V["Vue 页面与路由守卫"]
+    V --> R["前端请求层<br/>包含 useItemLabelCache.ts"]
+    M["page.route 网络拦截"] -. "浏览器测试模式" .-> R
+    R --> B["Spring Boot API<br/>localhost:8181"]
+    Y["Python urllib 探针"] -->|"Bearer Token"| B
+    D["真实后端调试用例"] --> B
 ```
 
-- **响应契约**：所有 mock 遵循后端统一响应格式 `{ code: 0, data, message: 'success' }`。`code: 0` 表示成功，前端 axios 拦截器依赖该结构解包 `data`。
-- **认证状态**：通过 `page.addInitScript` 向 `localStorage` 注入 `token`，模拟已登录会话，绕过路由守卫的登录检查。
-- **初始化守卫**：路由守卫在每次受保护路由导航时调用 `/api/v1/init-wizard/status`。几乎所有测试用例都需要 mock 该接口返回 `{ initialized: true, runningMode: 'SINGLE' }`，否则会被重定向到 `/init-wizard`。
+测试通过真实浏览器执行页面操作，因此会间接覆盖：
 
-## 关键组件
+- Vue 页面和 Element Plus 组件
+- `router/index.ts` 中的登录、初始化状态和权限路由守卫
+- `main.ts` 启动就绪检查
+- 前端请求封装
+- `src/composables/useItemLabelCache.ts` 等通过 `request` 发起请求的代码
 
-### `auth.setup.ts` — 共享认证辅助函数
+`useItemLabelCache.ts` 并非由测试文件直接导入，而是在页面渲染期间被间接触发。因此许多测试使用 `**/api/v1/**` 捕获全部请求并返回空分页数据，避免未模拟请求返回 `401` 后触发登录重定向。
+
+## 文件组成
+
+| 文件 | 类型 | 主要职责 | 是否依赖真实后端 |
+|---|---|---|---|
+| `auth.setup.ts` | 公共辅助模块 | 模拟初始化状态、管理员身份和令牌 | 否 |
+| `admin-emergency-login-verify.spec.ts` | 回归测试 | 注册开关、系统设置、用户列表、重置密码 | 否 |
+| `login-flow.spec.ts` | 回归测试 | 普通登录、强制改密、应急登录、错误密码 | 否 |
+| `factory-reset.spec.ts` | 回归测试 | 恢复出厂设置完整交互 | 否 |
+| `factory-reset-init-guard.spec.ts` | 回归测试 | 重置后重新进入系统时跳转初始化向导 | 否 |
+| `init-wizard.spec.ts` | 回归测试 | 个人版、团队版初始化流程和提交载荷 | 否 |
+| `classification.spec.ts` | 回归测试 | 分类方案选择、懒加载树和节点详情 | 否 |
+| `mapping-network.spec.ts` | 回归测试 | 映射网络查询、过滤、深度和截断 | 否 |
+| `menu.spec.ts` | 回归测试 | 菜单分组、导航、权限和折叠 | 否 |
+| `test_save_designation.spec.ts` | 探索性测试 | 数据元指称、上下文、定义和属性填写 | 否 |
+| `test_tab_validation.spec.ts` | 回归测试 | 数据元表单跨标签页校验 | 否 |
+| `debug_namespace.spec.ts` | 真实联调 | 调试命名空间页面并生成截图 | 是 |
+| `debug_real.spec.ts` | 真实联调 | 调试数据元页面并生成截图 | 是 |
+| `test_emergency.spec.ts` | 真实联调 | 应急登录、强制改密、恢复管理员密码 | 是，且会修改密码 |
+| `check_elements.py` | 后端探针 | 验证数据元分页接口及响应时间 | 是 |
+| `check_sizes.py` | 后端探针 | 测量多种分页大小下的响应时间 | 是 |
+| `check_sql.py` | 后端探针 | 使用较长超时重复测量分页接口 | 是 |
+
+此外，`mapping-network.spec.ts` 依赖未在当前源码中提供的 `e2e/fixtures/network-data`，其中至少包含：
+
+- `MOCK_CENTER_ID`
+- `createMockNetworkResponse(filterTypes, depth)`
+- `createTruncatedResponse()`
+
+## 公共测试机制
+
+### 统一响应结构
+
+大部分模拟接口使用统一业务响应包装：
 
 ```ts
-export async function setupAuthenticatedPage(page: Page)
+const ok = <T>(data: T) => ({
+  code: 0,
+  data,
+  message: 'success',
+});
 ```
 
-被 `classification.spec.ts`、`factory-reset.spec.ts`、`mapping-network.spec.ts`、`menu.spec.ts` 复用。完成三件事：
+前端通常按以下结构消费数据：
 
-1. Mock `/api/v1/init-wizard/status` 为已初始化；
-2. Mock `/api/v1/auth/me` 返回 `SUPER_ADMIN` 用户（`testuser`）；
-3. Mock `/api/v1/auth/login` 并注入 token 到 `localStorage`。
+- 普通对象：`data`
+- 布尔设置：`data: true | false`
+- 分页列表：`data.content`、`data.totalElements`、`data.number`、`data.size`
+- 登录结果：`data.token` 和 `data.user`
+- 错误响应：HTTP 状态码为 `401` 或 `4xx`，业务字段 `code`、`message`
 
-需要非管理员场景时（如 `menu.spec.ts` 中验证"系统菜单对非管理员隐藏"），测试会用更具体的 `page.route` 覆盖默认的 `/auth/me` mock。
+新增模拟接口时必须保持这一结构，否则即使 HTTP 状态为 `200`，前端仍可能进入错误分支。
 
-### `admin-emergency-login-verify.spec.ts`
+### `setupAuthenticatedPage`
 
-验证管理应急登录相关需求（任务 4.2 / 4.4），全部基于 mock：
+`auth.setup.ts` 导出：
 
-- **注册开关控制登录页**：`/auth/allow-registration` 返回 `false` 时登录页隐藏"新用户注册"链接，返回 `true` 时显示。
-- **系统设置持久化**：`/system-settings` 页面上切换"允许注册新用户"开关后，通过 `expect.poll` 轮询捕获到的 PUT 请求查询参数 `allowRegistration`，验证 API 真实被调用且值正确。
-- **用户列表**：`/app-users` 展示"上次登录时间"列（`lastLoginAt` 为 `null` 时显示 `-`）；当前登录用户所在行禁用"删除/禁用"按钮；普通用户行提供"重置密码"按钮，点击后走 Element Plus 二次确认框 → 调用 `/accounts/{id}/reset-password` → 弹出一次性临时密码对话框（含"此密码仅能成功登录一次"提示）。
-- 共享的 `ok<T>(data)` 辅助函数和 `sampleUsers`、`adminProfile` 样本数据定义在文件顶部。
+```ts
+setupAuthenticatedPage(page: Page): Promise<void>
+```
 
-### `login-flow.spec.ts`
+它完成以下准备工作：
 
-登录流程核心场景：
+1. 将 `/api/v1/init-wizard/status` 模拟为已初始化：
+   - `initialized: true`
+   - `runningMode: 'SINGLE'`
+2. 将 `/api/v1/auth/me` 模拟为超级管理员 `testuser`。
+3. 将 `/api/v1/auth/login` 模拟为返回固定令牌。
+4. 通过 `page.addInitScript()` 在页面加载前写入：
+   - `localStorage.token = 'mock-jwt-token-for-e2e-tests'`
 
-- 普通用户登录成功跳转 `/dashboard`；
-- 超级管理员首次登录（`forceChangePassword: true, lastLoginAt: null`）弹出"安全提示：需要修改密码"对话框，**不显示原密码输入框**；
-- 应急登录（`emergencyLogin: true`）同样强制改密，且提交的 `oldPassword` 为空字符串 `''`；
-- 密码错误时显示 `el-message--error` 友好提示，且不触发 ErrorBoundary 全屏错误页（`.error-boundary` 计数为 0）。
+该辅助函数用于：
 
-注意：该文件中 `forceChangePassword` 通过闭包变量 `passwordChanged` 在 login 与 me 两个 mock 之间共享状态，模拟"改密后强制标志消失"。
+- `classification.spec.ts`
+- `factory-reset.spec.ts`
+- `mapping-network.spec.ts`
+- `menu.spec.ts`
 
-### `init-wizard.spec.ts`
+目录外的 `registration-process.spec.ts` 也依赖该函数，因此修改其返回用户结构或令牌键名时，需要同步检查注册流程测试。
 
-版本感知初始化向导测试，由内部辅助函数 `mockWizardApis(page, opts)` 统一装配 mock，覆盖：
+### Playwright 路由匹配顺序
 
-- `/init-wizard/status`（含 `edition` 字段，commit 前为 `null`）
-- `/init-wizard/wizard-state`、`/init-wizard/setup`、`/init-wizard/commit`
-- `/datasource/config`（GET 返回当前数据源，PUT 直接确认）
+Playwright 在多个路由同时匹配时，后注册的路由优先处理请求。当前代码同时使用两种方式避免通用路由吞掉专用路由：
 
-测试场景：
-- **个人版完整流程**：版本选择 → 数据库（保持当前 SQLite）→ 治理配置（预填"注册管理员"）→ 命名空间 → 注册规范 → 设置管理员密码 → commit 后跳转 `/login`。
-- **跳过命名空间**：关闭"创建基于注册机构的命名空间"开关，断言 `createNamespace: false` 随 setup 请求提交；注册规范开关必选（`is-disabled` 且保持开启）。
-- **团队版流程**：可正常走完；`setup` 请求断言 `edition: 'TEAM'`、`identifierStrategy: 'UUID'`、`versionPolicy: 'SEMVER'`。
-- **团队版 + SQLite 阻断**：数据库步骤点击下一步时提示"团队版不支持 SQLite"并停留在当前步骤。
+- 将专用路由注册在通用路由之后，例如重置密码路由位于账户列表路由之后。
+- 在通用路由中调用 `route.fallback()`，将请求交回前一个匹配的处理器，例如 `classification.spec.ts` 对分类接口的处理。
 
-### `factory-reset.spec.ts` 与 `factory-reset-init-guard.spec.ts`
+新增接口模拟时，应保留这一顺序约束。通用处理器只有在明确知道接口行为时才应直接 `route.fulfill()`。
 
-- `factory-reset.spec.ts`：验证完整恢复出厂设置流程——危险区按钮 → 风险警告对话框 → 密码验证对话框 → 覆盖层"正在恢复出厂设置…" → 跳转 `/init-wizard`。mock 中通过 `initStatus` 闭包变量在重置成功后翻转为未初始化。
-- `factory-reset-init-guard.spec.ts`：**回归测试**。修复前 `executeReset` 执行 `localStorage.clear()` 清除 token 后，路由守卫先命中"未登录"分支把用户弹到 `/login` 而非 `/init-wizard`。修复后初始化检查前置，测试验证离开向导再访问根路径时仍落回 `/init-wizard`。
+### 认证与初始化前置条件
 
-### `classification.spec.ts`
+受保护页面的测试通常依赖两个独立条件：
 
-分类方案与节点管理测试。`beforeEach` 中按 URL 路径精细分层 mock，并大量使用 `route.fallback()` 让更具体的路由规则优先处理：
+- `localStorage` 中存在 `token`
+- `/api/v1/init-wizard/status` 返回 `initialized: true`
 
-- 列表/创建：`/classification-schemes**`（GET 分页、POST 回显）
-- 单体操作：`/classification-schemes/scheme-001**`（GET/PUT/DELETE）
-- 树形懒加载：`/nodes/children**` 根据 `parentId` 查询参数返回根节点或子节点
-- 节点 CRUD、移动（`/move`）、级联删除（`/cascade`）
-- 兜底路由 `**/api/v1/**` 返回空分页，防止页面初始化时 401 跳转
+部分页面还会在挂载前请求 `/api/v1/startup/status`，其响应应为：
 
-激活用例验证方案选择、树渲染、点击节点加载详情面板、展开懒加载子节点；创建/编辑/删除方案及节点的用例当前标记为 `test.skip`。
+```json
+{
+  "code": 0,
+  "data": {
+    "ready": true
+  }
+}
+```
 
-### `mapping-network.spec.ts`
+`factory-reset-init-guard.spec.ts` 特别验证了路由守卫的执行顺序：即使存在重置前的旧令牌，只要系统未初始化，也必须优先跳转 `/init-wizard`，不能跳转 `/login`。
 
-映射网络可视化测试，依赖 `fixtures/network-data` 中的 `createMockNetworkResponse`、`createTruncatedResponse` 与 `MOCK_CENTER_ID`。mock 解析 `filterTypes`、`depth`、`centerId` 查询参数动态生成响应。覆盖：查询渲染（节点/边计数徽标）、单/多映射类型过滤、节点数超 500 时的截断警告（`.el-alert--warning`）、重置按钮、空状态、深度选择 1–3。
+## 功能测试说明
 
-### `menu.spec.ts`
+### 注册、用户和系统设置
 
-侧边栏菜单结构回归测试。重点包括：
+`admin-emergency-login-verify.spec.ts` 覆盖以下场景：
 
-- 菜单分组与子项顺序断言（概念模块、表示模块、基础与核心模块、标识与命名模块、注册模块、分类模块、项目映射模块等，见 `openspec/specs/standardize-menu-layout/spec.md`）；
-- 新接入菜单项的导航断言（值含义、文档类型、注册流程、项目映射）与规划中项（维度、角色、分类项）的占位页断言；
-- 启动就绪门控 mock：`/api/v1/startup/status` 必须返回 `ready: true`，否则应用停留在启动屏；
-- "系统"菜单仅对管理员可见；
-- 折叠按钮切换 `.collapsed` 类；
-- **`"我的"` 位置守卫测试**：通过 `data-testid="nav-my"` / `data-testid="sidebar-footer"` / `data-testid="header-right"` 断言"我的"固定在侧边栏底部而非头部，防止 AI 编辑回归移动该入口；折叠后图标仍可见、文字标签隐藏。
+- `/auth/allow-registration` 返回 `false` 时，登录页不显示“新用户注册”。
+- `/auth/allow-registration` 返回 `true` 时，登录页显示“新用户注册”。
+- `/system-settings` 中的“允许注册新用户”开关初始为开启状态。
+- 关闭开关后，前端向 `/system/settings/allow-user-registration` 发出 `PUT`，查询参数包含：
+  - `allowRegistration=false`
+- `/app-users` 显示“上次登录时间”列。
+- 有 `lastLoginAt` 的用户显示年份日期，空值显示 `-`。
+- 当前管理员所在行的“删除”和“禁用”按钮不可用。
+- 普通用户行提供可用的“重置密码”按钮。
+- 重置流程依次经过：
+  1. “确定要重置用户”确认框
+  2. `POST /api/v1/accounts/{id}/reset-password`
+  3. 显示“重置成功”及一次性临时密码
+  4. 提示“此密码仅能成功登录一次”
 
-### 调试与诊断类文件
+该文件使用固定账户数据：
 
-- `debug_real.spec.ts` / `debug_namespace.spec.ts`：连接**真实后端**（`admin` / `Admin@123`），通过 `page.on('console' | 'pageerror' | 'request' | 'response')` 打印完整 API 流量，截图输出到 `e2e/` 目录。用于排查真实环境页面加载问题。
-- `test_emergency.spec.ts`：真实应急登录流程验证。从 `../emergency-code.txt` 读取应急码登录，强制改密后验证 `/my-profile` 正常加载且无崩溃页，最后通过 `page.evaluate` 调用真实接口把密码恢复为 `Admin@123`。
-- `test_save_designation.spec.ts`：验证带指称（designation）、上下文（context）、定义的数据元新建表单可完整填写并保存。记录全部请求负载与响应体便于诊断。
-- `test_tab_validation.spec.ts`：验证表单跨标签页校验——当"注册标识"页留空而直接保存时，自动切回该标签页、标签头显示 `.tab-error-icon` 警告徽标，并弹出"表单验证失败"全局提示。
-- `check_elements.py` / `check_sizes.py` / `check_sql.py`：独立的 Python 脚本，登录真实后端后按不同 `size` 参数请求 `/data-elements` 分页接口，测量响应耗时，用于后端性能/分页问题定位。不属于 Playwright 测试套件。
+| 用户 | ID | 角色 | 状态 | 用途 |
+|---|---|---|---|---|
+| `admin` | `u-1` | `SUPER_ADMIN` | 启用 | 当前用户、禁用按钮验证 |
+| `alice` | `u-2` | 普通用户 | 启用 | 重置密码验证 |
+| `bob` | `u-3` | 普通用户 | 禁用 | 空登录时间验证 |
 
-## Mock 编写约定
+重置密码路由通过正则从 URL 中提取用户 ID，并断言最终调用的是 `u-2`。
 
-1. **路由 specificity**：Playwright 按注册顺序匹配路由，先注册的规则优先。需要多层级 mock 时（如分类模块），为具体路径注册规则并对不匹配的请求调用 `route.fallback()`，最后注册 `**/api/v1/**` 兜底。
-2. **状态共享**：用例内用闭包变量（如 `initStatus`、`passwordChanged`、`resetCalledFor`）在 mock 与断言之间传递状态；跨调用暂存可挂到 `globalThis`（如 `__lastAllowRegistration`）。
-3. **状态码语义**：业务错误（如密码错误）用 HTTP 401 + `code: 401`，前端按 `message` 展示 `ElMessage`，而非进入 ErrorBoundary。
-4. **断言 API 契约**：mock handler 内部直接用 `expect` 校验请求体/查询参数（如 `expect(postData.edition).toBe('TEAM')`），使接口契约校验内聚在用例中。
+### 登录流程
+
+`login-flow.spec.ts` 的 `beforeEach` 使用通用路由返回空的分页响应，并默认模拟系统已经初始化。测试包括：
+
+- 普通用户登录后跳转 `/dashboard`。
+- 超级管理员首次登录时弹出“安全提示：需要修改密码”。
+- 首次改密对话框不显示原密码或应急码输入框。
+- 应急登录同样强制改密，且提交时 `oldPassword` 必须为空字符串。
+- 错误密码返回 HTTP `401` 和“用户名或密码错误”。
+- 错误密码只显示 Element Plus 错误消息，不进入 `.error-boundary` 崩溃页面。
+
+### 恢复出厂设置
+
+`factory-reset.spec.ts` 验证完整交互顺序：
+
+1. 进入 `/system-settings`。
+2. 点击“恢复出厂设置”。
+3. 阅读风险警告。
+4. 点击“我已了解风险，继续”。
+5. 在身份验证对话框输入管理员密码。
+6. 点击“确认重置”。
+7. 显示 `.reset-overlay` 和“正在恢复出厂设置…”。
+8. 成功后跳转 `/init-wizard`。
+
+模拟接口会直接断言请求体中的 `password` 为 `Admin@123`。
+
+`factory-reset-init-guard.spec.ts` 进一步验证重置后的路由行为：
+
+- 初始状态包含一个旧的 `stale-pre-reset-token`。
+- 成功调用恢复出厂设置后，模拟的 `initialized` 变为 `false`。
+- 离开 `/init-wizard` 后重新访问 `http://localhost:5173/`。
+- 最终 URL 必须包含 `/init-wizard`，且不能包含 `/login`。
+
+### 初始化向导
+
+`init-wizard.spec.ts` 通过 `mockWizardApis()` 建立完整模拟环境。该函数接收：
+
+- `currentVendor`：当前数据库类型
+- `expectEdition`：预期版本，如 `PERSONAL`、`TEAM`
+- `raName`：预期注册机构名称
+- `selfAsRegistrarOff`：团队版是否关闭“设为注册人员”
+
+模拟接口包括：
+
+- `/init-wizard/status`
+- `/init-wizard/wizard-state`
+- `/init-wizard/setup`
+- `/init-wizard/commit`
+- `/datasource/config`
+- `/startup/status`
+- `/languages`
+- `/auth/me`
+- `/dashboard/stats`
+
+`/organizations/options` 使用 fail-fast 路由：初始化阶段一旦请求组织列表，测试立即失败，因为此时尚不存在可选组织。
+
+`/init-wizard/setup` 会严格检查提交载荷：
+
+- 个人版文档语言为 `['zh-CN']`。
+- 团队版文档语言为 `['en-US']`。
+- 不提交 `adminOrganizationId`。
+- 个人版：
+  - `adminIndividualName` 为 `null`
+  - `adminRoleName` 为“注册管理员”
+- 团队版默认：
+  - `selfAsRegistrar` 为 `true`
+  - 管理员姓名为“李雷”
+  - 管理员角色为“数据治理主管”
+- 团队版关闭“设为注册人员”后：
+  - `selfAsRegistrar` 为 `false`
+  - 姓名和角色均为 `null`
+- 标识策略默认为 `SEGMENT_TEMPLATE`。
+- 版本策略默认为 `SEMVER`。
+- 注册规范默认包含：
+  - `characterRepertoire: 'UTF-8'`
+  - `standard: 'ISO/IEC 11179-3:2023'`
+
+覆盖的分支包括：
+
+- 个人版完整流程。
+- 团队版完整流程。
+- 团队版关闭注册人员身份。
+- 团队版使用 SQLite 时被数据库步骤阻止并提示“团队版不支持 SQLite”。
+
+`/init-wizard/commit` 还会断言新密码和确认密码均为 `E2ePass@123`。提交成功后向导状态切换为已初始化，并跳转 `/login`。
+
+### 分类方案与节点
+
+`classification.spec.ts` 在 `beforeEach` 中模拟分类方案列表、详情、更新、删除、节点树、子节点、节点创建、移动和级联删除接口。
+
+当前实际执行的测试覆盖：
+
+- 打开 `/classification`。
+- 从方案下拉框选择 `Test Scheme 1`。
+- 显示根节点 `Root Node 1`。
+- 点击节点后显示右侧详情。
+- 展开节点后按 `parentId=node-001` 懒加载 `Child Node 1.1`。
+
+以下两个测试被 `test.skip()` 标记，当前不会执行：
+
+- 分类方案的创建、编辑和删除。
+- 分类节点的创建、编辑、移动和级联删除。
+
+这两项仍可作为对应功能的交互参考，但不能视为持续运行的回归保障。
+
+### 映射网络
+
+`mapping-network.spec.ts` 拦截 `/api/v1/mappings/network`，读取：
+
+- `filterTypes`：逗号分隔的映射类型
+- `depth`：展开层数，默认 `3`
+- `centerId`：中心条目 ID
+
+特殊中心 ID `truncated-test-id` 返回 `createTruncatedResponse()`，其他请求返回 `createMockNetworkResponse(filterTypes, depth)`。
+
+覆盖场景包括：
+
+- 页面和 ECharts 图形正常加载。
+- 节点数、边数徽标正确显示。
+- 只选择“等价”时过滤网络。
+- 同时选择“等价”和“派生”时合并过滤。
+- 节点超过 500 个时显示“节点数超过显示上限”。
+- 点击“重置”后显示空状态。
+- 鼠标移动不会破坏图形容器。
+- 展开层数支持 `1` 到 `3`。
+
+### 侧边栏菜单
+
+`menu.spec.ts` 提供三个定位辅助函数：
+
+- `mainLabel(scope, text)`：定位菜单主标签。
+- `expandGroup(page, groupTitle)`：展开目标子菜单，并避免重复点击已展开菜单。
+- `expectGroupItems(page, groupTitle, labels)`：校验菜单项数量和顺序。
+
+主要断言包括：
+
+- “概览”“数据字典”等顶层入口存在。
+- 顶栏显示工作空间和应用设置入口。
+- 管理员侧边栏底部显示“系统”入口。
+- 各业务菜单组及其子项顺序固定。
+- 工作空间、值含义、文档类型、注册流程、条目映射等路由可正确跳转。
+- “维度”和“角色”已不再是占位页。
+- 旧的“映射网络”“匹配结果管理”侧边栏入口被移除。
+- 非管理员不显示底部“系统”入口。
+- 侧边栏折叠后添加 `collapsed` 类。
+- “我的”固定在侧边栏底部，而不是顶栏。
+- 折叠后仍显示“我的”图标，仅隐藏文本。
+
+**已知源码异常：**当前 `mainLabel()`、`expandGroup()` 和 `expectGroupItems()` 中的正则字符串混入了与菜单无关的额外文本，不再是预期的精确标签匹配。运行该文件前应先清理这些正则模板，否则菜单标签断言可能无法匹配。
+
+### 数据元表单
+
+`test_save_designation.spec.ts` 使用模拟接口覆盖数据元新建对话框：
+
+1. 登录并进入 `/data-elements`。
+2. 选择命名空间、唯一标识符、版本和注册机构。
+3. 在“指称”页签添加语言和指称内容。
+4. 添加上下文并选择认可状态。
+5. 在“定义”页签添加定义。
+6. 在“属性”页签选择数据元概念和值域。
+7. 点击保存。
+
+该用例当前主要作为交互调试脚本：虽然 `POST /api/v1/data-elements` 会返回 `de-new`，但末尾只等待三秒，没有断言对话框关闭、请求载荷或保存成功提示，因此不宜作为严格回归测试。
+
+`test_tab_validation.spec.ts` 则验证跨标签页校验：
+
+- “注册标识”页签缺少必填项。
+- “指称”和“属性”页签填写有效。
+- 点击保存后自动切回“注册标识”。
+- “注册标识”标签显示 `.tab-error-icon`。
+- 页面显示“表单验证失败”警告。
+
+## 真实后端诊断工具
+
+### Playwright 真实联调
+
+`debug_namespace.spec.ts` 和 `debug_real.spec.ts` 会：
+
+- 使用 `admin` / `Admin@123` 登录真实后端。
+- 等待进入 `/dashboard`。
+- 打开 `/namespaces` 或 `/data-elements`。
+- 监听浏览器控制台、异常、请求、响应和失败事件。
+- 等待八秒，输出仍未结束的 API 请求。
+- 生成截图：
+  - `e2e/namespace_screenshot.png`
+  - `e2e/data_elements_screenshot.png`
+
+这两个文件没有真正的业务断言，主要用于收集网络和渲染诊断信息。
+
+### 应急登录真实流程
+
+`test_emergency.spec.ts` 会读取相对路径 `../emergency-code.txt` 中的应急码，并执行：
+
+1. 使用应急码登录管理员账户。
+2. 等待强制改密对话框。
+3. 直接访问 `/my-profile`，确认接口返回 `498` 时仍能正常展示对话框，而不是进入崩溃页。
+4. 设置随机新密码并提交。
+5. 验证最终位于个人资料页。
+6. 再调用 `/api/v1/auth/change-password`，将密码恢复为 `Admin@123`。
+
+该测试会真实修改管理员密码。若恢复步骤失败，其他使用默认密码的测试也会失败，因此必须针对隔离环境运行，不能与其他认证测试并行执行。
+
+### Python API 探针
+
+三个 Python 脚本均直接访问：
+
+```text
+http://localhost:8181/api/v1
+```
+
+共同流程为：
+
+1. 使用 `admin` / `Admin@123` 调用 `/auth/login`。
+2. 从 `data.token` 取得令牌。
+3. 使用 `Authorization: Bearer <token>` 请求 `/data-elements`。
+
+| 脚本 | 分页大小 | 超时 | 目的 |
+|---|---:|---:|---|
+| `check_elements.py` | `20` | 10 秒 | 检查单次请求耗时和 `totalElements` |
+| `check_sizes.py` | `1, 2, 3, 4, 5, 8, 10, 20` | 5 秒 | 比较不同分页大小的响应时间和返回数量 |
+| `check_sql.py` | `2, 8, 20` | 60 秒 | 使用较长超时重复测量分页接口 |
+
+`check_sql.py` 名称虽然包含 `sql`，但它不直接执行 SQL，只测试 `/data-elements` 分页接口的慢请求表现。
+
+登录失败时脚本会调用 `exit(1)`；登录成功后的接口请求失败只记录错误，不会可靠地转换为非零退出码。因此这些脚本适合作为诊断工具，不应直接作为严格的 CI 断言。
 
 ## 运行方式
 
-测试由 Playwright 配置（`webServer` 项）自动启动前端 dev server（默认 `localhost:5173`），无需手动起前端。常规执行：
+在 `metadata-registry-ui` 目录中可运行单个 Playwright 文件：
 
 ```bash
-npx playwright test                          # 运行全部 spec
-npx playwright test e2e/login-flow.spec.ts   # 运行单个文件
-npx playwright test -g "团队版完整初始化"     # 按用例名过滤
+npx playwright test e2e/login-flow.spec.ts
+npx playwright test e2e/admin-emergency-login-verify.spec.ts
+npx playwright test e2e/init-wizard.spec.ts
+npx playwright test e2e/classification.spec.ts
 ```
 
-注意：调试类用例（`debug_*`、`test_emergency`）与 Python 脚本依赖真实后端（`localhost:8181`）及特定数据文件（`../emergency-code.txt`），在无后端环境下会失败，不应纳入 CI 常规套件。
+Playwright 配置会启动前端开发服务器；隔离测试不要求 Spring 后端可用。真实联调测试还要求：
+
+- 前端运行在 `http://localhost:5173`
+- Spring API 运行在 `http://localhost:8181`
+- 使用有效的真实账户和应急码
+
+Python 探针可直接运行：
+
+```bash
+python3 e2e/check_elements.py
+python3 e2e/check_sizes.py
+python3 e2e/check_sql.py
+```
+
+不建议直接执行整个 `e2e` 目录，因为其中包含真实登录、截图诊断和会修改管理员密码的 `test_emergency.spec.ts`。在共享或持续集成环境中，应显式选择无副作用的测试文件。
+
+## 维护与扩展指南
+
+### 新增隔离 API 模拟
+
+1. 使用与前端一致的 `{ code, data, message }` 响应结构。
+2. 分页接口返回 `content`、`totalElements`、`number` 和 `size`。
+3. 在访问受保护页面前注册：
+   - `/init-wizard/status`
+   - `/auth/me`
+   - 必要时 `/startup/status`
+4. 精确接口使用专用路由；通用路由应调用 `route.fallback()`。
+5. 对请求参数和请求体进行断言，而不仅检查页面是否出现。
+
+### 新增用户流程测试
+
+优先复用 `setupAuthenticatedPage()`，然后覆盖业务专用接口。若测试依赖当前登录用户，应确保 `/auth/me` 返回的 `id` 与业务数据中的用户 ID 一致，否则“当前用户不可删除”等判断无法正确覆盖。
+
+### 选择器策略
+
+当前测试大量使用中文可见文本和 Element Plus 类名，例如：
+
+- `.el-dialog`
+- `.el-message-box`
+- `.el-switch`
+- `.el-select-dropdown__item`
+- `.el-tree`
+- `.graph-container`
+- `[data-testid]`
+
+涉及稳定功能入口时，优先使用现有 `data-testid`。纯文案变化可能破坏测试，应同步更新定位器。
+
+### 避免固定等待
+
+`test_save_designation.spec.ts`、`test_tab_validation.spec.ts` 和真实调试脚本中存在 `waitForTimeout()`。新增回归测试应优先使用：
+
+- `expect(locator).toBeVisible()`
+- `expect(locator).toHaveValue()`
+- `expect(page).toHaveURL()`
+- `page.waitForURL()`
+- `expect.poll()`
+
+这样可以减少 CI 环境中的不稳定性和无意义等待。
+
+### 真实状态测试隔离
+
+任何调用恢复出厂设置、修改密码或其他持久化接口的测试都应：
+
+- 使用专用后端或专用账户。
+- 禁止并行执行。
+- 在 `finally` 或等价清理步骤中恢复状态。
+- 不依赖固定默认密码继续执行后续测试。
+
+## 当前限制
+
+- 分类方案的完整 CRUD 和节点 CRUD 测试处于跳过状态。
+- `test_save_designation.spec.ts` 缺少保存结果的明确断言。
+- `menu.spec.ts` 的菜单文本正则存在额外文本污染。
+- 真实调试用例依赖固定账户和固定默认密码。
+- `test_emergency.spec.ts` 会真实修改并恢复管理员密码，失败时可能遗留非默认密码。
+- Python 探针在登录后的请求失败时仍可能以成功状态退出。
+- 映射网络测试依赖未展示的 `fixtures/network-data` 文件。
+- 大量测试依赖中文文案和 Element Plus DOM 结构，页面改版时需要同步维护定位器。

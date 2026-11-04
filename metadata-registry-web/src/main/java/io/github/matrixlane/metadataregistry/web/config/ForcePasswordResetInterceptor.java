@@ -3,6 +3,7 @@ package io.github.matrixlane.metadataregistry.web.config;
 import io.github.matrixlane.metadataregistry.web.auth.AuthenticatedUser;
 import io.github.matrixlane.metadataregistry.web.edition.DeploymentEdition;
 import io.github.matrixlane.metadataregistry.web.service.SystemSettingService;
+import io.github.matrixlane.metadataregistry.web.bootstrap.InitializationStatusProvider;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Lazy;

@@ -281,6 +281,14 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <configuration>
                     <argLine>@{argLine} -Djava.library.path=${project.build.directory}</argLine>
+                    <!-- 测试 JVM 的用户配置/初始化状态一律落到 target 下的隔离目录：
+                        否则 @SpringBootTest（经 LocalConfigBootstrapInitializer 或
+                        DatasourceConfigService 默认构造）会读写真实用户目录
+                        ~/.metadata-registry/——init-phase-database-free 引入的初始化
+                        状态文件曾因此被提交型测试污染（2026-10-27 事故）。 -->
+                    <systemPropertyVariables>
+                        <metadata.registry.config.file>${project.build.directory}/test-user-profile/application-local.yml</metadata.registry.config.file>
+                    </systemPropertyVariables>
                 </configuration>
             </plugin>
             <plugin>

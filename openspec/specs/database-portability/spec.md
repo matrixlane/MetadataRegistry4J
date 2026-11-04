@@ -2,7 +2,9 @@
 
 ## Purpose
 TBD - created by archiving change edition-aware-init-and-db-portability. Update Purpose after archive.
+
 ## Requirements
+
 ### Requirement: 数据库方言支持矩阵
 系统 SHALL 将 SQLite、SQL Server、达梦 DM8 作为第一类受支持数据库，达梦与 SQL Server 地位同等。支持范围按部署版本约束：`PERSONAL` 版 MUST 支持 SQLite（默认）并允许配置为 SQL Server 或达梦；`TEAM` 版 MUST NOT 支持 SQLite，仅支持 SQL Server 与达梦等独立数据库。系统在任一适用方言上 MUST 能完成启动、初始化向导、核心业务读写与恢复出厂。
 
@@ -172,6 +174,52 @@ SQL Server 当前最终迁移版本 SHALL 作为共同新库基线和未来迁�
 - **WHEN** 使用新版本应用启动
 - **THEN** 系统 SHALL 保留原有历史与校验和，并仅按适用顺序执行未应用的后续迁移
 
+### Requirement: 多对多关联表 SHALL 具备关联列索引
+
+条目与参考文档（`registered_item_reference_document`）、条目与提交记录
+（`registered_item_submission_record`）等多对多关联表 SHALL 在两侧关联列上具备索引，
+使按任一侧标识符的检索不产生全表扫描。索引 SHALL 在 SQLite、SQL Server、达梦三种方言
+下一致建立，并 SHALL 以迁移脚本形式固化——不依赖人工建库操作。
+
+> 2026-10-09 事故：这两张表原本无任何索引。关联表为空时全表扫描不产生可观测代价，
+> 关联规模达万级后条目列表接口劣化到数十秒级超时。手工补索引不能替代迁移固化，
+> 否则换环境重建库即丢失。
+
+#### Scenario: 按受管项检索提交关联
+
+- **GIVEN** 提交关联表有十万行以上
+- **WHEN** 按某个受管项标识符检索其提交关联
+- **THEN** 该检索走索引，不产生全表扫描
+
+#### Scenario: 按参考文档检索关联条目
+
+- **GIVEN** 参考文档关联表有十万行以上
+- **WHEN** 按某份参考文档检索其关联条目
+- **THEN** 该检索走索引，不产生全表扫描
+
+#### Scenario: 全新库建表后索引即存在
+
+- **WHEN** 在空 schema 上执行全部迁移
+- **THEN** 两张关联表的关联列索引均已建立，无需另行手工操作
+
+### Requirement: 关联表收紧为唯一约束前 SHALL 先验证历史数据
+
+多对多关联表在语义上以两侧关联列的组合为唯一键。系统 SHALL NOT 在未验证存量数据
+无重复的情况下直接施加唯一约束；若存量存在重复，SHALL 先按明确的规则去重
+（保留确定性的一行）再施加约束，且去重过程 SHALL 可重入。
+
+#### Scenario: 存量无重复时施加唯一约束不失败
+
+- **GIVEN** 某关联表中两侧关联列的组合均唯一
+- **WHEN** 执行施加唯一约束的迁移
+- **THEN** 迁移成功，约束生效
+
+#### Scenario: 存量有重复时先去重
+
+- **GIVEN** 某关联表存在两侧关联列组合重复的行
+- **WHEN** 执行迁移
+- **THEN** 先按去重规则清理重复行并重定向引用，再施加唯一约束；迁移不中途失败，
+  且重复执行得到同一结果
 
 ### Requirement: SQL Server dbo schema 零业务表
 

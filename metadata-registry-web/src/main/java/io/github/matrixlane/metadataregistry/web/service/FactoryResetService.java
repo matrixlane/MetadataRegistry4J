@@ -84,6 +84,18 @@ public class FactoryResetService {
         // system_setting 表已被 clearAllTables() 清空，
         // SystemSettingService.isInitialized() 在找不到记录时返回 false，
         // 因此无需显式调用 setInitialized(false)。
+        // init-phase-database-free：本地初始化状态记录同步重置为未初始化
+        // （数据源确认保留，下次启动仍为完整相，由引导幂等兜底预置）。
+        try {
+            io.github.matrixlane.metadataregistry.web.bootstrap.InitializationStateStore store =
+                    new io.github.matrixlane.metadataregistry.web.bootstrap.InitializationStateStore(
+                            DatasourceConfigService.localConfigPath().resolveSibling("initialization-state.yml"));
+            io.github.matrixlane.metadataregistry.web.bootstrap.InitializationState current =
+                    store.read().orElse(io.github.matrixlane.metadataregistry.web.bootstrap.InitializationState.fresh());
+            store.write(current.withInitialized(false));
+        } catch (Exception e) {
+            log.warn("初始化状态记录重置失败: {}", e.getMessage());
+        }
 
         log.warn("恢复出厂设置完成");
     }
