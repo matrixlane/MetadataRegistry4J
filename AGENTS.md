@@ -1,4 +1,5 @@
 <!-- openspec:start -->
+
 # superpowers-openspec-team-skills 流程强制启用规则
 
 本项目默认采用 Superpowers + OpenSpec + Superpowers 端到端方式推进功能开发。当任务涉及以下内容时，**必须**先使用 `superpowers-openspec-superpowers-workflow` 完成需求澄清、OpenSpec 提案、设计、规范与任务拆分，经确认后再进入实现，完成后归档：
@@ -19,24 +20,31 @@
 ## 执行要求
 
 - 若任务命中强制范围，先调用 `superpowers-openspec-superpowers-workflow` 技能；各 Agent 按自身支持的方式激活（Kimi Code CLI / Codex 按技能名调用，Claude Code 使用对应 slash command）
+
 - 在启动实现前，向用户确认 OpenSpec 产出（proposal / design / specs / tasks）已完成
+
 - 如用户对范围有异议，以用户当次明确指令为准
-<!-- openspec:end -->
+  
+  <!-- openspec:end -->
+
+> **标准原文核对统一入口**：本文件中凡要求"核对标准原文 / 标准条款依据"处（标准依据表述规则、实体继承规则、正交链完整性规则等），统一调用用户级技能 `mdr-requirements`（Milvus `mdr_iso11179` 集合 BM25+向量双路检索；需精确页码或 Milvus 不可用时回退本地 PDF `ISO/IEC 11179 标准原文目录`）。
 
 # 标准依据表述规则
 
-涉及 ISO/IEC 11179 标准字段的解释性说明（UI placeholder、字段提示、文档描述等），**必须忠实还原标准文档中的原文文字说明**（可翻译为中文，但不得概括、扩写或自行发挥）；不得引用标准章节/条款号作为说明内容。表述前须核对标准原文（优先 Milvus 检索，回退 `ISO/IEC 11179 标准原文目录` 目录下 PDF）。
+涉及 ISO/IEC 11179 标准字段的解释性说明（UI placeholder、字段提示、文档描述等），**必须忠实还原标准文档中的原文文字说明**（可翻译为中文，但不得概括、扩写或自行发挥）；不得引用标准章节/条款号作为说明内容。表述前须核对标准原文。
 
 # 数据模型分层规则（强制）
 
 数据库表结构按 schema 分层，**任何涉及表结构的设计与迁移必须先核对此规则**：
 
-- `mdr` schema（标准层）：只存放 ISO/IEC 11179 系列标准定义的标准表与标准列。标准没有定义的字段 MUST NOT 出现在 mdr 表上。
-- `ext` schema（扩展层）：应用自身的扩展字段一律放 ext schema 卫星表，与标准表 1:1（按 id 关联，有意不建 JPA 关联、经值键读写）。
+- `mdr` schema（标准层）：**只存放 ISO/IEC 11179 系列标准定义的内容**（标准表与标准列）。标准没有定义的字段 MUST NOT 出现在 mdr 表上。
+- `ext` schema（扩展层）：**ISO/IEC 11179 标准以外的一切内容统一使用 ext**——包括应用自身的扩展字段（一律放 ext schema 卫星表，与标准表 1:1，按 id 关联，有意不建 JPA 关联、经值键读写），**也包括任何非标准来源的工具/框架表**。
+  - 既有判例：`ext.account.avatar`、`ext_language_identification`、`ext.contact`（账号绑定卫星，原 contact_account_binding 迁入）、`ext.registrar`（默认注册人员标志）、`ext.flyway_schema_history`（Flyway 记账表，非 ISO/IEC 11179 内容，依本规则只能落 ext——**Flyway 的 `default-schema` MUST 为 ext**，历史表随之落 ext）；反例教训：2026-10 `mdr.registration_authority.is_primary` 后迁出，见 DECISIONS.md。
 - 实现范式：
   - 扩展实体放 `metadata-registry-ext` 模块，`@Table(name=...)` 不写 schema；team profile 经 `metadata-registry-web/src/main/resources/orm/orm-team.xml` 登记 `<table schema="ext"/>`；sqlite 同名冲突时物理表名加 `ext_` 前缀并经 `orm/orm-sqlite.xml` 登记。
   - 迁移三方言同版本号：SQL Server 全限定 `ext.<table>`（schema 兜底 + COL_LENGTH 守卫）；SQLite 裸表名（`ext_` 前缀）；达梦全限定 `EXT.<TABLE>`。
-- 判据：字段能在 ISO/IEC 11179 标准条款中找到定义 → 才可进 mdr；否则一律 ext。（既有判例：`ext.account.avatar`、`ext_language_identification`、`ext.contact`（账号绑定卫星，原 contact_account_binding 迁入）、`ext.registrar`（默认注册人员标志）；反例教训：2026-10 `mdr.registration_authority.is_primary` 后迁出，见 DECISIONS.md）
+  - **迁移脚本的表引用 MUST 全限定 schema**：Flyway 以 `default-schema`（ext）为会话默认 schema，未限定的表名会解析到 ext 而非 mdr。新增/修订迁移脚本时，凡涉及 mdr 表一律写 `mdr.<table>`（达梦 `MDR.<TABLE>`），ext 表写 `ext.<table>`。
+- 判据：字段能在 ISO/IEC 11179 标准条款中找到定义 → 才可进 mdr；否则一律 ext。
 
 # 正交链完整性规则（强制）
 
@@ -66,7 +74,7 @@ ISO/IEC 11179 元模型中，**受管链与内容链是两条正交的链**，�
 > 状态。因验收只比对"行数与基准声明一致"而长期未被发现。守护测试
 > `AdministeredItemClosureConformanceTest`；处置见
 > `openspec/changes/repair-administered-item-closure/`。
->
+> 
 > 基准生成器 `scratch/ws-verify/gen_baseline_sql.py` 已内置前置断言：源库不闭环即拒绝生成。
 
 # 实体继承规则（强制）
@@ -75,7 +83,7 @@ ISO/IEC 11179 元模型中，**受管链与内容链是两条正交的链**，�
 
 - 实体的继承（extends）关系 MUST 有 ISO/IEC 11179 相应部分 **"Direct superclass"** 条款依据；标准未声明 Direct superclass 的类 MUST 建模为独立根实体（直接继承仅提供标识符的 mapped-superclass `Entity`，先例：`Contact`/`Organization`/`LanguageIdentification`）。
 - 新增或变更实体继承时，MUST 同步更新守护测试 `StandardInheritanceConformanceTest`（metadata-registry-web 测试目录）的白名单并附标准条款引用；未登记的继承边 MUST 使构建失败。
-- 依据 MUST 以 Milvus 检索 / `ISO/IEC 11179 标准原文目录` PDF 原文核对，不得凭印象或二手资料声明继承关系。
+- 依据 MUST 以标准文档原文核对，不得凭印象或二手资料声明继承关系。
 - 反例教训（2026-10-09）：`RegistrySpecification` 被错误实现为 `extends Item`（ISO/IEC 11179-3:2023 9.4.10 无 Direct superclass 声明），派生孤儿记录 → FK 约束失败 → 启动兜底清理 → WS 363 数据恢复后启动挂起 13 分钟的生产事故；纠偏见变更 `registry-specification-model-correction`。
 
 # 文档同步规则
@@ -89,10 +97,10 @@ ISO/IEC 11179 元模型中，**受管链与内容链是两条正交的链**，�
 
 本仓库使用多种 Coding Agent 开发，项目级规则以本文件（`AGENTS.md`）为唯一事实源：
 
-| Agent | 项目级上下文入口 |
-| --- | --- |
-| Kimi Code CLI / Codex / Cursor / OpenCode | 直接读取本文件 |
-| Claude Code | `CLAUDE.md` 通过 `@AGENTS.md` 导入本文件 |
+| Agent                                     | 项目级上下文入口                          |
+| ----------------------------------------- | --------------------------------- |
+| Kimi Code CLI / Codex / Cursor / OpenCode | 直接读取本文件                           |
+| Claude Code                               | `CLAUDE.md` 通过 `@AGENTS.md` 导入本文件 |
 
 修改项目级规则时只编辑本文件；`CLAUDE.md` 仅保留导入声明，不复制规则正文。
 
@@ -107,48 +115,7 @@ Coding Agent 需要登录系统（API 冒烟、E2E、手工验证）时，**必�
 - 依据：应急码登录会把真实库 `force_password_reset` 置 1（用户下次正常登录被强制改密弹窗阻塞），且旧应急码一次性作废重生（2026-09-21 事故，见 `.superpowers-memory/session-journal/2026-09-21-dimensionality-management.md` 事故记录）。
 - 冒烟/验证一律优先用独立临时实例或副本库（`scratch/` 模式）。
 - 应急码仅在用户本人遗忘管理员密码、且用户明确知情同意时才能使用；用后立即恢复 `force_password_reset` 原值并告知用户。
+  
+  
 
-<!-- gitnexus:start -->
-# GitNexus — Code Intelligence
-
-This project is indexed by GitNexus as **MetadataRegistry4j** (38660 symbols, 82722 relationships, 1241 execution flows).
-
-> Index stale? Run `node .gitnexus/run.cjs analyze --index-only` from the project root — it auto-selects an available runner. No `.gitnexus/run.cjs` yet? Bootstrap with `npx`, `bunx`, or `pnpm dlx` — e.g. `bunx gitnexus@latest analyze` (npm 11 npx crash; #1939).
-
-## Always Do
-
-- **MUST run impact before editing.** Use `impact({target: "symbolName", direction: "upstream"})` or `node .gitnexus/run.cjs impact "symbolName" --direction upstream --repo .`; report callers, processes, and risk. Never substitute grep for graph analysis.
-- **MUST analyze graph changes before committing.** Use `detect_changes({scope: "all"})` (MCP) or `node .gitnexus/run.cjs detect-changes --scope all --repo .` (CLI fallback). `partial: true` or `truncated: true` is not a clean check — a zero means unseen, not unaffected; re-run it. For regression review: `detect_changes({scope: "compare", base_ref: "main"})` or `node .gitnexus/run.cjs detect-changes --scope compare --base-ref "main" --repo .`.
-- MUST warn on HIGH/CRITICAL `risk` pre-edit; never use `riskSharedAxes` to waive a HIGH/CRITICAL `risk` warning. Compare File/symbol: MCP File omits axes; Graph-RAG expands File.
-- **MUST treat `risk: UNKNOWN` as unresolved, not as low.** An empty caller set is not evidence the symbol is unused — it can also mean the callers are not resolvable by the index (plain-object property access, dynamic dispatch, cross-language calls). `impact` pairs `UNKNOWN` with a `riskNote` saying so. Confirm with a text search before treating the symbol as safe to change or delete; do not proceed on the strength of a zero.
-- **MUST use `query({search_query: "concept"})` for concepts/flows, `context({name: "symbolName"})` for a named symbol, or `impact` for blast radius, on read-only callers, dependencies, imports, or execution flow.** Graph first; text search only for empty/`UNKNOWN`/literals.
-- For security review, `explain({target: "fileOrSymbol"})` lists taint findings (source→sink flows; needs `analyze --pdg`).
-
-## Never Do
-
-- NEVER edit a function, class, or method before MCP/CLI impact analysis.
-- NEVER ignore HIGH or CRITICAL risk warnings from impact analysis, and never read `UNKNOWN` as an all-clear — it means the walk could not answer, which is the one verdict that requires confirming by other means.
-- NEVER rename symbols with find-and-replace — use `rename` which understands the call graph.
-- NEVER commit before MCP/CLI graph change analysis.
-
-## Resources
-
-| Resource | Use for |
-| --- | --- |
-| `gitnexus://repo/MetadataRegistry4j/context` | Codebase overview, check index freshness |
-| `gitnexus://repo/MetadataRegistry4j/clusters` | All functional areas |
-| `gitnexus://repo/MetadataRegistry4j/processes` | All execution flows |
-| `gitnexus://repo/MetadataRegistry4j/process/{name}` | Step-by-step execution trace |
-
-## CLI
-
-| Task | Read this skill file |
-| --- | --- |
-| Understand architecture / "How does X work?" | `.claude/skills/gitnexus-exploring/SKILL.md` |
-| Blast radius / "What breaks if I change X?" | `.claude/skills/gitnexus-impact-analysis/SKILL.md` |
-| Trace bugs / "Why is X failing?" | `.claude/skills/gitnexus-debugging/SKILL.md` |
-| Rename / extract / split / refactor | `.claude/skills/gitnexus-refactoring/SKILL.md` |
-| Tools, resources, schema reference | `.claude/skills/gitnexus-guide/SKILL.md` |
-| Index, status, clean, wiki CLI commands | `.claude/skills/gitnexus-cli/SKILL.md` |
-
-<!-- gitnexus:end -->
+<!-- iso11179-mdr-requirements:end -->
