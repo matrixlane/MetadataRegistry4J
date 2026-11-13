@@ -1,0 +1,3 @@
+# 机器生成的基准数据 SQL（WS 363/364 数据本体、治理与公共数据脚本）。
+# 属于生成的数据载荷而非手写源码：不计入 GitHub 语言统计，diff 默认折叠。
+data/scripts/** linguist-generated=true
