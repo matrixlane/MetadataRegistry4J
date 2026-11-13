@@ -40,7 +40,7 @@ function Initialize-SupervisorPaths {
     }
     $resolvedJavaPath = if ([string]::IsNullOrWhiteSpace($JavaPath)) {
         if ([string]::IsNullOrWhiteSpace($env:JAVA_HOME)) {
-            '%ProgramFiles%\Java\jdk-17\bin\javaw.exe'
+            (Join-Path $env:ProgramFiles 'Java\jdk-17\bin\javaw.exe')
         } else {
             Join-Path $env:JAVA_HOME 'bin\javaw.exe'
         }

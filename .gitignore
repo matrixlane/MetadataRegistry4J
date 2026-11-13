@@ -69,5 +69,11 @@ iso11179-*.txt
 # 临时 classpath 导出文件
 cp.txt
 
+# ISO/IEC 标准原文全文（版权保护，仅本地保存，不入库）
+docs/technical/isoiec11179-*.txt
+
+# 本地 JDBC 认证 DLL（随 mssql-jdbc 驱动分发，不入库）
+*.dll
+
 # 误以 ~ 为工作目录启动产生的流浪目录（含意外创建的 SQLite 库）
 ~

@@ -66,7 +66,7 @@ data/
 
 本目录下的 `metadata-registry.db` 是**已预置全部基准数据**的 SQLite 数据库文件。当系统使用 SQLite 时（个人版默认），可将该文件直接拷贝到实际库文件位置使用，拷贝后即含全部基准数据，无需再执行脚本：
 
-- 默认实际位置：用户目录 `.metadata-registry\data\metadata-registry.db`（如 `C:\Users\<你>\.metadata-registry\data\metadata-registry.db`）；
+- 默认实际位置：用户目录 `.metadata-registry\data\metadata-registry.db`（如 `%USERPROFILE%\.metadata-registry\data\metadata-registry.db`）；
 - 该默认路径可在**系统初始化向导**与**系统设置 → 数据源**中修改；若已将库文件配置到其他位置，拷贝到相应位置即可。
 
 > 注意：程序目录 `data\` 下的这个 db 文件只是预置副本，系统默认**不直接读写**它（自本版本起 SQLite 默认库文件位于用户目录）。

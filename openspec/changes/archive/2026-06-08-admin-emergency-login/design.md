@@ -77,8 +77,8 @@
   - 在 `AuthService.register(AccountCreateRequest)` 注册核心方法中，优先校验此开关状态。若关闭，抛出 `BusinessException("系统已关闭自主注册功能")`。
 - **前端注册入口逻辑**：
   - 增加一个非登录态可以访问的公共接口 `/api/v1/auth/register/allowed`，返回此开关的 boolean 值，并在 `SecurityConfig.java` 中放行此路径。
-  - 在前端登录页 [Login.vue](file:///本仓库工作区/metadata-registry-ui/src/views/login/Login.vue) 挂载时调用此接口。若开关为 `false`，则隐藏“注册账号”的按钮。
-  - 在 [SystemSettings.vue](file:///本仓库工作区/metadata-registry-ui/src/views/system/SystemSettings.vue) 页面中增加“允许注册新用户”的控制开关。
+  - 在前端登录页 `metadata-registry-ui/src/views/login/Login.vue` 挂载时调用此接口。若开关为 `false`，则隐藏“注册账号”的按钮。
+  - 在 `metadata-registry-ui/src/views/system/SystemSettings.vue` 页面中增加“允许注册新用户”的控制开关。
 
 ### Decisions 9. 普通用户密码重设与单次登录强制改密
 - **数据库扩展**：

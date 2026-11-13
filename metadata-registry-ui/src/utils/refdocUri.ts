@@ -6,7 +6,7 @@
  * 代理读取；仅 http(s) 绝对地址由前端直接打开。
  */
 
-/** Windows 盘符路径（E:\...）、UNC（\\server\share）或 file:// URI。 */
+/** Windows 盘符路径（D:\...）、UNC（\\server\share）或 file:// URI。 */
 export function isLocalFileUri(raw: string): boolean {
   return /^[a-zA-Z]:[\\/]/.test(raw) || raw.startsWith('\\\\') || /^file:\/\//i.test(raw);
 }
