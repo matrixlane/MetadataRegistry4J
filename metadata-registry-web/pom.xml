@@ -100,6 +100,27 @@
             <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
         </dependency>
 
+        <!-- MCP (Model Context Protocol) server：官方 Java SDK（legacy 2025-11-25 代际，
+             Streamable HTTP Servlet 传输）。jackson2 模块与 Boot 3.5 管理的 Jackson 2.x 对齐。
+             reactor-core 保留 SDK 传递版本（legacy server 基于 reactor；应用无 webflux，
+             Boot BOM 不提供该依赖，排除会导致 NoClassDefFoundError）。 -->
+        <dependency>
+            <groupId>io.modelcontextprotocol.sdk</groupId>
+            <artifactId>mcp-core</artifactId>
+            <version>2.2.0</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>jakarta.servlet</groupId>
+                    <artifactId>jakarta.servlet-api</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>io.modelcontextprotocol.sdk</groupId>
+            <artifactId>mcp-json-jackson2</artifactId>
+            <version>2.2.0</version>
+        </dependency>
+
         <dependency>
             <groupId>io.jsonwebtoken</groupId>
             <artifactId>jjwt-api</artifactId>

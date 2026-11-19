@@ -119,8 +119,11 @@ public class FactoryResetService {
      * 仅按 IP 字面量判定回环，绝不触发 DNS：非字面量输入（主机名、畸形值）
      * 一律拒绝——本机边界是个人版唯一的安全边界，不允许可被名字解析绕过的形态。
      * IPv4 认可 127.0.0.0/8；IPv6 认可 ::1 及其全展开形、IPv4 映射回环（::ffff:127.x）。
+     *
+     * <p>public 供 MCP 端口过滤器复用（add-mcp-server-support）——同一回环语义
+     * 不应有两份实现。
      */
-    static boolean isLoopbackAddressLiteral(String remoteAddr) {
+    public static boolean isLoopbackAddressLiteral(String remoteAddr) {
         if (remoteAddr == null) {
             return false;
         }

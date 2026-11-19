@@ -55,6 +55,28 @@
     <!-- Application logging -->
     <logger name="io.github.matrixlane.metadataregistry.web.logging" level="INFO"/>
 
+    <!-- MCP 审计日志（add-mcp-server-support）：每次 MCP 工具调用的
+         tool/identity/argsSha256/status/durationMs；复用敏感数据遮蔽编码器，
+         additivity=false 使其不进入主业务日志 -->
+    <appender name="MCP_AUDIT_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_PATH}/app-mcp.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${LOG_PATH}/app-mcp-%d{yyyy-MM-dd}.%i.log</fileNamePattern>
+            <maxFileSize>100MB</maxFileSize>
+            <maxHistory>30</maxHistory>
+            <totalSizeCap>1GB</totalSizeCap>
+            <cleanHistoryOnStart>true</cleanHistoryOnStart>
+        </rollingPolicy>
+        <encoder class="io.github.matrixlane.metadataregistry.web.logging.SensitiveDataMaskingEncoder">
+            <pattern>${LOG_PATTERN}</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+
+    <logger name="MDR.MCP" level="INFO" additivity="false">
+        <appender-ref ref="MCP_AUDIT_FILE"/>
+    </logger>
+
     <!-- Root logger -->
     <root level="INFO">
         <appender-ref ref="CONSOLE"/>

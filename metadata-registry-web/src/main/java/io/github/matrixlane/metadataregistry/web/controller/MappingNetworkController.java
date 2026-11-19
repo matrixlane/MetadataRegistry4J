@@ -3,6 +3,7 @@ package io.github.matrixlane.metadataregistry.web.controller;
 import io.github.matrixlane.metadataregistry.itemmapping.enums.MappingDegree;
 import io.github.matrixlane.metadataregistry.itemmapping.service.ItemMappingService;
 import io.github.matrixlane.metadataregistry.web.common.ApiResponse;
+import io.github.matrixlane.metadataregistry.web.dto.mapping.MappingDtoConverters;
 import io.github.matrixlane.metadataregistry.web.dto.mapping.MappingNetworkResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -13,9 +14,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
-import java.util.Set;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 /**
  * REST controller for mapping network graph visualization (WI-011-2-1).
@@ -43,30 +42,12 @@ public class MappingNetworkController {
             @RequestParam(required = false) List<MappingDegree> filterTypes) {
 
         if (centerId == null) {
-            return ApiResponse.ok(new MappingNetworkResponse(
-                    java.util.Collections.emptySet(),
-                    java.util.Collections.emptyList(),
-                    false, 0));
+            return ApiResponse.ok(MappingDtoConverters.emptyNetwork());
         }
 
         ItemMappingService.NetworkGraphResult result =
                 mappingService.getNetworkGraph(centerId, depth, filterTypes);
 
-        // Convert to response DTO
-        Set<MappingNetworkResponse.NetworkNode> nodes = result.nodes().stream()
-                .map(n -> new MappingNetworkResponse.NetworkNode(
-                        n.itemId(), n.depth(), n.isCenter()))
-                .collect(Collectors.toCollection(java.util.LinkedHashSet::new));
-
-        List<MappingNetworkResponse.NetworkEdge> edges = result.edges().stream()
-                .map(e -> new MappingNetworkResponse.NetworkEdge(
-                        e.mappingId(), e.sourceId(), e.targetId(),
-                        e.degree(), e.description()))
-                .toList();
-
-        MappingNetworkResponse response = new MappingNetworkResponse(
-                nodes, edges, result.truncated(), result.totalNodeCount());
-
-        return ApiResponse.ok(response);
+        return ApiResponse.ok(MappingDtoConverters.toNetworkResponse(result));
     }
 }

@@ -138,3 +138,13 @@ mdr:
       timeout-seconds: ${MDR_INFERENCE_CLI_TIMEOUT:180}
       # 常驻进程与每次作业会话目录的基路径（其下分别建独立子目录）
       work-dir: ${MDR_INFERENCE_WORK_DIR:${java.io.tmpdir}/mdr-inference}
+
+  mcp:
+    # MCP 协议服务端总开关（add-mcp-server-support）：false 时 MCP 服务端完全不启动
+    enabled: ${MDR_MCP_ENABLED:true}
+    # MCP 端口绑定地址：默认回环（个人版本机 Agent 场景；过滤器层另有非回环 403 双保险）
+    host: ${MDR_MCP_HOST:127.0.0.1}
+    # MCP 监听端口（独立于业务端口）
+    port: ${MDR_MCP_PORT:8082}
+    # 受控写入工具总开关：false 时 MCP 工具清单只含只读工具
+    write-tools-enabled: ${MDR_MCP_WRITE_ENABLED:true}

@@ -4,6 +4,7 @@ import io.github.matrixlane.metadataregistry.itemmapping.impact.ImpactAnalysisRe
 import io.github.matrixlane.metadataregistry.itemmapping.impact.ImpactAnalysisService;
 import io.github.matrixlane.metadataregistry.web.common.ApiResponse;
 import io.github.matrixlane.metadataregistry.web.dto.mapping.ImpactAnalysisResponse;
+import io.github.matrixlane.metadataregistry.web.dto.mapping.MappingDtoConverters;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -51,21 +52,7 @@ public class MappingImpactController {
     }
 
     private ImpactAnalysisResponse toResponse(ImpactAnalysisResult result) {
-        return new ImpactAnalysisResponse(
-                result.changedItemId(),
-                result.changeType(),
-                result.impactedItems().stream()
-                        .map(i -> new ImpactAnalysisResponse.ImpactedItemDto(
-                                i.itemId(),
-                                i.impactLevel(),
-                                i.impactDirection(),
-                                i.mappingId(),
-                                i.degree(),
-                                i.suggestedAction()
-                        ))
-                        .toList(),
-                result.totalImpacted(),
-                result.truncated()
-        );
+        // 转换收敛至 MappingDtoConverters：REST 与 MCP 工具共享唯一事实源（add-mcp-server-support）
+        return MappingDtoConverters.toImpactResponse(result);
     }
 }
