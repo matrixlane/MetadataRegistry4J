@@ -37,7 +37,7 @@ flowchart LR
 - [metadata-registry-data-specification](metadata-registry-data-specification.md) 依据 ISO/IEC 11179-31:2023 提供数据元、数据元概念、概念域、值域、数据类型、量纲和枚举支持结构等 JPA 模型。该模块是声明式实体层，不负责仓储、服务、校验器或对象工厂。
 - [metadata-registry-item-mapping](metadata-registry-item-mapping.md) 管理本地注册条目与其他数据语义之间的关系，提供映射持久化、互操作匹配、FHIR 路径关联和变更影响分析。
 - [metadata-registry-ext](metadata-registry-ext.md) 承载标准模型之外的治理能力，包括标识符策略、顺序号、版本、分类和卫星信息。它通过 `namespace_id`、`scoped_identifier_id` 等外键关联标准实体，而不修改标准定义。
-- [metadata-registry-web](metadata-registry-web.md) 是 Spring Boot 接入层，以 `/api/v1/**` 暴露 REST API，并使用 `ApiResponse<T>` 统一响应结构。Controller、Service、Repository、DTO、认证授权和运行时适配集中位于该模块。
+- [metadata-registry-web](metadata-registry-web.md) 是 Spring Boot 接入层，以 `/api/v1/**` 暴露 REST API，并使用 `ApiResponse<T>` 统一响应结构。Controller、Service、Repository、DTO、认证授权和运行时适配集中位于该模块。该模块同时内嵌 MCP 协议服务端（`mcp` 包，默认 `127.0.0.1:8082`，Streamable HTTP），以 15 个语义级工具（8 只读 + 7 受控写入）向本机 AI Agent 暴露元数据访问与治理能力，写路径全部复用既有 Service。
 - [metadata-registry-ui](metadata-registry-ui.md) 是 Vue 3、TypeScript、Vite、Pinia 和 Element Plus 前端。开发服务器将 `/api` 代理到 `http://localhost:8081`，业务源码位于其 `src` 目录。
 
 数据集导入位于 [metadata-registry-data-set-registration](metadata-registry-data-set-registration.md)，围绕文件解析和增量保存形成独立批处理支线。仓库还包含面向模式提取和草案生成的 [metadata-registry-schema-extraction](metadata-registry-schema-extraction.md) 与 [metadata-registry-draft-generation](metadata-registry-draft-generation.md)。

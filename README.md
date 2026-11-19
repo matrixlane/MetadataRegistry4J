@@ -127,6 +127,53 @@ java -jar metadata-registry-web.jar --spring.profiles.active=personal
 - **初始化失败不黑屏**：数据库不可达或结构不兼容时，应用保持运行，界面显示"初始化系统失败"与可读原因，提供「重试初始化」与「退出应用」，等待用户处理。
 - 该机制由个人版/团队版 profile 的 `app.bootstrap.enabled=true` 开启（默认关闭）；其他启动方式与集成测试环境不受影响。
 
+### MCP 协议接入（AI Agent）
+
+应用内嵌 MCP（Model Context Protocol）服务端（legacy 2025-11-25 协议代际，Streamable HTTP），默认监听 **127.0.0.1:8082**（独立于业务端口），供本机 AI Agent（如 Kimi Code）以工具形式使用数据治理能力。配置项（`application.yml` 或环境变量）：
+
+| 配置 | 默认 | 说明 |
+|---|---|---|
+| `mdr.mcp.enabled` / `MDR_MCP_ENABLED` | `true` | 总开关；false 时 MCP 服务端完全不启动 |
+| `mdr.mcp.host` / `MDR_MCP_HOST` | `127.0.0.1` | 绑定地址（过滤器层另有非回环 403 双保险） |
+| `mdr.mcp.port` / `MDR_MCP_PORT` | `8082` | MCP 监听端口 |
+| `mdr.mcp.write-tools-enabled` / `MDR_MCP_WRITE_ENABLED` | `true` | false 时工具清单只含只读工具 |
+
+**工具面（15 个）**：只读 8 个（`search-metadata` / `get-item-detail` / `get-item-versions` / `browse-data-dictionary` / `export-data-dictionary` / `get-mapping-network` / `get-mapping-impact` / `get-registration-process`）+ 受控写入 7 个（`draft-item` / `update-draft` / `submit-drafts` / `request-candidate` / `rollback-item` / `run-inference-task` / `get-inference-job`）。客户端可见全名形如 `mcp__mdr__search-metadata`（server 名以 mcp.json 配置为准）。**不暴露**：条目删除、注册状态推进（治理裁决）、系统管理（账号/数据源/危险区域/出厂重置）、联邦端点。
+
+**安全模型**：MCP 端口仅回环可达（非回环来源 403）；个人版免凭证（隐式唯一管理员身份）；团队版需 `Authorization: Bearer <JWT>`——读工具任意有效身份，**写入工具需 REGISTRAR 角色**；每身份 30 req/s 限流（超限 429）。业务端口访问 MCP 路径返回 404。每次工具调用记录审计（`logs/app-mcp.log`，参数 SHA-256 摘要，不含口令/令牌）。
+
+**Kimi Code 接入**：`~/.kimi-code/mcp.json`（个人版本机）：
+
+```json
+{
+  "mcpServers": {
+    "mdr": { "url": "http://127.0.0.1:8082/mcp" }
+  }
+}
+```
+
+团队版把令牌放环境变量（如 `MDR_TOKEN`）并引用：`"url": "http://127.0.0.1:8082/mcp", "bearerTokenEnvVar": "MDR_TOKEN"`。推荐权限规则（`config.toml`）：只读通配放行、写工具逐个审批：
+
+```toml
+[[permission.rules]]
+decision = "allow"
+pattern = "mcp__mdr__search-*"
+
+[[permission.rules]]
+decision = "allow"
+pattern = "mcp__mdr__get-*"
+
+[[permission.rules]]
+decision = "allow"
+pattern = "mcp__mdr__browse-*"
+
+[[permission.rules]]
+decision = "allow"
+pattern = "mcp__mdr__export-*"
+```
+
+> 写入工具（`draft-item` 等）保持人工审批：Agent 起草后须人审核再提交。起草默认创建完整受管链（初始注册状态 Incomplete、不自动提交）；Agent 调用错误会以 `[错误码] 消息` 文本返回，可程序化修正重试。
+
 ### 4. 启动前端
 
 ```bash
