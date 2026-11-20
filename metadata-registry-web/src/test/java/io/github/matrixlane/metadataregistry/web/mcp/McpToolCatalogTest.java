@@ -80,6 +80,22 @@ class McpToolCatalogTest {
                 eq("INTERNAL_ERROR"), anyLong());
     }
 
+    @Test
+    void invoke_resourceNotFound_shouldTranslateTo404Text() {
+        McpTool failing = new StubTool("get-item-detail", false, Map.of()) {
+            @Override
+            public Object handle(Map<String, Object> arguments) {
+                throw new io.github.matrixlane.metadataregistry.web.common.ResourceNotFoundException(
+                        "AdministeredItem", "e001a6b3-a580-438b-940c-3f9db301e498");
+            }
+        };
+        McpSchema.CallToolResult result = catalog.invoke(failing, Map.of());
+        assertThat(result.isError()).isTrue();
+        assertThat(textOf(result)).startsWith("[404] AdministeredItem not found:");
+        verify(auditService).record(eq("get-item-detail"), anyString(), anyString(),
+                eq("NOT_FOUND"), anyLong());
+    }
+
     private static String textOf(McpSchema.CallToolResult result) {
         assertThat(result.content()).hasSize(1);
         return ((McpSchema.TextContent) result.content().get(0)).text();

@@ -2,9 +2,14 @@ package io.github.matrixlane.metadataregistry.web.service;
 
 import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.Acceptability;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationStatus;
+import io.github.matrixlane.metadataregistry.commonfacilities.registration.SubmissionRecord;
+import io.github.matrixlane.metadataregistry.web.common.ResourceNotFoundException;
 import io.github.matrixlane.metadataregistry.web.dto.administereditem.AdministeredItemResponse;
+import io.github.matrixlane.metadataregistry.web.dto.common.SubmissionRecordSummary;
+import io.github.matrixlane.metadataregistry.web.repository.SubmissionRecordRepository;
 import io.github.matrixlane.metadataregistry.web.service.database.DatabaseEnvironment;
 import io.github.matrixlane.metadataregistry.web.service.database.DatabaseVendor;
+import io.github.matrixlane.metadataregistry.web.service.database.ItemTypeSql;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -20,6 +25,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -41,6 +47,7 @@ public class MetadataSearchService {
 
     private final JdbcTemplate jdbcTemplate;
     private final DatabaseEnvironment env;
+    private final SubmissionRecordRepository submissionRecordRepository;
 
     /** 表名按当前方言/schema 限定(EXT 表自动走 ext schema,如 classification_scheme)。 */
     private String t(String table) {
@@ -71,62 +78,18 @@ public class MetadataSearchService {
      * <p>
      * 带类型筛选时结果集已被 WHERE 的 EXISTS 限定为这些类型，无需对每行全量探测 21 张表：
      * 单值直接返回常量，多值只探测传入的类型子集；不带筛选时才退回全量 CASE 探测。
-     * 类型名经 {@link #typeToTable} 白名单校验，未知类型不会拼进 SQL。
+     * 类型名经 {@link ItemTypeSql#typeToTable} 白名单校验，未知类型不会拼进 SQL。
      */
     private String itemTypeExprFor(String typeFilter) {
         if (typeFilter == null) {
-            return itemTypeCaseExpr();
+            return ItemTypeSql.itemTypeCaseExpr(env);
         }
         List<String> known = Arrays.stream(typeFilter.split(","))
                 .map(String::trim)
-                .filter(s -> typeToTable(s) != null)
+                .filter(s -> ItemTypeSql.typeToTable(s) != null)
                 .toList();
-        if (known.isEmpty()) {
-            // 未知类型：WHERE 已用 1=0 保证无命中，表达式形态无关紧要
-            return itemTypeCaseExpr();
-        }
-        if (known.size() == 1) {
-            return "'" + known.get(0) + "'";
-        }
-        StringBuilder sb = new StringBuilder("CASE ");
-        int alias = 0;
-        for (String type : known) {
-            sb.append("WHEN EXISTS (SELECT 1 FROM ").append(t(typeToTable(type)))
-                    .append(" sub").append(alias)
-                    .append(" WHERE sub").append(alias).append(".id = i.id) THEN '")
-                    .append(type).append("' ");
-            alias++;
-        }
-        sb.append("ELSE NULL END");
-        return sb.toString();
-    }
-
-    private String itemTypeCaseExpr() {
-        StringBuilder sb = new StringBuilder("CASE ");
-        // 注册类（Owner 类型）
-        sb.append("WHEN EXISTS (SELECT 1 FROM ").append(t("namespace")).append(" n WHERE n.id = i.id) THEN 'Namespace' ");
-        sb.append("WHEN EXISTS (SELECT 1 FROM ").append(t("constraint_set")).append(" cs WHERE cs.id = i.id) THEN 'ConstraintSet' ");
-        sb.append("WHEN EXISTS (SELECT 1 FROM ").append(t("reference_document")).append(" rd WHERE rd.id = i.id) THEN 'ReferenceDocument' ");
-        // 数据规范类
-        sb.append("WHEN EXISTS (SELECT 1 FROM ").append(t("data_element")).append(" de WHERE de.id = i.id) THEN 'DataElement' ");
-        sb.append("WHEN EXISTS (SELECT 1 FROM ").append(t("data_element_concept")).append(" dec WHERE dec.id = i.id) THEN 'DataElementConcept' ");
-        sb.append("WHEN EXISTS (SELECT 1 FROM ").append(t("conceptual_domain")).append(" cd WHERE cd.id = i.id) THEN 'ConceptualDomain' ");
-        sb.append("WHEN EXISTS (SELECT 1 FROM ").append(t("value_domain")).append(" vd WHERE vd.id = i.id) THEN 'ValueDomain' ");
-        sb.append("WHEN EXISTS (SELECT 1 FROM ").append(t("object_class")).append(" oc WHERE oc.id = i.id) THEN 'ObjectClass' ");
-        sb.append("WHEN EXISTS (SELECT 1 FROM ").append(t("property")).append(" p WHERE p.id = i.id) THEN 'Property' ");
-        sb.append("WHEN EXISTS (SELECT 1 FROM ").append(t("data_type")).append(" dt WHERE dt.id = i.id) THEN 'DataType' ");
-        sb.append("WHEN EXISTS (SELECT 1 FROM ").append(t("data_type_scheme")).append(" dts WHERE dts.id = i.id) THEN 'DataTypeScheme' ");
-        sb.append("WHEN EXISTS (SELECT 1 FROM ").append(t("unit_of_measure")).append(" uom WHERE uom.id = i.id) THEN 'UnitOfMeasure' ");
-        sb.append("WHEN EXISTS (SELECT 1 FROM ").append(t("measure_class")).append(" mc WHERE mc.id = i.id) THEN 'MeasureClass' ");
-        sb.append("WHEN EXISTS (SELECT 1 FROM ").append(t("dimensionality")).append(" dim WHERE dim.id = i.id) THEN 'Dimensionality' ");
-        sb.append("WHEN EXISTS (SELECT 1 FROM ").append(t("classification_scheme")).append(" cs2 WHERE cs2.id = i.id) THEN 'ClassificationScheme' ");
-        sb.append("WHEN EXISTS (SELECT 1 FROM ").append(t("context")).append(" ctx WHERE ctx.id = i.id) THEN 'Context' ");
-        sb.append("WHEN EXISTS (SELECT 1 FROM ").append(t("organization")).append(" o WHERE o.id = i.id) THEN 'Organization' ");
-        sb.append("WHEN EXISTS (SELECT 1 FROM ").append(t("individual")).append(" ind WHERE ind.id = i.id) THEN 'Individual' ");
-        sb.append("WHEN EXISTS (SELECT 1 FROM ").append(t("contact")).append(" c WHERE c.id = i.id) THEN 'Contact' ");
-        sb.append("WHEN EXISTS (SELECT 1 FROM ").append(t("document_type")).append(" doc WHERE doc.id = i.id) THEN 'DocumentType' ");
-        sb.append("ELSE NULL END");
-        return sb.toString();
+        // 未知类型：WHERE 已用 1=0 保证无命中，表达式形态无关紧要
+        return ItemTypeSql.itemTypeExprFor(env, known);
     }
 
     /**
@@ -292,13 +255,7 @@ public class MetadataSearchService {
         }
 
         // EXISTS 不能直接作 SELECT 列表标量表达式(SQL Server 报 156),包一层 CASE WHEN
-        String hasPreferred = "CASE WHEN EXISTS (SELECT 1 FROM " + t("designation") + " d_pref " +
-                "JOIN " + t("designation_context") + " dc_pref ON dc_pref.designation_id = d_pref.id " +
-                "WHERE d_pref.item_id = i.id AND LOWER(dc_pref.acceptability) = 'preferred')" +
-                " OR EXISTS (SELECT 1 FROM " + t("definition") + " df_pref " +
-                "JOIN " + t("definition_context") + " dfc_pref ON dfc_pref.definition_id = df_pref.id " +
-                "WHERE df_pref.item_id = i.id AND LOWER(dfc_pref.acceptability) = 'preferred') THEN 1 ELSE 0 END";
-
+        String hasPreferred = hasPreferredExpr();
         String itemTypeExpr = itemTypeExprFor(typeFilter);
         String matchTypeLiteral = exactMatch ? "'EXACT'" : "'PARTIAL'";
 
@@ -361,6 +318,108 @@ public class MetadataSearchService {
         return new PageImpl<>(results, pageable, total);
     }
 
+    /** EXISTS 不能直接作 SELECT 列表标量表达式(SQL Server 报 156),包一层 CASE WHEN */
+    private String hasPreferredExpr() {
+        return "CASE WHEN EXISTS (SELECT 1 FROM " + t("designation") + " d_pref " +
+                "JOIN " + t("designation_context") + " dc_pref ON dc_pref.designation_id = d_pref.id " +
+                "WHERE d_pref.item_id = i.id AND LOWER(dc_pref.acceptability) = 'preferred')" +
+                " OR EXISTS (SELECT 1 FROM " + t("definition") + " df_pref " +
+                "JOIN " + t("definition_context") + " dfc_pref ON dfc_pref.definition_id = df_pref.id " +
+                "WHERE df_pref.item_id = i.id AND LOWER(dfc_pref.acceptability) = 'preferred') THEN 1 ELSE 0 END";
+    }
+
+    /**
+     * 单条条目详情（get-item-detail MCP）：与列表同一标量 SQL 路径，额外填充
+     * constraintSetLabel / referenceDocumentIds / submissionRecordSummaries。
+     *
+     * <p><b>为什么不能用 {@code AdministeredItemService#get} 的实体路径</b>：
+     * toResponse 初始化 Item 继承树代理会把 30+ 张子表连同 EAGER 关联拉进同一条 SQL，
+     * SQLite 触发 "at most 64 tables in a join"（KNOWN_FAILURES
+     * failure-2026-09-21-sqlite-64-table-join-limit），列表路径 2026-10 已改标量，
+     * 详情路径当时漏网。条目带引用文档/命名空间等关联后实体路径必炸。</p>
+     *
+     * @param id 受管项 id（browse/search 结果的 {@code id} 字段）或内容链 itemId
+     *           （{@code itemId} 字段）均可；均无命中时抛 {@link ResourceNotFoundException}
+     */
+    @Transactional(readOnly = true)
+    public AdministeredItemResponse findDetailByAnyId(UUID id) {
+        String itemTypeExpr = ItemTypeSql.itemTypeCaseExpr(env);
+        String sql = "SELECT DISTINCT " +
+                "ai.id, " +
+                "i.id AS item_id, " +
+                itemTypeExpr + " AS item_type, " +
+                firstOne("d.value", t("designation") + " d", "d.item_id = i.id") + " AS item_label, " +
+                "si.identifier, " +
+                "si.version, " +
+                "ns.id AS ns_id, " +
+                firstOne("d2.value", t("designation") + " d2", "d2.item_id = ns.id") + " AS ns_label, " +
+                "ra.id AS ra_id, " +
+                firstOne("oname.value", t("organization_name") + " oname", "oname.organization_id = ra.id") + " AS ra_label, " +
+                "rs.registration_status, " +
+                "rs.effective_date, " +
+                "rs.administrative_note, " +
+                "ri.constraint_set_id AS cs_id, " +
+                firstOne("dcs.value", t("designation") + " dcs JOIN " + t("constraint_set") + " cs ON dcs.item_id = cs.id",
+                        "cs.id = ri.constraint_set_id") + " AS cs_label, " +
+                "(" + hasPreferredExpr() + ") AS has_preferred, " +
+                "ai.creation_date_time, " +
+                "ai.last_change_date_time, " +
+                "ai.change_description " +
+                "FROM " + t("administered_item") + " ai " +
+                "JOIN " + t("registered_item") + " ii ON ai.id = ii.id " +
+                "JOIN " + t("item") + " i ON ii.item_id = i.id " +
+                "LEFT JOIN " + t("scoped_identifier") + " si ON si.identified_item_id = ai.id " +
+                "LEFT JOIN " + t("namespace") + " ns ON si.namespace_id = ns.id " +
+                "LEFT JOIN " + t("registration_authority") + " ra ON ai.registration_authority_id = ra.id " +
+                "LEFT JOIN " + t("registration_state") + " rs ON ai.registration_state_id = rs.id " +
+                // constraint_set_id 位于继承链中间表 registered_item（JOINED 继承），不在 administered_item
+                "LEFT JOIN " + t("registered_item") + " ri ON ri.id = ai.id " +
+                "WHERE ai.id = ? OR i.id = ?";
+        Object uuidParam = env.toJdbcUuid(id);
+        List<AdministeredItemResponse> rows = jdbcTemplate.query(sql, (rs, rowNum) -> mapDetailRow(rs), uuidParam, uuidParam);
+        if (rows.isEmpty()) {
+            throw new ResourceNotFoundException("AdministeredItem", id);
+        }
+        AdministeredItemResponse first = rows.get(0);
+        List<UUID> referenceDocumentIds = jdbcTemplate.query(
+                "SELECT reference_document_id FROM " + t("registered_item_reference_document")
+                        + " WHERE registered_item_id = ?",
+                (rs, rowNum) -> DatabaseEnvironment.toUuid(rs.getObject("reference_document_id")),
+                env.toJdbcUuid(first.id()));
+        List<SubmissionRecord> srs =
+                submissionRecordRepository.findAllByRegisteredItemIdOrderByIdDesc(first.id());
+        Map<UUID, Long> itemCountBySubmission = srs.isEmpty()
+                ? Map.of()
+                : submissionRecordRepository.countRegisteredItemsBySubmissionRecordIds(
+                        srs.stream().map(SubmissionRecord::getId).toList());
+        List<SubmissionRecordSummary> submissionRecordSummaries = srs.stream()
+                .map(sr -> SubmissionRecordMapper.toSummary(sr, itemCountBySubmission.getOrDefault(sr.getId(), 0L)))
+                .toList();
+        return new AdministeredItemResponse(
+                first.id(),
+                first.itemId(),
+                first.itemType(),
+                first.itemLabel(),
+                first.identifier(),
+                first.version(),
+                first.namespaceId(),
+                first.namespaceLabel(),
+                first.registrationAuthorityId(),
+                first.registrationAuthorityLabel(),
+                first.registrationStatus(),
+                first.stateEffectiveDate(),
+                first.administrativeNote(),
+                first.constraintSetId(),
+                first.constraintSetLabel(),
+                referenceDocumentIds,
+                first.hasPreferred(),
+                first.creationDateTime(),
+                first.lastChangeDateTime(),
+                first.changeDescription(),
+                null,
+                submissionRecordSummaries);
+    }
+
     /** 关键字可解析为 UUID 时返回之（首尾空白容忍），否则返回 null。 */
     private static UUID parseUuidOrNull(String keyword) {
         if (keyword == null) {
@@ -378,42 +437,14 @@ public class MetadataSearchService {
      * 仅支持已通过 enum/白名单校验的 type；调用方在 controller 做白名单校验。
      */
     private String itemTypeExistsClause(String type) {
-        String tableName = typeToTable(type);
-        if (tableName == null) {
-            // 未知类型：不命中；返回 1=0 谓词
-            return "1=0";
-        }
-        return "EXISTS (SELECT 1 FROM " + t(tableName) + " sub WHERE sub.id = i.id)";
+        return ItemTypeSql.itemTypeExistsClause(env, type);
     }
 
     /**
      * 类型名 → 实体表名映射。
      */
     private String typeToTable(String type) {
-        if (type == null) return null;
-        return switch (type) {
-            case "DataElement" -> "data_element";
-            case "DataElementConcept" -> "data_element_concept";
-            case "ConceptualDomain" -> "conceptual_domain";
-            case "ValueDomain" -> "value_domain";
-            case "ObjectClass" -> "object_class";
-            case "Property" -> "property";
-            case "DataType" -> "data_type";
-            case "DataTypeScheme" -> "data_type_scheme";
-            case "UnitOfMeasure" -> "unit_of_measure";
-            case "MeasureClass" -> "measure_class";
-            case "Dimensionality" -> "dimensionality";
-            case "Namespace" -> "namespace";
-            case "ConstraintSet" -> "constraint_set";
-            case "ReferenceDocument" -> "reference_document";
-            case "ClassificationScheme" -> "classification_scheme";
-            case "Context" -> "context";
-            case "Organization" -> "organization";
-            case "Individual" -> "individual";
-            case "Contact" -> "contact";
-            case "DocumentType" -> "document_type";
-            default -> null;
-        };
+        return ItemTypeSql.typeToTable(type);
     }
 
     private AdministeredItemResponse mapRow(ResultSet rs, int rowNum) throws SQLException {
@@ -439,6 +470,34 @@ public class MetadataSearchService {
                 ldt(rs, "last_change_date_time"),
                 rs.getString("change_description"),
                 rs.getString("match_type"),
+                null
+        );
+    }
+
+    /** 详情行映射：字段集与 mapRow 相同，但读 cs_label，且不读列表专用的 match_type 列。 */
+    private AdministeredItemResponse mapDetailRow(ResultSet rs) throws SQLException {
+        return new AdministeredItemResponse(
+                uuid(rs, "id"),
+                uuid(rs, "item_id"),
+                rs.getString("item_type"),
+                rs.getString("item_label"),
+                rs.getString("identifier"),
+                rs.getString("version"),
+                uuid(rs, "ns_id"),
+                rs.getString("ns_label"),
+                uuid(rs, "ra_id"),
+                rs.getString("ra_label"),
+                status(rs, "registration_status"),
+                ldt(rs, "effective_date"),
+                rs.getString("administrative_note"),
+                uuid(rs, "cs_id"),
+                rs.getString("cs_label"),
+                List.of(),
+                rs.getBoolean("has_preferred"),
+                ldt(rs, "creation_date_time"),
+                ldt(rs, "last_change_date_time"),
+                rs.getString("change_description"),
+                null,
                 null
         );
     }

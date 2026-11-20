@@ -2,7 +2,9 @@ package io.github.matrixlane.metadataregistry.web.service;
 
 import io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.Acceptability;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationStatus;
+import io.github.matrixlane.metadataregistry.web.common.ResourceNotFoundException;
 import io.github.matrixlane.metadataregistry.web.dto.administereditem.AdministeredItemResponse;
+import io.github.matrixlane.metadataregistry.web.repository.SubmissionRecordRepository;
 import io.github.matrixlane.metadataregistry.web.service.database.DatabaseEnvironment;
 import io.github.matrixlane.metadataregistry.web.service.database.DatabaseVendor;
 import org.junit.jupiter.api.BeforeEach;
@@ -22,6 +24,7 @@ import java.util.regex.Pattern;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -51,6 +54,9 @@ class MetadataSearchServiceTest {
     @Mock
     private DatabaseEnvironment env;
 
+    @Mock
+    private SubmissionRecordRepository submissionRecordRepository;
+
     private MetadataSearchService searchService;
     private AdministeredItemResponse sampleResponse;
 
@@ -59,7 +65,7 @@ class MetadataSearchServiceTest {
         lenient().when(env.vendor()).thenReturn(DatabaseVendor.SQLSERVER);
         lenient().when(env.qualify(anyString())).thenAnswer(inv -> "mdr." + inv.getArgument(0));
         lenient().when(env.qualifyAuto(anyString())).thenAnswer(inv -> "mdr." + inv.getArgument(0));
-        searchService = new MetadataSearchService(jdbcTemplate, env);
+        searchService = new MetadataSearchService(jdbcTemplate, env, submissionRecordRepository);
         sampleResponse = new AdministeredItemResponse(
                 UUID.randomUUID(),
                 UUID.randomUUID(),
@@ -115,6 +121,48 @@ class MetadataSearchServiceTest {
         return searchService.search(keyword, type, status, contextId, null,
                 namespaceId, exactMatch, identifier, namespaceShorthand, pageable);
     }
+    @Test
+    void findDetail_shouldThrowNotFoundWhenNoRow() {
+        when(jdbcTemplate.query(anyString(), any(RowMapper.class), any(Object[].class)))
+                .thenReturn(List.of());
+        UUID id = UUID.randomUUID();
+        assertThatThrownBy(() -> searchService.findDetailByAnyId(id))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining(id.toString());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void findDetail_shouldBindUuidForAdministeredIdAndItemId() {
+        when(jdbcTemplate.query(anyString(), any(RowMapper.class), any(Object[].class)))
+                .thenReturn(List.of());
+        assertThatThrownBy(() -> searchService.findDetailByAnyId(UUID.randomUUID()))
+                .isInstanceOf(ResourceNotFoundException.class);
+        ArgumentCaptor<Object[]> captor = ArgumentCaptor.forClass(Object[].class);
+        verify(jdbcTemplate).query(anyString(), any(RowMapper.class), captor.capture());
+        assertThat(captor.getValue()).hasSize(2);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void findDetail_shouldFillReferenceDocumentsAndSubmissionRecords() {
+        when(jdbcTemplate.query(anyString(), any(RowMapper.class), any(Object[].class)))
+                .thenAnswer(inv -> {
+                    // 第一次调用：主查询返回详情行；第二次：参考文档关联查询返回空
+                    if (inv.getArguments()[0].toString().contains("reference_document_id")) {
+                        return List.of();
+                    }
+                    return List.of(sampleResponse);
+                });
+        lenient().when(submissionRecordRepository.findSubmissionRecordIdsByRegisteredItemId(any()))
+                .thenReturn(List.of());
+        AdministeredItemResponse detail = searchService.findDetailByAnyId(UUID.randomUUID());
+        assertThat(detail.id()).isEqualTo(sampleResponse.id());
+        assertThat(detail.referenceDocumentIds()).isEmpty();
+        assertThat(detail.submissionRecordSummaries()).isEmpty();
+        assertThat(detail.matchType()).isNull();
+    }
+
     @Test
     void search_countAndSelectSql_joinFragmentsHaveSpaceBoundaries() {
         // 回归：count SQL 曾因 "rs.id" + "LEFT JOIN" 缺少空格拼接出 rs.idLEFT 导致

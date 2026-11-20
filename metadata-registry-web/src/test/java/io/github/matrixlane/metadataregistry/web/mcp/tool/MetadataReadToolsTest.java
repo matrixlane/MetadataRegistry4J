@@ -9,7 +9,6 @@ import io.github.matrixlane.metadataregistry.web.common.BusinessException;
 import io.github.matrixlane.metadataregistry.web.common.PageResponse;
 import io.github.matrixlane.metadataregistry.web.dto.export.MetadataExportRequest;
 import io.github.matrixlane.metadataregistry.web.dto.mapping.MappingNetworkResponse;
-import io.github.matrixlane.metadataregistry.web.service.AdministeredItemService;
 import io.github.matrixlane.metadataregistry.web.service.MetadataExportService;
 import io.github.matrixlane.metadataregistry.web.service.MetadataSearchService;
 import io.github.matrixlane.metadataregistry.web.service.RegistrationProcessLayoutService;
@@ -45,7 +44,6 @@ import static org.mockito.Mockito.when;
 class MetadataReadToolsTest {
 
     private final MetadataSearchService searchService = mock(MetadataSearchService.class);
-    private final AdministeredItemService administeredItemService = mock(AdministeredItemService.class);
     private final VersionHistoryService versionHistoryService = mock(VersionHistoryService.class);
     private final MetadataExportService exportService = mock(MetadataExportService.class);
     private final ItemMappingService mappingService = mock(ItemMappingService.class);
@@ -55,7 +53,7 @@ class MetadataReadToolsTest {
 
     private final SearchMetadataTool searchTool = new SearchMetadataTool(searchService);
     private final BrowseDataDictionaryTool browseTool = new BrowseDataDictionaryTool(searchService);
-    private final GetItemDetailTool detailTool = new GetItemDetailTool(administeredItemService);
+    private final GetItemDetailTool detailTool = new GetItemDetailTool(searchService);
     private final GetItemVersionsTool versionsTool = new GetItemVersionsTool(versionHistoryService);
     private final ExportDataDictionaryTool exportTool = new ExportDataDictionaryTool(exportService);
     private final GetMappingNetworkTool networkTool = new GetMappingNetworkTool(mappingService);
@@ -105,7 +103,7 @@ class MetadataReadToolsTest {
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("缺少必填参数");
         detailTool.handle(Map.of("itemId", id.toString()));
-        verify(administeredItemService).get(id);
+        verify(searchService).findDetailByAnyId(id);
     }
 
     @Test

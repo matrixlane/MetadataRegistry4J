@@ -12,9 +12,12 @@ import io.github.matrixlane.metadataregistry.web.repository.DesignationRepositor
 import io.github.matrixlane.metadataregistry.web.repository.NamespaceRepository;
 import io.github.matrixlane.metadataregistry.web.repository.ScopedIdentifierRepository;
 import io.github.matrixlane.metadataregistry.web.service.namingconvention.NamingConflictDetector;
+import io.github.matrixlane.metadataregistry.web.service.namingconvention.NamingConventionEngine;
+import io.github.matrixlane.metadataregistry.web.service.namingconvention.NamingConventionRuleResult;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
@@ -38,6 +41,7 @@ public class NamespaceConstraintValidator {
     private final DesignationRepository designationRepository;
     private final ScopedIdentifierRepository scopedIdentifierRepository;
     private final NamingConflictDetector namingConflictDetector;
+    private final NamingConventionEngine namingConventionEngine;
 
     /**
      * 校验 Namespace 自身层级的约束（创建/更新 Namespace 时调用）。
@@ -115,6 +119,27 @@ public class NamespaceConstraintValidator {
         if (!conforms) {
             throw new BusinessException(ApiCodes.VALIDATION_FAILED,
                     "Designation 关联的 NamingConvention 不在 Namespace " + ns.getId() + " 允许的 NamingConvention 列表中");
+        }
+        // 命名空间约定驱动的机器规则（如 rulesJson 中的 charset）对指称执行校验；
+        // 无机器规则的约定不产生字符构成限制（default-naming-rules-standard-alignment）。
+        validateConventionMachineRules(nsConventions, designation.getSign());
+    }
+
+    private void validateConventionMachineRules(List<NamingConvention> conventions, Sign sign) {
+        if (sign == null || sign.getValue() == null || sign.getValue().isBlank()) {
+            return;
+        }
+        List<String> failures = new ArrayList<>();
+        for (NamingConvention convention : conventions) {
+            for (NamingConventionRuleResult result : namingConventionEngine.validate(sign, convention)) {
+                if (!result.isPassed()) {
+                    failures.add(result.getRuleName() + ": " + String.join(", ", result.getMessages()));
+                }
+            }
+        }
+        if (!failures.isEmpty()) {
+            throw new BusinessException(ApiCodes.VALIDATION_FAILED,
+                    "命名规范校验失败 [" + sign.getValue() + "]: " + String.join("; ", failures));
         }
     }
 

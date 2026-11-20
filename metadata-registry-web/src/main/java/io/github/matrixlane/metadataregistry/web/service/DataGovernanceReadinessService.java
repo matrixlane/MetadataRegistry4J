@@ -159,14 +159,26 @@ public class DataGovernanceReadinessService {
     }
 
     private boolean checkNamingConventionValid(Namespace ns) {
-        // 获取 Namespace 的 preferred designation 进行 NC 校验
+        // 命名空间约定合规评估：按该空间自身关联的 NamingConvention 机器规则校验，
+        // 不再使用硬编码默认字符白名单（default-naming-rules-standard-alignment）。
         String preferredName = ItemNamingHelper.preferredDesignation(ns);
         if (preferredName == null || preferredName.isBlank()) {
             // 如果 Namespace 本身没有名称，无法校验，返回 false
             return false;
         }
+        List<io.github.matrixlane.metadataregistry.commonfacilities.designationanddefinition.NamingConvention> conventions =
+                ns.getNamingConventions();
+        if (conventions == null || conventions.isEmpty()) {
+            // 强制命名规范但未配置约定属不一致状态，视为不合规
+            return false;
+        }
         Sign sign = Sign.of(preferredName);
-        return namingConventionEngine.isValid(sign);
+        for (var convention : conventions) {
+            if (!namingConventionEngine.isValid(sign, convention)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**

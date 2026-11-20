@@ -41,6 +41,7 @@ public class AdministeredItemService {
     private final ReferenceDocumentRepository referenceDocumentRepository;
     private final ConstraintSetRepository constraintSetRepository;
     private final SubmissionRecordRepository submissionRecordRepository;
+    private final MetadataSearchService metadataSearchService;
 
     @Transactional(readOnly = true)
     public Page<AdministeredItemResponse> list(RegistrationStatus status, Pageable pageable) {
@@ -52,11 +53,16 @@ public class AdministeredItemService {
         return repository.findAll(spec, pageable).map(this::toResponse);
     }
 
+    /**
+     * 单条详情。走 {@link MetadataSearchService} 标量 SQL 路径而非实体路径——
+     * toResponse 初始化 Item 继承树代理会把 30+ 张子表连同 EAGER 关联拉进同一条 SQL，
+     * 条目关联填满后 SQLite 触发 "at most 64 tables in a join"
+     * （KNOWN_FAILURES failure-2026-09-21-sqlite-64-table-join-limit）。
+     * 未命中时抛 {@link ResourceNotFoundException}（由 REST 全局异常处理器转 404）。
+     */
     @Transactional(readOnly = true)
     public AdministeredItemResponse get(UUID id) {
-        AdministeredItem ai = repository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("AdministeredItem", id));
-        return toResponse(ai);
+        return metadataSearchService.findDetailByAnyId(id);
     }
 
     /**

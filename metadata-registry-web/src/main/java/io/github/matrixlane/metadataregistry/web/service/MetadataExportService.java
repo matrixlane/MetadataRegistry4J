@@ -21,9 +21,13 @@ import io.github.matrixlane.metadataregistry.web.dto.export.AdministeredItemExpo
 import io.github.matrixlane.metadataregistry.web.dto.export.MetadataExportRequest;
 import io.github.matrixlane.metadataregistry.web.dto.export.MetadataExportResult;
 import io.github.matrixlane.metadataregistry.web.repository.AdministeredItemRepository;
+import io.github.matrixlane.metadataregistry.web.service.database.DatabaseEnvironment;
+import io.github.matrixlane.metadataregistry.web.service.database.DatabaseVendor;
+import io.github.matrixlane.metadataregistry.web.service.database.ItemTypeSql;
 import io.github.matrixlane.metadataregistry.web.util.ItemNamingHelper;
 import org.hibernate.Hibernate;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
@@ -33,11 +37,17 @@ import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
 import java.nio.charset.StandardCharsets;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -47,17 +57,28 @@ import java.util.stream.Collectors;
  *
  * <p>支持按注册状态、组织、时间范围、Item 类型过滤，以及字段白名单筛选。
  * 支持 JSON 和 CSV 两种格式。
+ *
+ * <p>批量导出走原生 SQL 标量投影（{@link #queryExports}），不经 JPA 实体图：
+ * Item 是 JOINED 继承根（30 子类表），加载它会拼出超 SQLite 64 表 JOIN 上限的
+ * 多态 SQL（2026-11-20 生产事故：export-data-dictionary 在 SQLite 下 500）。
+ * itemType 由 EXISTS 子查询推导，与 MetadataSearchService 共用 {@link ItemTypeSql}。
  */
 @Service
 @Transactional(readOnly = true)
 public class MetadataExportService {
 
     private final AdministeredItemRepository repository;
+    private final JdbcTemplate jdbcTemplate;
+    private final DatabaseEnvironment env;
     private final ObjectMapper objectMapper;
 
     public MetadataExportService(AdministeredItemRepository repository,
+                                  JdbcTemplate jdbcTemplate,
+                                  DatabaseEnvironment env,
                                   ObjectMapper objectMapper) {
         this.repository = repository;
+        this.jdbcTemplate = jdbcTemplate;
+        this.env = env;
         this.objectMapper = objectMapper;
     }
 
@@ -86,7 +107,7 @@ public class MetadataExportService {
      * @return 导出结果
      */
     public MetadataExportResult export(MetadataExportRequest request) {
-        List<AdministeredItem> items = queryItems(request);
+        List<AdministeredItemExport> items = queryExports(request);
 
         if (items.size() > MAX_SYNC_EXPORT_SIZE) {
             throw new IllegalArgumentException(
@@ -94,13 +115,9 @@ public class MetadataExportService {
                     "当前匹配: " + items.size());
         }
 
-        List<AdministeredItemExport> exports = items.stream()
-                .map(this::toExport)
-                .toList();
-
         return new MetadataExportResult(
-                buildMetadata(request, exports.size()),
-                exports
+                buildMetadata(request, items.size()),
+                items
         );
     }
 
@@ -129,7 +146,7 @@ public class MetadataExportService {
      * @param output    输出流
      */
     public void exportJsonToStream(MetadataExportRequest request, OutputStream output) throws IOException {
-        List<AdministeredItem> items = queryItems(request);
+        List<AdministeredItemExport> items = queryExports(request);
 
         try (JsonGenerator generator = new JsonFactory().createGenerator(output, com.fasterxml.jackson.core.JsonEncoding.UTF8)) {
             ObjectMapper filteredMapper = createFilteredMapper(request.fields());
@@ -141,9 +158,8 @@ public class MetadataExportService {
             filteredMapper.writeValue(generator, metadata);
 
             generator.writeArrayFieldStart("items");
-            for (AdministeredItem item : items) {
-                AdministeredItemExport export = toExport(item);
-                filteredMapper.writeValue(generator, export);
+            for (AdministeredItemExport item : items) {
+                filteredMapper.writeValue(generator, item);
             }
             generator.writeEndArray();
             generator.writeEndObject();
@@ -157,7 +173,7 @@ public class MetadataExportService {
      * @param output    输出流
      */
     public void exportCsvToStream(MetadataExportRequest request, OutputStream output) throws IOException {
-        List<AdministeredItem> items = queryItems(request);
+        List<AdministeredItemExport> items = queryExports(request);
 
         try (Writer writer = new OutputStreamWriter(output, StandardCharsets.UTF_8)) {
             // BOM for Excel compatibility
@@ -168,8 +184,7 @@ public class MetadataExportService {
             writer.write("CreatedDate,LastModifiedDate,ChangeDescription,ExplanatoryComment\n");
 
             // Data rows
-            for (AdministeredItem ai : items) {
-                AdministeredItemExport export = toExport(ai);
+            for (AdministeredItemExport export : items) {
                 writer.write(escapeCsv(export.id().toString()));
                 writer.write(",");
                 writer.write(escapeCsv(export.itemType()));
@@ -202,40 +217,306 @@ public class MetadataExportService {
         }
     }
 
-
+    // ---------------------------------------------------------------------
+    // 原生 SQL 批量导出（不经 JPA Item 实体图，规避 JOINED 根多态 JOIN 爆炸）
+    // ---------------------------------------------------------------------
 
     /**
-     * 查询符合条件的 AdministeredItem（含 Item 类型过滤）
+     * 查询符合条件的导出行（含 Item 类型过滤，类型名下推为 EXISTS 谓词）。
      */
-    List<AdministeredItem> queryItems(MetadataExportRequest request) {
-        Specification<AdministeredItem> spec = buildSpecification(request);
-        List<AdministeredItem> items = repository.findAll(spec);
-
-        // In-memory item type filtering
-        if (!CollectionUtils.isEmpty(request.itemTypes())) {
-            Set<String> typeFilter = request.itemTypes().stream()
-                    .map(String::trim)
-                    .filter(s -> !s.isEmpty())
-                    .map(String::toLowerCase)
-                    .collect(Collectors.toSet());
-
-            items = items.stream()
-                    .filter(ai -> {
-                        Item item = ai.getItem();
-                        if (item == null) return false;
-                        Item realItem = (Item) Hibernate.unproxy(item);
-                        if (realItem == null) return false;
-                        String typeName = realItem.getClass().getSimpleName().toLowerCase();
-                        return typeFilter.contains(typeName);
-                    })
-                    .toList();
+    List<AdministeredItemExport> queryExports(MetadataExportRequest request) {
+        ExportQuery query = buildExportQuery(request);
+        List<ExportRow> rows = jdbcTemplate.query(query.sql(), this::mapRow, query.params().toArray());
+        if (rows.isEmpty()) {
+            return List.of();
         }
 
-        return items;
+        List<UUID> ids = rows.stream().map(ExportRow::id).toList();
+        Map<UUID, List<AdministeredItemExport.ScopedIdentifierExport>> identifiers = queryIdentifiers(ids);
+        Map<UUID, List<String>> submissionOrgs = querySubmissionOrganizations(ids);
+
+        return rows.stream()
+                .map(r -> r.toExport(
+                        identifiers.getOrDefault(r.id(), List.of()),
+                        submissionOrgs.getOrDefault(r.id(), List.of())))
+                .toList();
     }
 
     /**
-     * 构建查询条件
+     * 组装导出主查询。拆分为独立方法以便单测直接断言 SQL 与参数。
+     */
+    ExportQuery buildExportQuery(MetadataExportRequest request) {
+        StringBuilder where = new StringBuilder(" WHERE 1=1 ");
+        List<Object> params = new ArrayList<>();
+
+        if (request.registrationStatus() != null) {
+            where.append(" AND rs.registration_status = ?");
+            params.add(request.registrationStatus().name());
+        }
+        if (request.registrationAuthorityId() != null) {
+            where.append(" AND ai.registration_authority_id = ?");
+            params.add(env.toJdbcUuid(request.registrationAuthorityId()));
+        }
+        if (request.stewardshipOrganizationId() != null) {
+            where.append(" AND sr.organization_id = ?");
+            params.add(env.toJdbcUuid(request.stewardshipOrganizationId()));
+        }
+        if (request.createdAfter() != null) {
+            where.append(" AND ai.creation_date_time >= ?");
+            params.add(Timestamp.valueOf(request.createdAfter()));
+        }
+        if (request.createdBefore() != null) {
+            where.append(" AND ai.creation_date_time <= ?");
+            params.add(Timestamp.valueOf(request.createdBefore()));
+        }
+        if (request.modifiedAfter() != null) {
+            where.append(" AND ai.last_change_date_time >= ?");
+            params.add(Timestamp.valueOf(request.modifiedAfter()));
+        }
+        if (request.modifiedBefore() != null) {
+            where.append(" AND ai.last_change_date_time <= ?");
+            params.add(Timestamp.valueOf(request.modifiedBefore()));
+        }
+
+        List<String> canonicalTypes = new ArrayList<>();
+        if (!CollectionUtils.isEmpty(request.itemTypes())) {
+            request.itemTypes().stream()
+                    .map(ItemTypeSql::normalizeType)
+                    .filter(Objects::nonNull)
+                    .distinct()
+                    .forEach(canonicalTypes::add);
+            if (canonicalTypes.isEmpty()) {
+                // 全部类型名均不在白名单：无命中（与内存过滤口径一致）
+                where.append(" AND 1=0");
+            } else {
+                StringBuilder typeOr = new StringBuilder();
+                for (String type : canonicalTypes) {
+                    if (!typeOr.isEmpty()) {
+                        typeOr.append(" OR ");
+                    }
+                    typeOr.append(ItemTypeSql.itemTypeExistsClause(env, type));
+                }
+                where.append(" AND (").append(typeOr).append(")");
+            }
+        }
+
+        String sql = "SELECT " +
+                "ai.id, " +
+                ItemTypeSql.itemTypeExprFor(env, canonicalTypes) + " AS item_type, " +
+                designationLabelExpr() + " AS item_label, " +
+                firstOne("df.value", t("definition") + " df", "df.item_id = i.id AND df.value IS NOT NULL") + " AS item_definition, " +
+                "rs.registration_status, " +
+                "rs.effective_date, " +
+                "rs.until_date, " +
+                "rs.administrative_note, " +
+                "rs.unresolved_issue, " +
+                "rs.administrative_status, " +
+                "ra.id AS ra_id, " +
+                firstOne("on1.value", t("organization_name") + " on1", "on1.organization_id = ra.id") + " AS ra_name, " +
+                "sr.organization_id AS st_org_id, " +
+                firstOne("on2.value", t("organization_name") + " on2", "on2.organization_id = sr.organization_id") + " AS st_org_name, " +
+                "sr.contact_id AS st_contact_id, " +
+                firstOne("ind.name", t("individual") + " ind", "ind.id = sr.contact_id") + " AS st_contact_ind_name, " +
+                firstOne("on3.value", t("organization_name") + " on3", "on3.organization_id = " +
+                        firstOne("c.organization_id", t("contact") + " c", "c.id = sr.contact_id")) + " AS st_contact_org_name, " +
+                "ai.creation_date_time, " +
+                "ai.last_change_date_time, " +
+                "ai.change_description, " +
+                "ai.explanatory_comment, " +
+                "ai.origin " +
+                "FROM " + t("administered_item") + " ai " +
+                "JOIN " + t("registered_item") + " ri ON ri.id = ai.id " +
+                "JOIN " + t("item") + " i ON i.id = ri.item_id " +
+                "LEFT JOIN " + t("registration_state") + " rs ON rs.id = ai.registration_state_id " +
+                "LEFT JOIN " + t("registration_authority") + " ra ON ra.id = ai.registration_authority_id " +
+                "LEFT JOIN " + t("stewardship_record") + " sr ON sr.id = ai.stewardship_record_id " +
+                where +
+                " ORDER BY ai.creation_date_time";
+
+        return new ExportQuery(sql, params);
+    }
+
+    private Map<UUID, List<AdministeredItemExport.ScopedIdentifierExport>> queryIdentifiers(List<UUID> administeredIds) {
+        String sql = "SELECT si.identified_item_id, si.identifier, si.version, si.namespace_id, " +
+                firstOne("d2.value", t("designation") + " d2", "d2.item_id = ns.id") + " AS ns_label " +
+                "FROM " + t("scoped_identifier") + " si " +
+                "LEFT JOIN " + t("namespace") + " ns ON ns.id = si.namespace_id " +
+                "WHERE si.identified_item_id IN (" + placeholders(administeredIds.size()) + ")";
+        List<Object> params = administeredIds.stream().map(env::toJdbcUuid).collect(Collectors.toList());
+
+        Map<UUID, List<AdministeredItemExport.ScopedIdentifierExport>> byItem = new LinkedHashMap<>();
+        jdbcTemplate.query(sql, rs -> {
+            UUID owner = DatabaseEnvironment.toUuid(rs.getObject("identified_item_id"));
+            byItem.computeIfAbsent(owner, k -> new ArrayList<>())
+                    .add(new AdministeredItemExport.ScopedIdentifierExport(
+                            rs.getString("identifier"),
+                            rs.getString("version"),
+                            DatabaseEnvironment.toUuid(rs.getObject("namespace_id")),
+                            rs.getString("ns_label")));
+        }, params.toArray());
+        return byItem;
+    }
+
+    private Map<UUID, List<String>> querySubmissionOrganizations(List<UUID> administeredIds) {
+        String sql = "SELECT rsr.registered_item_id, " +
+                firstOne("on4.value", t("organization_name") + " on4", "on4.organization_id = s.organization_id") + " AS org_name " +
+                "FROM " + t("registered_item_submission_record") + " rsr " +
+                "JOIN " + t("submission_record") + " s ON s.id = rsr.submission_record_id " +
+                "WHERE rsr.registered_item_id IN (" + placeholders(administeredIds.size()) + ")";
+        List<Object> params = administeredIds.stream().map(env::toJdbcUuid).collect(Collectors.toList());
+
+        Map<UUID, List<String>> byItem = new LinkedHashMap<>();
+        jdbcTemplate.query(sql, rs -> {
+            String orgName = rs.getString("org_name");
+            if (orgName == null) {
+                return;
+            }
+            UUID owner = DatabaseEnvironment.toUuid(rs.getObject("registered_item_id"));
+            byItem.computeIfAbsent(owner, k -> new ArrayList<>()).add(orgName);
+        }, params.toArray());
+        return byItem;
+    }
+
+    private ExportRow mapRow(ResultSet rs, int rowNum) throws SQLException {
+        String contactIndName = rs.getString("st_contact_ind_name");
+        String contactOrgName = rs.getString("st_contact_org_name");
+
+        return new ExportRow(
+                DatabaseEnvironment.toUuid(rs.getObject("id")),
+                rs.getString("item_type"),
+                rs.getString("item_label"),
+                rs.getString("item_definition"),
+                status(rs, "registration_status"),
+                ldt(rs, "effective_date"),
+                ldt(rs, "until_date"),
+                rs.getString("administrative_note"),
+                rs.getString("unresolved_issue"),
+                rs.getString("administrative_status"),
+                DatabaseEnvironment.toUuid(rs.getObject("ra_id")),
+                rs.getString("ra_name"),
+                DatabaseEnvironment.toUuid(rs.getObject("st_org_id")),
+                rs.getString("st_org_name"),
+                DatabaseEnvironment.toUuid(rs.getObject("st_contact_id")),
+                contactIndName != null ? contactIndName : contactOrgName,
+                ldt(rs, "creation_date_time"),
+                ldt(rs, "last_change_date_time"),
+                rs.getString("change_description"),
+                rs.getString("explanatory_comment"),
+                rs.getString("origin")
+        );
+    }
+
+    /**
+     * designation 取值：与 {@link ItemNamingHelper#preferredDesignation(Item)} 同口径，
+     * 语言优先级 zh-CN &gt; en-US &gt; 其它 &gt; 无语言。
+     */
+    private String designationLabelExpr() {
+        String from = t("designation") + " d LEFT JOIN " + env.qualify("language_identification")
+                + " li ON li.id = d.language_id";
+        String orderBy = "CASE WHEN li.language_identifier = '" + ItemNamingHelper.DEFAULT_LANGUAGE + "' THEN 0"
+                + " WHEN li.language_identifier = '" + ItemNamingHelper.FALLBACK_LANGUAGE + "' THEN 1"
+                + " WHEN li.language_identifier IS NULL THEN 9 ELSE 5 END";
+        return firstOneOrdered("d.value", from, "d.item_id = i.id", orderBy);
+    }
+
+    /**
+     * administrative_status 列由 {@code AdministrativeStatusConverter} 以标准值文本
+     * 存储（如 "initial"），与导出 DTO 字段口径一致，直接透传。
+     */
+    private static RegistrationStatus status(ResultSet rs, String column) throws SQLException {
+        String value = rs.getString(column);
+        return value == null ? null : RegistrationStatus.valueOf(value);
+    }
+
+    private static LocalDateTime ldt(ResultSet rs, String column) throws SQLException {
+        Timestamp ts = rs.getTimestamp(column);
+        return ts == null ? null : ts.toLocalDateTime();
+    }
+
+    /** 表名按当前方言/schema 限定（EXT 表自动走 ext schema）。 */
+    private String t(String table) {
+        return env.qualifyAuto(table);
+    }
+
+    /** "取第一行"标量子查询：SQL Server 用 TOP 1，其余方言用 LIMIT 1。 */
+    private String firstOne(String column, String table, String condition) {
+        if (env.vendor() == DatabaseVendor.SQLSERVER) {
+            return "(SELECT TOP 1 " + column + " FROM " + table + " WHERE " + condition + ")";
+        }
+        return "(SELECT " + column + " FROM " + table + " WHERE " + condition + " LIMIT 1)";
+    }
+
+    /** 带排序的"取第一行"标量子查询（方言分支同 {@link #firstOne}）。 */
+    private String firstOneOrdered(String column, String from, String condition, String orderBy) {
+        if (env.vendor() == DatabaseVendor.SQLSERVER) {
+            return "(SELECT TOP 1 " + column + " FROM " + from + " WHERE " + condition
+                    + " ORDER BY " + orderBy + ")";
+        }
+        return "(SELECT " + column + " FROM " + from + " WHERE " + condition
+                + " ORDER BY " + orderBy + " LIMIT 1)";
+    }
+
+    private static String placeholders(int count) {
+        return String.join(", ", Collections.nCopies(count, "?"));
+    }
+
+    record ExportQuery(String sql, List<Object> params) {
+    }
+
+    /**
+     * 导出行中间记录：主查询一行对应一个 AdministeredItem，
+     * 标识符与提交组织由批量副查询回填后组装为 {@link AdministeredItemExport}。
+     * 包级可见以便单测直接构造。
+     */
+    record ExportRow(
+            UUID id,
+            String itemType,
+            String itemLabel,
+            String itemDefinition,
+            RegistrationStatus status,
+            LocalDateTime effectiveDate,
+            LocalDateTime untilDate,
+            String administrativeNote,
+            String unresolvedIssue,
+            String administrativeStatus,
+            UUID raId,
+            String raName,
+            UUID stOrgId,
+            String stOrgName,
+            UUID stContactId,
+            String stContactName,
+            LocalDateTime creationDateTime,
+            LocalDateTime lastChangeDateTime,
+            String changeDescription,
+            String explanatoryComment,
+            String origin
+    ) {
+        AdministeredItemExport toExport(
+                List<AdministeredItemExport.ScopedIdentifierExport> identifiers,
+                List<String> submissionOrganizations) {
+            AdministeredItemExport.RegistrationStateExport stateExport = null;
+            if (status != null) {
+                stateExport = new AdministeredItemExport.RegistrationStateExport(
+                        status, effectiveDate, untilDate, administrativeNote,
+                        unresolvedIssue, administrativeStatus);
+            }
+            AdministeredItemExport.RegistrationAuthorityExport raExport =
+                    raId == null ? null : new AdministeredItemExport.RegistrationAuthorityExport(raId, raName);
+            AdministeredItemExport.StewardshipExport stewardshipExport = null;
+            if (stOrgId != null || stContactId != null) {
+                stewardshipExport = new AdministeredItemExport.StewardshipExport(
+                        stOrgId, stOrgName, stContactId, stContactName);
+            }
+            return new AdministeredItemExport(
+                    id, itemType, itemLabel, itemDefinition, identifiers, stateExport,
+                    raExport, stewardshipExport, submissionOrganizations,
+                    creationDateTime, lastChangeDateTime, changeDescription,
+                    explanatoryComment, origin);
+        }
+    }
+
+    /**
+     * 构建查询条件（仅用于 count 估算；批量查询走 {@link #buildExportQuery} 原生 SQL）
      */
     Specification<AdministeredItem> buildSpecification(MetadataExportRequest request) {
         Specification<AdministeredItem> spec = Specification.where(null);
@@ -478,14 +759,5 @@ public class MetadataExportService {
         }
         return value;
     }
-
-    private static String toJsonString(Object obj) {
-        try {
-            return new ObjectMapper().writeValueAsString(obj);
-        } catch (Exception e) {
-            return obj != null ? obj.toString() : "";
-        }
-    }
-
 
 }

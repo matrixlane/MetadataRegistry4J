@@ -24,6 +24,8 @@ import java.util.Map;
  * <ul>
  *   <li>结果序列化：String 原样返回，其余经 Jackson 转 JSON 文本；</li>
  *   <li>错误语义：{@link BusinessException} → {@code [code] message}（isError=true）；
+ *       {@link io.github.matrixlane.metadataregistry.web.common.ResourceNotFoundException}
+ *       → {@code [404] message}（isError=true，未找到是业务语义而非内部错误）；
  *       其余异常 → 通用 {@code [500] MCP 工具执行失败（内部错误）}（不泄露堆栈/连接串，
  *       细节仅落服务端日志）；</li>
  *   <li>审计：每次调用记录参数 SHA-256 摘要与结果状态。</li>
@@ -87,6 +89,12 @@ public class McpToolCatalog {
             auditService.record(tool.name(), McpIdentitySupport.identityLabel(null), digest,
                     "BUSINESS_ERROR", elapsedMs(start));
             return textResult("[" + e.getCode() + "] " + e.getMessage(), true);
+        } catch (io.github.matrixlane.metadataregistry.web.common.ResourceNotFoundException e) {
+            // 未找到是业务语义（如 get-item-detail 条目不存在），须透传 [404] 而不是
+            // 归类为内部错误——否则 MCP 客户端看到误导性的 [500]（2026-11-20 事故）
+            auditService.record(tool.name(), McpIdentitySupport.identityLabel(null), digest,
+                    "NOT_FOUND", elapsedMs(start));
+            return textResult("[" + ApiCodes.NOT_FOUND + "] " + e.getMessage(), true);
         } catch (org.springframework.security.access.AccessDeniedException e) {
             // 归属/角色门禁（ActiveRegistrarService 等）抛 AccessDeniedException：
             // 归类为权限错误而非内部错误，保持 [code] message 语义（评审 MAJOR-2）

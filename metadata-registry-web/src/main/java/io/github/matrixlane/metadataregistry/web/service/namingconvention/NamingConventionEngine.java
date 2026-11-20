@@ -156,6 +156,7 @@ public class NamingConventionEngine {
                 case "length" -> rules.add(new LengthNamingConventionRule(
                         rule.min() == null ? LengthNamingConventionRule.DEFAULT_MIN_LENGTH : rule.min(),
                         rule.max() == null ? LengthNamingConventionRule.DEFAULT_MAX_LENGTH : rule.max()));
+                case "charset" -> rules.add(new CharsetNamingConventionRule());
                 case "regex" -> {
                     if (StringUtils.hasText(rule.pattern())) {
                         rules.add(new RegexNamingConventionRule(
@@ -226,11 +227,10 @@ public class NamingConventionEngine {
     }
 
     private static List<NamingConventionRule> buildDefaultRules() {
-        return List.of(
-                new LengthNamingConventionRule(),
-                new CharsetNamingConventionRule(),
-                new RegexNamingConventionRule()
-        );
+        // 默认集仅保留长度规则（1–255）。ISO/IEC 11179-3 对 Sign 字符构成无强制限制，
+        // 字符构成类约束（charset / 标识符式正则）属于命名空间 Naming_Convention 约定，
+        // 须经 rulesJson 显式配置才生效（default-naming-rules-standard-alignment）。
+        return List.of(new LengthNamingConventionRule());
     }
 
     /**

@@ -37,6 +37,7 @@ class NamespaceConstraintValidatorTest {
     @Mock private DesignationRepository designationRepository;
     @Mock private ScopedIdentifierRepository scopedIdentifierRepository;
     @Mock private NamingConflictDetector namingConflictDetector;
+    @Mock private io.github.matrixlane.metadataregistry.web.service.namingconvention.NamingConventionEngine namingConventionEngine;
 
     @InjectMocks
     private NamespaceConstraintValidator validator;
@@ -115,6 +116,43 @@ class NamespaceConstraintValidatorTest {
 
         Designation designation = createDesignation("test");
         designation.getNamingConventions().add(allowed);
+
+        assertThatNoException().isThrownBy(() -> validator.validateDesignation(namespaceId, designation, null));
+    }
+
+    @Test
+    void validateDesignation_shouldFailWhenConventionMachineRuleRejects() {
+        // default-naming-rules-standard-alignment：约定配置的 charset 机器规则对指称生效
+        namespace.setMandatoryNamingConventionIndicator(true);
+        NamingConvention allowed = new NamingConvention();
+        allowed.setId(UUID.randomUUID());
+        namespace.getNamingConventions().add(allowed);
+
+        Designation designation = createDesignation("患者/法定代理人姓名");
+        designation.getNamingConventions().add(allowed);
+
+        when(namingConventionEngine.validate(any(Sign.class), any(NamingConvention.class)))
+                .thenReturn(List.of(io.github.matrixlane.metadataregistry.web.service.namingconvention
+                        .NamingConventionRuleResult.fail("charset", "名称包含非法字符，只允许：中日韩文字、下划线、字母和数字、空格、连字符")));
+
+        assertThatThrownBy(() -> validator.validateDesignation(namespaceId, designation, null))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("命名规范校验失败");
+    }
+
+    @Test
+    void validateDesignation_shouldPassWhenConventionMachineRulesPass() {
+        namespace.setMandatoryNamingConventionIndicator(true);
+        NamingConvention allowed = new NamingConvention();
+        allowed.setId(UUID.randomUUID());
+        namespace.getNamingConventions().add(allowed);
+
+        Designation designation = createDesignation("患者姓名");
+        designation.getNamingConventions().add(allowed);
+
+        when(namingConventionEngine.validate(any(Sign.class), any(NamingConvention.class)))
+                .thenReturn(List.of(io.github.matrixlane.metadataregistry.web.service.namingconvention
+                        .NamingConventionRuleResult.pass("charset")));
 
         assertThatNoException().isThrownBy(() -> validator.validateDesignation(namespaceId, designation, null));
     }

@@ -47,6 +47,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  *   <li>只读调用 search-metadata；</li>
  *   <li>受控写入 draft-item 落库 + 受管链闭环断言（administered_item 存在、
  *       注册状态 INCOMPLETE —— 任务 5.6 口径）；</li>
+ *   <li>export-data-dictionary 端到端（2026-11-20 事故回归：JOINED 根多态 JOIN
+ *       超 SQLite 64 表上限曾致导出 500）；</li>
  *   <li>推断功能未启用语义（mdr.inference.enabled=false）；</li>
  *   <li>弱角色调写工具 403、业务端口访问 MCP 路径 404。</li>
  * </ul>
@@ -207,6 +209,16 @@ class McpEndToEndSmokeTest {
         assertThat(submit.body().path("result").path("isError").asBoolean()).isFalse();
         assertThat(countRows("SELECT COUNT(*) FROM registered_item_submission_record WHERE registered_item_id = ?",
                 administeredItemId)).isEqualTo(1);
+
+        // 6c) export-data-dictionary 端到端（2026-11-20 事故回归：JOINED 根多态 JOIN 曾拼出
+        //     超 SQLite 64 表上限的 SQL，导出 500；修复后走原生 SQL 标量投影）
+        McpResponse export = postMcp(mcpPort, rpc(42, "tools/call",
+                "{\"name\":\"export-data-dictionary\",\"arguments\":{\"format\":\"json\",\"itemTypes\":\"ObjectClass\"}}"),
+                registrarToken, sessionId);
+        assertThat(export.body().path("result").path("isError").asBoolean()).isFalse();
+        String exportedJson = export.body().path("result").path("content").get(0).path("text").asText();
+        assertThat(exportedJson).contains("\"itemType\":\"ObjectClass\"");
+        assertThat(exportedJson).contains("MCP 端到端对象类");
 
         // 7) 推断功能未启用语义
         McpResponse inference = postMcp(mcpPort, rpc(5, "tools/call", """
