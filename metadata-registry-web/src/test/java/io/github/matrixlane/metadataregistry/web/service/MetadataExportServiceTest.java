@@ -34,6 +34,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.contains;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -373,6 +374,114 @@ class MetadataExportServiceTest {
         assertThat(json).contains("\"items\"");
         assertThat(json).contains("\"schemaVersion\":\"1.0.0\"");
         assertThat(json).contains("导出测试值域");
+    }
+
+    // =========================================================================
+    // 5. 分页导出（export-dictionary-pagination）
+    // =========================================================================
+
+    @Test
+    @DisplayName("分页 SQL（SQLite）：LIMIT/OFFSET 与参数顺序 size,page*size；ORDER BY 含 ai.id 稳定序")
+    void buildExportQuery_paged_sqlite() {
+        MetadataExportRequest request = new MetadataExportRequest(
+                null, null, null, null, null, null, null, null, null, 2, 50);
+
+        MetadataExportService.ExportQuery query = exportService.buildExportQuery(request);
+
+        assertThat(query.sql()).contains("ORDER BY ai.creation_date_time, ai.id");
+        assertThat(query.sql()).contains("LIMIT ? OFFSET ?");
+        assertThat(query.params()).containsExactly(50, 100);
+    }
+
+    @Test
+    @DisplayName("分页 SQL（SQL Server）：OFFSET/FETCH 与参数顺序 offset,page*size,size")
+    void buildExportQuery_paged_sqlserver() {
+        DatabaseEnvironment mssqlEnv = new DatabaseEnvironment(
+                "", "jdbc:sqlserver://localhost;databaseName=x", "", "");
+        MetadataExportService mssqlService = new MetadataExportService(repository, jdbcTemplate, mssqlEnv, objectMapper);
+        MetadataExportRequest request = new MetadataExportRequest(
+                null, null, null, null, null, null, null, null, null, 1, 25);
+
+        MetadataExportService.ExportQuery query = mssqlService.buildExportQuery(request);
+
+        assertThat(query.sql()).contains("OFFSET ? ROWS FETCH NEXT ? ROWS ONLY");
+        assertThat(query.params()).containsExactly(25, 25);
+    }
+
+    @Test
+    @DisplayName("未分页请求：不含分页子句（行为不变；标量子查询内的 LIMIT 1 不受影响）")
+    void buildExportQuery_unpaged_noPagingClause() {
+        MetadataExportService.ExportQuery query = exportService.buildExportQuery(baseRequest());
+
+        assertThat(query.sql()).doesNotContain("LIMIT ? OFFSET ?", "OFFSET ? ROWS");
+        assertThat(query.sql()).contains("ORDER BY ai.creation_date_time, ai.id");
+    }
+
+    @Test
+    @DisplayName("COUNT 查询：与主查询同 WHERE，无分页子句")
+    void buildCountQuery_matchesMainWhere() {
+        MetadataExportRequest request = new MetadataExportRequest(
+                RegistrationStatus.STANDARD, null, null, null, null, null, null, null, null, 0, 10);
+
+        MetadataExportService.ExportQuery query = exportService.buildCountQuery(request);
+
+        assertThat(query.sql()).contains("SELECT COUNT(*)");
+        assertThat(query.sql()).contains("AND rs.registration_status = ?");
+        assertThat(query.sql()).doesNotContain("LIMIT", "OFFSET", "FETCH", "ORDER BY");
+        assertThat(query.params()).containsExactly("STANDARD");
+    }
+
+    @Test
+    @DisplayName("分页参数校验：page<0 / size=0 / size>10000 / 仅传其一 → 拒绝")
+    void request_paged_invalidArguments_shouldThrow() {
+        assertThatThrownBy(() -> new MetadataExportRequest(
+                null, null, null, null, null, null, null, null, null, -1, 50))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("page");
+        assertThatThrownBy(() -> new MetadataExportRequest(
+                null, null, null, null, null, null, null, null, null, 0, 0))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("size");
+        assertThatThrownBy(() -> new MetadataExportRequest(
+                null, null, null, null, null, null, null, null, null, 0, 10_001))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("size");
+        assertThatThrownBy(() -> new MetadataExportRequest(
+                null, null, null, null, null, null, null, null, null, 0, null))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("同时提供");
+        assertThatThrownBy(() -> new MetadataExportRequest(
+                null, null, null, null, null, null, null, null, null, null, 50))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("同时提供");
+    }
+
+    @Test
+    @DisplayName("流式导出：分页时 totalCount 取 COUNT 全量命中数，items 为本页")
+    void exportJsonToStream_paged_totalCountFromCountQuery() throws Exception {
+        stubMainQuery(List.of(sampleExportRow()));
+        stubIdentifierQuery(ITEM_ID, "EXP-001", "1.0", UUID.randomUUID(), "ns");
+        stubNoSubmissionQuery();
+        when(jdbcTemplate.queryForObject(contains("COUNT"), eq(Integer.class), any(Object[].class)))
+                .thenReturn(7);
+
+        MetadataExportRequest pagedRequest = new MetadataExportRequest(
+                null, null, null, null, null, null, null, null, null, 1, 50);
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        exportService.exportJsonToStream(pagedRequest, baos);
+
+        String json = baos.toString(StandardCharsets.UTF_8);
+        assertThat(json).contains("\"totalCount\":7");
+        assertThat(json).contains("导出测试值域");
+        verify(jdbcTemplate).queryForObject(contains("COUNT"), eq(Integer.class), any(Object[].class));
+    }
+
+    @Test
+    @DisplayName("流式导出：未分页时不发起 COUNT 查询（行为不变）")
+    void exportJsonToStream_unpaged_skipsCountQuery() throws Exception {
+        stubMainQuery(List.of(sampleExportRow()));
+        stubIdentifierQuery(ITEM_ID, "EXP-001", "1.0", UUID.randomUUID(), "ns");
+        stubNoSubmissionQuery();
+
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        exportService.exportJsonToStream(baseRequest(), baos);
+
+        verify(jdbcTemplate, never()).queryForObject(anyString(), eq(Integer.class), any(Object[].class));
     }
 
     // =========================================================================

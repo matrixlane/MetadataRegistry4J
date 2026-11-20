@@ -147,13 +147,15 @@ public class MetadataExportService {
      */
     public void exportJsonToStream(MetadataExportRequest request, OutputStream output) throws IOException {
         List<AdministeredItemExport> items = queryExports(request);
+        // 分页时 totalCount 报告全量命中数，客户端据其判定翻页终止；未分页维持现语义
+        int totalCount = request.paged() ? countExports(request) : items.size();
 
         try (JsonGenerator generator = new JsonFactory().createGenerator(output, com.fasterxml.jackson.core.JsonEncoding.UTF8)) {
             ObjectMapper filteredMapper = createFilteredMapper(request.fields());
 
             generator.writeStartObject();
 
-            MetadataExportResult.ExportMetadata metadata = buildMetadata(request, items.size());
+            MetadataExportResult.ExportMetadata metadata = buildMetadata(request, totalCount);
             generator.writeFieldName("exportMetadata");
             filteredMapper.writeValue(generator, metadata);
 
@@ -242,6 +244,13 @@ public class MetadataExportService {
                 .toList();
     }
 
+    /** 全量命中数（分页时填充 totalCount 用）。 */
+    int countExports(MetadataExportRequest request) {
+        ExportQuery query = buildCountQuery(request);
+        Integer count = jdbcTemplate.queryForObject(query.sql(), Integer.class, query.params().toArray());
+        return count == null ? 0 : count;
+    }
+
     /**
      * 组装导出主查询。拆分为独立方法以便单测直接断言 SQL 与参数。
      */
@@ -249,42 +258,10 @@ public class MetadataExportService {
         StringBuilder where = new StringBuilder(" WHERE 1=1 ");
         List<Object> params = new ArrayList<>();
 
-        if (request.registrationStatus() != null) {
-            where.append(" AND rs.registration_status = ?");
-            params.add(request.registrationStatus().name());
-        }
-        if (request.registrationAuthorityId() != null) {
-            where.append(" AND ai.registration_authority_id = ?");
-            params.add(env.toJdbcUuid(request.registrationAuthorityId()));
-        }
-        if (request.stewardshipOrganizationId() != null) {
-            where.append(" AND sr.organization_id = ?");
-            params.add(env.toJdbcUuid(request.stewardshipOrganizationId()));
-        }
-        if (request.createdAfter() != null) {
-            where.append(" AND ai.creation_date_time >= ?");
-            params.add(Timestamp.valueOf(request.createdAfter()));
-        }
-        if (request.createdBefore() != null) {
-            where.append(" AND ai.creation_date_time <= ?");
-            params.add(Timestamp.valueOf(request.createdBefore()));
-        }
-        if (request.modifiedAfter() != null) {
-            where.append(" AND ai.last_change_date_time >= ?");
-            params.add(Timestamp.valueOf(request.modifiedAfter()));
-        }
-        if (request.modifiedBefore() != null) {
-            where.append(" AND ai.last_change_date_time <= ?");
-            params.add(Timestamp.valueOf(request.modifiedBefore()));
-        }
+        appendWhereConditions(request, where, params);
 
-        List<String> canonicalTypes = new ArrayList<>();
-        if (!CollectionUtils.isEmpty(request.itemTypes())) {
-            request.itemTypes().stream()
-                    .map(ItemTypeSql::normalizeType)
-                    .filter(Objects::nonNull)
-                    .distinct()
-                    .forEach(canonicalTypes::add);
+        List<String> canonicalTypes = resolveCanonicalTypes(request);
+        if (request.itemTypes() != null && !request.itemTypes().isEmpty()) {
             if (canonicalTypes.isEmpty()) {
                 // 全部类型名均不在白名单：无命中（与内存过滤口径一致）
                 where.append(" AND 1=0");
@@ -331,9 +308,107 @@ public class MetadataExportService {
                 "LEFT JOIN " + t("registration_authority") + " ra ON ra.id = ai.registration_authority_id " +
                 "LEFT JOIN " + t("stewardship_record") + " sr ON sr.id = ai.stewardship_record_id " +
                 where +
-                " ORDER BY ai.creation_date_time";
+                // 分页必须稳定序：creation_date_time 不唯一，追加 ai.id 作 tiebreaker
+                " ORDER BY ai.creation_date_time, ai.id" +
+                pagingClause(request, params);
 
         return new ExportQuery(sql, params);
+    }
+
+    /**
+     * 全量命中数 COUNT（与主查询共用 WHERE 组装），供分页时填充 totalCount。
+     */
+    ExportQuery buildCountQuery(MetadataExportRequest request) {
+        StringBuilder where = new StringBuilder(" WHERE 1=1 ");
+        List<Object> params = new ArrayList<>();
+        appendWhereConditions(request, where, params);
+
+        List<String> canonicalTypes = resolveCanonicalTypes(request);
+        if (request.itemTypes() != null && !request.itemTypes().isEmpty()) {
+            if (canonicalTypes.isEmpty()) {
+                where.append(" AND 1=0");
+            } else {
+                StringBuilder typeOr = new StringBuilder();
+                for (String type : canonicalTypes) {
+                    if (!typeOr.isEmpty()) {
+                        typeOr.append(" OR ");
+                    }
+                    typeOr.append(ItemTypeSql.itemTypeExistsClause(env, type));
+                }
+                where.append(" AND (").append(typeOr).append(")");
+            }
+        }
+
+        String sql = "SELECT COUNT(*) " +
+                "FROM " + t("administered_item") + " ai " +
+                "JOIN " + t("registered_item") + " ri ON ri.id = ai.id " +
+                "JOIN " + t("item") + " i ON i.id = ri.item_id " +
+                "LEFT JOIN " + t("registration_state") + " rs ON rs.id = ai.registration_state_id " +
+                "LEFT JOIN " + t("registration_authority") + " ra ON ra.id = ai.registration_authority_id " +
+                "LEFT JOIN " + t("stewardship_record") + " sr ON sr.id = ai.stewardship_record_id " +
+                where;
+        return new ExportQuery(sql, params);
+    }
+
+    /** 通用过滤条件（状态/机构/时间窗），主查询与 COUNT 共用。 */
+    private void appendWhereConditions(MetadataExportRequest request, StringBuilder where, List<Object> params) {
+        if (request.registrationStatus() != null) {
+            where.append(" AND rs.registration_status = ?");
+            params.add(request.registrationStatus().name());
+        }
+        if (request.registrationAuthorityId() != null) {
+            where.append(" AND ai.registration_authority_id = ?");
+            params.add(env.toJdbcUuid(request.registrationAuthorityId()));
+        }
+        if (request.stewardshipOrganizationId() != null) {
+            where.append(" AND sr.organization_id = ?");
+            params.add(env.toJdbcUuid(request.stewardshipOrganizationId()));
+        }
+        if (request.createdAfter() != null) {
+            where.append(" AND ai.creation_date_time >= ?");
+            params.add(Timestamp.valueOf(request.createdAfter()));
+        }
+        if (request.createdBefore() != null) {
+            where.append(" AND ai.creation_date_time <= ?");
+            params.add(Timestamp.valueOf(request.createdBefore()));
+        }
+        if (request.modifiedAfter() != null) {
+            where.append(" AND ai.last_change_date_time >= ?");
+            params.add(Timestamp.valueOf(request.modifiedAfter()));
+        }
+        if (request.modifiedBefore() != null) {
+            where.append(" AND ai.last_change_date_time <= ?");
+            params.add(Timestamp.valueOf(request.modifiedBefore()));
+        }
+    }
+
+    private List<String> resolveCanonicalTypes(MetadataExportRequest request) {
+        List<String> canonicalTypes = new ArrayList<>();
+        if (!CollectionUtils.isEmpty(request.itemTypes())) {
+            request.itemTypes().stream()
+                    .map(ItemTypeSql::normalizeType)
+                    .filter(Objects::nonNull)
+                    .distinct()
+                    .forEach(canonicalTypes::add);
+        }
+        return canonicalTypes;
+    }
+
+    /** 分页子句：SQL Server OFFSET/FETCH，其余方言 LIMIT/OFFSET；参数追加到查询参数尾。 */
+    private String pagingClause(MetadataExportRequest request, List<Object> params) {
+        if (!request.paged()) {
+            return "";
+        }
+        // page/size 已校验（page≤100000、size≤10000），offset 不会溢出 int
+        int offset = Math.toIntExact((long) request.page() * request.size());
+        if (env.vendor() == DatabaseVendor.SQLSERVER) {
+            params.add(offset);
+            params.add(request.size());
+            return " OFFSET ? ROWS FETCH NEXT ? ROWS ONLY";
+        }
+        params.add(request.size());
+        params.add(offset);
+        return " LIMIT ? OFFSET ?";
     }
 
     private Map<UUID, List<AdministeredItemExport.ScopedIdentifierExport>> queryIdentifiers(List<UUID> administeredIds) {

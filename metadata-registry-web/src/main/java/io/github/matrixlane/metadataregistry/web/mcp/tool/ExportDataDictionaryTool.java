@@ -39,7 +39,9 @@ public class ExportDataDictionaryTool implements McpTool {
     @Override
     public String description() {
         return "按过滤条件导出注册元数据为 JSON 或 CSV 文本（可选：注册状态、注册机构、条目类型、字段白名单）。"
-                + "format 仅允许 json / csv。";
+                + "format 仅允许 json / csv。"
+                + "大结果集建议分批：传 page（从 0 起）与 size（1-1000），"
+                + "此时 JSON 的 exportMetadata.totalCount 为全量命中数，据此循环翻页。";
     }
 
     @Override
@@ -49,7 +51,9 @@ public class ExportDataDictionaryTool implements McpTool {
                 "itemTypes", ToolSchemas.stringProp("条目类型过滤（英文逗号分隔，如 DataElement,ValueDomain）"),
                 "registrationStatus", ToolSchemas.stringProp("注册状态过滤（如 RECORDED,QUALIFIED）"),
                 "registrationAuthorityId", ToolSchemas.stringProp("注册机构 UUID"),
-                "fields", ToolSchemas.stringProp("字段白名单（逗号分隔，最多 50 个）")),
+                "fields", ToolSchemas.stringProp("字段白名单（逗号分隔，最多 50 个）"),
+                "page", ToolSchemas.integerProp("分页页码（从 0 起，与 size 同传生效；省略则不分页）", 0, 100_000),
+                "size", ToolSchemas.integerProp("分页大小（1-1000，与 page 同传生效；省略则不分页）", 1, 1_000)),
                 java.util.List.of("format"));
     }
 
@@ -64,7 +68,9 @@ public class ExportDataDictionaryTool implements McpTool {
                 ToolArguments.uuid(arguments, "registrationAuthorityId"),
                 null, null, null, null, null,
                 ToolArguments.stringList(arguments, "fields"),
-                ToolArguments.stringList(arguments, "itemTypes"));
+                ToolArguments.stringList(arguments, "itemTypes"),
+                ToolArguments.intArg(arguments, "page", 0, 100_000),
+                ToolArguments.intArg(arguments, "size", 1, 1_000));
         ByteArrayOutputStream output = new ByteArrayOutputStream();
         try {
             if (format.equals("json")) {

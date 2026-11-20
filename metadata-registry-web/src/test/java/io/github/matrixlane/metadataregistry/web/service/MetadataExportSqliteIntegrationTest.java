@@ -1,5 +1,7 @@
 package io.github.matrixlane.metadataregistry.web.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.matrixlane.metadataregistry.commonfacilities.registration.RegistrationStatus;
 import io.github.matrixlane.metadataregistry.web.dto.export.AdministeredItemExport;
 import io.github.matrixlane.metadataregistry.web.dto.export.MetadataExportRequest;
@@ -209,5 +211,37 @@ class MetadataExportSqliteIntegrationTest {
         assertThat(lines).hasSize(3); // header + 2 rows
         assertThat(lines[1]).contains("EXP-IT-001");
         assertThat(lines[1]).contains("集成测试值域甲");
+    }
+
+    @Test
+    @DisplayName("分页导出：首页 size=1 只含 1 条，totalCount 为全量命中数 2")
+    void export_paged_firstPage_returnsSliceWithFullTotalCount() throws Exception {
+        MetadataExportRequest request = new MetadataExportRequest(
+                null, null, null, null, null, null, null, null,
+                List.of("ValueDomain"), 0, 1);
+
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        exportService.exportJsonToStream(request, baos);
+
+        JsonNode root = new ObjectMapper().readTree(baos.toString(StandardCharsets.UTF_8));
+        assertThat(root.get("exportMetadata").get("totalCount").asInt()).isEqualTo(2);
+        assertThat(root.get("items")).hasSize(1);
+        // 稳定序按 creation_date_time：首页为较早的条目 A
+        assertThat(root.get("items").get(0).get("itemLabel").asText()).isEqualTo("集成测试值域甲");
+    }
+
+    @Test
+    @DisplayName("分页导出：越界页 items 为空且 totalCount 不变")
+    void export_paged_outOfRangePage_returnsEmptyItems() throws Exception {
+        MetadataExportRequest request = new MetadataExportRequest(
+                null, null, null, null, null, null, null, null,
+                List.of("ValueDomain"), 5, 10);
+
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        exportService.exportJsonToStream(request, baos);
+
+        JsonNode root = new ObjectMapper().readTree(baos.toString(StandardCharsets.UTF_8));
+        assertThat(root.get("items")).isEmpty();
+        assertThat(root.get("exportMetadata").get("totalCount").asInt()).isEqualTo(2);
     }
 }

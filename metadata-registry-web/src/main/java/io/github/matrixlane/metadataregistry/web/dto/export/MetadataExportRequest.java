@@ -41,7 +41,13 @@ public record MetadataExportRequest(
 
         @Schema(description = "按Item类型过滤，如 DataElement, DataElementConcept, ObjectClass 等")
         @Size(max = 20, message = "类型筛选最多支持20个类型")
-        List<String> itemTypes
+        List<String> itemTypes,
+
+        @Schema(description = "分页页码（从 0 起，与 size 同传生效；不传则不分页）")
+        Integer page,
+
+        @Schema(description = "分页大小（1-10000，与 page 同传生效；不传则不分页）")
+        Integer size
 ) {
         public MetadataExportRequest {
                 if (fields != null) {
@@ -50,5 +56,37 @@ public record MetadataExportRequest(
                 if (itemTypes != null) {
                         itemTypes = List.copyOf(itemTypes);
                 }
+                if (page == null && size == null) {
+                        // 不分页：保持既有行为
+                } else if (page == null || size == null) {
+                        throw new IllegalArgumentException("page 与 size 必须同时提供或同时省略");
+                } else {
+                        if (page < 0) {
+                                throw new IllegalArgumentException("page 必须 >= 0，当前: " + page);
+                        }
+                        if (size < 1 || size > 10_000) {
+                                throw new IllegalArgumentException("size 必须在 1..10000 之间，当前: " + size);
+                        }
+                }
+        }
+
+        /** 不分页请求的便捷构造（等价于 page/size 均省略）。 */
+        public MetadataExportRequest(
+                        RegistrationStatus registrationStatus,
+                        UUID registrationAuthorityId,
+                        UUID stewardshipOrganizationId,
+                        LocalDateTime createdAfter,
+                        LocalDateTime createdBefore,
+                        LocalDateTime modifiedAfter,
+                        LocalDateTime modifiedBefore,
+                        List<String> fields,
+                        List<String> itemTypes) {
+                this(registrationStatus, registrationAuthorityId, stewardshipOrganizationId,
+                        createdAfter, createdBefore, modifiedAfter, modifiedBefore,
+                        fields, itemTypes, null, null);
+        }
+
+        public boolean paged() {
+                return page != null;
         }
 }

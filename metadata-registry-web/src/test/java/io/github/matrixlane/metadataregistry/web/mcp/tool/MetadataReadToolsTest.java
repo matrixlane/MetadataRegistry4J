@@ -15,6 +15,7 @@ import io.github.matrixlane.metadataregistry.web.service.RegistrationProcessLayo
 import io.github.matrixlane.metadataregistry.web.service.RegistrationProcessService;
 import io.github.matrixlane.metadataregistry.web.service.VersionHistoryService;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -127,6 +128,42 @@ class MetadataReadToolsTest {
         assertThatThrownBy(() -> exportTool.handle(Map.of("format", "xlsx")))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("format");
+    }
+
+    @Test
+    void export_schemaContainsPaginationProps() {
+        @SuppressWarnings("unchecked")
+        Map<String, Object> properties = (Map<String, Object>) exportTool.inputSchema().get("properties");
+        assertThat(properties).containsKeys("page", "size");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> size = (Map<String, Object>) properties.get("size");
+        assertThat(size).containsEntry("minimum", 1).containsEntry("maximum", 1000);
+    }
+
+    @Test
+    void export_shouldPassPaginationThrough() throws IOException {
+        doAnswer(invocation -> {
+            ByteArrayOutputStream out = invocation.getArgument(1);
+            out.write("{\"items\":[]}".getBytes());
+            return null;
+        }).when(exportService).exportJsonToStream(any(MetadataExportRequest.class), any(ByteArrayOutputStream.class));
+
+        exportTool.handle(Map.of("format", "json", "page", "1", "size", "100"));
+
+        ArgumentCaptor<MetadataExportRequest> captor = ArgumentCaptor.forClass(MetadataExportRequest.class);
+        verify(exportService).exportJsonToStream(captor.capture(), any(ByteArrayOutputStream.class));
+        assertThat(captor.getValue().page()).isEqualTo(1);
+        assertThat(captor.getValue().size()).isEqualTo(100);
+    }
+
+    @Test
+    void export_paginationOutOfRange_shouldReject() {
+        assertThatThrownBy(() -> exportTool.handle(Map.of("format", "json", "page", "-1")))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("page");
+        assertThatThrownBy(() -> exportTool.handle(Map.of("format", "json", "page", "0", "size", "1001")))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("size");
     }
 
     @Test

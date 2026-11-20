@@ -91,6 +91,24 @@ public final class ToolArguments {
         }
     }
 
+    /** 可空整数参数：缺省返回 null，存在时校验 [min, max] 区间，非法 → 422。 */
+    public static Integer intArg(Map<String, Object> args, String key, int min, int max) {
+        String value = str(args, key);
+        if (value == null) {
+            return null;
+        }
+        try {
+            int parsed = Integer.parseInt(value);
+            if (parsed < min || parsed > max) {
+                throw new BusinessException(ApiCodes.VALIDATION_FAILED,
+                        key + " 须在 [" + min + ", " + max + "] 内：" + parsed);
+            }
+            return parsed;
+        } catch (NumberFormatException e) {
+            throw new BusinessException(ApiCodes.VALIDATION_FAILED, key + " 不是合法整数：" + value);
+        }
+    }
+
     /** 单值枚举（大小写不敏感）；非法值 → 422。 */
     public static <E extends Enum<E>> E enumValue(Class<E> type, Map<String, Object> args, String key) {
         String value = str(args, key);
