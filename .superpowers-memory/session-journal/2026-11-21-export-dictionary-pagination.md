@@ -29,6 +29,25 @@ totalCount=2156；`page=21` → 56 条（末页）；`page=22` → 0 条且 tota
 - 图谱 `impact` 对 `queryExports` 等通用名解析失真（虚报 31 影响/CRITICAL），已按规则用
   文本搜索佐证真实调用方仅 REST 控制器与 MCP 工具。
 
+## 评审（code review）
+
+评审发现并全部处置：
+- MAJOR×1：REST 控制器直接绑定 MetadataExportRequest，page/size 经 record 构造器绑定对 REST
+  天然生效（实证），但同步 export() 分页 totalCount 取当页条数、与流式全量口径不一致，
+  shouldUseAsyncExport 对超 1 万匹配的 paged 请求误报异步。修复：export() 分页同取全量
+  totalCount、1 万守卫仅约束未分页、shouldUseAsyncExport 分页恒 false。
+- 既有 bug×1（评审期实机暴露，顺带修复）：AdministeredItemExport @JsonFilter("exportFilter")
+  在主 ObjectMapper 无 FilterProvider 时抛 InvalidDefinitionException，同步导出 POST 凡返回
+  实体列表必 500——本机库 11329 条超同步上限 1 万，该路径此前从未被实际命中故未暴露。
+  修复：JacksonFilterConfig 主 ObjectMapper 未知 filter id 静默忽略。
+- MINOR×2：COUNT 与主查询 FROM 链抽取 fromClause() 共用；intInRange 委托 intArg。
+- 产物同步：proposal/design/spec 如实声明 REST 分页能力（新增"同步导出路径分页语义一致"需求）；
+  tasks 追加第 5 节（5.1-5.4 全勾）。
+- 验证：单测 29（新增 export 分页 totalCount 打桩/异步阈值/COUNT+itemTypes）、
+  JacksonFilterConfigTest 1、REST 控制器 6、集成 6 全绿；实机 REST 三连验
+  （未分页小结果 200 totalCount=1 / paged POST 200 totalCount=2156 items=5 /
+  paged stream 200 totalCount=2156 items=100）。
+
 ## 遗留
 
 OpenSpec 变更 `export-dictionary-pagination` 待归档（等 continue-archive）。

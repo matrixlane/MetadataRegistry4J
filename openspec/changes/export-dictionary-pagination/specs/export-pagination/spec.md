@@ -19,6 +19,10 @@ Paging clauses SHALL be parameter-bound (no string interpolation of user input).
 
 For paginated JSON exports, `exportMetadata.totalCount` SHALL equal the total number of matching records (obtained via a COUNT query sharing the main query's WHERE assembly), so clients can determine when to stop paging. For unpaginated exports, `totalCount` SHALL remain the number of items in the result (current behavior). Out-of-range pages SHALL return an empty `items` array with the unchanged full `totalCount`.
 
+### Requirement: 同步导出路径分页语义一致（评审追加）
+
+The synchronous `export()` path, when paginated, SHALL report `totalCount` as the full match count (same as the streaming path), SHALL NOT apply the `MAX_SYNC_EXPORT_SIZE` guard to the page slice, and `shouldUseAsyncExport` SHALL return false for paginated requests. Unpaginated behavior SHALL remain unchanged (guard applies; async estimate as before).
+
 ### Requirement: MCP 工具透传分页
 
 The MCP tool `export-data-dictionary` SHALL accept optional `page` (integer, 0..100000) and `size` (integer, 1..1000) arguments and pass them to the export service. Absent arguments SHALL produce unpaged exports (current behavior).

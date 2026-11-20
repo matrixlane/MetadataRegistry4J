@@ -6,7 +6,8 @@ MCP 工具 `export-data-dictionary` 无分批能力：`MetadataExportService.que
 
 ## What Changes
 
-- `MetadataExportRequest` 追加可空 `Integer page`（从 0 起）与 `Integer size`：均为 null 不分页（REST 与既有 MCP 调用行为不变）；紧凑构造器校验 page ≥ 0、size 1..10000、两者同有同无。
+- `MetadataExportRequest` 追加可空 `Integer page`（从 0 起）与 `Integer size`：均为 null 不分页（既有调用行为不变）；紧凑构造器校验 page ≥ 0、size 1..10000、两者同有同无。
+- **REST 同步获得分页能力**（评审修正后的如实表述）：控制器直接绑定 `MetadataExportRequest`（POST `@RequestBody` + GET 查询参数构造器绑定），page/size 对 REST 天然生效；同步 `export()` 与流式 `exportJsonToStream` 分页时 **totalCount 同口径取全量命中数**，`shouldUseAsyncExport` 对分页请求恒 false（页切片 ≤10000 永不触异步阈值），`MAX_SYNC_EXPORT_SIZE` 守卫仅约束未分页请求。
 - `MetadataExportService.buildExportQuery`：ORDER BY 追加 `ai.id` tiebreaker（原 `creation_date_time` 不唯一，分页需稳定序）；分页时方言下推——SQL Server `OFFSET ? ROWS FETCH NEXT ? ROWS ONLY`，SQLite/达梦 `LIMIT ? OFFSET ?`。
 - 新增 `countExports(request)`（与主查询同 WHERE 的 COUNT），`exportJsonToStream` 在分页请求时以全量命中数填充 `exportMetadata.totalCount`，客户端据其判定终止；未分页维持现语义（= 本批条数）。
 - MCP 工具 `export-data-dictionary` schema 增加可选 `page`（0..100000）与 `size`（1..1000）并透传；description 补充分批用法。

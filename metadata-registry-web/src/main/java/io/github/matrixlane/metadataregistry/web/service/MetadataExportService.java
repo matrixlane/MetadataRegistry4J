@@ -109,22 +109,27 @@ public class MetadataExportService {
     public MetadataExportResult export(MetadataExportRequest request) {
         List<AdministeredItemExport> items = queryExports(request);
 
-        if (items.size() > MAX_SYNC_EXPORT_SIZE) {
+        if (!request.paged() && items.size() > MAX_SYNC_EXPORT_SIZE) {
             throw new IllegalArgumentException(
                     "同步导出结果超过最大限制 " + MAX_SYNC_EXPORT_SIZE + " 条，请缩小过滤条件或使用异步导出。" +
                     "当前匹配: " + items.size());
         }
 
+        // 分页时 totalCount 与流式路径同口径：全量命中数
+        int totalCount = request.paged() ? countExports(request) : items.size();
         return new MetadataExportResult(
-                buildMetadata(request, items.size()),
+                buildMetadata(request, totalCount),
                 items
         );
     }
 
     /**
-     * 判断是否应自动切换为异步导出
+     * 判断是否应自动切换为异步导出。分页请求的页切片最大 10000 条，恒不需要异步。
      */
     public boolean shouldUseAsyncExport(MetadataExportRequest request) {
+        if (request.paged()) {
+            return false;
+        }
         long estimated = estimateCount(request);
         return estimated > MAX_SYNC_EXPORT_SIZE;
     }
@@ -301,12 +306,7 @@ public class MetadataExportService {
                 "ai.change_description, " +
                 "ai.explanatory_comment, " +
                 "ai.origin " +
-                "FROM " + t("administered_item") + " ai " +
-                "JOIN " + t("registered_item") + " ri ON ri.id = ai.id " +
-                "JOIN " + t("item") + " i ON i.id = ri.item_id " +
-                "LEFT JOIN " + t("registration_state") + " rs ON rs.id = ai.registration_state_id " +
-                "LEFT JOIN " + t("registration_authority") + " ra ON ra.id = ai.registration_authority_id " +
-                "LEFT JOIN " + t("stewardship_record") + " sr ON sr.id = ai.stewardship_record_id " +
+                fromClause() +
                 where +
                 // 分页必须稳定序：creation_date_time 不唯一，追加 ai.id 作 tiebreaker
                 " ORDER BY ai.creation_date_time, ai.id" +
@@ -340,18 +340,22 @@ public class MetadataExportService {
         }
 
         String sql = "SELECT COUNT(*) " +
-                "FROM " + t("administered_item") + " ai " +
-                "JOIN " + t("registered_item") + " ri ON ri.id = ai.id " +
-                "JOIN " + t("item") + " i ON i.id = ri.item_id " +
-                "LEFT JOIN " + t("registration_state") + " rs ON rs.id = ai.registration_state_id " +
-                "LEFT JOIN " + t("registration_authority") + " ra ON ra.id = ai.registration_authority_id " +
-                "LEFT JOIN " + t("stewardship_record") + " sr ON sr.id = ai.stewardship_record_id " +
+                fromClause() +
                 where;
         return new ExportQuery(sql, params);
     }
 
-    /** 通用过滤条件（状态/机构/时间窗），主查询与 COUNT 共用。 */
-    private void appendWhereConditions(MetadataExportRequest request, StringBuilder where, List<Object> params) {
+    /** 导出主查询与 COUNT 共用的 FROM/JOIN 链（防两处漂移）。 */
+    private String fromClause() {
+        return "FROM " + t("administered_item") + " ai " +
+                "JOIN " + t("registered_item") + " ri ON ri.id = ai.id " +
+                "JOIN " + t("item") + " i ON i.id = ri.item_id " +
+                "LEFT JOIN " + t("registration_state") + " rs ON rs.id = ai.registration_state_id " +
+                "LEFT JOIN " + t("registration_authority") + " ra ON ra.id = ai.registration_authority_id " +
+                "LEFT JOIN " + t("stewardship_record") + " sr ON sr.id = ai.stewardship_record_id ";
+    }
+
+    /** 通用过滤条件（状态/机构/时间窗），主查询与 COUNT 共用。 */    private void appendWhereConditions(MetadataExportRequest request, StringBuilder where, List<Object> params) {
         if (request.registrationStatus() != null) {
             where.append(" AND rs.registration_status = ?");
             params.add(request.registrationStatus().name());

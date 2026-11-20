@@ -12,5 +12,5 @@
 
 ## 影响面（文本搜索核实）
 
-- `MetadataExportController`（REST，唯一另一调用方）不传新字段，行为不变。
-- 不改 `export()` 的 10000 条同步上限语义；不改 CSV/JSON 结构。
+- 调用方仅两处：REST `MetadataExportController` 与 MCP 工具。控制器直接绑定 `MetadataExportRequest`（POST `@RequestBody` / GET 查询参数构造器绑定），page/size 对 REST 天然生效——评审后将其纳入规格而非屏蔽：同步 `export()` 分页 totalCount 与流式同口径（全量命中数），`shouldUseAsyncExport` 分页恒 false，1 万条守卫仅约束未分页请求。
+- 不改未分页行为；CSV/JSON 结构不变。

@@ -75,20 +75,8 @@ public final class ToolArguments {
     }
 
     public static int intInRange(Map<String, Object> args, String key, int min, int max, int defaultValue) {
-        String value = str(args, key);
-        if (value == null) {
-            return defaultValue;
-        }
-        try {
-            int parsed = Integer.parseInt(value);
-            if (parsed < min || parsed > max) {
-                throw new BusinessException(ApiCodes.VALIDATION_FAILED,
-                        key + " 须在 [" + min + ", " + max + "] 内：" + parsed);
-            }
-            return parsed;
-        } catch (NumberFormatException e) {
-            throw new BusinessException(ApiCodes.VALIDATION_FAILED, key + " 不是合法整数：" + value);
-        }
+        Integer parsed = intArg(args, key, min, max);
+        return parsed == null ? defaultValue : parsed;
     }
 
     /** 可空整数参数：缺省返回 null，存在时校验 [min, max] 区间，非法 → 422。 */

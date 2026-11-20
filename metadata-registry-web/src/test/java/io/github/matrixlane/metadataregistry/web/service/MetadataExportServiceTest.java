@@ -484,6 +484,45 @@ class MetadataExportServiceTest {
         verify(jdbcTemplate, never()).queryForObject(anyString(), eq(Integer.class), any(Object[].class));
     }
 
+    @Test
+    @DisplayName("同步导出：分页时 totalCount 同流式口径取全量命中数，且不触发 1 万条上限")
+    void export_paged_totalCountFromCountQuery() {
+        stubMainQuery(List.of(sampleExportRow()));
+        stubNoIdentifierQuery();
+        stubNoSubmissionQuery();
+        when(jdbcTemplate.queryForObject(contains("COUNT"), eq(Integer.class), any(Object[].class)))
+                .thenReturn(20_000);
+
+        MetadataExportRequest pagedRequest = new MetadataExportRequest(
+                null, null, null, null, null, null, null, null, null, 0, 100);
+        MetadataExportResult result = exportService.export(pagedRequest);
+
+        assertThat(result.items()).hasSize(1);
+        assertThat(result.exportMetadata().totalCount()).isEqualTo(20_000);
+    }
+
+    @Test
+    @DisplayName("阈值判断：分页请求恒不需要异步（页切片最大 10000 条）")
+    void estimateCount_paged_shouldNeverRequireAsync() {
+        assertThat(exportService.shouldUseAsyncExport(new MetadataExportRequest(
+                null, null, null, null, null, null, null, null, null, 3, 1000))).isFalse();
+    }
+
+    @Test
+    @DisplayName("COUNT 查询：itemTypes 过滤与主查询同下推（EXISTS 子句一致）")
+    void buildCountQuery_typeFilter_matchesMainQuery() {
+        MetadataExportRequest request = new MetadataExportRequest(
+                null, null, null, null, null, null, null, null,
+                List.of("ValueDomain"), 0, 10);
+
+        MetadataExportService.ExportQuery query = exportService.buildCountQuery(request);
+
+        assertThat(query.sql()).contains("SELECT COUNT(*)");
+        assertThat(query.sql()).contains("FROM \"administered_item\" ai");
+        assertThat(query.sql()).contains("value_domain");
+        assertThat(query.sql()).doesNotContain("LIMIT ? OFFSET ?", "OFFSET ? ROWS", "ORDER BY");
+    }
+
     // =========================================================================
     // 辅助方法
     // =========================================================================

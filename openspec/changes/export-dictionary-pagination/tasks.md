@@ -25,3 +25,10 @@
 
 - [x] 4.1 `mvnw -pl metadata-registry-web test -Dtest='MetadataExport*,MetadataReadToolsTest,McpToolCatalogTest'` 全绿
 - [x] 4.2 实机抽查：MCP `export-data-dictionary`（page=0,size=100）返回 100 条且 totalCount=2156
+
+## 5. 评审修复（code review 追加）
+
+- [x] 5.1 MAJOR：REST 经 record 绑定天然获得分页，同步 export() 分页 totalCount 与流式同口径（全量命中数）；MAX_SYNC_EXPORT_SIZE 守卫仅约束未分页；shouldUseAsyncExport 分页恒 false
+- [x] 5.2 MINOR：COUNT 与主查询 FROM/JOIN 链抽取 fromClause() 共用；intInRange 委托 intArg
+- [x] 5.3 测试：export() 分页 totalCount 打桩、shouldUseAsyncExport 分页恒 false、COUNT+itemTypes 下推；单测 30 例
+- [x] 5.4 产物同步：proposal/design/spec 如实表述 REST 分页能力（新增"同步导出路径分页语义一致"需求）
