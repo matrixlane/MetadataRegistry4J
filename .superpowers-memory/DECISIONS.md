@@ -141,3 +141,19 @@ Reason: 标准引用编号笔误/漂移的两例按组1/组4 先例本地更正�
 Alternatives considered: 保持 NULL（用户否决——实表明确存在且名称对应）；重挂后保留旧编号槽记录（否决——与组1/组4 一致，决策文档留痕即可）。
 
 Impact: golden-new.db 两数据元 value_domain_id 重挂并重新生成脚本（data_element 段两行值变化）；活库补丁 relink_dangling_refs.sql（守卫+断言+单事务，幂等）已执行，应用前备份 metadata_registry-pre-relink-20261029.bak；API 实测两数据元均显示新值域。幽灵编号 CV04.50.021/CV06.00.239 保持 0 行。文档同步：ws-standard-defects-solutions-2026-10-29.md C2/D3 状态更新。
+
+### Decision: 基准条目注册状态统一为 STANDARD（撤销 PREFERRED_STANDARD 统一裁决）
+- id: decision-2026-11-20-status-standard
+- type: decision
+- status: active
+- confidence: verified
+- last_updated: 2026-11-20
+- source: 用户 2026-11-20 指令："将所有状态为'首选标准'，改为'标准'"
+- owner: matrixlane
+- review_after: 2027-05-20
+
+Reason: 2026-10-23 会话日志记录"活库 STANDARD 10403 vs 基准 PREFERRED_STANDARD 10713 语义分歧待用户裁定"，当时基准按文档化裁决统一 PREFERRED_STANDARD。用户本次裁定：全部改为 STANDARD。PREFERRED_STANDARD（首选标准）保留给将来真正需要区分"多个标准中首选"的场景，WS 363/364 基准条目统一为 STANDARD（标准）。
+
+Alternatives considered: 维持 PREFERRED_STANDARD（用户明确否决）；只改值域（用户指"所有"，全量执行）。
+
+Impact: 四处库同步变更（各带 .bak-status-std-20261120 备份）：活库 ~/.metadata-registry/data/metadata-registry.db（10703 行，事务+断言，应用前备份 metadata-registry.db.bak-status-std-20261120-150450）；golden-new.db 与 data/metadata-registry.db 预置库各 10703 行；旧金库 ref.db 全部 11230 行。注册状态分布终态：STANDARD 11184 / RECORDED 1（DTS.WST.363.1）+ 运行期 CANDIDATE/INCOMPLETE 各 144（工作区草稿，不动）。生成链固化：transform_golden_v3.py（DTS 补建链常量+两处注释）、apply_errata_ref.py（close_administered 常量）改为 STANDARD；自 golden-new.db 重生成 10-main/20-derived/00-common/30-governance 双方言脚本，git diff 仅状态行+日期头。历史审计文档（ws-preface-reconciliation-audit 等）中 PREFERRED_STANDARD 表述为当时裁决快照，不回改。
